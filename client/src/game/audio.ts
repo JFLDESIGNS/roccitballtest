@@ -32,9 +32,9 @@ const CHEER_HOLD_SEC = 4;
 const CHEER_FADE_SEC = 1.5;
 const PANIC_HOLD_SEC = 3;
 const PANIC_FADE_SEC = 1;
-/** Rocket / glass stand reactions — quieter than goal cheer */
-const FAN_GLASS_CHEER_BASE = 0.22;
-const FAN_GLASS_PANIC_BASE = 0.38;
+/** Rocket / glass stand reactions — home cheer + away panic (3× louder than original) */
+const FAN_GLASS_CHEER_BASE = 0.66;
+const FAN_GLASS_PANIC_BASE = 1.14;
 const FAN_GLASS_CHEER_HOLD_SEC = 3;
 const FAN_GLASS_CHEER_FADE_SEC = 1;
 const GOAL_CHEER_VOLUME = 0.5;
@@ -42,8 +42,10 @@ const GOAL1_SAMPLE_BASE = 0.145;
 const SAMPLE_START_OFFSET_MIN_SEC = 0.3;
 /** Random crowd entry points span deep into long wav clips (sec) */
 const SAMPLE_START_OFFSET_MAX_SEC = 48;
-/** Hard cap on stand crowd / panic WebAudio gain */
+/** Hard cap on goal cheer / generic crowd WebAudio gain */
 const CROWD_PEAK_GAIN_CAP = 0.16;
+/** Higher cap for fan-glass hits so distance falloff can actually get loud up close */
+const FAN_GLASS_PEAK_GAIN_CAP = CROWD_PEAK_GAIN_CAP * 3;
 const GLASS_AUDIO_COOLDOWN_MS = 500;
 let lastGlassCrowdAudioAt = 0;
 /** Suppress surface bounce SFX right after a shot (avoids double-audio with shot.flac) */
@@ -229,13 +231,14 @@ function playTimedSample(
   assignTrack: (track: { source: AudioBufferSourceNode; gain: GainNode } | null) => void,
   getTrack: () => { source: AudioBufferSourceNode; gain: GainNode } | null,
   volumeMul = 1,
+  peakGainCap = CROWD_PEAK_GAIN_CAP,
 ): void {
   const ac = getCtx();
   if (!ac) return;
 
   const scaledPeak = Math.min(
     peak * Math.max(0, Math.min(1, volumeMul)),
-    CROWD_PEAK_GAIN_CAP,
+    peakGainCap,
   );
   if (scaledPeak < 0.0005) return;
 
@@ -243,7 +246,7 @@ function playTimedSample(
   if (prev) {
     const t = ac.currentTime;
     prev.gain.gain.cancelScheduledValues(t);
-    const current = Math.min(prev.gain.gain.value, CROWD_PEAK_GAIN_CAP);
+    const current = Math.min(prev.gain.gain.value, peakGainCap);
     prev.gain.gain.setValueAtTime(current, t);
     prev.gain.gain.linearRampToValueAtTime(0.001, t + 0.14);
     try {
@@ -355,6 +358,7 @@ export function playFanGlassPanic(volumeMul = 1): void {
     },
     () => panicTrack,
     volumeMul,
+    FAN_GLASS_PEAK_GAIN_CAP,
   );
 }
 
@@ -374,6 +378,7 @@ export function playFanGlassCheer(volumeMul = 1): void {
     },
     () => cheerTrack,
     volumeMul,
+    FAN_GLASS_PEAK_GAIN_CAP,
   );
 }
 
