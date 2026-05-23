@@ -10,6 +10,9 @@ import { SceneEnvironment } from './SceneEnvironment';
 import { ScenePostFX } from './ScenePostFX';
 import { tuningStore } from './tuningStore';
 import { Arena } from './Arena';
+import { CustomMapOverlay } from '../mapEditor/CustomMapOverlay';
+import { mapRegistryStore } from '../mapEditor/mapEditorStore';
+import { getHiddenStadiumPieces } from '../mapEditor/stadiumLayout';
 import { ArenaLighting } from './ArenaLighting';
 import { Ball, type BallHandle } from './Ball';
 import { BeamVisual } from './BeamVisual';
@@ -388,9 +391,21 @@ function Scene({
     }
   }, []);
 
+  const customMap = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapDocument(),
+  );
+  const stadiumHidden = customMap
+    ? getHiddenStadiumPieces(customMap.groups)
+    : { hiddenGoalIds: [] as string[], hiddenPillarIndices: [] as number[] };
+
   return (
     <>
-      <Arena />
+      <Arena
+        hiddenGoalIds={stadiumHidden.hiddenGoalIds}
+        hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
+      />
+      <CustomMapOverlay />
       <Ball
         ref={ballRef}
         onBotBallStrike={(actorId) => {

@@ -1,7 +1,7 @@
 import { BOT, MOVEMENT, ROCKET } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v5';
+const STORAGE_KEY = 'rocketball-tuning-v6';
 
 export type TuningValues = {
   jumpForce: number;
@@ -12,6 +12,8 @@ export type TuningValues = {
   ballKnockStrength: number;
   carryMomentumToShot: number;
   baseLaunchForce: number;
+  /** Vertical lift adjustment (m/s) added to player LMB shot — negative pulls down */
+  shortArc: number;
   swingToShot: number;
   moveSpeedToShot: number;
   releaseSwingMinSpeed: number;
@@ -84,17 +86,18 @@ const defaults: TuningValues = {
   rocketSpeed: ROCKET.speed,
   gravity: MOVEMENT.gravity,
   ballKnockStrength: 2.5,
-  carryMomentumToShot: 1,
-  baseLaunchForce: 0.82,
-  swingToShot: 1.05,
-  moveSpeedToShot: 0.75,
-  releaseSwingMinSpeed: 2.2,
-  releaseMomentumScale: 0.9,
-  releaseIdleSwingScale: 0.14,
-  releaseIdlePlayerScale: 0.06,
-  releaseIdleMaxSpeed: 2.5,
-  releaseMaxActiveSpeed: 58,
-  pullStrength: 0.864,
+  carryMomentumToShot: 1.35,
+  baseLaunchForce: 0.7,
+  shortArc: 10.3,
+  swingToShot: 1,
+  moveSpeedToShot: 0.4,
+  releaseSwingMinSpeed: 0.3,
+  releaseMomentumScale: 0.65,
+  releaseIdleSwingScale: 0.26,
+  releaseIdlePlayerScale: 0.16,
+  releaseIdleMaxSpeed: 3.8,
+  releaseMaxActiveSpeed: 22.5,
+  pullStrength: 1.35,
   masterVolume: 0.85,
   impactVolume: 0.45,
   shotVolume: 0.33,
@@ -197,6 +200,7 @@ export const tuningStore = {
   setBallKnockStrength: (v: number) => patch({ ballKnockStrength: v }),
   setCarryMomentumToShot: (v: number) => patch({ carryMomentumToShot: v }),
   setBaseLaunchForce: (v: number) => patch({ baseLaunchForce: v }),
+  setShortArc: (v: number) => patch({ shortArc: Math.max(-18, Math.min(18, v)) }),
   setSwingToShot: (v: number) => patch({ swingToShot: v }),
   setMoveSpeedToShot: (v: number) => patch({ moveSpeedToShot: v }),
   setReleaseSwingMinSpeed: (v: number) => patch({ releaseSwingMinSpeed: v }),

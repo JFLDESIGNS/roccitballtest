@@ -162,6 +162,15 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             format={(v) => `${Math.round(v * 100)}%`}
           />
           <SliderRow
+            label="Short arc (vertical lift)"
+            value={tune.shortArc}
+            min={-18}
+            max={18}
+            step={0.25}
+            onChange={tuningStore.setShortArc}
+            format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} m/s`}
+          />
+          <SliderRow
             label="Swing → shot"
             value={tune.swingToShot}
             min={0}

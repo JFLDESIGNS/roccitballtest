@@ -440,7 +440,13 @@ function isPointInHex(x: number, z: number, verts: THREE.Vector2[]): boolean {
   return inside;
 }
 
-export function Arena() {
+export function Arena({
+  hiddenGoalIds = [],
+  hiddenPillarIndices = [],
+}: {
+  hiddenGoalIds?: string[];
+  hiddenPillarIndices?: number[];
+} = {}) {
   const floorShape = useMemo(() => createHexShape(hexRadius), []);
   const floorGeo = useMemo(() => {
     const geo = new THREE.ExtrudeGeometry(floorShape, {
@@ -525,7 +531,7 @@ export function Arena() {
         ),
       )}
 
-      <ArenaCornerPillars />
+      <ArenaCornerPillars hiddenIndices={hiddenPillarIndices} />
 
       {/* Ceiling collider — stop ball / player flying out the top */}
       <RigidBody type="fixed" colliders={false} position={[0, wallHeight + ARENA.ceilingOverlapM + 0.12, 0]}>
@@ -545,7 +551,7 @@ export function Arena() {
 
       <GoalNetBackstop />
 
-      {ARENA_GOALS.map((g) => (
+      {ARENA_GOALS.filter((g) => !hiddenGoalIds.includes(g.id)).map((g) => (
         <GoalRing
           key={g.id}
           goalId={g.id}
@@ -555,7 +561,7 @@ export function Arena() {
           size={g.size}
         />
       ))}
-      {ARENA_GOALS.map((g) => (
+      {ARENA_GOALS.filter((g) => !hiddenGoalIds.includes(g.id)).map((g) => (
         <GoalScoringVolume key={`${g.id}-score`} goal={g} />
       ))}
     </group>

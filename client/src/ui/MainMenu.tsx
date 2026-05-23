@@ -10,7 +10,10 @@ import {
   setLocalProfile,
 } from '../game/playerRoster';
 import { getRocccitLogoUrl } from '../game/roccitLogo';
+import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
+import { mapEditorStore, mapRegistryStore } from '../mapEditor/mapEditorStore';
 import { HowToPlayContent } from './howToPlayContent';
+import '../mapEditor/mapEditor.css';
 
 const PROFILE_NAME_KEY = 'rocketball-player-name';
 const PROFILE_NUMBER_KEY = 'rocketball-player-number';
@@ -33,9 +36,10 @@ function loadSavedProfile(): { name: string; number: number } {
 
 type MainMenuProps = {
   onPlay: () => void;
+  onEditMap: () => void;
 };
 
-export function MainMenu({ onPlay }: MainMenuProps) {
+export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const saved = loadSavedProfile();
   const [playerName, setPlayerName] = useState(saved.name);
   const [jerseyNumber, setJerseyNumber] = useState(saved.number);
@@ -43,6 +47,14 @@ export function MainMenu({ onPlay }: MainMenuProps) {
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
+  );
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
+  const customMaps = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    mapRegistryStore.listSummaries,
   );
 
   useEffect(() => {
@@ -64,6 +76,12 @@ export function MainMenu({ onPlay }: MainMenuProps) {
     setLocalProfile(playerName, jerseyNumber);
     resumeAudio();
     onPlay();
+  };
+
+  const openEditor = () => {
+    commitProfile();
+    mapEditorStore.openEditor(activeMapId);
+    onEditMap();
   };
 
   return (
@@ -140,9 +158,27 @@ export function MainMenu({ onPlay }: MainMenuProps) {
               <span>Enable practice bots</span>
             </label>
 
+            <label className="menu-map-picker">
+              <span>Arena map</span>
+              <select
+                value={activeMapId}
+                onChange={(e) => mapRegistryStore.setActiveMapId(e.target.value)}
+              >
+                <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
+                {customMaps.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="main-menu-actions">
               <button type="button" className="btn-primary" onClick={enterArena}>
                 Enter Arena
+              </button>
+              <button type="button" className="btn-secondary" onClick={openEditor}>
+                Edit Map
               </button>
               <button
                 type="button"

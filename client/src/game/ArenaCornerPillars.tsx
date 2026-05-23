@@ -116,14 +116,16 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
   );
 }
 
-export function ArenaCornerPillars() {
+export function ArenaCornerPillars({ hiddenIndices = [] }: { hiddenIndices?: number[] } = {}) {
   const corners = useMemo(() => getArenaCornerPillarLayouts(), []);
 
   return (
     <group>
-      {corners.map((c) => (
-        <CornerPillar key={`${c.x}-${c.z}`} x={c.x} z={c.z} />
-      ))}
+      {corners.map((c, i) =>
+        hiddenIndices.includes(i) ? null : (
+          <CornerPillar key={`${c.x}-${c.z}`} x={c.x} z={c.z} />
+        ),
+      )}
     </group>
   );
 }

@@ -895,6 +895,9 @@ export function Player({
           },
           _launchVel.current,
         );
+        if (tune.shortArc !== 0) {
+          _launchVel.current.y += tune.shortArc;
+        }
         releaseBallWithVelocity(_launchVel.current);
         playBallLaunch();
         registerBeamDenyZone(

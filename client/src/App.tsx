@@ -4,28 +4,41 @@ import { GamePointerCapture } from './game/GamePointerCapture';
 import { HUD } from './game/HUD';
 import { MatchIntroSplash } from './game/MatchIntroSplash';
 import { gameStore } from './game/gameStore';
+import { MapEditor } from './mapEditor/MapEditor';
 import { MainMenu } from './ui/MainMenu';
 import { TuningMenu } from './ui/TuningMenu';
 import './App.css';
 
+type AppMode = 'menu' | 'game' | 'editor';
+
 function App() {
-  const [inGame, setInGame] = useState(false);
+  const [mode, setMode] = useState<AppMode>('menu');
 
   const startGame = () => {
     gameStore.startMatch();
-    setInGame(true);
+    setMode('game');
+  };
+
+  const startEditor = () => {
+    setMode('editor');
   };
 
   const exitGame = () => {
     document.exitPointerLock();
     gameStore.setPhase('menu');
-    setInGame(false);
+    setMode('menu');
+  };
+
+  const exitEditor = () => {
+    setMode('menu');
   };
 
   return (
     <div className="app">
-      {!inGame && <MainMenu onPlay={startGame} />}
-      {inGame && (
+      {mode === 'menu' && (
+        <MainMenu onPlay={startGame} onEditMap={startEditor} />
+      )}
+      {mode === 'game' && (
         <>
           <GameCanvas onExit={exitGame} />
           <GamePointerCapture />
@@ -34,6 +47,7 @@ function App() {
           <TuningMenu />
         </>
       )}
+      {mode === 'editor' && <MapEditor onExit={exitEditor} />}
     </div>
   );
 }
