@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOT, ROCKET } from '../shared/Constants';
+import { BEAM, BOT, ROCKET } from '../shared/Constants';
 import { getBotPressureScalars } from './botTuning';
 import { ARENA_GOALS } from './goals';
 import type { Team } from '../shared/Types';
@@ -69,10 +69,17 @@ export function pickRetaliationAimTarget(
   const leadT = horizSpd >= 2 ? flightSec * 0.88 : flightSec * 0.35;
   out.set(
     attackerChest.x + attackerVel.x * leadT,
-    attackerChest.y + attackerVel.y * leadT * 0.1 - BOT.retaliateAimDropM,
+    attackerChest.y + attackerVel.y * leadT * 0.82,
     attackerChest.z + attackerVel.z * leadT,
   );
-  out.y = Math.max(1.05, Math.min(out.y, 3.9));
+  if (attackerChest.y < BEAM.chestHeight + 1.4) {
+    out.y -= BOT.retaliateAimDropM;
+  }
+  out.y = THREE.MathUtils.clamp(
+    out.y,
+    attackerChest.y - 0.35,
+    attackerChest.y + 2.2,
+  );
   return out;
 }
 

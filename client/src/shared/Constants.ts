@@ -783,13 +783,13 @@ export const GOAL_RINGS = {
   /** Extra lift for middle ring only (feet); top ring stack position stays fixed */
   midRingExtraHeightFt: 3,
   /** Extra push toward center court for middle ring stack (feet) */
-  midRingExtraCourtOffsetFt: 2,
+  midRingExtraCourtOffsetFt: 4.5,
   /** Middle ring — standoff from wall toward center court (feet) */
-  midRingWallStandoffFt: 2.5,
+  midRingWallStandoffFt: 4,
   /** Extra push off the wall for middle ring glow + backplate (fixes clipping) */
-  midRingArenaOffsetM: 0.55,
+  midRingArenaOffsetM: 1.05,
   /** Middle ring black back — sits behind glow, still clear of wall */
-  midRingBackWallOffsetM: 0.85,
+  midRingBackWallOffsetM: 1.15,
   /** Middle ring hole cap — extra push toward wall on black ring (feet) */
   midRingCapWallOffsetFt: 1,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */

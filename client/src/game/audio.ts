@@ -359,14 +359,20 @@ function stopPanic(): void {
   panicTrack = null;
 }
 
+function fanGlassCrowdLevel(): number {
+  return Math.max(0, tuningStore.getState().fanGlassCrowdVolume);
+}
+
 /** Crowd panic when fan glass is hit — capped gain, debounced */
 export function playFanGlassPanic(volumeMul = 1): void {
   const now = performance.now();
   if (now - lastGlassCrowdAudioAt < GLASS_AUDIO_COOLDOWN_MS) return;
   lastGlassCrowdAudioAt = now;
+  const crowd = fanGlassCrowdLevel();
+  if (crowd < 0.001) return;
   playTimedSample(
     panicUrl,
-    sfxGain(FAN_GLASS_PANIC_BASE),
+    sfxGain(FAN_GLASS_PANIC_BASE * crowd),
     PANIC_HOLD_SEC,
     PANIC_FADE_SEC,
     true,
@@ -385,9 +391,11 @@ export function playFanGlassCheer(volumeMul = 1): void {
   const now = performance.now();
   if (now - lastGlassCrowdAudioAt < GLASS_AUDIO_COOLDOWN_MS) return;
   lastGlassCrowdAudioAt = now;
+  const crowd = fanGlassCrowdLevel();
+  if (crowd < 0.001) return;
   playTimedSample(
     cheerUrl,
-    sfxGain(FAN_GLASS_CHEER_BASE),
+    sfxGain(FAN_GLASS_CHEER_BASE * crowd),
     FAN_GLASS_CHEER_HOLD_SEC,
     FAN_GLASS_CHEER_FADE_SEC,
     true,

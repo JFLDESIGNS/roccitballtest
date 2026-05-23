@@ -404,6 +404,18 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             Short horn when a goal registers (default 55% — stacks with crowd cheer).
           </p>
           <SliderRow
+            label="Fan glass crowd (cheer / panic)"
+            value={tune.fanGlassCrowdVolume}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={tuningStore.setFanGlassCrowdVolume}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
+          <p className="tuning-sub">
+            Home cheer and away scare when rockets hit stand glass (saved in browser).
+          </p>
+          <SliderRow
             label="Hit reward ching"
             value={tune.chingVolume}
             min={0}

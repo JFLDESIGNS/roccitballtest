@@ -1,7 +1,7 @@
 import { BOT, MOVEMENT, ROCKET } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v4';
+const STORAGE_KEY = 'rocketball-tuning-v5';
 
 export type TuningValues = {
   jumpForce: number;
@@ -29,6 +29,8 @@ export type TuningValues = {
   chingVolume: number;
   /** Goal scored goal1.WAV sting (0–1, × internal base) */
   goal1Volume: number;
+  /** Fan glass cheer / away panic (0–1 multiplier on crowd SFX) */
+  fanGlassCrowdVolume: number;
   botPressure: number;
   /** Hold LMB bouncer rockets (off = tap/hold only explosive) */
   bouncyRocketsEnabled: boolean;
@@ -96,6 +98,7 @@ const defaults: TuningValues = {
   shotVolume: 0.33,
   chingVolume: 0.4,
   goal1Volume: 0.55,
+  fanGlassCrowdVolume: 0.3,
   botPressure: 0.25,
   bouncyRocketsEnabled: false,
   trampolineStrength: 3.5,
@@ -205,6 +208,8 @@ export const tuningStore = {
   setShotVolume: (v: number) => patch({ shotVolume: v }),
   setChingVolume: (v: number) => patch({ chingVolume: v }),
   setGoal1Volume: (v: number) => patch({ goal1Volume: v }),
+  setFanGlassCrowdVolume: (v: number) =>
+    patch({ fanGlassCrowdVolume: Math.max(0, Math.min(1, v)) }),
   setBotPressure: (v: number) =>
     patch({ botPressure: Math.max(0.25, Math.min(2, v)) }),
   setBouncyRocketsEnabled: (v: boolean) => patch({ bouncyRocketsEnabled: v }),
