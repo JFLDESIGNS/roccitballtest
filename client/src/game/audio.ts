@@ -32,9 +32,9 @@ const CHEER_HOLD_SEC = 4;
 const CHEER_FADE_SEC = 1.5;
 const PANIC_HOLD_SEC = 3;
 const PANIC_FADE_SEC = 1;
-/** Rocket / glass stand reactions — home cheer + away panic (3× louder than original) */
-const FAN_GLASS_CHEER_BASE = 0.66;
-const FAN_GLASS_PANIC_BASE = 1.14;
+/** Rocket / glass stand reactions — home cheer + away panic */
+const FAN_GLASS_CHEER_BASE = 1.98;
+const FAN_GLASS_PANIC_BASE = 3.42;
 const FAN_GLASS_CHEER_HOLD_SEC = 3;
 const FAN_GLASS_CHEER_FADE_SEC = 1;
 const GOAL_CHEER_VOLUME = 0.5;
@@ -138,6 +138,20 @@ export function crowdVolumeByDistanceM(distM: number): number {
   return crowdVolumeByDistanceFt(distM / FT);
 }
 
+/**
+ * Fan-glass cheer/panic — same distance bands as crowdVolumeByDistanceFt,
+ * scaled up with a far-distance floor so away-stand screams stay audible.
+ */
+export function fanGlassVolumeByDistanceFt(distFt: number): number {
+  const scaled = crowdVolumeByDistanceFt(distFt) * FAN_GLASS_VOLUME_MUL_MAX;
+  const floor = 0.2;
+  return Math.min(FAN_GLASS_VOLUME_MUL_MAX, Math.max(scaled, floor));
+}
+
+export function fanGlassVolumeByDistanceM(distM: number): number {
+  return fanGlassVolumeByDistanceFt(distM / FT);
+}
+
 function playSample(
   url: string,
   volume = 1,
@@ -232,12 +246,13 @@ function playTimedSample(
   getTrack: () => { source: AudioBufferSourceNode; gain: GainNode } | null,
   volumeMul = 1,
   peakGainCap = CROWD_PEAK_GAIN_CAP,
+  volumeMulMax = 1,
 ): void {
   const ac = getCtx();
   if (!ac) return;
 
   const scaledPeak = Math.min(
-    peak * Math.max(0, Math.min(1, volumeMul)),
+    peak * Math.max(0, Math.min(volumeMulMax, volumeMul)),
     peakGainCap,
   );
   if (scaledPeak < 0.0005) return;
@@ -359,6 +374,7 @@ export function playFanGlassPanic(volumeMul = 1): void {
     () => panicTrack,
     volumeMul,
     FAN_GLASS_PEAK_GAIN_CAP,
+    FAN_GLASS_VOLUME_MUL_MAX,
   );
 }
 
@@ -379,6 +395,7 @@ export function playFanGlassCheer(volumeMul = 1): void {
     () => cheerTrack,
     volumeMul,
     FAN_GLASS_PEAK_GAIN_CAP,
+    FAN_GLASS_VOLUME_MUL_MAX,
   );
 }
 

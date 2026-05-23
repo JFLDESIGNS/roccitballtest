@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import type { Team } from '../shared/Types';
 import { ARENA_PADS } from '../shared/Constants';
-import { playFanGlassCheer, playFanGlassPanic, crowdVolumeByDistanceM } from './audio';
+import {
+  fanGlassVolumeByDistanceM,
+  playFanGlassCheer,
+  playFanGlassPanic,
+} from './audio';
 import { gameStore } from './gameStore';
 
 export type FanGlassPanel = {
@@ -29,7 +33,7 @@ export function setFanGlassListenerPosition(x: number, y: number, z: number): vo
 
 function crowdVolumeForPanel(panel: FanGlassPanel): number {
   panel.box.getCenter(_panelCenter);
-  return crowdVolumeByDistanceM(_panelCenter.distanceTo(_listener));
+  return fanGlassVolumeByDistanceM(_panelCenter.distanceTo(_listener));
 }
 
 const bayGlassCelebrateUntilMs = new Map<string, number>();
@@ -102,7 +106,7 @@ export function triggerFanGlassHit(bayKey: string): void {
   );
   const panel = panels.find((p) => p.bayKey === bayKey);
   const localTeam = gameStore.getState().localTeam;
-  const volumeMul = panel ? crowdVolumeForPanel(panel) : 0.18 * 3;
+  const volumeMul = panel ? crowdVolumeForPanel(panel) : 0.6;
   if (panel && panel.homeTeam === localTeam) {
     playFanGlassCheer(volumeMul);
   } else {
