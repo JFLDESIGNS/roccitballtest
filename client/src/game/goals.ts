@@ -38,11 +38,7 @@ const FT = 0.3048;
 /** Push ring center off the end wall toward midfield (tier 0 = bottom, 2 = top). */
 export function goalRingWallStandoffM(tier: 0 | 1 | 2): number {
   if (tier === 2) return GOAL_RINGS.topRingWallStandoffFt * FT;
-  if (tier === 1) {
-    return (
-      (GOAL_RINGS.midRingWallStandoffFt + GOAL_RINGS.midRingExtraCourtOffsetFt) * FT
-    );
-  }
+  if (tier === 1) return 0;
   if (tier === 0) return GOAL_RINGS.bottomRingWallStandoffFt * FT;
   return 0;
 }
@@ -62,10 +58,6 @@ export function goalRingDisplayX(
   team: Team,
   size: GoalSize,
 ): number {
-  if (size === 'medium') {
-    const nudge = GOAL_RINGS.midRingArenaOffsetM;
-    return team === 'red' ? centerX + nudge : centerX - nudge;
-  }
   if (size === 'small') {
     const pullBack = GOAL_RINGS.topRingLitWallPullBackFt * FT;
     return team === 'red' ? centerX - pullBack : centerX + pullBack;
@@ -158,11 +150,9 @@ export function goalBackRingCenterX(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): number {
   const backOffset =
-    goal.size === 'medium'
-      ? GOAL_RINGS.midRingBackWallOffsetM
-      : goal.size === 'small'
-        ? GOAL_RINGS.topRingBackWallOffsetM
-        : GOAL_RINGS.backRingWallOffsetM;
+    goal.size === 'small'
+      ? GOAL_RINGS.topRingBackWallOffsetM
+      : GOAL_RINGS.backRingWallOffsetM;
   return goal.center.x + (goal.team === 'red' ? -backOffset : backOffset);
 }
 

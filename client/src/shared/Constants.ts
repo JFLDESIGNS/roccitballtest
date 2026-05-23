@@ -177,6 +177,8 @@ export const BOT = {
   allyBeamPullScale: 1.08,
   /** Red/blue enemy bots — beam pull on loose balls */
   enemyBeamPullScale: 0.88,
+  /** Seconds a bot must hold beam attract before socketing the ball */
+  beamCaptureLatchSec: 0.75,
   /** Teammate bot: only beam when ball is on/near the floor (not mid-air shots) */
   allyBeamMaxHeightAboveFloor: 3.8,
   allyBeamLowMaxHeight: 1.6,
@@ -782,14 +784,14 @@ export const GOAL_RINGS = {
   topRingExtraHeightFt: 3,
   /** Extra lift for middle ring only (feet); top ring stack position stays fixed */
   midRingExtraHeightFt: 3,
-  /** Extra push toward center court for middle ring stack (feet) */
-  midRingExtraCourtOffsetFt: 4.5,
-  /** Middle ring — standoff from wall toward center court (feet) */
-  midRingWallStandoffFt: 4,
-  /** Extra push off the wall for middle ring glow + backplate (fixes clipping) */
-  midRingArenaOffsetM: 1.05,
-  /** Middle ring black back — sits behind glow, still clear of wall */
-  midRingBackWallOffsetM: 1.15,
+  /** @deprecated middle ring uses bottomRingWallStandoffFt (same wall plane) */
+  midRingExtraCourtOffsetFt: 0,
+  /** @deprecated middle ring uses bottomRingWallStandoffFt */
+  midRingWallStandoffFt: 0,
+  /** @deprecated no extra lit-ring nudge — aligned with large/top stack */
+  midRingArenaOffsetM: 0,
+  /** @deprecated middle back ring uses backRingWallOffsetM */
+  midRingBackWallOffsetM: 0,
   /** Middle ring hole cap — extra push toward wall on black ring (feet) */
   midRingCapWallOffsetFt: 1,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */

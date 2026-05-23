@@ -859,6 +859,8 @@ function BotAvatar({
   const beamFrom = useRef(new THREE.Vector3());
   const beamTo = useRef(new THREE.Vector3());
   const holdLatchT = useRef(1);
+  /** Beam attract time before a bot can socket the ball */
+  const botBeamCaptureT = useRef(0);
   const holdSocketSmoothed = useRef(new THREE.Vector3());
   const holdSocketSmoothReady = useRef(false);
   const playerChaseState = useRef<PlayerChaseState>({
@@ -2445,7 +2447,9 @@ function BotAvatar({
         if (pull.pullWeight > 0) {
           recordBeamPull(bot.team, pull.pullWeight);
         }
+        botBeamCaptureT.current += dt;
         if (
+          botBeamCaptureT.current >= tune.botBeamCaptureLatchSec &&
           canCaptureWithContest(
             bot.team,
             pull.analysis,
@@ -2454,6 +2458,7 @@ function BotAvatar({
             chestDist,
           )
         ) {
+          botBeamCaptureT.current = 0;
           holdLatchT.current = 0;
           holdSocketSmoothed.current.copy(_ballPos);
           holdSocketSmoothReady.current = true;
@@ -2501,12 +2506,17 @@ function BotAvatar({
         } else if (pull.applied) {
           gameStore.setBallState('pulled');
         }
+      } else {
+        botBeamCaptureT.current = 0;
       }
-    } else if (energy.current < ENERGY.max) {
-      energy.current = Math.min(
-        ENERGY.max,
-        energy.current + ENERGY.regen * 0.85 * dt,
-      );
+    } else {
+      botBeamCaptureT.current = 0;
+      if (energy.current < ENERGY.max) {
+        energy.current = Math.min(
+          ENERGY.max,
+          energy.current + ENERGY.regen * 0.85 * dt,
+        );
+      }
     }
 
     botEnergyLevelsRef.current[bot.id] = energy.current;

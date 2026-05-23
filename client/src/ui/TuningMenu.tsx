@@ -288,6 +288,15 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setBotBeamPullScale}
           />
           <SliderRow
+            label="Bot beam capture latch"
+            value={tune.botBeamCaptureLatchSec}
+            min={0.1}
+            max={2}
+            step={0.05}
+            onChange={tuningStore.setBotBeamCaptureLatchSec}
+            format={(v) => `${v.toFixed(2)}s`}
+          />
+          <SliderRow
             label="Ally bot beam scale"
             value={tune.botAllyBeamScale}
             min={0.5}

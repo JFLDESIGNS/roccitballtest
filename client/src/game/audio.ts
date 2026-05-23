@@ -33,7 +33,7 @@ const CHEER_FADE_SEC = 1.5;
 const PANIC_HOLD_SEC = 3;
 const PANIC_FADE_SEC = 1;
 /** Rocket / glass stand reactions — home cheer + away panic */
-const FAN_GLASS_CHEER_BASE = 1.98;
+const FAN_GLASS_CHEER_BASE = 0.99;
 const FAN_GLASS_PANIC_BASE = 3.42;
 const FAN_GLASS_CHEER_HOLD_SEC = 3;
 const FAN_GLASS_CHEER_FADE_SEC = 1;
@@ -141,13 +141,14 @@ export function crowdVolumeByDistanceM(distM: number): number {
 }
 
 /**
- * Fan-glass cheer/panic — same distance bands as crowdVolumeByDistanceFt,
- * scaled up with a far-distance floor so away-stand screams stay audible.
+ * Fan-glass cheer/panic — louder when the listener is near the hit stand.
  */
 export function fanGlassVolumeByDistanceFt(distFt: number): number {
-  const scaled = crowdVolumeByDistanceFt(distFt) * FAN_GLASS_VOLUME_MUL_MAX;
-  const floor = 0.2;
-  return Math.min(FAN_GLASS_VOLUME_MUL_MAX, Math.max(scaled, floor));
+  if (distFt <= 14) return 1;
+  if (distFt <= 32) return 1 + ((0.42 - 1) * (distFt - 14)) / 18;
+  if (distFt <= 58) return 0.42 + ((0.12 - 0.42) * (distFt - 32)) / 26;
+  if (distFt <= 100) return 0.12 + ((0.03 - 0.12) * (distFt - 58)) / 42;
+  return 0.03;
 }
 
 export function fanGlassVolumeByDistanceM(distM: number): number {

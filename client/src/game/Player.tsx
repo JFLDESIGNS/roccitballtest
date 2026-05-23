@@ -153,6 +153,8 @@ export function Player({
   const holdingBall = useRef(false);
   const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
+  /** After rocket hit — no beam attract on player body */
+  const playerBeamDenyUntil = useRef(0);
   const ballSeparationGraceUntil = useRef(0);
   /** After LMB ball shot, beam stays off until RMB is released and pressed again */
   const beamNeedsRepress = useRef(false);
@@ -209,6 +211,56 @@ export function Player({
       onRocketBoostRef.current = null;
     };
   }, [onRocketBoostRef]);
+
+  const interruptBeamOnHit = useCallback(() => {
+    const now = performance.now() / 1000;
+    const dur = ROCKET.beamDenyDurationSec;
+    playerBeamDenyUntil.current = now + dur;
+    ballReleaseLockUntil.current = Math.max(ballReleaseLockUntil.current, now + dur);
+    setBeamAttractActive(false);
+
+    const body = bodyRef.current;
+    const ball = ballBodyRef.current;
+    let cx = chestPos.current.x;
+    let cy = chestPos.current.y;
+    let cz = chestPos.current.z;
+    if (body) {
+      const tr = body.translation();
+      cx = tr.x;
+      cy = tr.y + BEAM.chestHeight;
+      cz = tr.z;
+      chestPos.current.set(cx, cy, cz);
+    }
+    registerBeamDenyZone(cx, cy, cz, ROCKET.beamDenyRadius, dur);
+
+    const wasHolding =
+      holdingBall.current || gameStore.getState().ballHolderId === 'local';
+    if (wasHolding) {
+      holdingBall.current = false;
+      if (gameStore.getState().ballHolderId === 'local') {
+        gameStore.clearBallHolder();
+      }
+      gameStore.setBallState('loose');
+      onBallHeldChange(false);
+      onBeamBreak();
+      if (ball && body) {
+        releaseBallPhysics(ball);
+        const plv = body.linvel();
+        ball.setLinvel(
+          {
+            x: plv.x * 0.35,
+            y: Math.max(plv.y * 0.2, 1.5),
+            z: plv.z * 0.35,
+          },
+          true,
+        );
+      }
+      resetMomentumSamples(launchMomentumSamples.current, launchMomentumTimer);
+      resetMomentumSamples(ballSwingSamples.current, ballSwingTimer);
+      holdSocketReady.current = false;
+      holdLatchT.current = 0;
+    }
+  }, [ballBodyRef, onBallHeldChange, onBeamBreak]);
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -348,9 +400,11 @@ export function Player({
     if (knockTick === 'active') {
       if (!knockStunWasActive.current) {
         impulseKnockVisualTumble(knockTumble.current);
+        interruptBeamOnHit();
       }
       knockStunWasActive.current = true;
       tickKnockVisualTumble(knockTumble.current, dt);
+      setBeamAttractActive(false);
 
       const tr = body.translation();
       const pos = _posScratch.current.set(tr.x, tr.y, tr.z);
@@ -377,6 +431,16 @@ export function Player({
 
       const lv = body.linvel();
       chestPos.current.set(tr.x, tr.y + BEAM.chestHeight, tr.z);
+      const knockNow = performance.now() / 1000;
+      if (knockNow < playerBeamDenyUntil.current) {
+        registerBeamDenyZone(
+          chestPos.current.x,
+          chestPos.current.y,
+          chestPos.current.z,
+          ROCKET.beamDenyRadius,
+          playerBeamDenyUntil.current - knockNow,
+        );
+      }
       pivotRef.current.set(tr.x, tr.y + CAMERA.pivotHeight, tr.z);
       onPositionUpdate(pos, chestPos.current);
       updateThirdPersonCamera(
@@ -665,7 +729,27 @@ export function Player({
       draining.current = true;
     }
 
+    const now = performance.now() / 1000;
+    if (
+      holdingBall.current &&
+      gameStore.getState().ballHolderId !== 'local'
+    ) {
+      holdingBall.current = false;
+      holdSocketReady.current = false;
+      holdLatchT.current = 0;
+    }
+    if (now < playerBeamDenyUntil.current) {
+      registerBeamDenyZone(
+        chestPos.current.x,
+        chestPos.current.y,
+        chestPos.current.z,
+        ROCKET.beamDenyRadius,
+        playerBeamDenyUntil.current - now,
+      );
+    }
+
     const beamDenied =
+      now < playerBeamDenyUntil.current ||
       isBeamDenied(chestPos.current.x, chestPos.current.y, chestPos.current.z) ||
       (ballBodyRef.current &&
         isBeamDenied(
@@ -725,7 +809,6 @@ export function Player({
     gameStore.setIsSprinting(sprinting);
     gameStore.setIsBeaming(beamInput);
 
-    const now = performance.now() / 1000;
     const ballLooseCooldown = now >= ballReleaseLockUntil.current;
     const ball = ballBodyRef.current;
 

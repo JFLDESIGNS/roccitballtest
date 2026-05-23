@@ -37,6 +37,8 @@ export type TuningValues = {
   /** Trampoline launch multiplier (1 = ~20 ft apex) */
   trampolineStrength: number;
   botBeamPullScale: number;
+  /** Seconds bots must beam-pull before capturing the ball */
+  botBeamCaptureLatchSec: number;
   botAllyBeamScale: number;
   botEnemyBeamScale: number;
   botRocketAimErrorM: number;
@@ -103,6 +105,7 @@ const defaults: TuningValues = {
   bouncyRocketsEnabled: false,
   trampolineStrength: 3.5,
   botBeamPullScale: BOT.beamPullScale,
+  botBeamCaptureLatchSec: BOT.beamCaptureLatchSec,
   botAllyBeamScale: BOT.allyBeamPullScale,
   botEnemyBeamScale: BOT.enemyBeamPullScale,
   botRocketAimErrorM: BOT.rocketAimErrorM,
@@ -215,6 +218,8 @@ export const tuningStore = {
   setBouncyRocketsEnabled: (v: boolean) => patch({ bouncyRocketsEnabled: v }),
   setTrampolineStrength: (v: number) => patch({ trampolineStrength: v }),
   setBotBeamPullScale: (v: number) => patch({ botBeamPullScale: v }),
+  setBotBeamCaptureLatchSec: (v: number) =>
+    patch({ botBeamCaptureLatchSec: Math.max(0.1, Math.min(3, v)) }),
   setBotAllyBeamScale: (v: number) => patch({ botAllyBeamScale: v }),
   setBotEnemyBeamScale: (v: number) => patch({ botEnemyBeamScale: v }),
   setBotRocketAimErrorM: (v: number) => patch({ botRocketAimErrorM: v }),
