@@ -4,11 +4,28 @@ import * as THREE from 'three';
 import { BALL } from '../shared/Constants';
 
 /** Ball collider membership — group 1 */
-const BALL_LOOSE_COLLISION = interactionGroups(1, [0, 1, 2]);
-const BALL_HELD_COLLISION = interactionGroups(1, []);
+const BALL_LOOSE_COLLISION = interactionGroups(1, [0, 1, 2, 4]);
+/** After kickoff — skip ball-drop (group 4) briefly so the ball can fall out */
+const BALL_NO_DROP_COLLISION = interactionGroups(1, [0, 1, 2]);
+/** Held: collide with arena (group 2) only — not player/bots/ball */
+const BALL_HELD_COLLISION = interactionGroups(1, [2]);
 
-const _launch = new THREE.Vector3();
-const _swing = new THREE.Vector3();
+let ballDropGraceUntilMs = 0;
+
+export function armBallDropCollisionGrace(seconds = 3): void {
+  ballDropGraceUntilMs = performance.now() + seconds * 1000;
+}
+
+function ballDropGraceActive(): boolean {
+  return performance.now() < ballDropGraceUntilMs;
+}
+
+function looseBallCollisionGroups(): number {
+  return ballDropGraceActive()
+    ? BALL_NO_DROP_COLLISION
+    : BALL_LOOSE_COLLISION;
+}
+
 const _rollAxis = new THREE.Vector3();
 
 /** Toggle held vs loose without React remounting the collider (avoids grab hitch). */
@@ -17,49 +34,42 @@ export function setBallHeldCollider(body: RapierRigidBody, held: boolean): void 
   if (!collider) return;
   collider.setSensor(held);
   collider.setCollisionGroups(
-    held ? BALL_HELD_COLLISION : BALL_LOOSE_COLLISION,
+    held ? BALL_HELD_COLLISION : looseBallCollisionGroups(),
   );
+}
+
+/** Re-apply loose collision groups after kickoff grace window */
+export function syncBallLooseCollision(body: RapierRigidBody): void {
+  const collider = body.collider(0);
+  if (!collider) return;
+  collider.setSensor(false);
+  collider.setCollisionGroups(looseBallCollisionGroups());
 }
 
 export function wakeBallBody(body: RapierRigidBody): void {
   body.wakeUp();
 }
 
-/** Roll + sidespin from shot speed and carry swing (not zeroed on release). */
+/** Natural roll from horizontal launch speed (no swing sidespin). */
 export function computeBallReleaseSpin(
   launchVel: THREE.Vector3,
-  swingVel: THREE.Vector3,
 ): { x: number; y: number; z: number } {
-  const speed = launchVel.length();
-  if (speed < 1.2) return { x: 0, y: 0, z: 0 };
-
   const horiz = Math.hypot(launchVel.x, launchVel.z);
   if (horiz < 0.4) return { x: 0, y: 0, z: 0 };
 
-  const rollOmega =
-    (horiz / BALL.radius) * BALL.launchSpinScale * 0.85;
-  _rollAxis.set(launchVel.z, 0, -launchVel.x);
-  if (_rollAxis.lengthSq() > 1e-6) _rollAxis.normalize();
-
-  let wx = _rollAxis.x * rollOmega;
-  let wz = _rollAxis.z * rollOmega;
-  let wy = 0;
-
-  _swing.copy(swingVel);
-  const swingHoriz = Math.hypot(_swing.x, _swing.z);
-  if (swingHoriz > 0.35) {
-    _launch.set(launchVel.x, 0, launchVel.z).normalize();
-    const side = _swing.x * _launch.z - _launch.x * _swing.z;
-    wy = Math.sign(side || 1) * Math.min(7, swingHoriz * 0.45);
-  }
-
-  return { x: wx, y: wy, z: wz };
+  const rollOmega = (horiz / BALL.radius) * BALL.launchSpinScale;
+  _rollAxis.set(launchVel.z, 0, -launchVel.x).normalize();
+  return {
+    x: _rollAxis.x * rollOmega,
+    y: 0,
+    z: _rollAxis.z * rollOmega,
+  };
 }
 
 export function applyBallLaunchImpulse(
   body: RapierRigidBody,
   launchVel: THREE.Vector3,
-  swingVel: THREE.Vector3,
+  _swingVel?: THREE.Vector3,
 ): void {
   let x = launchVel.x;
   let y = launchVel.y;
@@ -73,8 +83,6 @@ export function applyBallLaunchImpulse(
   }
 
   body.setLinvel({ x, y, z }, true);
-  _launch.set(x, y, z);
-  const spin = computeBallReleaseSpin(_launch, swingVel);
-  body.setAngvel(spin, true);
+  body.setAngvel(computeBallReleaseSpin(launchVel), true);
   wakeBallBody(body);
 }

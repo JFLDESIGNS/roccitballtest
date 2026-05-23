@@ -1,31 +1,44 @@
-import { CuboidCollider, interactionGroups, RigidBody } from '@react-three/rapier';
+import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups, RigidBody } from '@react-three/rapier';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { ARENA, BALL, RENDER } from '../shared/Constants';
 import {
   ARENA_GOALS,
+  goalBackRingCenterX,
+  goalScoringCenter,
+  goalScoringCylinderParams,
+  GOAL_SCORING_CYLINDER_ROTATION,
   goalWallPositions,
   goalScoreHoleRadius,
+  buildTorusTrimesh,
   ringTiltX,
   ringTube,
   stackedRingCenters,
   teamGoalColor,
 } from './goals';
 import { GOAL_RINGS } from '../shared/Constants';
-import type { Team } from '../shared/Types';
+import type { GoalDef, GoalSize, Team } from '../shared/Types';
 import {
   buildHexWallSegments,
   createHexShape,
   hexCornerPositions,
   hexVertices,
+  isGoalHexEdge,
   isMidMapWallCorner,
 } from './arenaHex';
+import { SplitPerimeterWallWithFans } from './ArenaBillboardFans';
 import { ArenaCornerPillars } from './ArenaCornerPillars';
+import { ArenaCeilingStrip } from './ArenaCeilingStrip';
 import { BallDrop } from './BallDrop';
 import { OctagonPlatform } from './OctagonPlatform';
-import { ShootZones } from './ShootZones';
+import { RocccitLogoStamp } from './RocccitLogoStamp';
 import { BackWallEscapeZones } from './BackWallEscapeZones';
+import { GoalNetBackstop } from './GoalNetBackstop';
+import { ArenaInteractables } from './ArenaInteractables';
+import './arenaConcreteTexture';
+import { applyPlanarTileUVs } from './arenaConcreteTexture';
 import {
+  arenaBlackMetalMaterial,
   arenaCeilingMaterial,
   arenaFloorMaterial,
   arenaFloorTileMaterial,
@@ -59,7 +72,7 @@ function PerimeterWall({
     >
       <CuboidCollider
         args={[length / 2, h, t]}
-        friction={0.32}
+        friction={0.2}
         restitution={BALL.restitution}
         collisionGroups={interactionGroups(2, [0, 1, 2])}
       />
@@ -70,21 +83,165 @@ function PerimeterWall({
   );
 }
 
-function GoalRing({
+const GOAL_ENV_COLLISION = interactionGroups(2, [0, 1, 2]);
+const GOAL_RING_RESTITUTION = BALL.restitution * 0.92;
+const GOAL_RING_FRICTION = 0.42;
+
+/** Small cap puck behind the black ring — does not block the scoring hole */
+function GoalRingBackCapCollider({
+  capRadius,
+}: {
+  capRadius: number;
+}) {
+  return (
+    <CuboidCollider
+      args={[capRadius, capRadius, 0.05]}
+      friction={0.2}
+      restitution={0.82}
+      collisionGroups={GOAL_ENV_COLLISION}
+    />
+  );
+}
+
+/** Scoring slab in front of ring mesh / backplate — matches checkGoalScore volume */
+function GoalScoringVolume({
+  goal,
+}: {
+  goal: Pick<GoalDef, 'center' | 'team' | 'size' | 'ringRadius'>;
+}) {
+  const center = goalScoringCenter(goal);
+  const { radius, halfHeight } = goalScoringCylinderParams(goal);
+  const tiltX = ringTiltX(goal.team, goal.size);
+
+  return (
+    <RigidBody
+      type="fixed"
+      colliders={false}
+      position={[center.x, center.y, center.z]}
+    >
+      <group rotation={[0, Math.PI / 2, 0]}>
+        <group rotation={[tiltX, 0, 0]}>
+          <group rotation={GOAL_SCORING_CYLINDER_ROTATION}>
+            <CylinderCollider
+              sensor
+              args={[halfHeight, radius]}
+              collisionGroups={interactionGroups(2, [0, 1])}
+            />
+          </group>
+        </group>
+      </group>
+    </RigidBody>
+  );
+}
+
+/** Black backing ring + center cap behind the lit goal ring */
+function GoalRingBackplate({
+  goalId: _goalId,
   center,
   ringRadius,
   team,
   size,
 }: {
+  goalId: string;
   center: { x: number; y: number; z: number };
   ringRadius: number;
   team: Team;
-  size: import('../shared/Types').GoalSize;
+  size: GoalSize;
+}) {
+  const backRadius = ringRadius * GOAL_RINGS.backRingScale;
+  const tube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
+  const tiltX = ringTiltX(team, size);
+  const backX = goalBackRingCenterX({ center, team, size });
+  const skipBackCap = size === 'small';
+  const capRadius =
+    Math.max(backRadius - tube * 0.92, goalScoreHoleRadius(ringRadius, size) * 0.88) *
+    GOAL_RINGS.backRingCapScale;
+  const capColliderR = goalScoreHoleRadius(ringRadius, size) * 0.38;
+  const radial = GOAL_RINGS.torusRadialSegments;
+  const tubular = GOAL_RINGS.torusTubularSegments;
+
+  const torusGeo = useMemo(
+    () => new THREE.TorusGeometry(backRadius, tube, radial, tubular),
+    [backRadius, tube, radial, tubular],
+  );
+  const backTorusCollider = useMemo(
+    () => buildTorusTrimesh(backRadius, tube, radial, tubular),
+    [backRadius, tube, radial, tubular],
+  );
+  const capGeo = useMemo(
+    () => new THREE.CircleGeometry(capRadius, 32),
+    [capRadius],
+  );
+  const capMat = useMemo(() => {
+    const m = arenaBlackMetalMaterial.clone();
+    m.side = THREE.DoubleSide;
+    return m;
+  }, []);
+
+  const capNudgeScale = size === 'medium' ? 0.22 : 0.15;
+  const capArenaNudge =
+    (team === 'red' ? 1 : -1) * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+
+  return (
+    <RigidBody
+      type="fixed"
+      colliders={false}
+      position={[backX, center.y, center.z]}
+    >
+      <group rotation={[0, Math.PI / 2, 0]}>
+        <group rotation={[tiltX, 0, 0]}>
+          {!skipBackCap && (
+            <group position={[capArenaNudge, 0, 0]}>
+              <GoalRingBackCapCollider capRadius={capColliderR} />
+            </group>
+          )}
+          <group>
+            <TrimeshCollider
+              args={[backTorusCollider.vertices, backTorusCollider.indices]}
+              friction={GOAL_RING_FRICTION}
+              restitution={GOAL_RING_RESTITUTION}
+              collisionGroups={GOAL_ENV_COLLISION}
+            />
+            <mesh
+              geometry={torusGeo}
+              castShadow
+              receiveShadow
+              material={arenaBlackMetalMaterial}
+              renderOrder={0}
+            />
+            <mesh
+              geometry={capGeo}
+              castShadow
+              receiveShadow
+              material={capMat}
+              position={[capArenaNudge, 0, 0]}
+              rotation={[size === 'medium' ? 0.2 : 0, 0, 0]}
+              renderOrder={1}
+            />
+          </group>
+        </group>
+      </group>
+    </RigidBody>
+  );
+}
+
+function GoalRing({
+  goalId,
+  center,
+  ringRadius,
+  team,
+  size,
+}: {
+  goalId: string;
+  center: { x: number; y: number; z: number };
+  ringRadius: number;
+  team: Team;
+  size: GoalSize;
 }) {
   const color = teamGoalColor(team, size);
   const tube = ringTube(ringRadius);
   const glowTube = tube * GOAL_RINGS.glowTubeScale;
-  const scoreHalf = goalScoreHoleRadius(ringRadius);
+  const scoreHalf = goalScoreHoleRadius(ringRadius, size);
   const tiltX = ringTiltX(team, size);
   const radial = GOAL_RINGS.torusRadialSegments;
   const tubular = GOAL_RINGS.torusTubularSegments;
@@ -93,57 +250,75 @@ function GoalRing({
     () => new THREE.TorusGeometry(ringRadius, tube, radial, tubular),
     [ringRadius, tube, radial, tubular],
   );
+  const litTorusCollider = useMemo(
+    () => buildTorusTrimesh(ringRadius, tube, radial, tubular),
+    [ringRadius, tube, radial, tubular],
+  );
   const glowGeo = useMemo(
     () => new THREE.TorusGeometry(ringRadius, glowTube, 14, 28),
     [ringRadius, glowTube],
   );
 
   return (
-    <group position={[center.x, center.y, center.z]}>
-      <group rotation={[0, Math.PI / 2, 0]}>
-        <group rotation={[tiltX, 0, 0]}>
-          <mesh geometry={glowGeo}>
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={GOAL_RINGS.glowOpacity}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-          <mesh geometry={torusGeo} castShadow>
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={GOAL_RINGS.emissiveIntensity}
-              toneMapped={false}
-              metalness={0.15}
-              roughness={0.35}
-            />
-          </mesh>
-          <mesh>
-            <ringGeometry
-              args={[scoreHalf * 0.75, scoreHalf * 1.05, 16]}
-            />
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={0.5}
-              side={THREE.DoubleSide}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-          <CuboidCollider
-            sensor
-            args={[GOAL_RINGS.sensorDepth / 2, scoreHalf, scoreHalf]}
-            collisionGroups={interactionGroups(2)}
-          />
+    <>
+      <GoalRingBackplate
+        goalId={goalId}
+        center={center}
+        ringRadius={ringRadius}
+        team={team}
+        size={size}
+      />
+      <RigidBody
+        type="fixed"
+        colliders={false}
+        position={[center.x, center.y, center.z]}
+      >
+        <group rotation={[0, Math.PI / 2, 0]}>
+          <group rotation={[tiltX, 0, 0]}>
+            <group>
+              <TrimeshCollider
+                args={[litTorusCollider.vertices, litTorusCollider.indices]}
+                friction={GOAL_RING_FRICTION}
+                restitution={GOAL_RING_RESTITUTION}
+                collisionGroups={GOAL_ENV_COLLISION}
+              />
+              <mesh geometry={glowGeo} renderOrder={2}>
+                <meshBasicMaterial
+                  color={color}
+                  transparent
+                  opacity={GOAL_RINGS.glowOpacity}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+              <mesh geometry={torusGeo} castShadow renderOrder={3}>
+                <meshStandardMaterial
+                  color={color}
+                  emissive={color}
+                  emissiveIntensity={GOAL_RINGS.emissiveIntensity}
+                  toneMapped={false}
+                  metalness={0.15}
+                  roughness={0.35}
+                />
+              </mesh>
+              <mesh renderOrder={2}>
+                <ringGeometry args={[scoreHalf * 0.75, scoreHalf * 1.05, 16]} />
+                <meshBasicMaterial
+                  color={color}
+                  transparent
+                  opacity={0.5}
+                  side={THREE.DoubleSide}
+                  blending={THREE.AdditiveBlending}
+                  depthWrite={false}
+                  toneMapped={false}
+                />
+              </mesh>
+            </group>
+          </group>
         </group>
-      </group>
-    </group>
+      </RigidBody>
+    </>
   );
 }
 
@@ -205,7 +380,11 @@ function TeamHalfFloorTint() {
 
 function HexFloorTiles() {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const geo = useMemo(() => new THREE.CircleGeometry(2.1, 6), []);
+  const geo = useMemo(() => {
+    const g = new THREE.CircleGeometry(2.1, 6);
+    applyPlanarTileUVs(g);
+    return g;
+  }, []);
   const tileData = useMemo(() => {
     const step = RENDER.hexFloorTileStep;
     const limit = hexRadius - 4;
@@ -225,18 +404,14 @@ function HexFloorTiles() {
     const mesh = meshRef.current;
     if (!mesh) return;
     const dummy = new THREE.Object3D();
-    const colA = new THREE.Color('#3d4a5c');
-    const colB = new THREE.Color('#354050');
     for (let i = 0; i < tileData.length; i++) {
       const t = tileData[i];
       dummy.position.set(t.x, 0.03, t.z);
       dummy.rotation.set(-Math.PI / 2, 0, 0);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, t.even ? colA : colB);
     }
     mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [tileData]);
 
   return (
@@ -267,10 +442,14 @@ function isPointInHex(x: number, z: number, verts: THREE.Vector2[]): boolean {
 
 export function Arena() {
   const floorShape = useMemo(() => createHexShape(hexRadius), []);
-  const floorGeo = useMemo(
-    () => new THREE.ExtrudeGeometry(floorShape, { depth: 0.2, bevelEnabled: false }),
-    [floorShape],
-  );
+  const floorGeo = useMemo(() => {
+    const geo = new THREE.ExtrudeGeometry(floorShape, {
+      depth: 0.2,
+      bevelEnabled: false,
+    });
+    applyPlanarTileUVs(geo);
+    return geo;
+  }, [floorShape]);
   const wallSegments = useMemo(
     () => buildHexWallSegments(hexRadius, wallThickness),
     [],
@@ -301,6 +480,12 @@ export function Arena() {
       <HexFloorTiles />
 
       <OctagonPlatform />
+      <group
+        position={[0, ARENA.platformTopHeight + 0.04, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <RocccitLogoStamp size={16} maxWidth={18} maxHeight={9} />
+      </group>
       {cornerPlatforms.map((corner, i) => (
         <OctagonPlatform
           key={`corner-platform-${i}`}
@@ -314,44 +499,64 @@ export function Arena() {
         />
       ))}
       <BallDrop />
-      <ShootZones />
       <BackWallEscapeZones />
+      <ArenaInteractables />
 
-      {wallSegments.map((w, i) => (
-        <PerimeterWall
-          key={i}
-          x={w.x}
-          z={w.z}
-          y={w.y}
-          yaw={w.yaw}
-          length={w.length}
-        />
-      ))}
+      {wallSegments.map((w, i) =>
+        isGoalHexEdge(w.edgeIndex) ? (
+          <PerimeterWall
+            key={i}
+            x={w.x}
+            z={w.z}
+            y={w.y}
+            yaw={w.yaw}
+            length={w.length}
+          />
+        ) : (
+          <SplitPerimeterWallWithFans
+            key={i}
+            x={w.x}
+            z={w.z}
+            y={w.y}
+            yaw={w.yaw}
+            length={w.length}
+            edgeIndex={w.edgeIndex}
+          />
+        ),
+      )}
 
       <ArenaCornerPillars />
 
       {/* Ceiling collider — stop ball / player flying out the top */}
-      <RigidBody type="fixed" colliders={false} position={[0, wallHeight + 0.25, 0]}>
+      <RigidBody type="fixed" colliders={false} position={[0, wallHeight + ARENA.ceilingOverlapM + 0.12, 0]}>
         <CuboidCollider
           args={[hexRadius, 0.25, hexRadius]}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
       </RigidBody>
-      <mesh position={[0, wallHeight + 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, wallHeight + ARENA.ceilingOverlapM, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <shapeGeometry args={[floorShape]} />
         <primitive object={arenaCeilingMaterial} attach="material" />
       </mesh>
 
+      <ArenaCeilingStrip />
+
       <GoalWallAccentLights />
+
+      <GoalNetBackstop />
 
       {ARENA_GOALS.map((g) => (
         <GoalRing
           key={g.id}
+          goalId={g.id}
           center={g.center}
           ringRadius={g.ringRadius}
           team={g.team}
           size={g.size}
         />
+      ))}
+      {ARENA_GOALS.map((g) => (
+        <GoalScoringVolume key={`${g.id}-score`} goal={g} />
       ))}
     </group>
   );

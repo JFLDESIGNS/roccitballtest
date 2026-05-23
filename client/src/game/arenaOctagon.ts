@@ -67,7 +67,42 @@ export function buildOctagonPlatformBuffers(
     new THREE.Float32BufferAttribute(positions, 3),
   );
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
+  // Per-face normals so ramp panels read as flat facets (not smoothed ramps)
+  const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const normArray = new Float32Array(posAttr.count * 3);
+  for (let f = 0; f < indices.length; f += 3) {
+    const ia = indices[f];
+    const ib = indices[f + 1];
+    const ic = indices[f + 2];
+    const ax = positions[ia * 3];
+    const ay = positions[ia * 3 + 1];
+    const az = positions[ia * 3 + 2];
+    const bx = positions[ib * 3];
+    const by = positions[ib * 3 + 1];
+    const bz = positions[ib * 3 + 2];
+    const cx = positions[ic * 3];
+    const cy = positions[ic * 3 + 1];
+    const cz = positions[ic * 3 + 2];
+    const abx = bx - ax;
+    const aby = by - ay;
+    const abz = bz - az;
+    const acx = cx - ax;
+    const acy = cy - ay;
+    const acz = cz - az;
+    let nx = aby * acz - abz * acy;
+    let ny = abz * acx - abx * acz;
+    let nz = abx * acy - aby * acx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len;
+    ny /= len;
+    nz /= len;
+    for (const vi of [ia, ib, ic]) {
+      normArray[vi * 3] = nx;
+      normArray[vi * 3 + 1] = ny;
+      normArray[vi * 3 + 2] = nz;
+    }
+  }
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normArray, 3));
 
   return {
     geometry,

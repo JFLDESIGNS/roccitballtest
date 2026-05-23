@@ -1,6 +1,14 @@
 import * as THREE from 'three';
-import { AIM, BALL, BALL_SPAWN, CAMERA, TEAM_SPAWN } from '../shared/Constants';
-import type { ClientInput, Team } from '../shared/Types';
+import {
+  AIM,
+  BALL,
+  BALL_SPAWN,
+  CAMERA,
+  MOVEMENT,
+  TEAM_SPAWN,
+} from '../shared/Constants';
+import type { Team } from '../shared/Types';
+import { tuningStore } from './tuningStore';
 import { getLookDirection } from './CameraController';
 
 type Keys = Record<string, boolean>;
@@ -14,6 +22,8 @@ class InputManager {
   private fireQueued = false;
   private jumpQueued = false;
   private jumpBufferUntil = 0;
+  private lastForwardTapAt = 0;
+  private dashBoostQueued = false;
   private spawnBallQueued = false;
   private bound = false;
   private fireEdge = false;
@@ -29,8 +39,25 @@ class InputManager {
 
     const onKeyDown = (e: KeyboardEvent) => {
       this.keys[e.code] = true;
+      if (e.code === 'KeyW' && !e.repeat) {
+        const nowSec = performance.now() / 1000;
+        if (
+          this.lastForwardTapAt > 0 &&
+          nowSec - this.lastForwardTapAt <= MOVEMENT.dashDoubleTapWindowSec
+        ) {
+          this.dashBoostQueued = true;
+          this.lastForwardTapAt = 0;
+        } else {
+          this.lastForwardTapAt = nowSec;
+        }
+      }
       if (e.code === 'KeyE') this.throwQueued = true;
       if (e.code === 'KeyF') this.spawnBallQueued = true;
+      if (e.code === 'KeyG') {
+        import('./gameStore').then(({ gameStore }) =>
+          gameStore.toggleColliderDebug(),
+        );
+      }
       if (e.code === 'Digit1') {
         e.preventDefault();
         import('./tuningStore').then(({ tuningStore }) => tuningStore.toggleMenu());
@@ -82,13 +109,15 @@ class InputManager {
       this.pointerLocked = locked;
       if (locked) {
         this.lookWarmupUntil = performance.now() + CAMERA.lockWarmupMs;
-        if (this.mouseButtons.left) {
-          this.fireEdge = true;
-          this.fireQueued = true;
-        }
       }
       import('./gameStore').then(({ gameStore }) =>
         gameStore.setPointerLocked(locked),
+      );
+    };
+    const onPointerLockError = () => {
+      this.pointerLocked = false;
+      import('./gameStore').then(({ gameStore }) =>
+        gameStore.setPointerLocked(false),
       );
     };
 
@@ -101,6 +130,7 @@ class InputManager {
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('pointerlockchange', onPointerLockChange);
+    document.addEventListener('pointerlockerror', onPointerLockError);
   }
 
   private setFireDown(down: boolean) {
@@ -121,8 +151,9 @@ class InputManager {
     const mx = THREE.MathUtils.clamp(movementX, -cap, cap);
     const my = THREE.MathUtils.clamp(movementY, -cap, cap);
 
-    this.yaw -= mx * CAMERA.mouseSensitivityX;
-    this.aimPitch -= my * CAMERA.mouseSensitivityY;
+    const sens = tuningStore.getState().mouseSensitivity;
+    this.yaw -= mx * CAMERA.mouseSensitivityX * sens;
+    this.aimPitch -= my * CAMERA.mouseSensitivityY * sens;
     this.aimPitch = THREE.MathUtils.clamp(
       this.aimPitch,
       AIM.pitchMin,
@@ -133,8 +164,12 @@ class InputManager {
   /** Face toward center ball at match start */
   resetLookForTeam(team: Team) {
     const spawn = TEAM_SPAWN[team];
-    const dx = BALL_SPAWN.x - spawn.x;
-    const dz = BALL_SPAWN.z - spawn.z;
+    this.resetLookFromPosition(spawn.x, spawn.z);
+  }
+
+  resetLookFromPosition(fromX: number, fromZ: number) {
+    const dx = BALL_SPAWN.x - fromX;
+    const dz = BALL_SPAWN.z - fromZ;
     this.yaw = Math.atan2(-dx, -dz);
     this.aimPitch = AIM.defaultPitch;
   }
@@ -143,9 +178,32 @@ class InputManager {
     return this.pointerLocked;
   }
 
+  getCanvas(): HTMLElement | null {
+    return this.canvas;
+  }
+
+  /** Must run from a user gesture (click / pointerdown). */
   requestPointerLock(canvas?: HTMLElement) {
     const el = canvas ?? this.canvas;
-    if (el) el.requestPointerLock();
+    if (!el || document.pointerLockElement === el) return;
+
+    if (typeof (el as HTMLElement).focus === 'function') {
+      (el as HTMLElement).focus({ preventScroll: true });
+    }
+
+    try {
+      const promise = el.requestPointerLock({
+        unadjustedMovement: true,
+      });
+      void promise?.catch?.(() => {});
+    } catch {
+      try {
+        const promise = el.requestPointerLock();
+        void promise?.catch?.(() => {});
+      } catch {
+        /* blocked by browser, Game Bar overlay, etc. */
+      }
+    }
   }
 
   getMoveVector(): { x: number; y: number } {
@@ -192,6 +250,13 @@ class InputManager {
     return this.mouseButtons.left;
   }
 
+  flushFireInput(): void {
+    this.mouseButtons.left = false;
+    this.fireEdge = false;
+    this.fireReleaseEdge = false;
+    this.fireQueued = false;
+  }
+
   consumeSpawnBall(): boolean {
     if (!this.spawnBallQueued) return false;
     this.spawnBallQueued = false;
@@ -212,6 +277,12 @@ class InputManager {
     }
     this.jumpQueued = false;
     this.jumpBufferUntil = 0;
+    return true;
+  }
+
+  consumeDashBoost(): boolean {
+    if (!this.dashBoostQueued) return false;
+    this.dashBoostQueued = false;
     return true;
   }
 
@@ -237,22 +308,6 @@ class InputManager {
 
   getLookDirection(): THREE.Vector3 {
     return getLookDirection(this.yaw, this.aimPitch);
-  }
-
-  toClientInput(): ClientInput {
-    const move = this.getMoveVector();
-    const rot = this.getRotation();
-    return {
-      moveX: move.x,
-      moveY: move.y,
-      jump: false,
-      sprint: this.isSprint(),
-      fire: this.mouseButtons.left,
-      beam: this.isBeam(),
-      throwBall: false,
-      yaw: rot.yaw,
-      pitch: rot.pitch,
-    };
   }
 }
 

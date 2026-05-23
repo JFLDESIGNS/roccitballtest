@@ -52,16 +52,4 @@ export type GoalDef = {
   ringRadius: number;
 };
 
-export type ClientInput = {
-  moveX: number;
-  moveY: number;
-  jump: boolean;
-  sprint: boolean;
-  fire: boolean;
-  beam: boolean;
-  throwBall: boolean;
-  yaw: number;
-  pitch: number;
-};
-
 export type MatchScore = { red: number; blue: number };

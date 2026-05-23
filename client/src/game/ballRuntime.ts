@@ -1,100 +1,66 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import { ARENA, BALL } from '../shared/Constants';
-import {
-  clampToHex,
-  hexBoundaryNormal,
-  hexSlackToBoundary,
-} from './arenaHex';
+import { clampToHex, hexSlackToBoundary } from './arenaHex';
+import { gameStore } from './gameStore';
 
 const floorY = ARENA.floorY + BALL.radius + 0.06;
-const playRadius = ARENA.hexRadius - 1.2;
+/**
+ * Loose hex for the assist check — aligned near Rapier walls, not shrunk by ball radius.
+ * Smaller inset = assist volume only on real tunneling, not normal bounces.
+ */
+const playRadius = ARENA.hexRadius - 0.35;
+/** Must be this far past the boundary (m) before unstick — keeps "helping" rare */
+const wallPenetrationMin = BALL.radius + 1.25;
+const floorPenetrationMin = 0.22;
 
 /**
- * After Rapier step: light floor help + wall unstick only (never steal inbound shots).
+ * After Rapier step: rare unstick only. Wall bounces stay on Rapier materials.
  */
 export function stepBallPhysics(body: RapierRigidBody): void {
   applyBallFloorAssist(body);
-  applyBallWallBounceAssist(body);
+  applyBallWallUnstick(body);
   clampBallSpeed(body);
 }
 
-/** Soft floor — lighter bounce than Rapier material alone. */
+/** Snap only when the ball center sinks through the floor collider */
 export function applyBallFloorAssist(body: RapierRigidBody): void {
   const t = body.translation();
-  if (t.y >= floorY) return;
+  const depth = floorY - t.y;
+  if (depth < floorPenetrationMin) return;
+
+  gameStore.notifyBallBoundaryHelp();
+  body.setTranslation({ x: t.x, y: floorY, z: t.z }, true);
 
   const v = body.linvel();
-  const depth = floorY - t.y;
-  const horiz = Math.hypot(v.x, v.z);
-
-  if (depth > 0.35) {
-    body.setTranslation({ x: t.x, y: floorY, z: t.z }, true);
-  } else if (depth > 0.04 && horiz < 10) {
-    body.setTranslation({ x: t.x, y: floorY + depth * 0.2, z: t.z }, true);
-  }
-
-  if (v.y < 0) {
-    let bounce = Math.abs(v.y) * BALL.restitution;
-    if (horiz > 5) {
-      bounce = Math.max(bounce, 0.75);
-    }
-    bounce = Math.min(bounce, Math.max(horiz * 0.15, 3));
-    body.setLinvel({ x: v.x, y: bounce, z: v.z }, true);
+  if (v.y < -0.8) {
+    body.setLinvel(
+      {
+        x: v.x,
+        y: Math.min(Math.abs(v.y) * BALL.restitution, BALL.maxSpeed * 0.45),
+        z: v.z,
+      },
+      true,
+    );
   }
 }
 
 /**
- * Only when overlapping the hex or stuck on a wall at low speed.
- * Does NOT run on fast inbound shots still deep in the arena — Rapier owns that bounce.
+ * Nudge the ball back inside only on deep hex overlap (tunneling).
+ * Never re-reflect velocity — Rapier already handled the bounce.
  */
-export function applyBallWallBounceAssist(body: RapierRigidBody): void {
+export function applyBallWallUnstick(body: RapierRigidBody): void {
   const t = body.translation();
-  const v = body.linvel();
-  const horizSpd = Math.hypot(v.x, v.z);
-  if (horizSpd < 0.12) return;
-
   const slack = hexSlackToBoundary(t.x, t.z, playRadius);
-  const outside = slack < 0;
-  const nearWall = slack < 0.55;
+  if (slack >= -wallPenetrationMin) return;
 
-  if (!outside && !nearWall) return;
-  if (!outside && slack > 1.4) return;
+  gameStore.notifyBallBoundaryHelp();
+  const clamped = clampToHex(t.x, t.z, playRadius, 0.35);
+  body.setTranslation({ x: clamped.x, y: t.y, z: clamped.z }, true);
+}
 
-  const n = hexBoundaryNormal(t.x, t.z, playRadius);
-  const vn = v.x * n.x + v.z * n.y;
-
-  if (!outside) {
-    if (horizSpd > 10 && vn < -2) return;
-    if (vn > -0.5 && horizSpd > 3) return;
-  }
-
-  const rest = BALL.restitution;
-  let vx = v.x;
-  let vz = v.z;
-
-  if (vn < -0.25) {
-    vx -= (1 + rest) * vn * n.x;
-    vz -= (1 + rest) * vn * n.y;
-  }
-
-  let outDot = vx * n.x + vz * n.y;
-  const inbound = Math.max(horizSpd, Math.abs(vn));
-  const minOut = Math.max(
-    3.5,
-    inbound * rest * (outside ? 0.9 : 0.65),
-  );
-
-  if (outDot < minOut) {
-    vx += n.x * (minOut - outDot);
-    vz += n.y * (minOut - outDot);
-  }
-
-  if (outside || slack < 0.15) {
-    const clamped = clampToHex(t.x, t.z, playRadius, BALL.radius * 0.4);
-    body.setTranslation({ x: clamped.x, y: t.y, z: clamped.z }, true);
-  }
-
-  body.setLinvel({ x: vx, y: v.y, z: vz }, true);
+/** @deprecated use applyBallWallUnstick */
+export function applyBallWallBounceAssist(body: RapierRigidBody): void {
+  applyBallWallUnstick(body);
 }
 
 /** Keep rolls fast — only trim extreme outliers */

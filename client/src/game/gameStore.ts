@@ -4,7 +4,13 @@ import type { BallStateKind, GoalSize, MatchScore, Team } from '../shared/Types'
 
 export type BotId = 'bot-0' | 'bot-1' | 'bot-2';
 
-export type GamePhase = 'menu' | 'playing' | 'paused' | 'countdown';
+export type GamePhase =
+  | 'menu'
+  | 'intro'
+  | 'loading'
+  | 'playing'
+  | 'paused'
+  | 'countdown';
 
 export type BallHolderId = null | 'local' | 'bot-0' | 'bot-1' | 'bot-2';
 
@@ -22,6 +28,8 @@ type GameStoreState = {
   energyFlash: boolean;
   lastScorePopup: { points: number; team: Team } | null;
   countdown: number;
+  /** Map load-in timer (seconds remaining) */
+  loadCountdown: number;
   ballFrozen: boolean;
   pointerLocked: boolean;
   showScoreboard: boolean;
@@ -38,6 +46,20 @@ type GameStoreState = {
   lastScoringTeam: Team | null;
   botsEnabled: boolean;
   botEnergies: Record<BotId, number>;
+  /** Rapier collider wireframes — off by default, G to toggle */
+  showColliderDebug: boolean;
+  /** Debug: show "helping" badge until this timestamp (performance.now) */
+  ballBoundaryHelpUntil: number;
+  /** Kill-feed style callout (performance.now ms when it expires) */
+  announcement: { message: string; expiresAt: number } | null;
+  /** Consecutive mid-air hits by local player (display from 2+) */
+  ballCombo: number;
+  /** performance.now() — combo resets after BALL_COMBO_TIMEOUT_MS idle */
+  ballComboExpiresAt: number;
+  /** Block rockets + combat SFX until this timestamp (performance.now) */
+  combatGraceUntilMs: number;
+  /** Rocket knock tumble — no movement input until this time */
+  playerKnockStunUntilMs: number;
 };
 
 const listeners = new Set<() => void>();
@@ -54,6 +76,17 @@ function loadBotsEnabled(): boolean {
 
 let celebrationId = 0;
 
+function armCombatGrace(): void {
+  state = {
+    ...state,
+    combatGraceUntilMs: performance.now() + MATCH.combatGraceSec * 1000,
+  };
+}
+
+export function isCombatGraceActive(): boolean {
+  return performance.now() < state.combatGraceUntilMs;
+}
+
 let state: GameStoreState = {
   phase: 'menu',
   score: { red: 0, blue: 0 },
@@ -62,6 +95,7 @@ let state: GameStoreState = {
   energyFlash: false,
   lastScorePopup: null,
   countdown: 0,
+  loadCountdown: 0,
   ballFrozen: false,
   pointerLocked: false,
   showScoreboard: false,
@@ -77,6 +111,13 @@ let state: GameStoreState = {
   lastScoringTeam: null,
   botsEnabled: loadBotsEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
+  showColliderDebug: false,
+  ballBoundaryHelpUntil: 0,
+  announcement: null,
+  ballCombo: 0,
+  ballComboExpiresAt: 0,
+  combatGraceUntilMs: 0,
+  playerKnockStunUntilMs: 0,
 };
 
 function notify() {
@@ -114,17 +155,39 @@ export const gameStore = {
     clearBotTeamRelease();
     state = {
       ...state,
-      phase: 'countdown',
+      phase: 'intro',
       score: { red: 0, blue: 0 },
       timeLeft: MATCH.durationSec,
       energy: 100,
       lastScorePopup: null,
-      countdown: MATCH.startCountdownSec,
+      countdown: 0,
+      loadCountdown: 0,
       ballFrozen: true,
       ballHolderId: null,
       isHoldingBall: false,
       ballState: 'loose',
       botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
+      ballBoundaryHelpUntil: 0,
+      ballCombo: 0,
+      ballComboExpiresAt: 0,
+      playerKnockStunUntilMs: 0,
+    };
+    notify();
+  },
+  armPlayerKnockStun: (untilMs: number) => {
+    state = { ...state, playerKnockStunUntilMs: untilMs };
+    notify();
+  },
+  clearPlayerKnockStun: () => {
+    if (state.playerKnockStunUntilMs === 0) return;
+    state = { ...state, playerKnockStunUntilMs: 0 };
+    notify();
+  },
+  /** Flash top-left debug badge when ball boundary assist runs */
+  notifyBallBoundaryHelp: () => {
+    state = {
+      ...state,
+      ballBoundaryHelpUntil: performance.now() + 700,
     };
     notify();
   },
@@ -134,6 +197,10 @@ export const gameStore = {
   },
   setShowScoreboard: (show: boolean) => {
     state = { ...state, showScoreboard: show };
+    notify();
+  },
+  toggleColliderDebug: () => {
+    state = { ...state, showColliderDebug: !state.showColliderDebug };
     notify();
   },
   setEnergy: (energy: number, flash = false) => {
@@ -153,13 +220,35 @@ export const gameStore = {
       ...state,
       score: { ...state.score, [team]: state.score[team] + points },
       lastScorePopup: { points, team },
-      ballFrozen: true,
-      phase: 'countdown',
-      countdown: MATCH.resetCountdownSec,
       goalCelebration: goalPos
         ? { id: ++celebrationId, ...goalPos, team }
         : state.goalCelebration,
       lastScoringTeam: team,
+      ballCombo: 0,
+      ballComboExpiresAt: 0,
+    };
+    notify();
+  },
+  /** After goal celebration — HUD 3-2-1 only; play continues */
+  beginPostScoreKickoff: () => {
+    state = {
+      ...state,
+      phase: 'playing',
+      countdown: MATCH.resetCountdownSec,
+      ballFrozen: true,
+      ballHolderId: null,
+      isHoldingBall: false,
+    };
+    notify();
+  },
+  /** Goal / manual kickoff — ball waits in drop until flaps release it */
+  freezeBallForKickoff: () => {
+    state = {
+      ...state,
+      ballFrozen: true,
+      ballHolderId: null,
+      isHoldingBall: false,
+      ballState: 'loose',
     };
     notify();
   },
@@ -169,6 +258,44 @@ export const gameStore = {
   },
   setCountdown: (n: number) => {
     state = { ...state, countdown: n };
+    notify();
+  },
+  setLoadCountdown: (n: number) => {
+    state = { ...state, loadCountdown: n };
+    notify();
+  },
+  beginMapLoad: () => {
+    if (state.phase !== 'intro') return;
+    state = {
+      ...state,
+      phase: 'loading',
+      loadCountdown: MATCH.mapLoadSec,
+    };
+    notify();
+  },
+  finishMapLoad: () => {
+    armCombatGrace();
+    state = {
+      ...state,
+      phase: 'playing',
+      loadCountdown: 0,
+      countdown: MATCH.startCountdownSec,
+      ballFrozen: true,
+    };
+    notify();
+  },
+  /** F key / manual drop — 3-2-1 then flap release */
+  beginKickoffDrop: () => {
+    state = {
+      ...state,
+      phase: 'playing',
+      countdown: MATCH.resetCountdownSec,
+      ballFrozen: true,
+      ballHolderId: null,
+      isHoldingBall: false,
+      ballState: 'loose',
+      lastScorePopup: null,
+    };
     notify();
   },
   resumeAfterScore: () => {
@@ -181,6 +308,24 @@ export const gameStore = {
       ballHolderId: null,
       isHoldingBall: false,
     };
+    notify();
+  },
+  /** After 3-2-1 — play continues but ball stays in drop until flaps open */
+  resumeKickoffCountdown: () => {
+    state = {
+      ...state,
+      phase: 'playing',
+      countdown: 0,
+      lastScorePopup: null,
+      ballHolderId: null,
+      isHoldingBall: false,
+      ballFrozen: true,
+    };
+    notify();
+  },
+  releaseKickoffBall: () => {
+    if (!state.ballFrozen) return;
+    state = { ...state, ballFrozen: false };
     notify();
   },
   setBallState: (ballState: BallStateKind) => {
@@ -198,12 +343,36 @@ export const gameStore = {
   },
   setBallHolder: (holder: BallHolderId) => {
     if (!state.botsEnabled && isBotHolderId(holder)) return;
+    if (
+      holder !== null &&
+      state.ballHolderId !== null &&
+      state.ballHolderId !== holder
+    ) {
+      return;
+    }
+    const clearCombo = holder === 'local';
     state = {
       ...state,
       ballHolderId: holder,
       isHoldingBall: holder === 'local',
       ballState: holder ? 'held' : state.ballState === 'held' ? 'loose' : state.ballState,
+      ...(clearCombo ? { ballCombo: 0, ballComboExpiresAt: 0 } : {}),
     };
+    notify();
+  },
+  setBallCombo: (combo: number, expiresAt: number) => {
+    state = { ...state, ballCombo: combo, ballComboExpiresAt: expiresAt };
+    notify();
+  },
+  clearBallCombo: () => {
+    if (state.ballCombo === 0 && state.ballComboExpiresAt === 0) return;
+    state = { ...state, ballCombo: 0, ballComboExpiresAt: 0 };
+    notify();
+  },
+  tickBallComboExpiry: () => {
+    if (state.ballCombo <= 0) return;
+    if (performance.now() <= state.ballComboExpiresAt) return;
+    state = { ...state, ballCombo: 0, ballComboExpiresAt: 0 };
     notify();
   },
   clearBallHolder: () => {
@@ -240,6 +409,22 @@ export const gameStore = {
     const b = Math.round(ballSpeed * 10) / 10;
     if (state.playerSpeed === p && state.ballSpeed === b) return;
     state = { ...state, playerSpeed: p, ballSpeed: b };
+    notify();
+  },
+  postAnnouncement: (message: string, durationSec = 3.2) => {
+    state = {
+      ...state,
+      announcement: {
+        message,
+        expiresAt: performance.now() + durationSec * 1000,
+      },
+    };
+    notify();
+  },
+  clearExpiredAnnouncement: () => {
+    const a = state.announcement;
+    if (!a || performance.now() < a.expiresAt) return;
+    state = { ...state, announcement: null };
     notify();
   },
   setBotEnergies: (energies: Partial<Record<BotId, number>>) => {

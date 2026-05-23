@@ -1,6 +1,7 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BALL, BEAM, MOVEMENT } from '../shared/Constants';
+import { isBallPossessed } from './ballPossession';
 
 export type BallMotionState = 'slow' | 'rolling' | 'falling' | 'airborne';
 
@@ -46,6 +47,7 @@ export function canPlayerContactCapture(
   chestDist: number,
   analysis: BeamMotionAnalysis,
 ): boolean {
+  if (isBallPossessed()) return false;
   if (!isBeamTouchingPlayer(grabDist, chestDist)) return false;
   return analysis.speed <= BEAM.maxContactCaptureSpeed;
 }
@@ -183,6 +185,21 @@ export function applyBeamAttraction(
   dt: number,
   strengthScale = 1,
 ): BeamPullResult {
+  if (isBallPossessed()) {
+    const lv = ball.linvel();
+    return {
+      applied: false,
+      analysis: analyzeBallBeamMotion(
+        ballPos,
+        chestPos,
+        _vel.set(lv.x, lv.y, lv.z),
+        ball.angvel(),
+      ),
+      dist: ballPos.distanceTo(chestPos),
+      pullWeight: 0,
+    };
+  }
+
   let pullWeight = 0;
   _toPlayer.subVectors(chestPos, ballPos);
   const dist = _toPlayer.length();

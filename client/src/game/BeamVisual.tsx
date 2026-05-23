@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import * as THREE from 'three';
 import { BeamPullTrace } from './BeamPullTrace';
 import { beamTraceBallAnchor } from './beamPhysics';
+import type { Team } from '../shared/Types';
 
 type BeamVisualProps = {
   /** Lightning only while pulling a distant ball (not when already held) */
@@ -9,6 +10,7 @@ type BeamVisualProps = {
   chestPosition: () => THREE.Vector3 | null;
   ballPosition: () => THREE.Vector3 | null;
   lowEnergy: boolean;
+  team: Team;
 };
 
 export function BeamVisual({
@@ -16,6 +18,7 @@ export function BeamVisual({
   chestPosition,
   ballPosition,
   lowEnergy,
+  team,
 }: BeamVisualProps) {
   const traceEnd = useRef(new THREE.Vector3());
 
@@ -29,7 +32,7 @@ export function BeamVisual({
         if (!chest || !ball) return null;
         return beamTraceBallAnchor(ball, chest, traceEnd.current);
       }}
-      variant="player"
+      team={team}
       lowEnergy={lowEnergy}
     />
   );

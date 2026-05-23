@@ -1,6 +1,11 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { tuningStore } from './tuningStore';
 import { MATCH } from '../shared/Constants';
+import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { gameStore } from './gameStore';
+import { HudCrosshairEnergy } from './HudCrosshairEnergy';
+import { inputManager } from './InputManager';
+import { resumeAudio, warmAudio } from './audio';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -10,16 +15,43 @@ function formatTime(sec: number): string {
 
 export function HUD() {
   const state = useSyncExternalStore(gameStore.subscribe, gameStore.getState);
+  const bouncy = useSyncExternalStore(
+    tuningStore.subscribe,
+    () => tuningStore.getState().bouncyRocketsEnabled,
+  );
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      gameStore.clearExpiredAnnouncement();
+      gameStore.tickBallComboExpiry();
+    }, 200);
+    return () => window.clearInterval(id);
+  }, []);
 
   if (state.phase === 'menu') return null;
 
+  const comboActive =
+    state.ballCombo >= 2 && performance.now() <= state.ballComboExpiresAt;
+
   return (
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
+      <BallBoundaryHelpBadge />
       <div className="hud-top">
-        <div className="hud-score">
-          <span className="team-red">{state.score.red}</span>
-          <span className="hud-score-div">—</span>
-          <span className="team-blue">{state.score.blue}</span>
+        <div className="hud-top-center">
+          {state.announcement && performance.now() < state.announcement.expiresAt && (
+            <div className="hud-announcement">{state.announcement.message}</div>
+          )}
+          {comboActive && (
+            <div className="hud-combo" aria-live="polite">
+              <div className="hud-combo-label">Combo</div>
+              <div className="hud-combo-mult">x{state.ballCombo}</div>
+            </div>
+          )}
+          <div className="hud-score" aria-label="Match score">
+            <span className="team-red">{state.score.red}</span>
+            <span className="hud-score-div">—</span>
+            <span className="team-blue">{state.score.blue}</span>
+          </div>
         </div>
         <div className="hud-top-right">
           <div className="hud-timer">{formatTime(state.timeLeft)}</div>
@@ -55,14 +87,6 @@ export function HUD() {
         </div>
       </div>
 
-      <div className="hud-energy">
-        <div
-          className="hud-energy-fill"
-          style={{ width: `${state.energy}%` }}
-        />
-        <span className="hud-energy-label">YOU</span>
-      </div>
-
       {state.botsEnabled && (
         <div className="hud-bot-energies">
           {(['bot-0', 'bot-1', 'bot-2'] as const).map((id, i) => {
@@ -87,10 +111,30 @@ export function HUD() {
         </div>
       )}
 
-      <div className="hud-crosshair" />
+      <HudCrosshairEnergy
+        energy={state.energy}
+        lowEnergy={state.energy < 25}
+      />
 
       {!state.pointerLocked && state.phase === 'playing' && (
-        <div className="hud-hint">Click arena to capture mouse · LMB rocket · RMB beam · F spawn ball</div>
+        <div
+          className="hud-hint"
+          role="button"
+          tabIndex={0}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            if (tuningStore.getState().showMenu) return;
+            const canvas = document.querySelector<HTMLCanvasElement>(
+              '.game-canvas canvas',
+            );
+            if (!canvas) return;
+            resumeAudio();
+            warmAudio();
+            inputManager.requestPointerLock(canvas);
+          }}
+        >
+          Click arena to capture mouse · LMB rocket · RMB beam · F spawn ball
+        </div>
       )}
 
       {state.lastScorePopup && (
@@ -99,7 +143,14 @@ export function HUD() {
         </div>
       )}
 
-      {state.phase === 'countdown' && state.countdown > 0 && (
+      {state.phase === 'loading' && state.loadCountdown > 0 && (
+        <div className="hud-loading">
+          <span className="hud-loading-label">Loading arena</span>
+          <span className="hud-loading-time">{state.loadCountdown}</span>
+        </div>
+      )}
+
+      {state.phase === 'playing' && state.countdown > 0 && (
         <div className="hud-countdown">{state.countdown}</div>
       )}
 
@@ -112,7 +163,9 @@ export function HUD() {
       )}
 
       <div className="hud-controls">
-        <span>LMB Tap explosive / Hold bouncer</span>
+        <span>
+          {bouncy ? 'LMB Tap explosive / Hold bouncer' : 'LMB Explosive rockets'}
+        </span>
         <span>RMB Beam</span>
         <span>F Spawn ball</span>
         <span>1 Tuning</span>

@@ -1,155 +1,150 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Physics, type RapierRigidBody } from '@react-three/rapier';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useSyncExternalStore } from 'react';
 import { BALL, BEAM, BOT, MATCH, RENDER, ROCKET } from '../shared/Constants';
+import { ArenaAtmosphere } from './ArenaAtmosphere';
+import { graphicsStore } from './graphicsStore';
+import { SceneEnvironment } from './SceneEnvironment';
+import { ScenePostFX } from './ScenePostFX';
 import { tuningStore } from './tuningStore';
 import { Arena } from './Arena';
 import { ArenaLighting } from './ArenaLighting';
 import { Ball, type BallHandle } from './Ball';
-import { BallCarryVisual } from './BallCarryVisual';
 import { BeamVisual } from './BeamVisual';
-import { resetBeamContest } from './ballBeamContest';
 import { gameStore } from './gameStore';
+import { setFanGlassListenerPosition } from './fanGlassHit';
 import { inputManager } from './InputManager';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
-import { checkGoalScore } from './scoring';
+import {
+  goalScoreRuntime,
+  registerGoalScoreBotProvider,
+  tickGoalScoreRuntime,
+} from './goalScoreHandler';
 import type { ActiveRocket } from './rocketSystem';
 import {
+  applyDirectRocketToPlayer,
   applyExplosionToBall,
   applyExplosionToPlayer,
   type ExplosionHit,
 } from './explosions';
 import {
-  playGoalCelebration,
   playRocketExplosion,
   playRocketFire,
   resumeAudio,
+  stopMatchAudio,
   warmAudio,
 } from './audio';
 import {
   ExplosionSplashes,
   type ExplosionSplashesHandle,
 } from './ExplosionSplashes';
+import {
+  BotRagdollBurstFx,
+  type BotRagdollBurstHandle,
+} from './BotRagdollBurstFx';
 import { GoalFireworks } from './GoalFireworks';
 import { registerBeamDenyZone } from './beamDenyZones';
 import { BeamDenyZonesVisual } from './beamDenyZonesVisual';
 import {
   Bots,
+  botBallStrikeFromPlayer,
   botDirectRocketHit,
   botHitByExplosion,
   type BotId,
   type BotRuntime,
 } from './Bots';
 import { FallRecoveryMonitor } from './FallRecoveryMonitor';
+import { MatchIntroTimer } from './MatchIntroTimer';
+import { MapLoadTimer } from './MapLoadTimer';
+import { ArenaPadMonitor } from './ArenaPadMonitor';
+import {
+  announceBotDestroyed,
+  announceRocketPlayerHit,
+} from './announcements';
+import { setKickoffBallReleaseHandler } from './kickoffDrop';
 
 function MatchLoop({
   ballRef,
-  ballBodyRef,
-  rocketsRef,
   botsRef,
-  setHoldingBall,
-  playerChestRef,
-  onExplosion,
-  botTargets,
-  onBotDirectHit,
-  ballPos,
 }: {
   ballRef: React.RefObject<BallHandle | null>;
-  ballBodyRef: React.RefObject<RapierRigidBody | null>;
-  rocketsRef: React.MutableRefObject<ActiveRocket[]>;
   botsRef: React.MutableRefObject<BotRuntime[]>;
-  setHoldingBall: (v: boolean) => void;
-  playerChestRef: React.RefObject<THREE.Vector3>;
-  onExplosion: (hit: ExplosionHit) => void;
-  botTargets: () => { id: BotId; x: number; y: number; z: number }[];
-  onBotDirectHit: (botId: BotId, vx: number, vy: number, vz: number) => void;
-  ballPos: () => THREE.Vector3 | null;
 }) {
-  const scoreCooldown = useRef(0);
   const matchTimer = useRef(MATCH.durationSec);
   const countdownTimer = useRef(0);
   const countdownEntered = useRef(false);
+  const countdownParked = useRef(false);
+  const postScoreKickoffPending = useRef(false);
+
+  useEffect(() => {
+    registerGoalScoreBotProvider(() => botsRef.current);
+  }, [botsRef]);
 
   useFrame((_, dt) => {
+    tickGoalScoreRuntime(dt);
     const state = gameStore.getState();
+
+    if (state.phase === 'intro' || state.phase === 'loading') {
+      return;
+    }
 
     if (state.phase === 'playing') {
       matchTimer.current -= dt;
       gameStore.setTimeLeft(Math.max(0, Math.ceil(matchTimer.current)));
       if (matchTimer.current <= 0) gameStore.setPhase('paused');
-    }
 
-    if (state.phase === 'countdown') {
-      if (!countdownEntered.current) {
-        countdownEntered.current = true;
-        countdownTimer.current = state.countdown;
-        ballRef.current?.parkAtDrop();
+      if (goalScoreRuntime.postScoreDelaySec > 0) {
+        postScoreKickoffPending.current = true;
+      } else if (postScoreKickoffPending.current) {
+        postScoreKickoffPending.current = false;
+        gameStore.beginPostScoreKickoff();
       }
-      countdownTimer.current -= dt;
-      const display = Math.ceil(countdownTimer.current);
-      if (display > 0 && state.countdown !== display) {
-        gameStore.setCountdown(display);
-      }
-      if (countdownTimer.current <= 0) {
+
+      if (state.countdown > 0) {
+        if (!countdownEntered.current) {
+          countdownEntered.current = true;
+          countdownTimer.current = state.countdown;
+          if (state.ballFrozen && !countdownParked.current) {
+            countdownParked.current = true;
+            ballRef.current?.parkAtDrop();
+          }
+        }
+
+        countdownTimer.current -= dt;
+        const display = Math.ceil(countdownTimer.current);
+        if (display > 0 && state.countdown !== display) {
+          gameStore.setCountdown(display);
+        }
+        if (countdownTimer.current <= 0) {
+          countdownEntered.current = false;
+          countdownParked.current = false;
+          gameStore.setCountdown(0);
+        }
+      } else {
         countdownEntered.current = false;
-        ballRef.current?.reset();
-        gameStore.resumeAfterScore();
+        countdownParked.current = false;
       }
-      return;
     }
-
-    countdownEntered.current = false;
-
-    scoreCooldown.current -= dt;
-    if (scoreCooldown.current > 0 || state.ballFrozen) return;
-
-    const body = ballBodyRef.current;
-    if (!body) return;
-    const t = body.translation();
-    const hit = checkGoalScore({ x: t.x, y: t.y, z: t.z });
-    if (!hit) return;
-
-    scoreCooldown.current = MATCH.scorePauseSec + MATCH.resetCountdownSec + 1;
-    gameStore.addScore(hit.scoringTeam, hit.points, hit.goalPos);
-    playGoalCelebration();
-    setHoldingBall(false);
-    gameStore.clearBallHolder();
-    for (const b of botsRef.current) {
-      b.holdingBall = false;
-    }
-    resetBeamContest();
-    countdownTimer.current = MATCH.resetCountdownSec;
-    countdownEntered.current = false;
-    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    gameStore.setBallState('scored');
   });
 
-  return (
-    <Rockets
-      rocketsRef={rocketsRef}
-      onExplosion={onExplosion}
-      playerPos={() => playerChestRef.current}
-      botTargets={botTargets}
-      onBotDirectHit={onBotDirectHit}
-      ballPos={ballPos}
-    />
-  );
+  return null;
 }
 
-function Scene({ onExit }: { onExit: () => void }) {
+function Scene({
+  onExit,
+  rocketsRef,
+}: {
+  onExit: () => void;
+  rocketsRef: React.MutableRefObject<ActiveRocket[]>;
+}) {
   const ballRef = useRef<BallHandle>(null);
   const ballBodyRef = useRef<RapierRigidBody | null>(null);
-  const rocketsRef = useRef<ActiveRocket[]>([]);
-  const [holdingBall, setHoldingBall] = useState(false);
   const holdingBallRef = useRef(false);
   const splashFxRef = useRef<ExplosionSplashesHandle | null>(null);
-  const setHoldingBallSynced = useCallback((v: boolean) => {
-    holdingBallRef.current = v;
-    setHoldingBall(v);
-  }, []);
+  const botRagdollFxRef = useRef<BotRagdollBurstHandle | null>(null);
   const playerPosRef = useRef(new THREE.Vector3(0, 2, 24));
   const playerChestRef = useRef(new THREE.Vector3());
   const playerBodyRef = useRef<RapierRigidBody | null>(null);
@@ -165,15 +160,21 @@ function Scene({ onExit }: { onExit: () => void }) {
   );
   const ballSpawnCooldown = useRef(0);
   const botEnergySyncTimer = useRef(0);
+  const lastExplosionSfxAt = useRef(0);
   const { gl } = useThree();
   const beamLowEnergy = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().energy < 25,
   );
+  const localTeam = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().localTeam,
+  );
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
   );
+  const showBots = botsEnabled;
 
   useEffect(() => {
     ballBodyRef.current = ballRef.current?.getBody() ?? null;
@@ -184,29 +185,30 @@ function Scene({ onExit }: { onExit: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (!botsEnabled) {
+    setKickoffBallReleaseHandler(() => {
+      gameStore.releaseKickoffBall();
+      ballRef.current?.reset();
+    });
+    return () => setKickoffBallReleaseHandler(null);
+  }, []);
+
+  useEffect(() => {
+    if (!showBots) {
       botsRef.current = [];
     }
-  }, [botsEnabled]);
+  }, [showBots]);
 
   useEffect(() => {
     const canvas = gl.domElement;
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-label', 'Game arena');
+    canvas.style.outline = 'none';
     inputManager.bind(canvas);
     inputManager.resetLookForTeam(gameStore.getState().localTeam);
-
-    const tryLock = () => {
-      if (document.pointerLockElement !== canvas) {
-        inputManager.requestPointerLock(canvas);
-      }
-    };
-    tryLock();
-    const lockTimer = window.setTimeout(tryLock, 100);
-
-    return () => clearTimeout(lockTimer);
   }, [gl]);
 
   useFrame((_, dt) => {
-    if (botsEnabled) {
+    if (showBots) {
       botEnergySyncTimer.current -= dt;
       if (botEnergySyncTimer.current <= 0) {
         botEnergySyncTimer.current = 0.2;
@@ -216,6 +218,7 @@ function Scene({ onExit }: { onExit: () => void }) {
 
     if (inputManager.isEscape()) {
       document.exitPointerLock();
+      stopMatchAudio();
       onExit();
     }
 
@@ -237,13 +240,9 @@ function Scene({ onExit }: { onExit: () => void }) {
     if (phase !== 'playing' && phase !== 'countdown') return;
 
     ballSpawnCooldown.current = Math.max(0, ballSpawnCooldown.current - dt);
-    if (
-      inputManager.consumeSpawnBall() &&
-      ballSpawnCooldown.current <= 0 &&
-      !gameStore.getState().isHoldingBall &&
-      !gameStore.getState().ballFrozen
-    ) {
-      ballRef.current?.spawn();
+    if (inputManager.consumeSpawnBall() && ballSpawnCooldown.current <= 0) {
+      gameStore.beginKickoffDrop();
+      ballRef.current?.parkAtDrop();
       ballSpawnCooldown.current = BALL.spawnCooldownSec;
     }
   });
@@ -252,11 +251,17 @@ function Scene({ onExit }: { onExit: () => void }) {
     (pos: THREE.Vector3, chest: THREE.Vector3) => {
       playerPosRef.current.copy(pos);
       playerChestRef.current.copy(chest);
+      setFanGlassListenerPosition(pos.x, pos.y, pos.z);
     },
     [],
   );
 
+  const onPlayerBodyReady = useCallback((body: RapierRigidBody) => {
+    playerBodyRef.current = body;
+  }, []);
+
   const ballPosVec = useRef(new THREE.Vector3());
+  const ballVelVec = useRef(new THREE.Vector3());
   const ballPos = useCallback(() => {
     const b = ballBodyRef.current;
     if (!b) return null;
@@ -264,17 +269,60 @@ function Scene({ onExit }: { onExit: () => void }) {
     ballPosVec.current.set(t.x, t.y, t.z);
     return ballPosVec.current;
   }, []);
+  const ballVel = useCallback(() => {
+    const b = ballBodyRef.current;
+    if (!b) return null;
+    const lv = b.linvel();
+    ballVelVec.current.set(lv.x, lv.y, lv.z);
+    return ballVelVec.current;
+  }, []);
+
+  const handleBotRagdollBurst = useCallback(
+    (
+      anchor: { x: number; y: number; z: number },
+      follow: () => { x: number; y: number; z: number } | null,
+      team: 'red' | 'blue',
+    ) => {
+      /* Explosion splash stays at rocket impact (handleExplosion) — only electric follows ragdoll */
+      botRagdollFxRef.current?.spawn(
+        anchor.x,
+        anchor.y,
+        anchor.z,
+        team,
+        follow,
+      );
+    },
+    [],
+  );
 
   const pullActive = useCallback(() => {
     const s = gameStore.getState();
-    if (!s.isBeaming || s.phase !== 'playing' || s.ballHolderId !== null) return false;
+    if (
+      !s.isBeaming ||
+      s.phase !== 'playing' ||
+      s.ballHolderId !== null
+    ) {
+      return false;
+    }
     const ball = ballPos();
     if (!ball) return false;
     return playerChestRef.current.distanceTo(ball) < BEAM.range;
   }, [ballPos]);
 
   const handleExplosion = useCallback((hit: ExplosionHit) => {
-    playRocketExplosion(hit.radius);
+    const now = performance.now();
+    if (now - lastExplosionSfxAt.current > 70) {
+      lastExplosionSfxAt.current = now;
+      playRocketExplosion(
+        hit.radius,
+        { x: hit.x, y: hit.y, z: hit.z },
+        {
+          x: playerPosRef.current.x,
+          y: playerPosRef.current.y,
+          z: playerPosRef.current.z,
+        },
+      );
+    }
     splashFxRef.current?.spawn(hit.x, hit.y, hit.z, hit.radius);
     registerBeamDenyZone(hit.x, hit.y, hit.z, hit.radius);
 
@@ -299,7 +347,6 @@ function Scene({ onExit }: { onExit: () => void }) {
         )
       ) {
         holdingBallRef.current = false;
-        setHoldingBall(false);
         gameStore.clearBallHolder();
       }
     }
@@ -309,7 +356,6 @@ function Scene({ onExit }: { onExit: () => void }) {
       hit.y,
       hit.z,
       hit.radius,
-      ballBodyRef,
       hit.rocketVx,
       hit.rocketVy,
       hit.rocketVz,
@@ -344,57 +390,55 @@ function Scene({ onExit }: { onExit: () => void }) {
 
   return (
     <>
-      <color attach="background" args={['#1a2438']} />
-      <fog attach="fog" args={['#2a3850', 90, 240]} />
-
-      <ArenaLighting />
-
       <Arena />
-      <Ball ref={ballRef} />
-      {botsEnabled && (
+      <Ball
+        ref={ballRef}
+        onBotBallStrike={(actorId) => {
+          if (!showBots) return;
+          botBallStrikeFromPlayer(
+            botsRef.current,
+            actorId as BotId,
+            ballBodyRef,
+            botEnergyLevelsRef,
+          );
+        }}
+      />
+      {showBots && (
         <Bots
           botsRef={botsRef}
           ballBodyRef={ballBodyRef}
           playerChestRef={playerChestRef}
           playerBodyRef={playerBodyRef}
           botEnergyLevelsRef={botEnergyLevelsRef}
-          onRocketFired={(r) => {
-            playRocketFire(r.explosive);
-            const next = [...rocketsRef.current, r];
-            rocketsRef.current =
-              next.length > ROCKET.maxActive
-                ? next.slice(-ROCKET.maxActive)
-                : next;
-          }}
-        />
+          onBotRagdollBurst={handleBotRagdollBurst}
+        onRocketFired={(r) => {
+          playRocketFire(r.explosive);
+          rocketsRef.current = [r, ...rocketsRef.current].slice(
+            0,
+            ROCKET.maxActive,
+          );
+        }}
+      />
       )}
       <Player
         ballBodyRef={ballBodyRef}
+        canFireRocket={() => rocketsRef.current.length < ROCKET.maxActive}
         onRocketFired={(r) => {
-          playRocketFire(r.explosive);
-          const next = [...rocketsRef.current, r];
-          rocketsRef.current =
-            next.length > ROCKET.maxActive
-              ? next.slice(-ROCKET.maxActive)
-              : next;
+          rocketsRef.current = [r, ...rocketsRef.current].slice(
+            0,
+            ROCKET.maxActive,
+          );
         }}
         onBallHeldChange={(v) => {
-          setHoldingBallSynced(v);
-          if (v) gameStore.setBallHolder('local');
-          else if (gameStore.getState().ballHolderId === 'local') {
-            gameStore.clearBallHolder();
-          }
+          holdingBallRef.current = v;
+          holdingBallRef.current = v;
         }}
         onBeamBreak={() => {
-          setHoldingBallSynced(false);
-          if (gameStore.getState().ballHolderId === 'local') {
-            gameStore.clearBallHolder();
-          }
+          holdingBallRef.current = false;
+          holdingBallRef.current = false;
         }}
         onPositionUpdate={onPlayerPosition}
-        onPlayerBodyReady={(body) => {
-          playerBodyRef.current = body;
-        }}
+        onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
       />
       <BeamVisual
@@ -402,34 +446,29 @@ function Scene({ onExit }: { onExit: () => void }) {
         chestPosition={() => playerChestRef.current}
         ballPosition={ballPos}
         lowEnergy={beamLowEnergy}
-      />
-      <BallCarryVisual
-        active={holdingBall}
-        ballPosition={ballPos}
+        team={localTeam}
       />
       <ExplosionSplashes poolRef={splashFxRef} />
+      <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
       <GoalFireworks />
+      <ArenaPadMonitor ballBodyRef={ballBodyRef} />
       <FallRecoveryMonitor
         playerBodyRef={playerBodyRef}
         ballBodyRef={ballBodyRef}
         botsRef={botsRef}
         onRecoverPlayer={() => {
           holdingBallRef.current = false;
-          setHoldingBall(false);
+          holdingBallRef.current = false;
         }}
         onRecoverBall={() => gameStore.clearBallHolder()}
       />
-      <MatchLoop
-        ballRef={ballRef}
-        ballBodyRef={ballBodyRef}
+      <Rockets
         rocketsRef={rocketsRef}
-        botsRef={botsRef}
-        setHoldingBall={setHoldingBallSynced}
-        playerChestRef={playerChestRef}
-        ballPos={ballPos}
         onExplosion={handleExplosion}
+        playerPos={() => playerChestRef.current}
         botTargets={() => {
+          if (!showBots) return [];
           botHitScratch.current.length = 0;
           for (const bot of botsRef.current) {
             const b = bot.bodyRef.current;
@@ -444,23 +483,59 @@ function Scene({ onExit }: { onExit: () => void }) {
           }
           return botHitScratch.current;
         }}
-        onBotDirectHit={(botId, vx, vy, vz) => {
-          botDirectRocketHit(
+        onBotDirectHit={(botId, vx, vy, vz, ownerId) => {
+          if (!showBots) return;
+          const ragdolled = botDirectRocketHit(
             botsRef.current,
             botId,
             vx,
             vy,
             vz,
             ballBodyRef,
+            botEnergyLevelsRef,
+            ownerId,
           );
+          if (ragdolled) {
+            announceBotDestroyed('local', botId);
+          } else {
+            announceRocketPlayerHit('local', botId);
+          }
         }}
+        onPlayerDirectHit={(vx, vy, vz) => {
+          const player = playerBodyRef.current;
+          if (!player) return;
+          const { damage, rocketJump } = applyDirectRocketToPlayer(
+            player,
+            vx,
+            vy,
+            vz,
+          );
+          if (rocketJump) {
+            playerRocketBoostRef.current?.();
+          }
+          if (damage > 0) {
+            const e = Math.max(0, gameStore.getState().energy - damage);
+            gameStore.setEnergy(e, e <= 0);
+          }
+        }}
+        ballPos={ballPos}
+        ballVel={ballVel}
       />
+      <MatchLoop ballRef={ballRef} botsRef={botsRef} />
+      <MatchIntroTimer />
+      <MapLoadTimer />
     </>
   );
 }
 
 export function GameCanvas({ onExit }: { onExit: () => void }) {
   const tune = useSyncExternalStore(tuningStore.subscribe, tuningStore.getState);
+  const gfx = useSyncExternalStore(graphicsStore.subscribe, graphicsStore.getState);
+  const showColliderDebug = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().showColliderDebug,
+  );
+  const rocketsRef = useRef<ActiveRocket[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -469,19 +544,19 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
   }, []);
 
   const handleClick = () => {
-    resumeAudio();
-    warmAudio();
     if (tuningStore.getState().showMenu) return;
     const canvas = wrapRef.current?.querySelector('canvas');
-    if (canvas && document.pointerLockElement !== canvas) {
-      inputManager.requestPointerLock(canvas);
-    }
+    if (!canvas || document.pointerLockElement === canvas) return;
+    resumeAudio();
+    warmAudio();
+    inputManager.requestPointerLock(canvas);
   };
 
   return (
     <div ref={wrapRef} className="game-canvas" onClick={handleClick}>
       <Canvas
-        camera={{ fov: 60, near: 0.1, far: 400, position: [0, 5, 30] }}
+        style={{ background: '#1a2438' }}
+        camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
         dpr={[RENDER.dprMin, RENDER.dprMax]}
         gl={{
           antialias: RENDER.antialias,
@@ -489,19 +564,31 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
           alpha: false,
           stencil: false,
         }}
-        shadows={RENDER.enableShadows}
+        shadows={gfx.shadows}
         onCreated={({ gl }) => {
-          gl.toneMappingExposure = 1.22;
-          if (RENDER.enableShadows) {
+          gl.domElement.tabIndex = 0;
+          gl.domElement.style.outline = 'none';
+          gl.setClearColor('#5a7090', 1);
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = gfx.exposure;
+          if (gfx.shadows) {
             gl.shadowMap.type = THREE.PCFSoftShadowMap;
           }
         }}
       >
+        <SceneEnvironment />
+        <ArenaLighting />
+        <ArenaAtmosphere rocketsRef={rocketsRef} />
         <Suspense fallback={null}>
-          <Physics gravity={[0, tune.gravity, 0]} timeStep={1 / 60}>
-            <Scene onExit={onExit} />
+          <Physics
+            gravity={[0, tune.gravity, 0]}
+            timeStep={1 / 60}
+            debug={showColliderDebug}
+          >
+            <Scene onExit={onExit} rocketsRef={rocketsRef} />
           </Physics>
         </Suspense>
+        <ScenePostFX />
       </Canvas>
     </div>
   );

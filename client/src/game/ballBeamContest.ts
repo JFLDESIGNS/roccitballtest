@@ -5,6 +5,7 @@ import {
   type BeamMotionAnalysis,
   isBeamTouchingPlayer,
 } from './beamPhysics';
+import { isBallPossessed } from './ballPossession';
 
 const pulls = { red: 0, blue: 0 };
 
@@ -83,6 +84,8 @@ export function canCaptureWithContest(
   isBot: boolean,
   chestDist?: number,
 ): boolean {
+  if (isBallPossessed()) return false;
+
   if (chestDist !== undefined && isBeamTouchingPlayer(grabDist, chestDist)) {
     if (analysis.speed > BEAM.maxContactCaptureSpeed) return false;
     return true;

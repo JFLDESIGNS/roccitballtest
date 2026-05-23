@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ARENA, BALL, ROCKET } from '../shared/Constants';
 import { hexVertices } from './arenaHex';
 import type { ActiveRocket } from './rocketSystem';
+import { triggerArenaPillarShake } from './visualShake';
 
 const PILLAR_THICKNESS_SCALE = 3;
 
@@ -83,15 +84,23 @@ export function rocketSegmentHitsArenaPillar(
   to: THREE.Vector3,
   rocketRadius = 0.45,
 ): boolean {
+  return findArenaPillarSegmentHit(from, to, rocketRadius) !== null;
+}
+
+export function findArenaPillarSegmentHit(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  rocketRadius = 0.45,
+): { x: number; z: number } | null {
   const r = ARENA_PILLAR.colliderRadius + rocketRadius;
   const yMin = ARENA_PILLAR.floorY;
   const yMax = ARENA_PILLAR.floorY + ARENA_PILLAR.height;
   for (const p of getArenaCornerPillarLayouts()) {
     if (segmentHitsVerticalCylinder(from, to, p.x, p.z, r, yMin, yMax)) {
-      return true;
+      return { x: p.x, z: p.z };
     }
   }
-  return false;
+  return null;
 }
 
 function pushOutOfPillarXZ(
@@ -128,6 +137,8 @@ export function tryArenaPillarRocketBounce(
     ) {
       continue;
     }
+
+    triggerArenaPillarShake(p.x, p.z);
 
     pushOutOfPillarXZ(pos, p.x, p.z, hitR + 0.08);
 

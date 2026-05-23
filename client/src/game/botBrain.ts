@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ARENA, BALL, BOT } from '../shared/Constants';
 import type { BallHolderId, BotId } from './gameStore';
+import { getBotPressureScalars } from './botTuning';
 import { isInsideShootZone } from './botShootZone';
 import type { Team } from '../shared/Types';
 
@@ -12,7 +13,8 @@ export type BotFieldMode =
   | 'runToPlayer'
   | 'moveAndShoot'
   | 'allySupport'
-  | 'allyReceive';
+  | 'allyReceive'
+  | 'allyDunk';
 
 export type BotFarHoldAction = 'pass' | 'carry' | 'looseShoot';
 export type HoldReleaseKind = 'pass' | 'shoot' | 'loft';
@@ -77,6 +79,12 @@ export type BotThinkInput = {
   teammateReleaseKind?: 'pass' | 'shot' | null;
   /** True while waiting out a teammate's goal shot */
   waitForTeammateShot?: boolean;
+  /** Enemy + local carries — timed pause on player-targeted rockets only */
+  deferPlayerCarrierShot?: boolean;
+  /** Friendly carrier is in shoot zone or near the rim */
+  holderNearGoal?: boolean;
+  /** This bot is close enough to post for an alley-oop */
+  selfNearGoal?: boolean;
 };
 
 const _flank = new THREE.Vector3();
@@ -90,6 +98,86 @@ export function pickBotMode(input: BotThinkInput): BotMode {
 
 export function isPlayerChaseMode(mode: BotMode): boolean {
   return mode === 'runToPlayer' || mode === 'moveAndShoot';
+}
+
+/** Modes that chase or beam-grab the loose ball */
+export function isBallGrabMode(mode: BotMode): boolean {
+  return (
+    mode === 'runToBall' ||
+    mode === 'attractBall' ||
+    mode === 'allySupport'
+  );
+}
+
+/** Per-enemy-bot gate — periodic pause on shooting the ball carrier */
+export type EnemyPlayerCarrierShotGate = {
+  rerollSec: number;
+  pauseUntilSec: number;
+  wasLocalHolder: boolean;
+};
+
+const CARRIER_GATE_PHASE: Record<string, number> = {
+  'bot-0': 0.18,
+  'bot-1': 0.62,
+  'bot-2': 0.41,
+};
+
+export function createEnemyPlayerCarrierShotGate(
+  botId: string,
+): EnemyPlayerCarrierShotGate {
+  const phase = CARRIER_GATE_PHASE[botId] ?? 0.5;
+  return {
+    rerollSec:
+      BOT.enemyPlayerCarrierShotRerollSec * (0.45 + phase + Math.random() * 0.35),
+    pauseUntilSec: 0,
+    wasLocalHolder: false,
+  };
+}
+
+/**
+ * True while this bot should not fire player-targeted rockets (local holds ball).
+ * Re-rolls every few seconds — not a permanent skip.
+ */
+export function tickEnemyPlayerCarrierShotGate(
+  gate: EnemyPlayerCarrierShotGate,
+  ballHolder: BallHolderId,
+  dt: number,
+): boolean {
+  const nowSec = performance.now() / 1000;
+  const shootChance = getBotPressureScalars().enemyPlayerCarrierShotChance;
+
+  if (ballHolder !== 'local') {
+    gate.pauseUntilSec = 0;
+    gate.wasLocalHolder = false;
+    return false;
+  }
+
+  if (!gate.wasLocalHolder) {
+    gate.wasLocalHolder = true;
+    gate.rerollSec =
+      BOT.enemyPlayerCarrierShotRerollSec * (0.5 + Math.random() * 0.95);
+  }
+
+  gate.rerollSec -= dt;
+  if (gate.rerollSec <= 0) {
+    gate.rerollSec =
+      BOT.enemyPlayerCarrierShotRerollSec * (0.75 + Math.random() * 0.55);
+    if (nowSec >= gate.pauseUntilSec && Math.random() >= shootChance) {
+      gate.pauseUntilSec = nowSec + BOT.enemyPlayerCarrierShotPauseSec;
+    }
+  }
+
+  return nowSec < gate.pauseUntilSec;
+}
+
+/** After a rocket hit — pressure player or support ally instead of the ball */
+export function stunnedBallFallbackMode(
+  isEnemy: boolean,
+  ballHolder: BallHolderId,
+): BotFieldMode {
+  if (isEnemy && ballHolder === 'local') return 'runToPlayer';
+  if (isEnemy) return 'moveAndShoot';
+  return 'allyReceive';
 }
 
 /** Ball-focused mode when player-chase burst or cooldown is active */
@@ -169,11 +257,16 @@ function preferMoveAndShoot(input: BotThinkInput, distBall: number): boolean {
     return true;
   }
   const stagger = input.id === 'bot-0' ? 0.38 : 0.68;
-  if (distBall > attract * 1.25 && stagger < BOT.moveShootBias) return true;
+  if (
+    distBall > attract * 1.25 &&
+    stagger < getBotPressureScalars().moveShootBias
+  ) {
+    return true;
+  }
   return false;
 }
 
-function isFriendlyBallHolder(
+export function isFriendlyBallHolder(
   holder: BallHolderId,
   botTeam: Team,
   localTeam: Team,
@@ -331,6 +424,7 @@ function pickFieldMode(input: BotThinkInput): BotFieldMode {
     ballHolder !== id
   ) {
     if (input.giveShootZoneSpace) return 'allySupport';
+    if (input.holderNearGoal && input.selfNearGoal) return 'allyDunk';
     return 'allyReceive';
   }
 
@@ -364,15 +458,18 @@ function pickFieldMode(input: BotThinkInput): BotFieldMode {
       return 'allySupport';
     }
     if (!ballHolder) {
-      if (distBall <= engage * 1.5) return 'runToBall';
       if (
-        distBall <= attract * 1.85 &&
+        !input.giveShootZoneSpace &&
+        !input.waitForTeammateShot &&
+        distBall <= attract * 2.15 &&
         inBeamRange &&
         !beamDenied &&
         allyCanBeam
       ) {
         return 'attractBall';
       }
+      if (distBall <= engage * 2.2) return 'runToBall';
+      return 'runToBall';
     }
   }
 
@@ -502,6 +599,8 @@ export function pickMoveTarget(
       return out.setY(Math.max(out.y, playerChest.y));
     case 'allyReceive':
       return out.copy(ballPos);
+    case 'allyDunk':
+      return out.lerpVectors(input.goal, ballPos, 0.2);
     case 'carryToGoal':
     case 'setupShot':
     case 'shootGoal':
@@ -529,6 +628,7 @@ export function pickLookTarget(
   }
   if (mode === 'allySupport') return out.copy(input.ballPos);
   if (mode === 'allyReceive') return out.lerpVectors(input.ballPos, input.goal, 0.35);
+  if (mode === 'allyDunk') return out.copy(input.goal);
   if (mode === 'attractBall') return out.copy(input.ballPos);
   return out.copy(moveTarget);
 }
@@ -590,7 +690,8 @@ export function canAllyBeamLooseBall(
   if (ballHolder === 'local' || ballHolder === 'bot-2') return false;
   const heightAboveFloor = ballPos.y - ARENA.floorY - BALL.radius;
   if (heightAboveFloor > BOT.allyBeamMaxHeightAboveFloor) return false;
-  if (ballVel.length() > BOT.allyBeamMaxSpeedForBeam) return false;
+  const horizSpd = Math.hypot(ballVel.x, ballVel.z);
+  if (horizSpd > BOT.allyBeamMaxSpeedForBeam) return false;
   if (
     heightAboveFloor > BOT.allyBeamLowMaxHeight &&
     Math.abs(ballVel.y) > BOT.allyBeamMaxVerticalSpeed
@@ -610,7 +711,10 @@ export function shouldBotAttemptProjectile(
   if (!holder) return Math.random() < BOT.periodicFireAtLooseBallChance;
   if (isNonTeammateBallHolder(holder, selfId, botTeam, localTeam)) {
     if (holder === 'local') {
-      return Math.random() < BOT.periodicFireAtPlayerCarrierChance;
+      return (
+        Math.random() <
+        getBotPressureScalars().periodicFireAtPlayerCarrierChance
+      );
     }
     return Math.random() < BOT.periodicFireAtBotCarrierChance;
   }
@@ -752,11 +856,11 @@ export function resolveBotHoldRelease(
 export function pickBotHoldAction(
   hasTeammate: boolean,
   teammateCloser: boolean,
+  botId?: BotId,
 ): HoldReleaseKind {
-  if (
-    hasTeammate &&
-    (teammateCloser || Math.random() < BOT.passToTeammateChance)
-  ) {
+  const passChance =
+    botId === 'bot-2' ? BOT.allyPassToPlayerChance : BOT.passToTeammateChance;
+  if (hasTeammate && (teammateCloser || Math.random() < passChance)) {
     return 'pass';
   }
   return 'shoot';
@@ -766,18 +870,26 @@ export function pickBotHoldAction(
 export function pickBotHoldCarryFocus(
   hasTeammate: boolean,
   distGoal = Infinity,
+  botId?: BotId,
 ): BotHoldCarryFocus {
   if (!hasTeammate) return 'goal';
   if (distGoal <= BOT.goalQuickShotDist) return 'goal';
-  return Math.random() < BOT.holdCarryTeammateChance ? 'teammate' : 'goal';
+  const toTeammateChance =
+    botId === 'bot-2' ? BOT.allyCarryToPlayerChance : BOT.holdCarryTeammateChance;
+  return Math.random() < toTeammateChance ? 'teammate' : 'goal';
 }
 
 /** One-third each: shoot, keep carrying, pass (no teammate → shoot vs carry). */
 export function pickBotHoldReleasePlan(
   hasTeammate: boolean,
+  afterAllyDunkCatch = false,
 ): BotHoldReleasePlan {
   if (!hasTeammate) {
     return Math.random() < 0.5 ? 'shoot' : 'carry';
+  }
+  if (afterAllyDunkCatch) {
+    if (Math.random() < BOT.allyDunkHoldPassChance) return 'pass';
+    return Math.random() < 0.62 ? 'shoot' : 'carry';
   }
   const r = Math.random();
   if (r < BOT.holdReleaseShootChance) return 'shoot';
@@ -791,9 +903,10 @@ export function ensureHoldReleasePlan(
   holdSec: number,
   hasTeammate: boolean,
   plan: BotHoldReleasePlan | null,
+  afterAllyDunkCatch = false,
 ): BotHoldReleasePlan | null {
   if (holdSec < BOT.holdCarryMinSec) return null;
-  return plan ?? pickBotHoldReleasePlan(hasTeammate);
+  return plan ?? pickBotHoldReleasePlan(hasTeammate, afterAllyDunkCatch);
 }
 
 /**
@@ -833,6 +946,12 @@ export function resolveTimedBotHoldRelease(
   if (releasePlan === 'carry') return null;
   if (releasePlan === 'pass') {
     return hasTeammate ? 'pass' : 'shoot';
+  }
+  if (
+    distGoal > BOT.farHoldLoftMinDist &&
+    Math.random() < BOT.farHoldLoftShotChance
+  ) {
+    return 'loft';
   }
   return 'shoot';
 }

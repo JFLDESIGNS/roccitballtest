@@ -38,7 +38,14 @@ export type HexWallSegment = {
   y: number;
   yaw: number;
   length: number;
+  /** Hex edge index 0–5 (vertex i → vertex i+1) */
+  edgeIndex: number;
 };
+
+/** Goal end faces use edges 0 and 3 (see goals.ts / arenaPadLayout). */
+export function isGoalHexEdge(edgeIndex: number): boolean {
+  return edgeIndex === 0 || edgeIndex === 3;
+}
 
 /** Six perimeter walls — flush along hex edges, facing outward */
 export function buildHexWallSegments(
@@ -75,6 +82,7 @@ export function buildHexWallSegments(
       y: h,
       length,
       yaw: Math.atan2(-dirZ, dirX),
+      edgeIndex: i,
     });
   }
 

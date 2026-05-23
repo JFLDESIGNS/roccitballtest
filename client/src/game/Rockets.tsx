@@ -4,34 +4,67 @@ import * as THREE from 'three';
 import { ARENA, BALL, BOT, RENDER, ROCKET } from '../shared/Constants';
 import type { BotId } from './Bots';
 import type { ExplosionHit } from './explosions';
-import { playPlayerHit } from './audio';
+import {
+  announceRocketBallHit,
+  announceRocketPlayerHit,
+} from './announcements';
+import { registerLocalBallComboHit } from './ballCombo';
+import type { ActorId } from './playerRoster';
 import {
   rocketAge,
   rocketTravelDist,
   segmentHitsSphere,
   updateRockets,
   type ActiveRocket,
+  type RocketTrailSegment,
 } from './rocketSystem';
+import { trailCameraFade } from './trailCameraFade';
 
 const MAX_BOOMS = 8;
-const MAX_SMOKE = RENDER.rocketMaxSmoke;
-const TRAIL_STEP = RENDER.rocketTrailStep;
-const TRAIL_BEHIND = RENDER.rocketTrailBehind;
-
-/** Smoke trail — visual only (no Rapier colliders) */
-
-type SmokePuff = {
-  pos: THREE.Vector3;
-  vel: THREE.Vector3;
-  life: number;
-  maxLife: number;
-  size: number;
-  explosive: boolean;
-};
+const TRAIL_R = RENDER.rocketTrailRadius;
+const TRAIL_MIN_LEN = 0.35;
+const HEAD_R = RENDER.rocketHeadRadius;
+const HEAD_GLOW_R = RENDER.rocketHeadGlowRadius;
+const FROZEN_TRAIL_LIFE = 1.55;
+const MAX_FROZEN_TRAILS = 36;
+const RIBBON_HISTORY_MAX = 12;
+const RIBBON_MIN_STEP = 0.14;
 
 type RocketVisual = {
-  core: THREE.Mesh;
-  glow: THREE.Mesh;
+  head: THREE.Mesh;
+  emissiveGlow: THREE.Mesh;
+  fire: THREE.Group;
+  /** Thick vector ribbon (ball-style) */
+  pathMesh: THREE.Mesh;
+  pathMesh2: THREE.Mesh | null;
+  pathRibbon: THREE.Line;
+  history: THREE.Vector3[];
+  rocketId: string | null;
+};
+
+type FrozenTrail = {
+  mesh: THREE.Mesh;
+  life: number;
+  baseOpacity: number;
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+};
+
+type RocketMaterials = {
+  headBouncer: THREE.MeshBasicMaterial;
+  headExplosive: THREE.MeshBasicMaterial;
+  emissiveGlowBouncer: THREE.MeshBasicMaterial;
+  emissiveGlowExplosive: THREE.MeshBasicMaterial;
+  fireBouncer: THREE.MeshBasicMaterial;
+  fireExplosive: THREE.MeshBasicMaterial;
+  trailBouncer: THREE.MeshBasicMaterial;
+  trailExplosive: THREE.MeshBasicMaterial;
+  ribbonBouncer: THREE.MeshBasicMaterial;
+  ribbonExplosive: THREE.MeshBasicMaterial;
+  pathRibbonBouncer: THREE.LineBasicMaterial;
+  pathRibbonExplosive: THREE.LineBasicMaterial;
+  pathMeshBouncer: THREE.MeshBasicMaterial;
+  pathMeshExplosive: THREE.MeshBasicMaterial;
 };
 
 type RocketsProps = {
@@ -44,70 +77,416 @@ type RocketsProps = {
     vx: number,
     vy: number,
     vz: number,
+    ownerId: string,
   ) => void;
+  onPlayerDirectHit?: (vx: number, vy: number, vz: number) => void;
   ballPos: () => THREE.Vector3 | null;
+  ballVel?: () => THREE.Vector3 | null;
 };
 
-function makeRocketMaterials() {
-  const bouncerCore = new THREE.MeshStandardMaterial({
-    color: '#ff8844',
-    emissive: '#ff3300',
-    emissiveIntensity: 3.2,
-    toneMapped: false,
-    metalness: 0.35,
-    roughness: 0.25,
-  });
-  const explosiveCore = new THREE.MeshStandardMaterial({
-    color: '#ffdd66',
-    emissive: '#ff4400',
-    emissiveIntensity: 4.2,
-    toneMapped: false,
-    metalness: 0.2,
-    roughness: 0.2,
-  });
-  const bouncerGlow = new THREE.MeshBasicMaterial({
-    color: '#ff6622',
-    transparent: true,
-    opacity: 0.72,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  const explosiveGlow = new THREE.MeshBasicMaterial({
-    color: '#ffaa33',
-    transparent: true,
-    opacity: 0.85,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  const smokeMat = new THREE.MeshBasicMaterial({
-    color: '#8a9098',
-    transparent: true,
-    opacity: 0.55,
-    depthWrite: false,
-    toneMapped: false,
-  });
+function makeRocketMaterials(): RocketMaterials {
   return {
-    bouncerCore,
-    explosiveCore,
-    bouncerGlow,
-    explosiveGlow,
-    smokeMat,
+    headBouncer: new THREE.MeshBasicMaterial({
+      color: '#fff2b8',
+      toneMapped: false,
+    }),
+    headExplosive: new THREE.MeshBasicMaterial({
+      color: '#ffffe8',
+      toneMapped: false,
+    }),
+    emissiveGlowBouncer: new THREE.MeshBasicMaterial({
+      color: '#ffaa33',
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    emissiveGlowExplosive: new THREE.MeshBasicMaterial({
+      color: '#ffff66',
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    fireBouncer: new THREE.MeshBasicMaterial({
+      color: '#ff6622',
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+    fireExplosive: new THREE.MeshBasicMaterial({
+      color: '#ffee44',
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+    trailBouncer: new THREE.MeshBasicMaterial({
+      color: '#ccb8a0',
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    trailExplosive: new THREE.MeshBasicMaterial({
+      color: '#dd9970',
+      transparent: true,
+      opacity: 0.78,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    ribbonBouncer: new THREE.MeshBasicMaterial({
+      color: '#ffaa66',
+      transparent: true,
+      opacity: 0.58,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+    ribbonExplosive: new THREE.MeshBasicMaterial({
+      color: '#ffcc88',
+      transparent: true,
+      opacity: 0.64,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+    pathRibbonBouncer: new THREE.LineBasicMaterial({
+      color: '#ff9955',
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    pathRibbonExplosive: new THREE.LineBasicMaterial({
+      color: '#ffdd77',
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+    pathMeshBouncer: new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
+    pathMeshExplosive: new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    }),
   };
 }
 
-function allocSmokePuff(pool: SmokePuff[]): SmokePuff {
-  const reused = pool.pop();
-  if (reused) return reused;
+function createFireGroup(
+  fireMat: THREE.MeshBasicMaterial,
+  planeGeo: THREE.PlaneGeometry,
+): THREE.Group {
+  const group = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const plane = new THREE.Mesh(planeGeo, fireMat);
+    plane.rotation.z = (i * Math.PI * 2) / 3;
+    plane.renderOrder = 12;
+    group.add(plane);
+  }
+  return group;
+}
+
+function makePathMeshGeometry(maxPoints: number) {
+  const maxVerts = maxPoints * 2;
+  const positions = new Float32Array(maxVerts * 3);
+  const colors = new Float32Array(maxVerts * 3);
+  const indices: number[] = [];
+  for (let i = 0; i < maxPoints - 1; i++) {
+    const a = i * 2;
+    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
+function createPathRibbon(
+  mat: THREE.LineBasicMaterial,
+): { line: THREE.Line; history: THREE.Vector3[] } {
+  const positions = new Float32Array(RIBBON_HISTORY_MAX * 3);
+  const colors = new Float32Array(RIBBON_HISTORY_MAX * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setDrawRange(0, 0);
+  const line = new THREE.Line(
+    geo,
+    mat,
+  );
+  line.frustumCulled = false;
+  return { line, history: [] };
+}
+
+function createRocketVisual(
+  group: THREE.Group,
+  mats: RocketMaterials,
+  headGeo: THREE.SphereGeometry,
+  glowGeo: THREE.SphereGeometry,
+  firePlaneGeo: THREE.PlaneGeometry,
+  pathMeshGeo: THREE.BufferGeometry,
+): RocketVisual {
+  const emissiveGlow = new THREE.Mesh(glowGeo, mats.emissiveGlowBouncer);
+  emissiveGlow.frustumCulled = false;
+  emissiveGlow.renderOrder = 11;
+  const fire = createFireGroup(mats.fireBouncer, firePlaneGeo);
+  fire.frustumCulled = false;
+  const head = new THREE.Mesh(headGeo, mats.headBouncer);
+  head.frustumCulled = false;
+  head.renderOrder = 12;
+  const path = createPathRibbon(mats.pathRibbonBouncer);
+  const pathMesh = new THREE.Mesh(pathMeshGeo, mats.pathMeshBouncer);
+  pathMesh.frustumCulled = false;
+  pathMesh.renderOrder = 9;
+  const pathMesh2 = new THREE.Mesh(pathMeshGeo.clone(), mats.pathMeshBouncer);
+  pathMesh2.frustumCulled = false;
+  pathMesh2.renderOrder = 9;
+  pathMesh2.rotation.z = Math.PI / 2;
+  group.add(pathMesh);
+  group.add(pathMesh2);
+  group.add(emissiveGlow);
+  group.add(fire);
+  group.add(path.line);
+  group.add(head);
   return {
-    pos: new THREE.Vector3(),
-    vel: new THREE.Vector3(),
-    life: 0,
-    maxLife: 0,
-    size: 0,
-    explosive: false,
+    head,
+    emissiveGlow,
+    fire,
+    pathMesh,
+    pathMesh2,
+    pathRibbon: path.line,
+    history: path.history,
+    rocketId: null,
   };
+}
+
+const _dir = new THREE.Vector3();
+const _mid = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+const _zAxis = new THREE.Vector3(0, 0, 1);
+const _camPos = new THREE.Vector3();
+const _ribbonColor = new THREE.Color();
+
+function ribbonMat(
+  mats: RocketMaterials,
+  explosive: boolean,
+): THREE.MeshBasicMaterial {
+  return explosive ? mats.ribbonExplosive : mats.ribbonBouncer;
+}
+
+/** Flat ribbon along a bounce segment — fades via frozen pool */
+function placeBounceRibbon(
+  mesh: THREE.Mesh,
+  mat: THREE.MeshBasicMaterial,
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+) {
+  const len = from.distanceTo(to);
+  if (len < TRAIL_MIN_LEN) {
+    mesh.visible = false;
+    return;
+  }
+  _dir.subVectors(to, from).normalize();
+  _mid.lerpVectors(from, to, 0.5);
+  mesh.visible = true;
+  mesh.material = mat;
+  mesh.position.copy(_mid);
+  mesh.quaternion.setFromUnitVectors(_yAxis, _dir);
+  const ribbonW = TRAIL_R * 2.35;
+  mesh.scale.set(ribbonW, len, TRAIL_R * 0.22);
+}
+
+function pushPathHistory(history: THREE.Vector3[], tip: THREE.Vector3) {
+  const last = history[history.length - 1];
+  if (last && last.distanceToSquared(tip) < RIBBON_MIN_STEP * RIBBON_MIN_STEP) return;
+  history.push(tip.clone());
+  while (history.length > RIBBON_HISTORY_MAX) {
+    history.shift();
+  }
+}
+
+const _worldUp = new THREE.Vector3(0, 1, 0);
+const _fallback = new THREE.Vector3(1, 0, 0);
+const _right = new THREE.Vector3();
+const _binormal = new THREE.Vector3();
+const PATH_MESH_HALF_W = 0.14;
+
+function updatePathMeshRibbon(
+  mesh: THREE.Mesh,
+  mesh2: THREE.Mesh | null,
+  history: THREE.Vector3[],
+  explosive: boolean,
+  camPos: THREE.Vector3,
+  mats: RocketMaterials,
+) {
+  const n = history.length;
+  if (n < 2) {
+    mesh.visible = false;
+    if (mesh2) mesh2.visible = false;
+    return;
+  }
+  mesh.visible = true;
+  if (mesh2) mesh2.visible = true;
+  const mat = explosive ? mats.pathMeshExplosive : mats.pathMeshBouncer;
+  mesh.material = mat;
+  if (mesh2) mesh2.material = mat;
+  _ribbonColor.set(explosive ? '#ffeeaa' : '#ffaa66');
+
+  const writeMesh = (target: THREE.Mesh) => {
+    const posAttr = target.geometry.getAttribute(
+      'position',
+    ) as THREE.BufferAttribute;
+    const colAttr = target.geometry.getAttribute('color') as THREE.BufferAttribute;
+    let vi = 0;
+    for (let i = 0; i < n; i++) {
+      const p = history[i]!;
+      if (i < n - 1) {
+        const q = history[i + 1]!;
+        _dir.subVectors(q, p);
+        const len = _dir.length();
+        if (len < 1e-5) _dir.copy(_fallback);
+        else _dir.multiplyScalar(1 / len);
+        _right.crossVectors(_dir, _worldUp);
+        if (_right.lengthSq() < 1e-6) _right.set(1, 0, 0);
+        _right.normalize();
+        _binormal.crossVectors(_dir, _right).normalize();
+      }
+      const along = n <= 1 ? 1 : 0.2 + (0.8 * i) / (n - 1);
+      const fade = along * trailCameraFade(p, camPos);
+      const w = PATH_MESH_HALF_W * fade;
+      if (i < n - 1) {
+        posAttr.setXYZ(vi, p.x - _right.x * w, p.y - _right.y * w, p.z - _right.z * w);
+        colAttr.setXYZ(
+          vi,
+          _ribbonColor.r * fade,
+          _ribbonColor.g * fade,
+          _ribbonColor.b * fade,
+        );
+        vi++;
+        posAttr.setXYZ(vi, p.x + _right.x * w, p.y + _right.y * w, p.z + _right.z * w);
+        colAttr.setXYZ(
+          vi,
+          _ribbonColor.r * fade,
+          _ribbonColor.g * fade,
+          _ribbonColor.b * fade,
+        );
+        vi++;
+      }
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    target.geometry.setDrawRange(0, Math.max(0, (n - 1) * 2));
+  };
+
+  writeMesh(mesh);
+  if (mesh2) writeMesh(mesh2);
+}
+
+function updateFireBillboard(fire: THREE.Group, camera: THREE.Camera, pulse: number) {
+  camera.getWorldPosition(_camPos);
+  fire.lookAt(_camPos);
+  const s = 0.82 + pulse * 0.28;
+  fire.scale.setScalar(s);
+}
+
+function updateRocketVisual(
+  vis: RocketVisual,
+  r: ActiveRocket,
+  mats: RocketMaterials,
+  camera: THREE.Camera,
+  nowMs: number,
+) {
+  if (vis.rocketId !== r.id) {
+    vis.rocketId = r.id;
+    vis.history.length = 0;
+  }
+
+  const explosive = r.explosive;
+  vis.head.material = explosive ? mats.headExplosive : mats.headBouncer;
+  const glowMat = explosive ? mats.emissiveGlowExplosive : mats.emissiveGlowBouncer;
+  vis.emissiveGlow.material = glowMat;
+  for (const child of vis.fire.children) {
+    if (child instanceof THREE.Mesh) {
+      child.material = explosive ? mats.fireExplosive : mats.fireBouncer;
+    }
+  }
+  vis.pathRibbon.material = explosive
+    ? mats.pathRibbonExplosive
+    : mats.pathRibbonBouncer;
+
+  const tip = r.position;
+  vis.head.visible = true;
+  vis.emissiveGlow.visible = true;
+  vis.fire.visible = true;
+  vis.head.position.copy(tip);
+  vis.emissiveGlow.position.copy(tip);
+  vis.fire.position.copy(tip);
+
+  const pulse = Math.sin(nowMs * 0.028) * 0.5 + 0.5;
+  const glowScale = 0.92 + pulse * 0.12;
+  vis.emissiveGlow.scale.setScalar(glowScale);
+  glowMat.opacity = 0.88 + pulse * 0.12;
+  updateFireBillboard(vis.fire, camera, pulse);
+
+  const fireMat = explosive ? mats.fireExplosive : mats.fireBouncer;
+  fireMat.opacity = 0.65 + pulse * 0.35;
+
+  if (r.velocity.lengthSq() > 0.01) {
+    _dir.copy(r.velocity).normalize();
+    vis.head.quaternion.setFromUnitVectors(_zAxis, _dir);
+    vis.emissiveGlow.quaternion.copy(vis.head.quaternion);
+  }
+
+  camera.getWorldPosition(_camPos);
+  pushPathHistory(vis.history, tip);
+  updatePathMeshRibbon(
+    vis.pathMesh,
+    vis.pathMesh2,
+    vis.history,
+    explosive,
+    _camPos,
+    mats,
+  );
+  vis.pathRibbon.visible = false;
+}
+
+function hideRocketVisual(vis: RocketVisual) {
+  vis.head.visible = false;
+  vis.emissiveGlow.visible = false;
+  vis.fire.visible = false;
+  vis.pathMesh.visible = false;
+  if (vis.pathMesh2) vis.pathMesh2.visible = false;
+  vis.pathRibbon.visible = false;
+  vis.history.length = 0;
+  vis.rocketId = null;
 }
 
 export function Rockets({
@@ -116,41 +495,63 @@ export function Rockets({
   playerPos,
   botTargets,
   onBotDirectHit,
+  onPlayerDirectHit,
   ballPos,
+  ballVel,
 }: RocketsProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const smokeGroupRef = useRef<THREE.Group>(null);
   const visualPool = useRef<RocketVisual[]>([]);
-  const smokePool = useRef<THREE.Mesh[]>([]);
-  const smokePuffs = useRef<SmokePuff[]>([]);
-  const smokeFree = useRef<SmokePuff[]>([]);
-  const trailLastPos = useRef(new Map<string, THREE.Vector3>());
+  const frozenTrails = useRef<FrozenTrail[]>([]);
   const mats = useRef(makeRocketMaterials());
-  const coreGeo = useMemo(() => new THREE.BoxGeometry(0.22, 0.22, 0.85), []);
-  const glowGeo = useMemo(() => new THREE.BoxGeometry(0.38, 0.38, 1.15), []);
-  const smokeGeo = useMemo(() => new THREE.SphereGeometry(1, 5, 4), []);
+  const headGeo = useMemo(() => new THREE.SphereGeometry(HEAD_R, 10, 8), []);
+  const glowGeo = useMemo(() => new THREE.SphereGeometry(HEAD_GLOW_R, 8, 6), []);
+  const pathMeshGeo = useMemo(
+    () => makePathMeshGeometry(RIBBON_HISTORY_MAX),
+    [],
+  );
+  const ribbonGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const firePlaneGeo = useMemo(() => new THREE.PlaneGeometry(0.52, 0.72), []);
 
-  const dirVec = useRef(new THREE.Vector3(0, 0, 1));
+  const ballCenter = useRef(new THREE.Vector3());
+  const botCenter = useRef(new THREE.Vector3());
   const segFrom = useRef(new THREE.Vector3());
   const segTo = useRef(new THREE.Vector3());
-  const ballCenter = useRef(new THREE.Vector3());
-  const zAxis = useRef(new THREE.Vector3(0, 0, 1));
   const boomScratch = useRef<ExplosionHit[]>([]);
   const boomCount = useRef(0);
-  const trailScratch = useRef(new THREE.Vector3());
 
   useEffect(
     () => () => {
-      mats.current.bouncerCore.dispose();
-      mats.current.explosiveCore.dispose();
-      mats.current.bouncerGlow.dispose();
-      mats.current.explosiveGlow.dispose();
-      mats.current.smokeMat.dispose();
-      coreGeo.dispose();
+      const m = mats.current;
+      m.headBouncer.dispose();
+      m.headExplosive.dispose();
+      m.emissiveGlowBouncer.dispose();
+      m.emissiveGlowExplosive.dispose();
+      m.fireBouncer.dispose();
+      m.fireExplosive.dispose();
+      m.trailBouncer.dispose();
+      m.trailExplosive.dispose();
+      m.ribbonBouncer.dispose();
+      m.ribbonExplosive.dispose();
+      m.pathRibbonBouncer.dispose();
+      m.pathRibbonExplosive.dispose();
+      m.pathMeshBouncer.dispose();
+      m.pathMeshExplosive.dispose();
+      headGeo.dispose();
+      pathMeshGeo.dispose();
+      ribbonGeo.dispose();
       glowGeo.dispose();
-      smokeGeo.dispose();
+      firePlaneGeo.dispose();
+      for (const vis of visualPool.current) {
+        vis.pathMesh.geometry.dispose();
+        vis.pathMesh2?.geometry.dispose();
+      }
+      for (const ft of frozenTrails.current) {
+        const mat = ft.mesh.material;
+        if (mat && !Array.isArray(mat)) mat.dispose();
+        ft.mesh.geometry.dispose();
+      }
     },
-    [coreGeo, glowGeo, smokeGeo],
+    [headGeo, pathMeshGeo, ribbonGeo, glowGeo, firePlaneGeo],
   );
 
   const pushBoom = (
@@ -158,6 +559,7 @@ export function Rockets({
     y: number,
     z: number,
     rocketVel?: THREE.Vector3,
+    ownerId?: string,
   ) => {
     const i = boomCount.current++;
     let h = boomScratch.current[i];
@@ -169,6 +571,7 @@ export function Rockets({
     h.y = y;
     h.z = z;
     h.radius = ROCKET.explosionRadius;
+    h.fromOwnerId = ownerId;
     if (rocketVel) {
       h.rocketVx = rocketVel.x;
       h.rocketVy = rocketVel.y;
@@ -180,56 +583,84 @@ export function Rockets({
     }
   };
 
-  const emitSmokeAt = (r: ActiveRocket, at: THREE.Vector3) => {
-    if (smokePuffs.current.length >= MAX_SMOKE) {
-      const dead = smokePuffs.current.shift();
-      if (dead) smokeFree.current.push(dead);
-    }
-    const p = allocSmokePuff(smokeFree.current);
-    const speed = Math.max(1, r.velocity.length());
-    const back = TRAIL_BEHIND + Math.min(0.08, speed * 0.00035);
-    p.pos.copy(at).addScaledVector(r.velocity, -back / speed);
-    p.vel.set(
-      r.velocity.x * 0.02 + (Math.random() - 0.5) * 0.12,
-      r.velocity.y * 0.015 + Math.random() * 0.08,
-      r.velocity.z * 0.02 + (Math.random() - 0.5) * 0.12,
-    );
-    p.life = 0.32 + Math.random() * 0.22;
-    p.maxLife = p.life;
-    p.size = 0.18 + Math.random() * 0.2;
-    p.explosive = r.explosive;
-    smokePuffs.current.push(p);
-  };
-
-  const emitTrailSegment = (r: ActiveRocket, from: THREE.Vector3, to: THREE.Vector3) => {
-    const dist = from.distanceTo(to);
-    if (dist < 1e-4) {
-      emitSmokeAt(r, to);
-      return;
-    }
-    const steps = Math.min(4, Math.max(1, Math.ceil(dist / TRAIL_STEP)));
-    for (let i = 0; i <= steps; i++) {
-      if (smokePuffs.current.length >= MAX_SMOKE) break;
-      const t = i / steps;
-      trailScratch.current.lerpVectors(from, to, t);
-      emitSmokeAt(r, trailScratch.current);
-    }
-  };
-
-  useFrame((_, dt) => {
-    const rockets = rocketsRef.current;
-    if (rockets.length === 0) {
-      for (const v of visualPool.current) {
-        v.core.visible = false;
-        v.glow.visible = false;
+  const spawnFrozenSegment = (
+    group: THREE.Group,
+    seg: RocketTrailSegment,
+  ) => {
+    let slot = frozenTrails.current.find((f) => f.life <= 0);
+    if (!slot) {
+      if (frozenTrails.current.length >= MAX_FROZEN_TRAILS) {
+        slot = frozenTrails.current[0]!;
+        for (const f of frozenTrails.current) {
+          if (f.life < slot.life) slot = f;
+        }
+      } else {
+        const meshMat = ribbonMat(mats.current, seg.explosive).clone();
+        const mesh = new THREE.Mesh(ribbonGeo, meshMat);
+        mesh.frustumCulled = false;
+        group.add(mesh);
+        slot = {
+          mesh,
+          life: 0,
+          baseOpacity: meshMat.opacity,
+          from: new THREE.Vector3(),
+          to: new THREE.Vector3(),
+        };
+        frozenTrails.current.push(slot);
       }
     }
+    const prevMat = slot.mesh.material;
+    if (prevMat && !Array.isArray(prevMat)) prevMat.dispose();
+    const meshMat = ribbonMat(mats.current, seg.explosive).clone();
+    slot.mesh.material = meshMat;
+    slot.baseOpacity = meshMat.opacity;
+    placeBounceRibbon(slot.mesh, meshMat, seg.from, seg.to);
+    slot.from.copy(seg.from);
+    slot.to.copy(seg.to);
+    slot.life = FROZEN_TRAIL_LIFE;
+  };
 
-    const { rockets: moved, explosions } = updateRockets(rockets, dt, {
-      w: ARENA.hexRadius,
-      d: ARENA.hexRadius,
-      h: ARENA.wallHeight,
-    });
+  useFrame(({ camera }, dt) => {
+    const rockets = rocketsRef.current;
+    const group = groupRef.current;
+    if (!group) return;
+    const nowMs = performance.now();
+
+    camera.getWorldPosition(_camPos);
+
+    for (const ft of frozenTrails.current) {
+      if (ft.life <= 0) {
+        ft.mesh.visible = false;
+        continue;
+      }
+      ft.life -= dt;
+      const mat = ft.mesh.material as THREE.MeshBasicMaterial;
+      const lifeFade = Math.max(0, ft.life / FROZEN_TRAIL_LIFE);
+      _mid.lerpVectors(ft.from, ft.to, 0.5);
+      const camFade =
+        (trailCameraFade(ft.from, _camPos) + trailCameraFade(ft.to, _camPos)) *
+        0.5;
+      mat.opacity = ft.baseOpacity * lifeFade * lifeFade * camFade;
+      if (ft.life <= 0 || mat.opacity < 0.02) ft.mesh.visible = false;
+    }
+
+    if (rockets.length === 0) {
+      for (const v of visualPool.current) hideRocketVisual(v);
+    }
+
+    const { rockets: moved, explosions, trailSegments } = updateRockets(
+      rockets,
+      dt,
+      {
+        w: ARENA.hexRadius,
+        d: ARENA.hexRadius,
+        h: ARENA.wallHeight,
+      },
+    );
+
+    for (const seg of trailSegments) {
+      spawnFrozenSegment(group, seg);
+    }
 
     const pp = playerPos();
     const bp = ballPos();
@@ -247,47 +678,57 @@ export function Rockets({
       const canHitPlayer = age > ROCKET.ownerGraceSec;
       const leftMuzzle = travel >= ROCKET.minTravelBeforePlayerHit;
 
-      if (
-        canHitPlayer &&
-        leftMuzzle &&
-        pp.distanceTo(r.position) < ROCKET.playerHitRadius
-      ) {
-        if (boomCount.current < MAX_BOOMS) {
-          pushBoom(
-            r.position.x,
-            r.position.y,
-            r.position.z,
-            r.velocity,
-          );
+      if (canHitPlayer && leftMuzzle && r.ownerId !== 'local') {
+        segTo.current.copy(r.position);
+        segFrom.current.copy(segTo.current).addScaledVector(r.velocity, -dt);
+        const playerHitRadius = ROCKET.playerHitRadius + 0.6;
+        const hitPlayer =
+          segmentHitsSphere(
+            segFrom.current,
+            segTo.current,
+            pp,
+            playerHitRadius,
+          ) || pp.distanceTo(r.position) < playerHitRadius;
+        if (hitPlayer) {
+          announceRocketPlayerHit(r.ownerId as ActorId, 'local');
+          onPlayerDirectHit?.(r.velocity.x, r.velocity.y, r.velocity.z);
+          if (boomCount.current < MAX_BOOMS) {
+            pushBoom(r.position.x, r.position.y, r.position.z, r.velocity, r.ownerId);
+          }
+          continue;
         }
-        trailLastPos.current.delete(r.id);
-        continue;
       }
       let hitBot = false;
+      segTo.current.copy(r.position);
+      segFrom.current.copy(segTo.current).addScaledVector(r.velocity, -dt);
+      const botHitRadius = BOT.rocketHitRadius + 1.2;
       for (const bt of botTargets?.() ?? []) {
         if (r.ownerId === bt.id) continue;
-        const dx = bt.x - r.position.x;
-        const dy = bt.y - r.position.y;
-        const dz = bt.z - r.position.z;
-        if (Math.hypot(dx, dy, dz) < BOT.rocketHitRadius + 1.2) {
-          hitBot = true;
-          if (r.ownerId === 'local') playPlayerHit();
-          onBotDirectHit?.(bt.id, r.velocity.x, r.velocity.y, r.velocity.z);
-          if (boomCount.current < MAX_BOOMS) {
-            pushBoom(
-              r.position.x,
-              r.position.y,
-              r.position.z,
-              r.velocity,
-            );
-          }
-          break;
+        botCenter.current.set(bt.x, bt.y, bt.z);
+        const directHit =
+          segmentHitsSphere(
+            segFrom.current,
+            segTo.current,
+            botCenter.current,
+            botHitRadius,
+          ) ||
+          botCenter.current.distanceTo(r.position) < botHitRadius;
+        if (!directHit) continue;
+        hitBot = true;
+        onBotDirectHit?.(
+          bt.id,
+          r.velocity.x,
+          r.velocity.y,
+          r.velocity.z,
+          r.ownerId,
+        );
+        if (boomCount.current < MAX_BOOMS) {
+          pushBoom(r.position.x, r.position.y, r.position.z, r.velocity, r.ownerId);
         }
+        break;
       }
-      if (hitBot) {
-        trailLastPos.current.delete(r.id);
-        continue;
-      }
+      if (hitBot) continue;
+
       if (bp && travel >= ROCKET.minTravelBeforeBallHit) {
         ballCenter.current.set(bp.x, bp.y, bp.z);
         segTo.current.copy(r.position);
@@ -300,6 +741,16 @@ export function Rockets({
             ballHitRadius,
           ) || segTo.current.distanceTo(ballCenter.current) < ballHitRadius;
         if (hitBall) {
+          const ownerId = r.ownerId as ActorId;
+          announceRocketBallHit(ownerId, ballCenter.current.y);
+          if (ownerId === 'local') {
+            const bv = ballVel?.();
+            registerLocalBallComboHit(
+              ballCenter.current.y,
+              bv?.y ?? 0,
+              r.velocity.length(),
+            );
+          }
           if (boomCount.current < MAX_BOOMS) {
             const sp = Math.max(0.001, r.velocity.length());
             const back = BALL.radius + 0.4;
@@ -308,9 +759,9 @@ export function Rockets({
               ballCenter.current.y - (r.velocity.y / sp) * back * 0.35,
               ballCenter.current.z - (r.velocity.z / sp) * back,
               r.velocity,
+              r.ownerId,
             );
           }
-          trailLastPos.current.delete(r.id);
           continue;
         }
       }
@@ -322,107 +773,28 @@ export function Rockets({
       onExplosion(boomScratch.current[i]);
     }
 
-    const activeIds = new Set(stillFlying.map((r) => r.id));
-    for (const id of trailLastPos.current.keys()) {
-      if (!activeIds.has(id)) trailLastPos.current.delete(id);
-    }
-
-    for (const r of stillFlying) {
-      let last = trailLastPos.current.get(r.id);
-      if (!last) {
-        last = r.spawnPos.clone();
-        trailLastPos.current.set(r.id, last);
-        emitSmokeAt(r, r.spawnPos);
-        emitSmokeAt(r, r.position);
-        last.copy(r.position);
-        continue;
-      }
-      const dist = last.distanceTo(r.position);
-      if (dist >= TRAIL_STEP) {
-        emitTrailSegment(r, last, r.position);
-        last.copy(r.position);
-      }
-    }
-
-    const smokeAlive: SmokePuff[] = [];
-    for (const p of smokePuffs.current) {
-      p.life -= dt;
-      if (p.life <= 0) {
-        smokeFree.current.push(p);
-        continue;
-      }
-      p.vel.y += 0.35 * dt;
-      p.pos.addScaledVector(p.vel, dt);
-      smokeAlive.push(p);
-    }
-    smokePuffs.current = smokeAlive;
-
-    const group = groupRef.current;
-    const smokeGroup = smokeGroupRef.current;
-    if (!group || !smokeGroup) return;
-
     while (visualPool.current.length < stillFlying.length) {
-      const core = new THREE.Mesh(coreGeo, mats.current.bouncerCore);
-      const glow = new THREE.Mesh(glowGeo, mats.current.bouncerGlow);
-      group.add(core);
-      group.add(glow);
-      visualPool.current.push({ core, glow });
+      visualPool.current.push(
+        createRocketVisual(
+          group,
+          mats.current,
+          headGeo,
+          glowGeo,
+          firePlaneGeo,
+          pathMeshGeo,
+        ),
+      );
     }
 
     for (let i = 0; i < visualPool.current.length; i++) {
       const vis = visualPool.current[i];
       if (i < stillFlying.length) {
-        const r = stillFlying[i];
-        const explosive = r.explosive;
-        vis.core.visible = true;
-        vis.glow.visible = true;
-        vis.core.material = explosive
-          ? mats.current.explosiveCore
-          : mats.current.bouncerCore;
-        vis.glow.material = explosive
-          ? mats.current.explosiveGlow
-          : mats.current.bouncerGlow;
-        vis.core.position.copy(r.position);
-        vis.glow.position.copy(r.position);
-        if (r.velocity.lengthSq() > 0.01) {
-          dirVec.current.copy(r.velocity).normalize();
-          vis.core.quaternion.setFromUnitVectors(zAxis.current, dirVec.current);
-          vis.glow.quaternion.copy(vis.core.quaternion);
-        }
+        updateRocketVisual(vis, stillFlying[i], mats.current, camera, nowMs);
       } else {
-        vis.core.visible = false;
-        vis.glow.visible = false;
-      }
-    }
-
-    while (smokePool.current.length < smokeAlive.length) {
-      const m = new THREE.Mesh(smokeGeo, mats.current.smokeMat);
-      smokeGroup.add(m);
-      smokePool.current.push(m);
-    }
-
-    const smokeMat = mats.current.smokeMat;
-    for (let i = 0; i < smokePool.current.length; i++) {
-      const mesh = smokePool.current[i];
-      if (i < smokeAlive.length) {
-        const p = smokeAlive[i];
-        const t = p.life / p.maxLife;
-        mesh.visible = true;
-        mesh.position.copy(p.pos);
-        const grow = 1 + (1 - t) * 1.4;
-        mesh.scale.setScalar(p.size * grow);
-        smokeMat.opacity = t * 0.48;
-        smokeMat.color.set(p.explosive ? '#6a5a4a' : '#5a6068');
-      } else {
-        mesh.visible = false;
+        hideRocketVisual(vis);
       }
     }
   });
 
-  return (
-    <>
-      <group ref={groupRef} />
-      <group ref={smokeGroupRef} />
-    </>
-  );
+  return <group ref={groupRef} />;
 }

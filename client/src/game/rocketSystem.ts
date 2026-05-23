@@ -1,19 +1,48 @@
 import * as THREE from 'three';
-import { ARENA, ROCKET } from '../shared/Constants';
+import { ARENA, ARENA_PADS, ROCKET } from '../shared/Constants';
 import { tuningStore } from './tuningStore';
 import type { Vec3 } from '../shared/Types';
 import { getMaxPlatformSurfaceY } from './arenaSpawn';
 import {
+  bounceLaunchSpeedY,
+  getBounceTrampolinePads,
+} from './arenaPadLayout';
+import {
+  findArenaPillarSegmentHit,
   rocketSegmentHitsArenaPillar,
   tryArenaPillarRocketBounce,
 } from './arenaPillars';
+import {
+  rocketSegmentHitsBallDrop,
+  tryBallDropRocketBounce,
+} from './ballDropRocketCollision';
 import { clampToHex, hexBoundaryNormal, isInsideHex } from './arenaHex';
+import {
+  refreshFanGlassBoxes,
+  triggerFanGlassHit,
+  trySegmentHitsFanGlass,
+  tryTriggerFanGlassFromWallImpact,
+} from './fanGlassHit';
+import { triggerArenaPillarShake, triggerOctagonShake } from './visualShake';
+import {
+  tryTriggerBillboardImpact,
+  tryTriggerOctagonImpactAt,
+} from './interactableHits';
+import { findGoalRimSegmentContact } from './goalRingBounce';
+
+export type RocketTrailSegment = {
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  explosive: boolean;
+};
 
 export type ActiveRocket = {
   id: string;
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   spawnPos: THREE.Vector3;
+  /** Start of the current flight leg (reset on each surface bounce) */
+  segmentStart: THREE.Vector3;
   ownerId: string;
   spawnTime: number;
   bouncesLeft: number;
@@ -29,9 +58,16 @@ export function createRocket(
   ownerId: string,
   inheritedVelocity?: Vec3,
   explosive = false,
+  speedScale = 1,
 ): ActiveRocket {
+  const tune = tuningStore.getState();
+  if (!explosive && !tune.bouncyRocketsEnabled) {
+    explosive = true;
+  }
   const dir = new THREE.Vector3(direction.x, direction.y, direction.z).normalize();
-  const velocity = dir.clone().multiplyScalar(tuningStore.getState().rocketSpeed);
+  const velocity = dir
+    .clone()
+    .multiplyScalar(tuningStore.getState().rocketSpeed * speedScale);
 
   if (inheritedVelocity) {
     const k = ROCKET.velocityInherit;
@@ -51,6 +87,7 @@ export function createRocket(
     position: spawnPos.clone(),
     velocity,
     spawnPos,
+    segmentStart: spawnPos.clone(),
     ownerId,
     spawnTime: performance.now() / 1000,
     bouncesLeft: explosive ? 0 : ROCKET.surfaceBounces,
@@ -83,6 +120,7 @@ function detectExplosiveSurfaceHit(
   if (prev.y >= 0.4 && pos.y < 0.4) return true;
   if (rocketHitsPlatformSurface(prev, pos)) return true;
   if (rocketSegmentHitsArenaPillar(prev, pos)) return true;
+  if (rocketSegmentHitsBallDrop(prev, pos)) return true;
   const ceiling = ARENA.wallHeight;
   if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) return true;
 
@@ -133,6 +171,14 @@ function reflectVelocityOffWall(
   }
 }
 
+function trampolineDeckYAt(x: number, z: number): number | null {
+  for (const pad of getBounceTrampolinePads()) {
+    if (Math.hypot(x - pad.x, z - pad.z) > pad.radius) continue;
+    return pad.platformTopY + ARENA_PADS.bouncePadHeightM;
+  }
+  return null;
+}
+
 function tryPlatformBounce(
   r: ActiveRocket,
   prev: THREE.Vector3,
@@ -164,7 +210,19 @@ function tryPlatformBounce(
   pos.x = prev.x + (pos.x - prev.x) * hitT;
   pos.z = prev.z + (pos.z - prev.z) * hitT;
   pos.y = bestSurf + 0.44;
-  r.velocity.y = Math.abs(r.velocity.y) * rest;
+
+  const deckY = trampolineDeckYAt(pos.x, pos.z);
+  const onTrampolineDeck = deckY !== null && Math.abs(bestSurf - deckY) < 0.35;
+
+  if (onTrampolineDeck) {
+    const tune = tuningStore.getState();
+    const launchVy = bounceLaunchSpeedY(tune.gravity, tune.trampolineStrength);
+    r.velocity.y = Math.max(Math.abs(r.velocity.y) * rest, launchVy * 0.82);
+    triggerOctagonShake(pos.x, pos.z);
+  } else {
+    tryTriggerOctagonImpactAt(pos.x, pos.z);
+    r.velocity.y = Math.abs(r.velocity.y) * rest;
+  }
 
   const horiz = Math.hypot(r.velocity.x, r.velocity.z);
   if (horiz > 0.5) {
@@ -193,6 +251,10 @@ function trySurfaceBounce(
   }
 
   if (tryArenaPillarRocketBounce(r, prev, pos)) {
+    return true;
+  }
+
+  if (tryBallDropRocketBounce(r, prev, pos)) {
     return true;
   }
 
@@ -249,16 +311,38 @@ function trySurfaceBounce(
   return false;
 }
 
+const TRAIL_MIN_LEN = 0.35;
+
+function pushTrailSegment(
+  out: RocketTrailSegment[],
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  explosive: boolean,
+) {
+  if (from.distanceToSquared(to) < TRAIL_MIN_LEN * TRAIL_MIN_LEN) return;
+  out.push({
+    from: from.clone(),
+    to: to.clone(),
+    explosive,
+  });
+}
+
 export function updateRockets(
   rockets: ActiveRocket[],
   dt: number,
   arenaHalf: { w: number; d: number; h: number },
-): { rockets: ActiveRocket[]; explosions: Vec3[] } {
+): {
+  rockets: ActiveRocket[];
+  explosions: Vec3[];
+  trailSegments: RocketTrailSegment[];
+} {
   const explosions: Vec3[] = [];
+  const trailSegments: RocketTrailSegment[] = [];
   const now = performance.now() / 1000;
   const remaining: ActiveRocket[] = [];
 
   const arenaRadius = arenaHalf.w;
+  refreshFanGlassBoxes();
 
   for (const r of rockets) {
     _stepPrev.copy(r.position);
@@ -278,11 +362,53 @@ export function updateRockets(
     }
 
     const traveled = rocketTravelDist(r);
+    const minExplodeTravel =
+      r.ownerId === 'local'
+        ? ROCKET.minTravelBeforeExplosiveDetonate
+        : 1.1;
+
+    const glassHit = trySegmentHitsFanGlass(_stepPrev, pos);
+    if (glassHit) {
+      triggerFanGlassHit(glassHit.bayKey);
+      if (r.explosive) {
+        explosions.push({ x, y: Math.max(y, 0.5), z });
+        continue;
+      }
+      r.bouncesLeft = Math.max(0, r.bouncesLeft - 1);
+      pushTrailSegment(trailSegments, _stepPrev, pos, r.explosive);
+      remaining.push(r);
+      continue;
+    }
+
+    tryTriggerBillboardImpact(_stepPrev, pos);
+
+    const goalRingContact = findGoalRimSegmentContact(_stepPrev, pos, 0.55);
+    if (goalRingContact) {
+      if (r.explosive) {
+        explosions.push({ x, y: Math.max(y, 0.5), z });
+        continue;
+      }
+      const rim = goalRingContact;
+      const vDot = r.velocity.x * rim.outwardX;
+      if (vDot < 0) {
+        r.velocity.x -= 2 * vDot * rim.outwardX * ROCKET.bounceRestitution;
+        r.velocity.y = Math.abs(r.velocity.y) * ROCKET.bounceRestitution * 0.45 + 2;
+        r.velocity.z *= 0.82;
+      }
+      r.bouncesLeft = Math.max(0, r.bouncesLeft - 1);
+      pushTrailSegment(trailSegments, _stepPrev, pos, r.explosive);
+      remaining.push(r);
+      continue;
+    }
+
     if (
       r.explosive &&
-      traveled >= 1.1 &&
+      traveled >= minExplodeTravel &&
       detectExplosiveSurfaceHit(_stepPrev, pos, arenaRadius)
     ) {
+      const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
+      if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
+      tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
       explosions.push({ x, y: Math.max(y, 0.5), z });
       continue;
     }
@@ -290,8 +416,12 @@ export function updateRockets(
     if (
       !r.explosive &&
       (trySurfaceBounce(r, _stepPrev, pos, arenaRadius) ||
-        tryArenaPillarRocketBounce(r, _stepPrev, pos))
+        tryArenaPillarRocketBounce(r, _stepPrev, pos) ||
+        tryBallDropRocketBounce(r, _stepPrev, pos))
     ) {
+      tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
+      pushTrailSegment(trailSegments, r.segmentStart, pos, r.explosive);
+      r.segmentStart.copy(pos);
       remaining.push(r);
       continue;
     }
@@ -305,6 +435,9 @@ export function updateRockets(
     const stuckWall = outside && r.bouncesLeft <= 0 && escaping;
 
     if (stuckFloor || stuckCeiling || stuckWall) {
+      const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
+      if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
+      tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
       explosions.push({ x, y: Math.max(y, 0.5), z });
       continue;
     }
@@ -312,7 +445,7 @@ export function updateRockets(
     remaining.push(r);
   }
 
-  return { rockets: remaining, explosions };
+  return { rockets: remaining, explosions, trailSegments };
 }
 
 export function splashDamageFactor(dist: number): number {

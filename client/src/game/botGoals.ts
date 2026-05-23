@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { BOT } from '../shared/Constants';
+import { BOT, ROCKET } from '../shared/Constants';
+import { getBotPressureScalars } from './botTuning';
 import { ARENA_GOALS } from './goals';
 import type { Team } from '../shared/Types';
 import { isBotHolderId, type BallHolderId } from './gameStore';
 
 const _target = new THREE.Vector3();
+const _zero = new THREE.Vector3();
 
 /** Aim at opposite wall: red shoots blue (+X) rings, blue shoots red (−X) rings */
 export function getEnemyGoalTarget(team: Team, out = _target): THREE.Vector3 {
@@ -26,7 +28,7 @@ export function aimAnglesToward(
   const pitch = Math.atan2(dy, Math.max(horiz, 0.01));
   return {
     yaw,
-    pitch: Math.max(-0.35, Math.min(1.05, pitch)),
+    pitch: Math.max(-0.35, Math.min(1.22, pitch)),
   };
 }
 
@@ -34,7 +36,7 @@ export function getGoalShootTarget(team: Team, out = _target): THREE.Vector3 {
   return getEnemyGoalTarget(team, out);
 }
 
-function leadPlayerTarget(
+export function leadPlayerTarget(
   from: THREE.Vector3,
   playerChest: THREE.Vector3,
   playerVel: THREE.Vector3,
@@ -42,13 +44,35 @@ function leadPlayerTarget(
 ): THREE.Vector3 {
   const dist = from.distanceTo(playerChest);
   const horizSpd = Math.hypot(playerVel.x, playerVel.z);
-  const flightSec = Math.min(2, Math.max(0.35, dist / (BOT.launchForce * 0.82)));
-  const leadT = horizSpd >= 2 ? flightSec * 1.1 : flightSec * 0.4;
+  const rocketSpd = ROCKET.speed * BOT.rocketSpeedScale;
+  const flightSec = Math.min(2, Math.max(0.35, dist / (rocketSpd * 0.82)));
+  const leadT = horizSpd >= 2 ? flightSec * 0.85 : flightSec * 0.3;
   out.copy(playerChest);
   out.x += playerVel.x * leadT;
-  out.y += playerChest.y + playerVel.y * leadT * 0.2;
+  out.y += playerVel.y * leadT * 0.2;
   out.z += playerVel.z * leadT;
   out.y = Math.max(0.85, Math.min(out.y, 4.8));
+  return out;
+}
+
+/** Revenge rockets — horizontal lead, aim at torso (no extra pitch offset) */
+export function pickRetaliationAimTarget(
+  from: THREE.Vector3,
+  attackerChest: THREE.Vector3,
+  attackerVel: THREE.Vector3,
+  out = _target,
+): THREE.Vector3 {
+  const dist = from.distanceTo(attackerChest);
+  const horizSpd = Math.hypot(attackerVel.x, attackerVel.z);
+  const rocketSpd = ROCKET.speed * BOT.rocketSpeedScale;
+  const flightSec = Math.min(2, Math.max(0.35, dist / (rocketSpd * 0.82)));
+  const leadT = horizSpd >= 2 ? flightSec * 0.88 : flightSec * 0.35;
+  out.set(
+    attackerChest.x + attackerVel.x * leadT,
+    attackerChest.y + attackerVel.y * leadT * 0.1 - BOT.retaliateAimDropM,
+    attackerChest.z + attackerVel.z * leadT,
+  );
+  out.y = Math.max(1.05, Math.min(out.y, 3.9));
   return out;
 }
 
@@ -79,6 +103,38 @@ export function pickBotGoalLaunchTarget(
   return out;
 }
 
+/** High arc toward the rings when shooting from distance */
+export function pickBotLoftLaunchTarget(
+  team: Team,
+  shotIndex: number,
+  out = _target,
+  fromChest?: THREE.Vector3,
+): THREE.Vector3 {
+  pickBotGoalLaunchTarget(team, shotIndex, out, fromChest);
+  out.y += BOT.loftLaunchExtraLiftY;
+  if (fromChest) {
+    const dist = fromChest.distanceTo(out);
+    if (dist > 32) out.y += 1.6;
+    else if (dist > 22) out.y += 0.9;
+  }
+  return out;
+}
+
+/** Ally save — lead the loose ball after an opponent shot */
+export function pickAllySaveBallTarget(
+  ballPos: THREE.Vector3,
+  ballVel: THREE.Vector3,
+  out = _target,
+): THREE.Vector3 {
+  const leadT = 0.38;
+  out.copy(ballPos);
+  out.x += ballVel.x * leadT;
+  out.y += ballVel.y * leadT + 0.2;
+  out.z += ballVel.z * leadT;
+  out.y = Math.max(out.y, 0.95);
+  return applyRocketAimError(out, out);
+}
+
 /** Widen bot throws so fewer perfect catches / saves */
 export function applyBotLaunchAimError(
   chest: THREE.Vector3,
@@ -86,7 +142,7 @@ export function applyBotLaunchAimError(
   out = _target,
 ): THREE.Vector3 {
   out.copy(target);
-  const spread = BOT.ballLaunchAimErrorM;
+  const spread = getBotPressureScalars().ballLaunchAimErrorM;
   out.x += (Math.random() - 0.5) * spread * 1.1;
   out.y += (Math.random() - 0.5) * spread * 0.75;
   out.z += (Math.random() - 0.5) * spread * 1.35;
@@ -110,6 +166,7 @@ export function pickBotLaunchTarget(
   out = _target,
 ): THREE.Vector3 {
   const playerHasBall = ballHolder === 'local';
+  const { playerCarrierShotBias } = getBotPressureScalars();
   const slot = shotIndex % 5;
   if (!playerHasBall) {
     if (slot === 0 || slot === 1) return getGoalShootTarget(team, out);
@@ -119,8 +176,10 @@ export function pickBotLaunchTarget(
     }
     return leadPlayerTarget(chest, playerChest, playerVel, out);
   }
-  if (slot <= 2) return leadPlayerTarget(chest, playerChest, playerVel, out);
-  if (slot === 3) return out.copy(ballPos);
+  if (Math.random() < playerCarrierShotBias) {
+    return leadPlayerTarget(chest, playerChest, playerVel, out);
+  }
+  if (slot === 3 || Math.random() < 0.45) return out.copy(ballPos);
   return getGoalShootTarget(team, out);
 }
 
@@ -139,10 +198,11 @@ export function applyFollowPlayerAimError(
   const dist = _followDir.length();
   if (dist < 0.5) return out;
 
+  const aim = getBotPressureScalars();
   const pct =
-    BOT.followPlayerAimErrorMinPct +
+    aim.followPlayerAimErrorMinPct +
     Math.random() *
-      (BOT.followPlayerAimErrorMaxPct - BOT.followPlayerAimErrorMinPct);
+      (aim.followPlayerAimErrorMaxPct - aim.followPlayerAimErrorMinPct);
   const offsetLen = dist * pct;
 
   _followOff.set(
@@ -176,11 +236,11 @@ export function applyRocketAimError(
   out = _target,
 ): THREE.Vector3 {
   out.copy(target);
-  const spread = BOT.rocketAimErrorM;
+  const spread = getBotPressureScalars().rocketAimErrorM;
   _aimJitter.set(
-    (Math.random() - 0.5) * spread * 2,
-    (Math.random() - 0.5) * spread * 1.2,
-    (Math.random() - 0.5) * spread * 2,
+    (Math.random() - 0.5) * spread * 2.2,
+    (Math.random() - 0.5) * spread * 1.5,
+    (Math.random() - 0.5) * spread * 2.2,
   );
   out.add(_aimJitter);
   out.y = Math.max(0.6, out.y);
@@ -209,7 +269,7 @@ export function pickAllyProjectileTarget(
   ballPos: THREE.Vector3,
   out = _target,
 ): THREE.Vector3 {
-  if (enemyChest && Math.random() < 0.72) {
+  if (enemyChest && Math.random() < 0.8) {
     return applyRocketAimError(
       leadPlayerTarget(chest, enemyChest, enemyVel, out),
       out,
@@ -235,7 +295,19 @@ export function pickEnemyVolleyRocketTarget(
   chest: THREE.Vector3,
   ballHolder: BallHolderId,
   out = _target,
+  opponentBotChest: THREE.Vector3 | null = null,
+  opponentBotVel: THREE.Vector3 = _zero,
 ): THREE.Vector3 {
+  if (
+    !ballHolder &&
+    opponentBotChest &&
+    Math.random() < BOT.enemyVolleyAtBotChance
+  ) {
+    return applyRocketAimError(
+      leadPlayerTarget(chest, opponentBotChest, opponentBotVel, out),
+      out,
+    );
+  }
   if (ballHolder === 'local') {
     return applyRocketAimError(
       leadPlayerTarget(chest, playerChest, playerVel, out),

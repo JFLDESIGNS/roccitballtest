@@ -7,7 +7,7 @@ import {
   useRapier,
   type RapierRigidBody,
 } from '@react-three/rapier';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import {
   ARENA,
@@ -17,15 +17,14 @@ import {
   ENERGY,
   MOVEMENT,
   ROCKET,
-  TEAM_SPAWN,
 } from '../shared/Constants';
 import {
   captureBallSocket,
-  getBallSocketPosition,
   releaseBallPhysics,
   smoothHoldSocketTarget,
   updateBallSocketSmooth,
 } from './ballAttach';
+import { resolveHeldBallPosition } from './ballHoldResolve';
 import {
   applyBeamAttraction,
   beamGrabDistance,
@@ -34,10 +33,35 @@ import {
 import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse } from './ballPhysics';
 import { clampToHex } from './arenaHex';
+import { getTeamSpawn } from './goals';
 import { getCameraBasis, updateThirdPersonCamera } from './CameraController';
 import { gameStore } from './gameStore';
+import { PlayerAvatar } from './PlayerAvatar';
+import {
+  alignCharacterVisualUpright,
+  createKnockVisualTumbleState,
+  createVisualRecoveryState,
+  forceCharacterUpright,
+  impulseKnockVisualTumble,
+  syncCharacterVisualPresentation,
+  tickCharacterVisualRecovery,
+  tickKnockVisualTumble,
+} from './characterVisual';
+import {
+  CHARACTER_MESH_RENDER_ORDER,
+  GroundJerseyDecal,
+} from './JerseyDecal';
+import { DroneThrusterFlames } from './DroneThrusterFlames';
+import { VelocityPathRibbon } from './VelocityPathRibbon';
 import { inputManager } from './InputManager';
-import { playBallLaunch, playJump, setBeamAttractActive } from './audio';
+import {
+  playBallLaunch,
+  playDash,
+  playJump,
+  playRocketFire,
+  playRocketEmpty,
+  setBeamAttractActive,
+} from './audio';
 import {
   averageMomentum,
   resetMomentumSamples,
@@ -48,11 +72,28 @@ import {
   computeDirectedShotVelocity,
   computeBallLaunchSpawn,
 } from './launchShot';
+import {
+  blendPlayerKnockStunMovement,
+  tickPlayerKnockStun,
+} from './rocketKnockStun';
 import { tuningStore } from './tuningStore';
 import { isBeamDenied, registerBeamDenyZone } from './beamDenyZones';
 import { canCaptureWithContest, recordBeamPull } from './ballBeamContest';
 import { createRocket } from './rocketSystem';
-import { applyPlayerStepUp, probePlayerGround } from './playerGroundProbe';
+import { sampleTrampolineFloorY } from './arenaPadLayout';
+import {
+  applyPlayerStepUp,
+  playerFeetY,
+  probePlayerGround,
+} from './playerGroundProbe';
+import { tryPlayerPads, isPlayerOverTrampolineDeck } from './arenaPadPhysics';
+import { getJerseyNumber } from './playerRoster';
+import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
+import { tickGoalEntryCharacterBounce } from './goalNetBounce';
+import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
+
+const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
+const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 
 type PlayerProps = {
   ballBodyRef: React.RefObject<RapierRigidBody | null>;
@@ -61,6 +102,8 @@ type PlayerProps = {
   onBeamBreak: () => void;
   onPositionUpdate: (pos: THREE.Vector3, chest: THREE.Vector3) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
+  /** Return false when rockets are maxed out / empty */
+  canFireRocket?: () => boolean;
   /** GameCanvas calls after a rocket blast knocks the player — refill jumps */
   onRocketBoostRef?: React.MutableRefObject<(() => void) | null>;
 };
@@ -73,28 +116,48 @@ export function Player({
   onPositionUpdate,
   onPlayerBodyReady,
   onRocketBoostRef,
+  canFireRocket,
 }: PlayerProps) {
+  const localTeam = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().localTeam,
+  );
   const bodyRef = useRef<RapierRigidBody>(null);
   const visualRef = useRef<THREE.Group>(null);
+  const tiltRef = useRef<THREE.Group>(null);
+  const bobRef = useRef<THREE.Group>(null);
+  const pitchSmooth = useRef(0);
+  const bobPhase = useRef(0);
+  const visualRecovery = useRef(createVisualRecoveryState());
+  const knockTumble = useRef(createKnockVisualTumbleState());
+  const knockStunWasActive = useRef(false);
+  const trailPos = useRef(new THREE.Vector3());
   const { camera } = useThree();
   const { world } = useRapier();
   const velocity = useRef(new THREE.Vector3());
   const grounded = useRef(true);
   const jumpsLeft = useRef(MOVEMENT.maxJumps);
   const jumpAirGrace = useRef(0);
-  const rocketKnockGrace = useRef(0);
   const coyoteTime = useRef(0);
   const _wishDir = useRef(new THREE.Vector3());
-  const rocketCooldown = useRef(0);
+  /** One fire SFX per LMB press; edge attempt skips release retry */
+  const firePressHandled = useRef(false);
+  const dashCooldown = useRef(0);
+  const dashActiveTimer = useRef(0);
+  const goalNetCooldown = useRef(0);
+  const goalRimCooldown = useRef(0);
+  const _dashDir = useRef(new THREE.Vector3());
   const energy = useRef<number>(ENERGY.max);
   const regenTimer = useRef(0);
   const draining = useRef(false);
   const holdingBall = useRef(false);
+  const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
   const ballSeparationGraceUntil = useRef(0);
   /** After LMB ball shot, beam stays off until RMB is released and pressed again */
   const beamNeedsRepress = useRef(false);
-  const team = gameStore.getState().localTeam;
+  const spawnApplied = useRef(false);
+  const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
   const _posScratch = useRef(new THREE.Vector3());
   const _beamBallPos = useRef(new THREE.Vector3());
@@ -117,18 +180,30 @@ export function Player({
   const holdSocketSmoothed = useRef(new THREE.Vector3());
   const holdSocketSmoothReady = useRef(false);
   const _rocketOrigin = useRef(new THREE.Vector3());
-  useEffect(() => {
-    const spawn = TEAM_SPAWN[team];
-    bodyRef.current?.setTranslation({ x: spawn.x, y: spawn.y, z: spawn.z }, true);
-    inputManager.resetLookForTeam(team);
+  const spawnPos = useMemo(() => {
+    const team = gameStore.getState().localTeam;
+    return getTeamSpawn(team);
+  }, []);
+
+  const applyTeamSpawn = useCallback(() => {
+    const body = bodyRef.current;
+    if (!body) return false;
+    body.setTranslation(
+      { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z },
+      true,
+    );
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    inputManager.resetLookFromPosition(spawnPos.x, spawnPos.z);
     cameraSnapped.current = false;
-  }, [team]);
+    spawnApplied.current = true;
+    return true;
+  }, [spawnPos]);
 
   useEffect(() => {
     if (!onRocketBoostRef) return;
     onRocketBoostRef.current = () => {
       jumpsLeft.current = MOVEMENT.maxJumps;
-      rocketKnockGrace.current = MOVEMENT.rocketKnockGraceSec;
     };
     return () => {
       onRocketBoostRef.current = null;
@@ -136,8 +211,13 @@ export function Player({
   }, [onRocketBoostRef]);
 
   useEffect(() => {
-    if (bodyRef.current) onPlayerBodyReady(bodyRef.current);
-  }, [onPlayerBodyReady]);
+    const body = bodyRef.current;
+    if (!body) return;
+    onPlayerBodyReady(body);
+    if (spawnInitialized.current) return;
+    spawnInitialized.current = true;
+    applyTeamSpawn();
+  }, [onPlayerBodyReady, applyTeamSpawn]);
 
   const lastWishDir = useRef(new THREE.Vector3());
 
@@ -145,7 +225,8 @@ export function Player({
     const body = bodyRef.current;
     const ball = ballBodyRef.current;
     if (!body) return;
-    if (gameStore.getState().ballFrozen || gameStore.getState().phase !== 'playing') {
+    const gs = gameStore.getState();
+    if (gs.phase !== 'playing' && gs.phase !== 'countdown') {
       return;
     }
 
@@ -163,22 +244,173 @@ export function Player({
       );
     }
 
-    if (!ball || holdingBall.current) return;
+    const tr = body.translation();
+    const padY = sampleTrampolineFloorY(tr.x, tr.z);
+    if (padY !== null) {
+      const feet = playerFeetY(tr.y);
+      const gap = feet - padY;
+      if (gap > 0.05 && gap < 1.2) {
+        body.setTranslation(
+          { x: tr.x, y: padY + (tr.y - feet), z: tr.z },
+          true,
+        );
+        const lv = body.linvel();
+        if (lv.y < 0) {
+          body.setLinvel({ x: lv.x, y: 0, z: lv.z }, true);
+        }
+      }
+    }
+
+    if (
+      !ball ||
+      holdingBall.current ||
+      gameStore.getState().ballHolderId === 'local'
+    ) {
+      return;
+    }
     const now = performance.now() / 1000;
     if (now < ballSeparationGraceUntil.current) return;
     separateBallFromPlayer(body, ball, 0.35, true);
+
+    const tune = tuningStore.getState();
+    if (
+      tickGoalEntryCharacterBounce(
+        body,
+        tr.x,
+        tr.y + BEAM.chestHeight * 0.35,
+        tr.z,
+        PLAYER_RIM_PROBE_RADIUS,
+        tune.gravity,
+        goalNetCooldown,
+        goalRimCooldown,
+        1 / 60,
+      )
+    ) {
+      velocity.current.set(body.linvel().x, body.linvel().y, body.linvel().z);
+    }
   });
 
   useFrame((_, dt) => {
     const body = bodyRef.current;
     if (!body) return;
+
+    const carryingBall =
+      holdingBall.current || gameStore.getState().ballHolderId === 'local';
+    if (carryingBall !== playerCarryingBall.current) {
+      playerCarryingBall.current = carryingBall;
+      const playerCol = body.collider(0);
+      if (playerCol) {
+        playerCol.setCollisionGroups(
+          carryingBall ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+        );
+      }
+    }
+
+    if (!spawnApplied.current && applyTeamSpawn()) {
+      const t = body.translation();
+      pivotRef.current.set(t.x, t.y + CAMERA.pivotHeight, t.z);
+      const rot = inputManager.getRotation();
+      updateThirdPersonCamera(
+        camera,
+        pivotRef.current,
+        rot.yaw,
+        inputManager.getAimPitch(),
+        1,
+        true,
+      );
+      cameraSnapped.current = true;
+    }
     const phase = gameStore.getState().phase;
     if (phase !== 'playing' && phase !== 'countdown') return;
     if (tuningStore.getState().showMenu) return;
 
     const tune = tuningStore.getState();
+
+    const knockTick = tickPlayerKnockStun(body);
+    const rotEarly = inputManager.getRotation();
+    const visualPresentation = {
+      visual: visualRef.current,
+      tilt: tiltRef.current,
+      bob: bobRef.current,
+      pitchSmooth,
+      bobPhase,
+    };
+    if (knockTick === 'ended') {
+      knockStunWasActive.current = false;
+      forceCharacterUpright(
+        body,
+        visualPresentation,
+        visualRecovery.current,
+        knockTumble.current,
+      );
+    }
+
+    if (knockTick === 'active') {
+      if (!knockStunWasActive.current) {
+        impulseKnockVisualTumble(knockTumble.current);
+      }
+      knockStunWasActive.current = true;
+      tickKnockVisualTumble(knockTumble.current, dt);
+
+      const tr = body.translation();
+      const pos = _posScratch.current.set(tr.x, tr.y, tr.z);
+      const rot = rotEarly;
+      const { forward, right } = getCameraBasis(rot.yaw);
+      const move = inputManager.getMoveVector();
+      const wishDir = _wishDir.current
+        .set(0, 0, 0)
+        .addScaledVector(forward, move.y)
+        .addScaledVector(right, -move.x);
+
+      const linvel = body.linvel();
+      const feetY = playerFeetY(pos.y);
+      const groundedStun =
+        feetY <= MOVEMENT.groundProbeDist + 0.35 && Math.abs(linvel.y) < 8;
+
+      blendPlayerKnockStunMovement(body, velocity.current, {
+        wishX: wishDir.x,
+        wishZ: wishDir.z,
+        walkSpeed: tune.walkSpeed,
+        grounded: groundedStun,
+        dt,
+      });
+
+      const lv = body.linvel();
+      chestPos.current.set(tr.x, tr.y + BEAM.chestHeight, tr.z);
+      pivotRef.current.set(tr.x, tr.y + CAMERA.pivotHeight, tr.z);
+      onPositionUpdate(pos, chestPos.current);
+      updateThirdPersonCamera(
+        camera,
+        pivotRef.current,
+        rot.yaw,
+        inputManager.getAimPitch(),
+        dt,
+        false,
+      );
+      gameStore.setSpeeds(
+        Math.hypot(lv.x, lv.z),
+        ballBodyRef.current
+          ? Math.hypot(
+              ballBodyRef.current.linvel().x,
+              ballBodyRef.current.linvel().z,
+            )
+          : 0,
+      );
+      alignCharacterVisualUpright(
+        body,
+        visualPresentation,
+        rot.yaw,
+        knockTumble.current,
+        inputManager.getAimPitch(),
+      );
+      return;
+    }
+    knockStunWasActive.current = false;
     const localTeam = gameStore.getState().localTeam;
-    rocketCooldown.current = Math.max(0, rocketCooldown.current - dt);
+    dashCooldown.current = Math.max(0, dashCooldown.current - dt);
+    dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
+    goalNetCooldown.current = Math.max(0, goalNetCooldown.current - dt);
+    goalRimCooldown.current = Math.max(0, goalRimCooldown.current - dt);
     const t = body.translation();
     const pos = _posScratch.current.set(t.x, t.y, t.z);
     const rot = inputManager.getRotation();
@@ -201,20 +433,36 @@ export function Player({
       inputManager.getAimPitch(),
       dt,
       snapCam,
-      world,
-      body,
     );
 
-    if (visualRef.current) {
-      visualRef.current.rotation.y = rot.yaw;
-    }
-
     const linvel = body.linvel();
+    const aimPitch = inputManager.getAimPitch();
+    const moveSpeed = Math.hypot(linvel.x, linvel.z);
+
+    if (
+      !tickCharacterVisualRecovery(
+        body,
+        visualRecovery.current,
+        visualPresentation,
+        rot.yaw,
+        aimPitch,
+        moveSpeed,
+        dt,
+      )
+    ) {
+      syncCharacterVisualPresentation(
+        body,
+        visualPresentation,
+        rot.yaw,
+        aimPitch,
+        moveSpeed,
+        dt,
+      );
+    }
     const holdingNow =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
 
     jumpAirGrace.current = Math.max(0, jumpAirGrace.current - dt);
-    rocketKnockGrace.current = Math.max(0, rocketKnockGrace.current - dt);
 
     const maxVy = holdingNow
       ? MOVEMENT.groundMaxVerticalSpeedWithBall
@@ -230,16 +478,26 @@ export function Player({
       maxVy,
     );
 
+    const padFloorY = sampleTrampolineFloorY(pos.x, pos.z);
+    const feetY = playerFeetY(pos.y);
+    const overTrampDeck = isPlayerOverTrampolineDeck(pos.x, pos.z, feetY);
+    let padGap = MOVEMENT.groundProbeDist + 1;
+    if (padFloorY !== null) {
+      padGap = feetY - padFloorY;
+    }
+
     if (jumpAirGrace.current > 0) {
       grounded.current = false;
     } else {
-      grounded.current = probe.grounded;
+      grounded.current =
+        !overTrampDeck &&
+        (probe.grounded ||
+          (padFloorY !== null &&
+            padGap <= MOVEMENT.groundProbeDist &&
+            Math.abs(linvel.y) <= maxVy));
     }
 
-    const risingFromJump =
-      rocketKnockGrace.current <= 0 &&
-      (jumpAirGrace.current > 0 || linvel.y > 2.8);
-    if (grounded.current && !risingFromJump) {
+    if (grounded.current && jumpAirGrace.current <= 0) {
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = MOVEMENT.coyoteTimeSec;
     } else if (!grounded.current) {
@@ -263,42 +521,73 @@ export function Player({
       lastWishDir.current.copy(wishDir);
     }
 
-    const control = grounded.current ? 1 : MOVEMENT.airControl;
-    const targetVelX = wishDir.x * speed * control;
-    const targetVelZ = wishDir.z * speed * control;
-    velocity.current.x = THREE.MathUtils.lerp(
-      velocity.current.x,
-      targetVelX,
-      accel * dt,
-    );
-    velocity.current.z = THREE.MathUtils.lerp(
-      velocity.current.z,
-      targetVelZ,
-      accel * dt,
-    );
+    const dashing = dashActiveTimer.current > 0;
+    if (dashing) {
+      const dashSpd = MOVEMENT.dashForwardSpeed;
+      velocity.current.x = _dashDir.current.x * dashSpd;
+      velocity.current.z = _dashDir.current.z * dashSpd;
+    } else {
+      const control = grounded.current ? 1 : MOVEMENT.airControl;
+      const targetVelX = wishDir.x * speed * control;
+      const targetVelZ = wishDir.z * speed * control;
+      velocity.current.x = THREE.MathUtils.lerp(
+        velocity.current.x,
+        targetVelX,
+        accel * dt,
+      );
+      velocity.current.z = THREE.MathUtils.lerp(
+        velocity.current.z,
+        targetVelZ,
+        accel * dt,
+      );
 
-    if (!grounded.current && wishDir.lengthSq() > 0) {
-      const curH = Math.hypot(velocity.current.x, velocity.current.z);
-      const tgtH = Math.hypot(targetVelX, targetVelZ);
-      if (tgtH > 0.01 && curH > tgtH) {
-        const keep = curH / tgtH;
-        velocity.current.x = targetVelX * keep;
-        velocity.current.z = targetVelZ * keep;
+      if (!grounded.current && wishDir.lengthSq() > 0) {
+        const curH = Math.hypot(velocity.current.x, velocity.current.z);
+        const tgtH = Math.hypot(targetVelX, targetVelZ);
+        if (tgtH > 0.01 && curH > tgtH) {
+          const keep = curH / tgtH;
+          velocity.current.x = targetVelX * keep;
+          velocity.current.z = targetVelZ * keep;
+        }
       }
     }
 
     let vy = linvel.y;
-    const hasAirJump = jumpsLeft.current < MOVEMENT.maxJumps;
-    const canJump =
-      jumpsLeft.current > 0 &&
-      (hasAirJump || grounded.current || coyoteTime.current > 0);
-    if (canJump && inputManager.consumeJump()) {
-      const doubleJump = jumpsLeft.current < MOVEMENT.maxJumps;
-      playJump(doubleJump);
-      vy =
-        jumpsLeft.current === MOVEMENT.maxJumps
-          ? tune.jumpForce
-          : tuningStore.getDoubleJumpForce();
+
+    if (
+      dashCooldown.current <= 0 &&
+      inputManager.consumeDashBoost()
+    ) {
+      _dashDir.current.copy(forward).setY(0);
+      if (_dashDir.current.lengthSq() < 1e-6) {
+        _dashDir.current.set(
+          -Math.sin(rot.yaw),
+          0,
+          -Math.cos(rot.yaw),
+        );
+      } else {
+        _dashDir.current.normalize();
+      }
+      playDash();
+      velocity.current.x =
+        _dashDir.current.x * MOVEMENT.dashForwardSpeed;
+      velocity.current.z =
+        _dashDir.current.z * MOVEMENT.dashForwardSpeed;
+      vy = MOVEMENT.dashUpSpeed;
+      grounded.current = false;
+      dashActiveTimer.current = MOVEMENT.dashDurationSec;
+      dashCooldown.current = MOVEMENT.dashCooldownSec;
+      const tr = body.translation();
+      body.setTranslation(
+        { x: tr.x, y: tr.y + MOVEMENT.jumpLiftY, z: tr.z },
+        true,
+      );
+    }
+
+    if (jumpsLeft.current > 0 && inputManager.consumeJump()) {
+      const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
+      playJump(jumpIndex);
+      vy = tuningStore.getJumpImpulse(jumpIndex);
       jumpsLeft.current -= 1;
       grounded.current = false;
       jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
@@ -317,7 +606,53 @@ export function Player({
       );
     }
     vy += tune.gravity * dt;
+
     velocity.current.y = vy;
+    const feetNow = playerFeetY(pos.y);
+    const padLaunched = tryPlayerPads(
+      body,
+      velocity.current,
+      tune.gravity,
+      tune.trampolineStrength,
+      { feetY: feetNow, vy },
+    );
+    if (padLaunched) {
+      vy = velocity.current.y;
+      grounded.current = false;
+      jumpsLeft.current = MOVEMENT.maxJumps;
+      coyoteTime.current = 0;
+      jumpAirGrace.current = 0;
+    } else if (padFloorY !== null && !overTrampDeck) {
+      const currentFeet = playerFeetY(pos.y);
+      const gap = currentFeet - padFloorY;
+      if (gap > 0.04 && gap <= MOVEMENT.groundProbeDist + 0.35 && vy <= 0.6) {
+        const snapY = padFloorY + (pos.y - currentFeet);
+        body.setTranslation({ x: pos.x, y: snapY, z: pos.z }, true);
+        pos.y = snapY;
+        vy = 0;
+        grounded.current = true;
+      }
+    }
+
+    velocity.current.y = vy;
+
+    if (
+      tickGoalEntryCharacterBounce(
+        body,
+        pos.x,
+        pos.y + BEAM.chestHeight * 0.35,
+        pos.z,
+        PLAYER_RIM_PROBE_RADIUS,
+        tune.gravity,
+        goalNetCooldown,
+        goalRimCooldown,
+        dt,
+      )
+    ) {
+      velocity.current.set(body.linvel().x, body.linvel().y, body.linvel().z);
+      grounded.current = false;
+      jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.2);
+    }
 
     body.setLinvel(
       { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
@@ -359,11 +694,18 @@ export function Player({
       draining.current = true;
     }
 
+    const clearHoldState = () => {
+      holdingBall.current = false;
+      if (gameStore.getState().ballHolderId === 'local') {
+        gameStore.clearBallHolder();
+      }
+      requestAnimationFrame(() => onBallHeldChange(false));
+    };
+
     if (energy.current <= 0) {
       energy.current = 0;
       if (holdingBall.current) {
-        holdingBall.current = false;
-        onBallHeldChange(false);
+        clearHoldState();
         onBeamBreak();
         gameStore.setEnergyFlash(true);
         if (ballBodyRef.current) releaseBallPhysics(ballBodyRef.current);
@@ -425,8 +767,7 @@ export function Player({
 
     const dropHeldBall = () => {
       if (!holdingBall.current) return;
-      holdingBall.current = false;
-      onBallHeldChange(false);
+      clearHoldState();
       ballReleaseLockUntil.current = now + BALL.beamRegrabLockSec;
 
       if (ball) {
@@ -456,8 +797,7 @@ export function Player({
         holdingBall.current || gameStore.getState().isHoldingBall;
       if (!held) return false;
       beamNeedsRepress.current = true;
-      holdingBall.current = false;
-      onBallHeldChange(false);
+      clearHoldState();
       ballReleaseLockUntil.current = now + BALL.beamRegrabLockSec;
 
       if (ball) {
@@ -491,8 +831,7 @@ export function Player({
     };
 
     const ballHolder = gameStore.getState().ballHolderId;
-    const canBeamBall =
-      ballHolder === null || ballHolder === 'local';
+    const canBeamBall = ballHolder === null;
 
     const beamingLoose =
       beamInput &&
@@ -545,35 +884,142 @@ export function Player({
             chestDist,
           )
         ) {
-          holdingBall.current = true;
-          onBallHeldChange(true);
           const lv0 = body.linvel();
+          lastHoldSocketPos.current.copy(ballPos);
+          holdSocketReady.current = false;
+          holdLatchT.current = 0;
+          holdSocketSmoothed.current.copy(ballPos);
+          holdSocketSmoothReady.current = true;
+          captureBallSocket(ball, holdSocketSmoothed.current, ballPos);
+          resolveHeldBallPosition(
+            world,
+            ball,
+            holdSocketSmoothed.current,
+            holdSocketSmoothed.current,
+            BALL.radius,
+            body,
+            holdSocketSmoothed.current,
+            chestPos.current,
+          );
+          ball.setTranslation(
+            {
+              x: holdSocketSmoothed.current.x,
+              y: holdSocketSmoothed.current.y,
+              z: holdSocketSmoothed.current.z,
+            },
+            true,
+          );
+          holdingBall.current = true;
+          gameStore.setBallHolder('local');
+          gameStore.setBallState('held');
+          requestAnimationFrame(() => onBallHeldChange(true));
           resetMomentumSamples(
             launchMomentumSamples.current,
             launchMomentumTimer,
             new THREE.Vector3(lv0.x, lv0.y, lv0.z),
           );
           resetMomentumSamples(ballSwingSamples.current, ballSwingTimer);
-          const socket = getBallSocketPosition(
-            chestPos.current,
-            lookDir,
-            BEAM.holdDistance,
-            BALL.radius,
-            _holdSocket.current,
-          );
-          lastHoldSocketPos.current.copy(ballPos);
-          holdSocketReady.current = false;
-          holdLatchT.current = 0;
-          holdSocketSmoothed.current.copy(socket);
-          holdSocketSmoothReady.current = true;
-          captureBallSocket(ball, holdSocketSmoothed.current, ballPos);
         } else if (pull.applied || chestDist <= BEAM.contactCaptureDistance) {
           gameStore.setBallState('pulled');
         }
       }
     }
 
-    if (holdingBall.current && !beamInput) {
+    const holdingFire = inputManager.isFireDown();
+    const ballHeld = gameStore.getState().ballHolderId === 'local';
+    const canShootRockets = !ballHeld;
+    let launchedBallThisFrame = false;
+
+    const tryFireRocket = (explosive: boolean): boolean => {
+      if (!canShootRockets || !body) return false;
+      if (canFireRocket && !canFireRocket()) {
+        if (!firePressHandled.current) {
+          playRocketEmpty();
+          firePressHandled.current = true;
+        }
+        return false;
+      }
+      if (lookDir.lengthSq() < 1e-6) return false;
+
+      _rocketOrigin.current
+        .copy(chestPos.current)
+        .addScaledVector(lookDir, ROCKET.rocketSpawnAhead);
+      const lv = body.linvel();
+      const rocket = createRocket(
+        {
+          x: _rocketOrigin.current.x,
+          y: _rocketOrigin.current.y,
+          z: _rocketOrigin.current.z,
+        },
+        { x: lookDir.x, y: lookDir.y, z: lookDir.z },
+        'local',
+        { x: lv.x, y: lv.y, z: lv.z },
+        explosive,
+      );
+      if (!firePressHandled.current) {
+        playRocketFire(explosive);
+        firePressHandled.current = true;
+      }
+      onRocketFired(rocket);
+      return true;
+    };
+
+    if (inputManager.consumeFireEdge()) {
+      firePressHandled.current = false;
+      chargedRocketFired.current = false;
+      if (ballHeld) {
+        launchedBallThisFrame = launchHeldBall();
+        fireLaunchedBall.current = launchedBallThisFrame;
+        fireHoldStart.current = null;
+        if (launchedBallThisFrame) firePressHandled.current = true;
+      } else {
+        fireLaunchedBall.current = false;
+        fireHoldStart.current = now;
+        if (canShootRockets) {
+          tryFireRocket(true);
+          firePressHandled.current = true;
+        }
+      }
+    }
+
+    if (
+      holdingFire &&
+      canShootRockets &&
+      fireHoldStart.current !== null &&
+      !chargedRocketFired.current
+    ) {
+      const holdDur = now - fireHoldStart.current;
+      if (holdDur >= ROCKET.chargedHoldSec) {
+        if (tune.bouncyRocketsEnabled) {
+          if (tryFireRocket(false)) {
+            chargedRocketFired.current = true;
+          }
+        }
+      }
+    }
+
+    if (inputManager.consumeFireRelease()) {
+      const holdDur =
+        fireHoldStart.current !== null ? now - fireHoldStart.current : 0;
+      fireHoldStart.current = null;
+      if (
+        canShootRockets &&
+        !firePressHandled.current &&
+        !fireLaunchedBall.current &&
+        !chargedRocketFired.current &&
+        holdDur < ROCKET.chargedHoldSec
+      ) {
+        tryFireRocket(true);
+      }
+      fireLaunchedBall.current = false;
+      chargedRocketFired.current = false;
+    }
+
+    if (inputManager.consumeThrow() && !launchedBallThisFrame) {
+      launchHeldBall();
+    }
+
+    if (holdingBall.current && !beamInput && !launchedBallThisFrame) {
       dropHeldBall();
       if (inputManager.isFireDown()) {
         fireHoldStart.current = now;
@@ -598,6 +1044,7 @@ export function Player({
         dt,
         BALL.holdSocketTargetSmooth,
         holdSocketSmoothReady.current,
+        body,
       );
 
       holdLatchT.current = Math.min(
@@ -628,83 +1075,21 @@ export function Player({
         holdSocketSmoothed.current,
         dt,
         holdLatchT.current,
+        BALL.holdFollowSmooth,
+        world,
+        body,
+        chestPos.current,
       );
+
+      const bt = ball.translation();
+      if (
+        tryBallGoalScoreAtPoint({ x: bt.x, y: bt.y, z: bt.z }, ball)
+      ) {
+        clearHoldState();
+        resetHoldMomentum();
+      }
     } else {
       holdSocketSmoothReady.current = false;
-    }
-
-    const fireRocket = (explosive: boolean) => {
-      if (rocketCooldown.current > 0) return;
-      rocketCooldown.current = ROCKET.cooldown;
-      _rocketOrigin.current
-        .copy(chestPos.current)
-        .addScaledVector(lookDir, 1.2);
-      const lv = body.linvel();
-      onRocketFired(
-        createRocket(
-          {
-            x: _rocketOrigin.current.x,
-            y: _rocketOrigin.current.y,
-            z: _rocketOrigin.current.z,
-          },
-          { x: lookDir.x, y: lookDir.y, z: lookDir.z },
-          'local',
-          { x: lv.x, y: lv.y, z: lv.z },
-          explosive,
-        ),
-      );
-    };
-
-    const holdingFire = inputManager.isFireDown();
-    const ballHeld = gameStore.getState().ballHolderId === 'local';
-    const canShootRockets = !ballHeld;
-
-    if (inputManager.consumeFireEdge()) {
-      chargedRocketFired.current = false;
-      if (ballHeld) {
-        fireLaunchedBall.current = launchHeldBall();
-        fireHoldStart.current = null;
-      } else {
-        fireLaunchedBall.current = false;
-        fireHoldStart.current = now;
-        if (!inputManager.isFireDown()) {
-          fireRocket(true);
-          fireHoldStart.current = null;
-        }
-      }
-    }
-
-    if (
-      holdingFire &&
-      canShootRockets &&
-      fireHoldStart.current !== null &&
-      !chargedRocketFired.current
-    ) {
-      const holdDur = now - fireHoldStart.current;
-      if (holdDur >= ROCKET.chargedHoldSec) {
-        fireRocket(false);
-        chargedRocketFired.current = true;
-      }
-    }
-
-    if (inputManager.consumeFireRelease()) {
-      const holdDur =
-        fireHoldStart.current !== null ? now - fireHoldStart.current : 0;
-      fireHoldStart.current = null;
-      if (
-        canShootRockets &&
-        !fireLaunchedBall.current &&
-        !chargedRocketFired.current &&
-        holdDur < ROCKET.chargedHoldSec
-      ) {
-        fireRocket(true);
-      }
-      fireLaunchedBall.current = false;
-      chargedRocketFired.current = false;
-    }
-
-    if (inputManager.consumeThrow()) {
-      launchHeldBall();
     }
 
     const clamped = clampToHex(pos.x, pos.z, ARENA.hexRadius, 2.5);
@@ -713,34 +1098,57 @@ export function Player({
     }
   });
 
-  const bodyColor = team === 'blue' ? '#55bbee' : '#ee8844';
   const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
   const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
 
   return (
-    <RigidBody
-      ref={bodyRef}
-      colliders={false}
-      mass={12}
-      lockRotations
-      linearDamping={0.5}
-      enabledRotations={[false, false, false]}
-      gravityScale={0}
-      ccd
-      userData={{ character: true, hitTarget: false }}
-    >
-      <CapsuleCollider
-        args={[capHalfH, MOVEMENT.capsuleRadius]}
-        position={[0, capCenterY, 0]}
-        friction={0.55}
-        collisionGroups={interactionGroups(0, [0, 1, 2])}
+    <>
+      <VelocityPathRibbon
+        opacity={0.26}
+        maxPoints={12}
+        minStep={0.28}
+        samplePosition={() => {
+          const b = bodyRef.current;
+          if (!b) return null;
+          const t = b.translation();
+          trailPos.current.set(t.x, t.y + BEAM.chestHeight * 0.45, t.z);
+          return trailPos.current;
+        }}
       />
-      <group ref={visualRef} position={[0, capCenterY, 0]}>
-        <mesh>
-          <capsuleGeometry args={[MOVEMENT.capsuleRadius, capHalfH * 2, 6, 12]} />
-          <meshStandardMaterial color={bodyColor} metalness={0.35} roughness={0.55} />
-        </mesh>
-      </group>
-    </RigidBody>
+      <RigidBody
+        ref={bodyRef}
+        position={[spawnPos.x, spawnPos.y, spawnPos.z]}
+        colliders={false}
+        mass={12}
+        lockRotations
+        linearDamping={0.5}
+        enabledRotations={[false, false, false]}
+        gravityScale={0}
+        ccd
+        userData={{ character: true, hitTarget: true, actorId: 'local' as const }}
+      >
+        <CapsuleCollider
+          args={[capHalfH, MOVEMENT.capsuleRadius]}
+          position={[0, capCenterY, 0]}
+          friction={0.55}
+          collisionGroups={PLAYER_LOOSE_COLLISION}
+        />
+        <group ref={visualRef} position={[0, capCenterY, 0]}>
+          <group ref={tiltRef}>
+            <group ref={bobRef}>
+              <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
+                <PlayerAvatar rotationY={0} team={localTeam} />
+                <DroneThrusterFlames team={localTeam} />
+              </group>
+            </group>
+          </group>
+        </group>
+      </RigidBody>
+      <GroundJerseyDecal
+        bodyRef={bodyRef}
+        jerseyNumber={getJerseyNumber('local')}
+        fillColor="#b8f4ff"
+      />
+    </>
   );
 }

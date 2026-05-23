@@ -6,6 +6,8 @@ import {
   isInsideHex,
 } from './arenaHex';
 import { goalEndFaceX } from './goals';
+import { isInsideShootZone } from './botShootZone';
+import type { Team } from '../shared/Types';
 
 export type BotStuckState = {
   sampleX: number;
@@ -48,7 +50,11 @@ export function whichBackWallEscapeZone(
 export function tickBotBackWallKeepOut(
   pos: THREE.Vector3,
   wish: THREE.Vector3,
+  attackingTeam: Team | null = null,
 ): void {
+  if (attackingTeam && isInsideShootZone(pos.x, pos.z, attackingTeam)) {
+    return;
+  }
   const face = goalEndFaceX();
   const keep = BOT.backWallKeepOutFromWallM;
   const zHalf = BOT.backWallKeepOutHalfWidthZ;
@@ -69,9 +75,17 @@ export function tickBotBackWallKeepOut(
 }
 
 /** Clamp dribble targets so bots do not path into the back-wall keep-out band. */
-export function clampMoveTargetFromBackWall(target: THREE.Vector3): void {
+export function clampMoveTargetFromBackWall(
+  target: THREE.Vector3,
+  attackingTeam: Team | null = null,
+): void {
   const face = goalEndFaceX();
-  const keep = BOT.backWallKeepOutFromWallM;
+  const inShootZone =
+    attackingTeam !== null &&
+    isInsideShootZone(target.x, target.z, attackingTeam);
+  const keep = inShootZone
+    ? BOT.goalApproachKeepFromWallM
+    : BOT.backWallKeepOutFromWallM;
   const minX = -face + keep;
   const maxX = face - keep;
   if (target.x < minX) target.x = minX;
@@ -85,7 +99,11 @@ export function tickBotBackWallEscape(
   pos: THREE.Vector3,
   wish: THREE.Vector3,
   dt: number,
+  attackingTeam: Team | null = null,
 ): THREE.Vector3 | null {
+  if (attackingTeam && isInsideShootZone(pos.x, pos.z, attackingTeam)) {
+    return null;
+  }
   const side = whichBackWallEscapeZone(pos.x, pos.z);
   if (!side) return null;
 

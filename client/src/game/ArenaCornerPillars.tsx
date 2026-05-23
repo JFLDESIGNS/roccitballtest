@@ -1,51 +1,82 @@
 import { CylinderCollider, interactionGroups, RigidBody } from '@react-three/rapier';
-import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
   ARENA_PILLAR,
   getArenaCornerPillarLayouts,
 } from './arenaPillars';
-import { arenaWallMaterial } from './arenaMaterials';
+import { arenaBlackMetalMaterial, arenaPillarMaterial } from './arenaMaterials';
+import { getArenaPillarShake } from './visualShake';
 
-const RING_COLORS = [
-  '#55aaff',
-  '#ff6644',
-  '#66ddff',
-  '#ff8855',
-  '#77bbff',
-  '#ff5533',
-] as const;
+const PILLAR_LIGHT_INSET = 2.4;
+const PILLAR_LIGHT_SIZE = 0.58;
+const PILLAR_LIGHT_DEPTH = 0.14;
+const PILLAR_BAND_HEIGHT = 0.55;
+const PILLAR_BAND_RADIUS_SCALE = 1.05;
 
-function CornerPillar({ x, z, colorIndex }: { x: number; z: number; colorIndex: number }) {
-  const ringY = ARENA_PILLAR.height * 0.42;
+function PillarSquareLight({
+  y,
+  pillarX,
+  pillarZ,
+}: {
+  y: number;
+  pillarX: number;
+  pillarZ: number;
+}) {
+  const faceYaw = useMemo(
+    () => Math.atan2(-pillarX, -pillarZ),
+    [pillarX, pillarZ],
+  );
+  const surfaceR = useMemo(() => {
+    const t =
+      (y + ARENA_PILLAR.height / 2) / Math.max(ARENA_PILLAR.height, 0.001);
+    return THREE.MathUtils.lerp(
+      ARENA_PILLAR.radiusBase,
+      ARENA_PILLAR.radiusTop,
+      t,
+    );
+  }, [y]);
+  const outward = useMemo(() => {
+    const len = Math.hypot(pillarX, pillarZ) || 1;
+    return new THREE.Vector3(
+      (-pillarX / len) * (surfaceR + PILLAR_LIGHT_DEPTH * 0.35),
+      y,
+      (-pillarZ / len) * (surfaceR + PILLAR_LIGHT_DEPTH * 0.35),
+    );
+  }, [pillarX, pillarZ, surfaceR, y]);
+
+  return (
+    <mesh position={outward} rotation={[0, faceYaw, 0]} castShadow={false}>
+      <boxGeometry args={[PILLAR_LIGHT_SIZE, PILLAR_LIGHT_SIZE, PILLAR_LIGHT_DEPTH]} />
+      <meshStandardMaterial
+        color="#f0f8ff"
+        emissive="#9ad4ff"
+        emissiveIntensity={3.2}
+        toneMapped={false}
+        metalness={0.1}
+        roughness={0.25}
+      />
+    </mesh>
+  );
+}
+
+function CornerPillar({ x, z }: { x: number; z: number }) {
+  const visualRef = useRef<THREE.Group>(null);
   const yCenter = ARENA_PILLAR.height / 2;
-  const color = RING_COLORS[colorIndex % RING_COLORS.length];
+  const halfH = ARENA_PILLAR.height / 2;
+  const bandRadius =
+    Math.max(ARENA_PILLAR.radiusTop, ARENA_PILLAR.radiusBase) *
+    PILLAR_BAND_RADIUS_SCALE;
+  const topLightY = halfH - PILLAR_LIGHT_INSET;
+  const bottomLightY = -halfH + PILLAR_LIGHT_INSET;
 
-  const ringMat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 2.8,
-        toneMapped: false,
-        metalness: 0.35,
-        roughness: 0.25,
-      }),
-    [color],
-  );
-
-  const glowMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.55,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        toneMapped: false,
-      }),
-    [color],
-  );
+  useFrame(() => {
+    const visual = visualRef.current;
+    if (!visual) return;
+    const { tiltX, tiltZ } = getArenaPillarShake(x, z);
+    visual.rotation.set(tiltX, 0, tiltZ);
+  });
 
   return (
     <group position={[x, ARENA_PILLAR.floorY, z]}>
@@ -56,7 +87,8 @@ function CornerPillar({ x, z, colorIndex }: { x: number; z: number; colorIndex: 
           restitution={ARENA_PILLAR.bounceRestitution}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-        <mesh castShadow receiveShadow material={arenaWallMaterial}>
+        <group ref={visualRef}>
+        <mesh castShadow receiveShadow material={arenaPillarMaterial}>
           <cylinderGeometry
             args={[
               ARENA_PILLAR.radiusTop,
@@ -66,40 +98,20 @@ function CornerPillar({ x, z, colorIndex }: { x: number; z: number; colorIndex: 
             ]}
           />
         </mesh>
+        <mesh
+          position={[0, 0, 0]}
+          castShadow
+          receiveShadow
+          material={arenaBlackMetalMaterial}
+        >
+          <cylinderGeometry
+            args={[bandRadius, bandRadius, PILLAR_BAND_HEIGHT, 20]}
+          />
+        </mesh>
+        <PillarSquareLight y={topLightY} pillarX={x} pillarZ={z} />
+        <PillarSquareLight y={bottomLightY} pillarX={x} pillarZ={z} />
+        </group>
       </RigidBody>
-
-      <mesh position={[0, ringY, 0]} rotation={[Math.PI / 2, 0, 0]} material={ringMat}>
-        <torusGeometry
-          args={[
-            ARENA_PILLAR.ringMajor,
-            ARENA_PILLAR.ringTube,
-            8,
-            20,
-          ]}
-        />
-      </mesh>
-      <mesh
-        position={[0, ringY, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-        material={glowMat}
-      >
-        <torusGeometry
-          args={[
-            ARENA_PILLAR.ringMajor * ARENA_PILLAR.ringGlowScale,
-            ARENA_PILLAR.ringTube * 1.6,
-            6,
-            16,
-          ]}
-        />
-      </mesh>
-
-      <pointLight
-        position={[0, ringY, 0]}
-        color={color}
-        intensity={42}
-        distance={26}
-        decay={2}
-      />
     </group>
   );
 }
@@ -110,12 +122,7 @@ export function ArenaCornerPillars() {
   return (
     <group>
       {corners.map((c) => (
-        <CornerPillar
-          key={`${c.x}-${c.z}`}
-          x={c.x}
-          z={c.z}
-          colorIndex={c.colorIndex}
-        />
+        <CornerPillar key={`${c.x}-${c.z}`} x={c.x} z={c.z} />
       ))}
     </group>
   );

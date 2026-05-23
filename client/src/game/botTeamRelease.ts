@@ -2,6 +2,8 @@ import { BOT } from '../shared/Constants';
 import type { BotId } from './gameStore';
 import type { Team } from '../shared/Types';
 
+const allySaveReactedAt = new Map<BotId, number>();
+
 export type BotTeamReleaseKind = 'pass' | 'shot';
 
 type TeamReleaseSignal = {
@@ -23,6 +25,7 @@ export function recordBotTeamRelease(
 
 export function clearBotTeamRelease(): void {
   lastRelease = null;
+  allySaveReactedAt.clear();
 }
 
 export type TeammateReleaseIntent = {
@@ -62,4 +65,36 @@ export function shouldWaitForTeammateShot(
   now = performance.now() / 1000,
 ): boolean {
   return intent?.kind === 'shot' && now < intent.waitBeamUntil;
+}
+
+/** Latest goal attempt from the opposing team (for ally save rockets) */
+export function getOpponentShotIntent(
+  selfTeam: Team,
+  now = performance.now() / 1000,
+): TeammateReleaseIntent | null {
+  if (!lastRelease || lastRelease.team === selfTeam || lastRelease.kind !== 'shot') {
+    return null;
+  }
+  if (now - lastRelease.at > BOT.allySaveAfterOpponentShotWindowSec) {
+    return null;
+  }
+  return {
+    kind: 'shot',
+    from: lastRelease.from,
+    at: lastRelease.at,
+    waitBeamUntil: lastRelease.at,
+  };
+}
+
+/** One roll per bot per opponent shot */
+export function shouldAllyReactSaveToOpponentShot(
+  botId: BotId,
+  selfTeam: Team,
+  now = performance.now() / 1000,
+): boolean {
+  const intent = getOpponentShotIntent(selfTeam, now);
+  if (!intent) return false;
+  if (allySaveReactedAt.get(botId) === intent.at) return false;
+  allySaveReactedAt.set(botId, intent.at);
+  return Math.random() < BOT.allySaveBallAfterOpponentShotChance;
 }

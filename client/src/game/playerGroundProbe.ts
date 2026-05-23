@@ -1,6 +1,7 @@
 import type { RigidBody, World } from '@dimforge/rapier3d-compat';
 import { Ray } from '@dimforge/rapier3d-compat';
 import { ARENA, MOVEMENT } from '../shared/Constants';
+import { sampleTrampolineFloorY } from './arenaPadLayout';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
@@ -88,6 +89,15 @@ export function probePlayerGround(
     if (sample.hit && sample.gap < bestGap) {
       bestGap = sample.gap;
       bestGroundY = sample.groundY;
+    }
+  }
+
+  const padFloorY = sampleTrampolineFloorY(bodyX, bodyZ);
+  if (padFloorY !== null) {
+    const padGap = feetY - padFloorY;
+    if (padGap >= -0.08 && padGap < bestGap) {
+      bestGap = padGap;
+      bestGroundY = padFloorY;
     }
   }
 

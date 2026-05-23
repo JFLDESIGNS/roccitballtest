@@ -2,9 +2,7 @@ import * as THREE from 'three';
 import { BALL, MOVEMENT } from '../shared/Constants';
 import type { TuningValues } from './tuningStore';
 
-const _dir = new THREE.Vector3();
-const _carry = new THREE.Vector3();
-const _swing = new THREE.Vector3();
+const _lookHoriz = new THREE.Vector3();
 
 export type LaunchVelocityInput = {
   lookDir: THREE.Vector3;
@@ -27,32 +25,101 @@ function horizontalSpeed(v: THREE.Vector3): number {
   return Math.hypot(v.x, v.z);
 }
 
-/** Swing + carry + move (optional aim blast) */
+/** 0 near level aim → suppress stray vertical carry; 1 on steep pitch → full Y momentum */
+function aimVerticalAuthority(lookY: number): number {
+  return THREE.MathUtils.smoothstep(Math.abs(lookY), 0.06, 0.34);
+}
+
+/** Damp upward carry/swing when not pitching up (stops forward-run pop-ups) */
+function scaleMomentumVertical(vy: number, lookY: number): number {
+  const auth = aimVerticalAuthority(lookY);
+  if (lookY >= 0) return vy * auth;
+  if (vy > 0) return vy * auth * 0.2;
+  return vy * Math.max(auth, 0.5);
+}
+
+/** Keep strafe/run momentum along crosshair aim — not sideways to movement keys */
+function addAimAlignedMomentum(
+  out: THREE.Vector3,
+  vec: THREE.Vector3,
+  lookDir: THREE.Vector3,
+  scale: number,
+): void {
+  _lookHoriz.set(lookDir.x, 0, lookDir.z);
+  const horizLen = _lookHoriz.length();
+  if (horizLen > 0.05) {
+    _lookHoriz.multiplyScalar(1 / horizLen);
+    const along = vec.x * _lookHoriz.x + vec.z * _lookHoriz.z;
+    out.x += _lookHoriz.x * along * scale;
+    out.z += _lookHoriz.z * along * scale;
+  }
+  out.y += scaleMomentumVertical(vec.y, lookDir.y) * scale;
+}
+
+/** Trim vertical speed that does not match camera pitch */
+function squashUnaimedVertical(
+  out: THREE.Vector3,
+  lookDir: THREE.Vector3,
+  baseForce: number,
+): void {
+  const aimUp = lookDir.y * baseForce;
+  const excess = out.y - aimUp;
+  const flat = Math.abs(lookDir.y) < 0.14;
+
+  if (flat && excess > 1.5) {
+    out.y = aimUp + excess * 0.22;
+  } else if (lookDir.y < -0.12 && out.y > aimUp + 0.8) {
+    out.y = aimUp + (out.y - aimUp) * 0.35;
+  }
+}
+
+/** Remove sideways throw when aiming forward (strafe carry no longer bends the shot) */
+function squashUnaimedHorizontal(
+  out: THREE.Vector3,
+  lookDir: THREE.Vector3,
+  baseForce: number,
+): void {
+  _lookHoriz.set(lookDir.x, 0, lookDir.z);
+  const horizLen = _lookHoriz.length();
+  if (horizLen < 0.2) return;
+  _lookHoriz.multiplyScalar(1 / horizLen);
+  const perpX = -_lookHoriz.z;
+  const perpZ = _lookHoriz.x;
+  const perp = out.x * perpX + out.z * perpZ;
+  const maxPerp = baseForce * 0.08;
+  if (Math.abs(perp) <= maxPerp) return;
+  const trim = perp - Math.sign(perp) * maxPerp;
+  out.x -= perpX * trim;
+  out.z -= perpZ * trim;
+}
+
+/** Swing + carry (optional aim blast) */
 function addHoldMomentum(
   out: THREE.Vector3,
   input: LaunchVelocityInput,
   opts: { includeBaseAim: boolean; scale: number },
 ): void {
-  const { lookDir, playerCarry, ballSwing, playerVel, tune } = input;
+  const { lookDir, playerCarry, ballSwing, tune } = input;
   const s = opts.scale;
+  const baseForce = BALL.launchForce * tune.baseLaunchForce;
 
   if (opts.includeBaseAim) {
-    const baseForce = BALL.launchForce * tune.baseLaunchForce;
     out.x += lookDir.x * baseForce;
-    out.y += lookDir.y * baseForce + tune.launchUpBoost;
+    out.y += lookDir.y * baseForce;
     out.z += lookDir.z * baseForce;
   }
 
-  _carry.copy(playerCarry).multiplyScalar(tune.carryMomentumToShot * s);
-  out.add(_carry);
+  addAimAlignedMomentum(
+    out,
+    playerCarry,
+    lookDir,
+    tune.carryMomentumToShot * s,
+  );
+  addAimAlignedMomentum(out, ballSwing, lookDir, tune.swingToShot * s);
 
-  _swing.copy(ballSwing).multiplyScalar(tune.swingToShot * s);
-  out.add(_swing);
-
-  const moveSpd = horizontalSpeed(playerVel);
-  if (moveSpd > 0.05) {
-    _dir.set(playerVel.x, 0, playerVel.z).normalize();
-    out.addScaledVector(_dir, moveSpd * tune.moveSpeedToShot * s);
+  if (opts.includeBaseAim) {
+    squashUnaimedVertical(out, lookDir, baseForce);
+    squashUnaimedHorizontal(out, lookDir, baseForce);
   }
 }
 
@@ -71,7 +138,7 @@ export function computeBeamReleaseVelocity(
   input: LaunchVelocityInput,
   out = new THREE.Vector3(),
 ): BeamReleaseResult {
-  const { ballSwing, playerVel, tune } = input;
+  const { ballSwing, playerVel, tune, lookDir } = input;
 
   const swingHoriz = horizontalSpeed(ballSwing);
   const swingTotal = ballSwing.length();
@@ -82,8 +149,8 @@ export function computeBeamReleaseVelocity(
   out.set(0, 0, 0);
 
   if (!active) {
-    out.copy(ballSwing).multiplyScalar(tune.releaseIdleSwingScale);
-    out.addScaledVector(playerVel, tune.releaseIdlePlayerScale);
+    addAimAlignedMomentum(out, ballSwing, lookDir, tune.releaseIdleSwingScale);
+    addAimAlignedMomentum(out, playerVel, lookDir, tune.releaseIdlePlayerScale);
     out.y = Math.max(0, out.y);
     const spd = out.length();
     if (spd > tune.releaseIdleMaxSpeed) {
@@ -93,7 +160,6 @@ export function computeBeamReleaseVelocity(
   }
 
   addHoldMomentum(out, input, { includeBaseAim: false, scale: tune.releaseMomentumScale });
-  out.y += Math.max(0, ballSwing.y * tune.swingToShot * tune.releaseMomentumScale * 0.2);
 
   return { velocity: out, active: true };
 }

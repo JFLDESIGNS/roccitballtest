@@ -1,5 +1,6 @@
 import { ARENA } from '../shared/Constants';
 import { hexCornerPositions, isMidMapWallCorner } from './arenaHex';
+import { sampleTrampolineFloorY } from './arenaPadLayout';
 
 export type ArenaPlatformPlacement = {
   x: number;
@@ -51,6 +52,8 @@ export function getMaxPlatformSurfaceY(x: number, z: number): number | null {
     const y = platformSurfaceYAt(x, z, p);
     if (y !== null && (best === null || y > best)) best = y;
   }
+  const tramp = sampleTrampolineFloorY(x, z);
+  if (tramp !== null && (best === null || tramp > best)) best = tramp;
   return best;
 }
 

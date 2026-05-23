@@ -5,7 +5,6 @@ Browser-based spiritual successor to Rokkitball — fast 3D arena sport with roc
 ## Stack
 
 - **Client:** React + Vite + React Three Fiber + Rapier.js
-- **Planned:** Colyseus server (v0.3+)
 
 ## Run locally
 
@@ -15,9 +14,9 @@ npm install
 npm run dev
 ```
 
-Open the URL shown in the terminal (usually `http://localhost:5173`). Click **Enter Practice Arena**, then click the game view to capture the mouse.
+Open the URL shown in the terminal (usually `http://localhost:5173`). Click the game view to capture the mouse.
 
-Requires **Node.js 20+** (Vite 8 / current toolchain).
+Requires **Node.js 20+**.
 
 ## Controls
 
@@ -35,16 +34,15 @@ Requires **Node.js 20+** (Vite 8 / current toolchain).
 
 ## MVP status (v0.2)
 
-- [x] Greybox Neon Foundry arena (70×42×18m)
-- [x] First-person arcade movement + pointer lock
+- [x] Greybox Neon Foundry arena
+- [x] Third-person movement + pointer lock
 - [x] Ball physics (Rapier)
 - [x] Rockets with explosions
 - [x] Wall goals (1 / 3 / 5 points)
 - [x] Magnetic beam + hold + throw
 - [x] Energy system (sprint / beam / hold)
 - [x] HUD (score, timer, energy, countdown)
-- [ ] Colyseus multiplayer (v0.3)
-- [ ] Lobby / matchmaking (v0.4)
+- [x] Practice bots (optional)
 
 ## Project layout
 
@@ -52,9 +50,5 @@ Requires **Node.js 20+** (Vite 8 / current toolchain).
 client/src/
   shared/     Constants, Types
   game/       Arena, Player, Ball, Rockets, HUD, GameCanvas
-  ui/         MainMenu
+  ui/         MainMenu, TuningMenu
 ```
-
-## Design reference
-
-See the design doc in project chat / issues for full specs (teams, networking, performance budgets).

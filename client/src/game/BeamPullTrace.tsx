@@ -2,51 +2,74 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { RENDER } from '../shared/Constants';
+import type { Team } from '../shared/Types';
 import { buildLaserBeamCurve } from './beamTraceCurve';
 
-export type BeamTraceVariant = 'player' | 'enemy';
+export type BeamTraceTeam = Team | 'enemy';
 
 type BeamPullTraceProps = {
   active: () => boolean;
   from: () => THREE.Vector3 | null;
   to: () => THREE.Vector3 | null;
-  variant?: BeamTraceVariant;
+  team?: BeamTraceTeam;
   lowEnergy?: boolean;
 };
 
-const TRACE_COLORS: Record<
-  BeamTraceVariant,
-  { core: string; mid: string; glow: string; halo: string }
-> = {
-  player: {
-    core: '#e8ffff',
-    mid: '#77ddff',
-    glow: '#22aaff',
-    halo: '#1188ee',
+type TracePalette = {
+  core: string;
+  inner: string;
+  mid: string;
+  glow: string;
+  halo: string;
+  outer: string;
+};
+
+const TRACE_COLORS: Record<BeamTraceTeam, TracePalette> = {
+  blue: {
+    core: '#f0fbff',
+    inner: '#aae8ff',
+    mid: '#66ccff',
+    glow: '#2288ff',
+    halo: '#1166ee',
+    outer: '#0044bb',
+  },
+  red: {
+    core: '#fff4ee',
+    inner: '#ffbb99',
+    mid: '#ff8866',
+    glow: '#ff4433',
+    halo: '#ee2200',
+    outer: '#bb1100',
   },
   enemy: {
     core: '#ffffcc',
+    inner: '#ffcc88',
     mid: '#ffaa55',
     glow: '#ff5522',
     halo: '#ee3300',
+    outer: '#aa2200',
   },
 };
 
+const LAYER_COUNT = RENDER.beamTraceLayers;
 const TUBE_SEGS = RENDER.beamTubeSegments;
 const TUBE_RAD = RENDER.beamTubeRadial;
+
+/** Outer → inner tube radii (world units) */
+const LAYER_RADII = [0.2, 0.155, 0.115, 0.082, 0.052, 0.032] as const;
 
 export function BeamPullTrace({
   active,
   from,
   to,
-  variant = 'player',
+  team = 'blue',
   lowEnergy = false,
 }: BeamPullTraceProps) {
   const groupRef = useRef<THREE.Group>(null);
   const timeRef = useRef(0);
   const fromRef = useRef(new THREE.Vector3());
   const toRef = useRef(new THREE.Vector3());
-  const colors = TRACE_COLORS[variant];
+  const colors = TRACE_COLORS[team];
 
   const placeholderGeo = useMemo(() => {
     const c = new THREE.CatmullRomCurve3([
@@ -56,13 +79,75 @@ export function BeamPullTrace({
     return new THREE.TubeGeometry(c, 4, 0.04, TUBE_RAD, false);
   }, []);
 
-  const coreTrace = useRef<THREE.Mesh | null>(null);
-  const midTrace = useRef<THREE.Mesh | null>(null);
-  const glowTrace = useRef<THREE.Mesh | null>(null);
+  const outerTrace = useRef<THREE.Mesh | null>(null);
   const haloTrace = useRef<THREE.Mesh | null>(null);
+  const glowTrace = useRef<THREE.Mesh | null>(null);
+  const midTrace = useRef<THREE.Mesh | null>(null);
+  const innerTrace = useRef<THREE.Mesh | null>(null);
+  const coreTrace = useRef<THREE.Mesh | null>(null);
   const wasActive = useRef(false);
   const rebuildPhase = useRef(0);
 
+  const outerMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.outer,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [colors.outer],
+  );
+  const haloMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.halo,
+        transparent: true,
+        opacity: 0.52,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [colors.halo],
+  );
+  const glowMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.glow,
+        transparent: true,
+        opacity: 0.78,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [colors.glow],
+  );
+  const midMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.mid,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [colors.mid],
+  );
+  const innerMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: colors.inner,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [colors.inner],
+  );
   const coreMat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -74,42 +159,6 @@ export function BeamPullTrace({
         toneMapped: false,
       }),
     [colors.core],
-  );
-  const midMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: colors.mid,
-        transparent: true,
-        opacity: 0.85,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    [colors.mid],
-  );
-  const glowMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: colors.glow,
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    [colors.glow],
-  );
-  const haloMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: colors.halo,
-        transparent: true,
-        opacity: 0.28,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    [colors.halo],
   );
 
   const setTube = (
@@ -148,59 +197,48 @@ export function BeamPullTrace({
     const justActivated = !wasActive.current;
     wasActive.current = true;
     const phase = rebuildPhase.current;
-    rebuildPhase.current = (phase + 1) % 4;
+    rebuildPhase.current = (phase + 1) % LAYER_COUNT;
 
-    const coreCurve = buildLaserBeamCurve(fromRef.current, toRef.current, t, 0, wiggle);
-    const glowCurve = buildLaserBeamCurve(
-      fromRef.current,
-      toRef.current,
-      t + 0.35,
-      2,
-      wiggle * 1.15,
-    );
-    const midCurve = buildLaserBeamCurve(
-      fromRef.current,
-      toRef.current,
-      t + 0.2,
-      1.2,
-      wiggle * 1.1,
-    );
-    const haloCurve = buildLaserBeamCurve(
-      fromRef.current,
-      toRef.current,
-      t + 0.7,
-      3.6,
-      wiggle * 1.4,
-    );
+    const curves = [
+      buildLaserBeamCurve(fromRef.current, toRef.current, t + 0.95, 4.2, wiggle * 1.5),
+      buildLaserBeamCurve(fromRef.current, toRef.current, t + 0.7, 3.6, wiggle * 1.4),
+      buildLaserBeamCurve(fromRef.current, toRef.current, t + 0.35, 2, wiggle * 1.15),
+      buildLaserBeamCurve(fromRef.current, toRef.current, t + 0.2, 1.2, wiggle * 1.1),
+      buildLaserBeamCurve(fromRef.current, toRef.current, t + 0.12, 0.6, wiggle * 1.05),
+      buildLaserBeamCurve(fromRef.current, toRef.current, t, 0, wiggle),
+    ];
+    const meshes = [
+      outerTrace,
+      haloTrace,
+      glowTrace,
+      midTrace,
+      innerTrace,
+      coreTrace,
+    ];
 
     if (justActivated) {
-      setTube(coreTrace.current, coreCurve, 0.04);
+      for (let i = 0; i < LAYER_COUNT; i++) {
+        setTube(meshes[i].current, curves[i], LAYER_RADII[i]);
+      }
     } else {
-      if (phase === 0) setTube(coreTrace.current, coreCurve, 0.04);
-      if (phase === 1) setTube(midTrace.current, midCurve, 0.065);
-      if (phase === 2) setTube(glowTrace.current, glowCurve, 0.095);
-      if (phase === 3) setTube(haloTrace.current, haloCurve, 0.13);
+      setTube(meshes[phase].current, curves[phase], LAYER_RADII[phase]);
     }
 
+    outerMat.opacity = 0.44 * opacity;
+    haloMat.opacity = 0.55 * opacity;
+    glowMat.opacity = 0.8 * opacity;
+    midMat.opacity = 0.92 * opacity;
+    innerMat.opacity = 0.97 * opacity;
     coreMat.opacity = opacity;
-    midMat.opacity = 0.88 * opacity;
-    glowMat.opacity = 0.58 * opacity;
-    haloMat.opacity = 0.32 * opacity;
-    if (midTrace.current) {
-      midTrace.current.visible =
-        justActivated || midTrace.current.geometry !== placeholderGeo;
-    }
-    if (haloTrace.current) {
-      haloTrace.current.visible =
-        justActivated || haloTrace.current.geometry !== placeholderGeo;
-    }
   });
 
   return (
     <group ref={groupRef} visible={false}>
+      <mesh ref={outerTrace} frustumCulled={false} material={outerMat} geometry={placeholderGeo} />
       <mesh ref={haloTrace} frustumCulled={false} material={haloMat} geometry={placeholderGeo} />
       <mesh ref={glowTrace} frustumCulled={false} material={glowMat} geometry={placeholderGeo} />
       <mesh ref={midTrace} frustumCulled={false} material={midMat} geometry={placeholderGeo} />
+      <mesh ref={innerTrace} frustumCulled={false} material={innerMat} geometry={placeholderGeo} />
       <mesh ref={coreTrace} frustumCulled={false} material={coreMat} geometry={placeholderGeo} />
     </group>
   );

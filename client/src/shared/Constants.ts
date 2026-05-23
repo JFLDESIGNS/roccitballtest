@@ -1,7 +1,9 @@
 /** Arena — hexagonal Neon Foundry */
 export const ARENA = {
   hexRadius: 64,
-  wallHeight: 44,
+  wallHeight: 43.7,
+  /** Ceiling hex sits this far above wall tops (lower = smaller gap; negative clips into walls) */
+  ceilingOverlapM: -0.2,
   wallThickness: 1.2,
   /** Flat octagon cap on center platform */
   octagonTopRadius: 11,
@@ -12,15 +14,137 @@ export const ARENA = {
   /** Top/bottom hex corners (field midline, x ≈ 0) — 2× footprint */
   midWallOctagonSizeScale: 2,
   floorY: 0,
-  /** Black drop tube — world Y of cylinder center (high in arena) */
-  ballDropCylinderCenterY: 34,
-  ballDropCylinderRadius: 3.1,
-  ballDropCylinderHeight: 11,
-  /** Spawn inset from top inside the drop tube (m) */
-  ballDropSpawnInset: 1.2,
-  /** Point + emissive rings around the drop tube */
-  ballDropLightCount: 8,
-  ballDropLightRadius: 3.85,
+  /** Scale for octagonal drum + pizza slices only (cube / TVs stay full size) */
+  ballDropDrumScale: 0.6,
+  /** Center Y of kickoff drop structure */
+  ballDropCenterY: 42.2,
+  /** Extra lift for cube + drum above prior height (feet) */
+  ballDropRaiseFt: 30,
+  /** Jumbotron bezel offset from cube face (feet) */
+  ballDropScreenFaceOffsetFt: 2,
+  /** Upper display cube (m) */
+  ballDropCubeSize: 15.6,
+  /** Lower jumbotron screens on cube faces (feet) */
+  ballDropScreenLowerFt: 15,
+  /** Bottom flap sequence after 3-2-1 (seconds) */
+  /** Pause after 3-2-1 before slices open (0 = open immediately) */
+  ballDropFlapHoldSec: 0,
+  ballDropFlapOpenSec: 0.5,
+  ballDropFlapCloseSec: 1,
+  /** Jumbotron pitch toward arena floor (degrees) */
+  ballDropScreenTiltDeg: 20,
+  /** Logo screen size (m) */
+  ballDropScreenWidthM: 13.8,
+  ballDropScreenHeightM: 7.8,
+  /** Octagonal lower drum (circumradius m, before ballDropDrumScale) */
+  ballDropDrumRadius: 10.2,
+  ballDropDrumHeight: 9.6,
+  ballDropDoorCount: 8,
+  /** Ball spawn inset below cube ceiling (m) */
+  ballDropSpawnInset: 3.3,
+  /** Seconds to hinge doors open on kickoff */
+  ballDropDoorOpenSec: 0.85,
+  /** Logo banners around the map (radius from center) */
+  arenaLogoBannerRadius: 52,
+  arenaLogoBannerY: 30,
+  arenaLogoBannerWidthM: 14,
+  arenaLogoBannerHeightM: 7,
+} as const;
+
+const FT = 0.3048;
+
+/** Billboards, speed pads, bounce trampolines (see arenaPadLayout.ts) */
+export const ARENA_PADS = {
+  /** Upward launch target height (feet) for bounce pad */
+  bounceLaunchHeightFt: 28,
+  /** Floor cylinder diameter (feet) */
+  bouncePadDiameterFt: 7,
+  /** Floor cylinder height (feet) */
+  bouncePadHeightFt: 2,
+  bouncePadHeightM: 2 * FT,
+  bouncePadRadiusM: (7 * FT) / 2,
+  /** Trampoline deck + pedestal width multiplier */
+  bouncePadWidthScale: 4,
+  /** Visual + launch zone scale (2.25 = 1.5× previous 1.5 scale) */
+  bouncePadSizeScale: 2.25,
+  /** Shared raised platform under pads (m) */
+  padPlatformHeightM: 1.4,
+  /** Extra lift for all jump/boost platforms (feet) */
+  padPlatformRaiseFt: 15,
+  trampolinePedestalM: 0.35,
+  /** Extra lift on top of platform for trampoline deck */
+  trampolineDeckRaiseM: 0.25,
+  /** Global bounce launch multiplier */
+  trampolineStrengthScale: 1,
+  /** Player trampoline peak height fraction of bounceLaunchHeightFt */
+  playerBounceLaunchHeightScale: 0.32,
+  /** Move trampoline pads toward center, away from corner pillars (m) */
+  trampolinePillarClearanceM: 8,
+  padCooldownMs: 0,
+  billboardWidthM: 28.6,
+  billboardHeightM: 13.65,
+  billboardWallInsetM: 1.1,
+  /** Push billboard face off the wall mesh to avoid z-fighting */
+  billboardFaceOffsetM: 2.2,
+  billboardCenterYM: 34,
+  /** Shift recess toward court (+Z wall-local); was inverted before */
+  fanBayForwardNudgeM: 0.52,
+  /** Recessed fan bowl below each hex billboard screen */
+  fanBayWidthM: 22,
+  fanBayHeightM: 14,
+  /** Recess depth into arena from inner wall face (feet) */
+  fanBayDepthFt: 20,
+  /** Vertical center of fan bowl on perimeter wall (m) */
+  fanBayCenterYM: 18,
+  fanBayGapBelowScreenM: 1.8,
+  fanCols: 10,
+  fanRows: 9,
+  fanSphereRadiusM: 0.64,
+  /** Keep sphere centers inside recess side walls (m beyond radius) */
+  fanRowSideMarginM: 0.32,
+  /** Peak jump height above seat (m) */
+  fanBounceAmpM: 0.28,
+  /** Normal cheer cycle speed (lower = slower bounce) */
+  fanBounceSpeed: 2.1,
+  /** Scoring / glass frenzy — bounce cycle speed (lower = slower hops) */
+  fanCelebrateSpeedMult: 2.35,
+  /** Glass-hit frenzy — slightly faster / bouncier than goal cheer */
+  fanGlassCelebrateSpeedMult: 3.1,
+  fanGlassCelebrateAmpMult: 2.6,
+  fanGlassCelebrateHopPortion: 0.44,
+  /** Taller hops for the scoring team's fans */
+  fanCelebrateAmpMult: 2.35,
+  fanCelebrateHopPortion: 0.36,
+  /** Diagonal sway during celebration (m) */
+  fanCelebrateDiagAmpM: 0.14,
+  fanCelebrateDiagSpeed: 2.05,
+  /** Black-tinted glass at the front of the fan recess (m) */
+  fanFacadeGlassThicknessM: 0.06,
+  /** Fan glass — higher = darker, fans harder to see */
+  fanFacadeGlassOpacity: 0.84,
+  fanFacadeGlassTransmission: 0.06,
+  /** Push glass court face toward opening (+Z wall-local) */
+  fanFacadeGlassForwardM: 0.58,
+  /** Front-row fans sit this far behind glass back face (m) */
+  fanGlassFanClearanceM: 0.78,
+  /** Black trim frame on court-facing side of fan booth glass (m) */
+  fanExteriorFrameWidthM: 0.4,
+  fanExteriorFrameDepthM: 0.16,
+  /** Side-to-side sway amplitude (m) */
+  fanSwayAmpM: 0.11,
+  fanSwaySpeed: 1.35,
+  /** Rectangular crowd signs per fan bay */
+  fanSignCount: 8,
+  /** Home-team share of crowd color per bay (remainder green + away) */
+  fanHomeTeamColorPct: 90,
+  /** Crowd frenzy after rocket/ball hits this bay's glass (ms) */
+  fanGlassCelebrateMs: 5000,
+  /** Per-row bench rise + setback into recess (m) */
+  fanRowRiseM: 0.38,
+  fanRowDepthStrideM: 0.68,
+  fanBenchHeightM: 0.36,
+  /** Extra lift above bench top so spheres sit clear of the deck (m) */
+  fanSeatLiftM: 0.22,
 } as const;
 
 export const BALL_SPAWN = { x: 0, y: 2.05, z: 0 } as const;
@@ -49,13 +173,18 @@ export const BOT = {
   beamDrain: 12,
   /** Bot beam = tuning pullStrength × this (player uses 1.0) */
   beamPullScale: 0.78,
-  /** Red/blue enemy bots — stronger beam to win loose ball */
-  enemyBeamPullScale: 1.12,
+  /** Teammate bot (bot-2) — pull loose floor balls toward player */
+  allyBeamPullScale: 1.08,
+  /** Red/blue enemy bots — beam pull on loose balls */
+  enemyBeamPullScale: 0.88,
   /** Teammate bot: only beam when ball is on/near the floor (not mid-air shots) */
-  allyBeamMaxHeightAboveFloor: 2.6,
-  allyBeamLowMaxHeight: 1.1,
-  allyBeamMaxVerticalSpeed: 5.5,
-  allyBeamMaxSpeedForBeam: 24,
+  allyBeamMaxHeightAboveFloor: 3.8,
+  allyBeamLowMaxHeight: 1.6,
+  allyBeamMaxVerticalSpeed: 7.5,
+  allyBeamMaxSpeedForBeam: 34,
+  /** Ally bot (bot-2) dribble / pass bias toward the local player */
+  allyPassToPlayerChance: 0.82,
+  allyCarryToPlayerChance: 0.62,
   /** Brief latch before pass / shot / loft */
   releaseMinHoldSec: 0.12,
   /** After pass/shoot — no beam pull or capture */
@@ -68,6 +197,8 @@ export const BOT = {
   holdReleaseShootChance: 0.58,
   holdReleaseCarryChance: 0.14,
   holdReleasePassChance: 0.28,
+  /** After alley-oop catch at rim — prefer jam/shoot over passing back */
+  allyDunkHoldPassChance: 0.14,
   /** Absolute max seconds holding (forces shoot if still carrying) */
   holdMaxCarrySec: 8,
   shootMinHoldSec: 0.14,
@@ -77,6 +208,14 @@ export const BOT = {
   holdForceLooseShootSec: 0.2,
   holdFarDecisionSec: 0.35,
   goalQuickShotDist: 26,
+  /** Far from net — chance a hold release becomes a high arc (loft) */
+  farHoldLoftShotChance: 0.3,
+  farHoldLoftMinDist: 26,
+  loftLaunchExtraLiftY: 3.4,
+  loftPitchOffsetDeg: 10,
+  /** Ally bot — one roll per opponent shot to rocket the loose ball */
+  allySaveBallAfterOpponentShotChance: 0.3,
+  allySaveAfterOpponentShotWindowSec: 2.4,
   quickShotMinHoldSec: 0.14,
   /** Distance bands for release odds (m from enemy goal center) */
   releaseCloseDist: 14,
@@ -103,7 +242,9 @@ export const BOT = {
   launchForce: 24,
   launchUp: 4.5,
   /** Extra look pitch on goal shots (degrees) */
-  shotPitchOffsetDeg: 10,
+  shotPitchOffsetDeg: 17,
+  /** Extra pitch on harass / volley rockets (degrees) */
+  rocketPitchOffsetDeg: 14,
   /** Offensive cylinder at enemy net (~120 ft diameter × 1.5) */
   shootZoneRadiusM: ((120 * 0.3048) / 2) * 1.5,
   modeRunPlayerDist: 38,
@@ -119,8 +260,8 @@ export const BOT = {
   /** Min gap between any follow-mode rockets (harass + explosive) */
   followPlayerRocketCooldownSec: 1,
   /** Aim offset as fraction of distance to target (1%–10%) */
-  followPlayerAimErrorMinPct: 0.01,
-  followPlayerAimErrorMaxPct: 0.1,
+  followPlayerAimErrorMinPct: 0.05,
+  followPlayerAimErrorMaxPct: 0.2,
   moveShootPlayerDist: 48,
   moveShootBias: 0.62,
   shootZoneHeightM: 22,
@@ -128,6 +269,52 @@ export const BOT = {
   shootZoneCapOpacity: 0.22,
   shootZoneEdgeOpacity: 0.72,
   shootZoneInsetFromWall: 7,
+  /** In shoot zone with ball — attempt high dunk vs normal shot */
+  shootZoneDunkChance: 0.6,
+  /** Remaining shoot-zone rolls that jam instead of normal */
+  shootZoneJamChance: 0.12,
+  /** Close to net (outside zone) — drive jam into mouth */
+  nearGoalJamChance: 0.38,
+  goalJamMaxDist: 16,
+  /** @deprecated — use goalRingApproachInset (was driving into back wall) */
+  goalJamDriveInset: 2.8,
+  /** Stand in front of ring center (toward court), not on the back plate */
+  goalRingApproachInset: 5.2,
+  goalDunkMidApproachInset: 4.1,
+  /** Closer keep-out allowed while in shoot zone / attacking */
+  goalApproachKeepFromWallM: 9 * 0.3048,
+  /** Occasional dunk when close but outside shoot cylinder */
+  nearGoalDunkChance: 0.22,
+  goalDunkMaxDist: 22,
+  dunkPitchOffsetDeg: 38,
+  jamPitchOffsetDeg: -14,
+  dunkTargetLiftY: 2.6,
+  dunkLaunchUpMult: 1.55,
+  dunkJumpForceScale: 1.14,
+  /** Teammate without ball — post under rim for alley-oop */
+  allyDunkPrepDist: 28,
+  allyDunkSpotInset: 5.5,
+  /** Extra keep-out from goal back wall for alley-oop posts (feet) */
+  allyDunkWallStandoffFt: 10,
+  /** Jump scale when catching a lob at the rim */
+  allyDunkCatchJumpScale: 1.28,
+  allyDunkPreJumpChance: 0.42,
+  allyDunkLeapOnPassChance: 0.88,
+  /** Kickoff — chance one bot runs alley-oop under the rim for ~15s */
+  kickoffAllyOopChance: 0.3,
+  kickoffAllyOopDurationSec: 15,
+  /** At the rim — abandon alley-oop if no pass to this bot within this window */
+  kickoffAllyOopPassWaitSec: 7,
+  /** After abort — sprint here before normal bot brain resumes */
+  kickoffAllyOopReturnArriveDist: 5.5,
+  /** Countdown + flap hold — sprint under the drop and jump for the ball */
+  kickoffContestSprintMult: 1.1,
+  kickoffContestJumpForceScale: 1.12,
+  kickoffContestJumpChance: 0.55,
+  kickoffContestDoubleJumpChance: 0.62,
+  kickoffContestArriveRadius: 6.5,
+  kickoffAllyOopSpotRadius: 9,
+  kickoffAllyOopJumpChance: 0.35,
   /** Teammate in shoot zone with ball — only this often beam-steal (else give space) */
   allyShootZoneMagnetChance: 0.3,
   /** After a teammate's goal shot, wait before beaming the ball */
@@ -162,6 +349,19 @@ export const BOT = {
   spawnZOffset: 8,
   chaseRadius: 55,
   rocketHitRadius: 1.35,
+  /** Second player hit within this window (seconds) triggers ragdoll */
+  hitWindowSec: 4,
+  hitsToRagdoll: 2,
+  /** Min gap between counted hits (direct rocket + blast often land together) */
+  hitRegisterCooldownMs: 650,
+  /** Ragdoll tumble duration before respawn at spawn (seconds) */
+  ragdollDurationSec: 3,
+  ragdollGravityScale: 1,
+  ragdollAngularDamping: 0.32,
+  ragdollLinearDamping: 0.08,
+  ragdollSpinRad: 5.5,
+  /** After rocket hit — no beam / ball chase (seconds) */
+  rocketBallDenySec: 2.5,
   minBotSeparation: 7,
   separationWeight: 1.35,
   flankOffset: 9,
@@ -172,7 +372,9 @@ export const BOT = {
    * Chase / contest only inside chase radii; beam only inside attract radii.
    */
   ballChaseBallRadii: 18,
-  ballAttractBallRadii: 10,
+  ballAttractBallRadii: 4.5,
+  /** Energy drain while a bot carries the ball (drops at 0 like the player) */
+  holdBallEnergyDrain: 10,
   /** Only rocket / harass local player when this close and they hold the ball */
   playerRocketCloseDist: 20,
   botRocketCooldownSec: 0.85,
@@ -203,8 +405,12 @@ export const BOT = {
   /** Loft only when farther than rim range */
   goalShootMinLooseDist: 14,
   /** Knockback from rockets (explosion + direct hit) */
-  rocketKnockForce: 18,
-  rocketKnockUp: 9,
+  rocketKnockForce: 28,
+  /** @deprecated use ROCKET knock stun — kept for tuning reference */
+  rocketKnockUp: 12,
+  knockStunLinearDamping: 0.12,
+  knockStunAngularDamping: 0.36,
+  knockStunSpinRad: 2.2,
   /** Min seconds on ground before a hop roll (~70% run / ~30% jump) */
   groundJumpIntervalSec: 1.1,
   chaseJumpIntervalSec: 1.45,
@@ -224,6 +430,12 @@ export const BOT = {
   /** Wall stuck: min horizontal move (m) to reset timer */
   stuckMoveThreshold: 0.55,
   stuckTimeSec: 1.05,
+  /** Holding ball — drop if moved less than this (ft) in botHoldStuckDropSec */
+  botStuckMoveThresholdFt: 5,
+  botHoldStuckDropSec: 4,
+  /** Frozen in place — turn/jump, then respawn at spawn */
+  botFrozenTurnJumpSec: 6,
+  botFrozenRespawnSec: 6.5,
   stuckEscapeCooldownSec: 2.2,
   stuckEscapePush: 12,
   stuckBoundaryMargin: 4,
@@ -232,17 +444,54 @@ export const BOT = {
   /** Lift body on jump so the capsule clears the floor */
   jumpLiftY: 0.14,
   /** Ally bot only — periodic harass rockets */
-  periodicProjectileIntervalSec: 5.5,
-  periodicFireAtLooseBallChance: 0.1,
-  periodicFireAtPlayerCarrierChance: 0.2,
-  periodicFireAtBotCarrierChance: 0.08,
-  periodicProjectileBallBias: 0.12,
+  periodicProjectileIntervalSec: 4.8,
+  periodicFireAtLooseBallChance: 0.12,
+  periodicFireAtPlayerCarrierChance: 0.22,
+  periodicFireAtBotCarrierChance: 0.16,
+  periodicProjectileBallBias: 0.2,
   periodicProjectilePlayerBias: 0.35,
+  /** Enemy volley — aim at opposing bot instead of player/ball */
+  enemyVolleyAtBotChance: 0.38,
   /** Enemy team: every N sec, chance one bot fires at ball or player */
-  enemyRocketVolleyIntervalSec: 10,
-  enemyRocketVolleyChance: 0.5,
+  enemyRocketVolleyIntervalSec: 8.5,
+  enemyRocketVolleyChance: 0.58,
+  /** While local holds — per-bot reroll interval for shoot/pause dice (seconds) */
+  enemyPlayerCarrierShotRerollSec: 4,
+  /** How long a failed shoot roll pauses player-targeted rockets (seconds) */
+  enemyPlayerCarrierShotPauseSec: 3.5,
+  /**
+   * Per-bot chance (0–1) to shoot at the local player while they hold the ball.
+   * Each enemy bot rolls independently on its own timer.
+   */
+  enemyPlayerCarrierShotChance: 0.35,
+  /** Rocket hit retaliation — max window (seconds) */
+  retaliateDurationSec: 10,
+  retaliateMaxShots: 3,
+  /** Pause after aimed, before each shot */
+  retaliatePauseMinSec: 0.7,
+  retaliatePauseMaxSec: 1.5,
+  /** Short wind-up before the guaranteed first revenge rocket */
+  retaliateFirstShotPauseSec: 0.85,
+  /** Roll after each shot (except max reached) for another pause+shot */
+  /** Chance to fire rocket 2 or 3 after the guaranteed first revenge shot */
+  retaliateContinueShotChance: 0.58,
+  /** Brief tail after burst before normal AI resumes */
+  retaliateAfterBurstSec: 0.35,
+  /** Max yaw/pitch error (rad) before a shot is allowed */
+  retaliateAimMaxErrorRad: 0.2,
+  /** Vertical aim point — slightly below chest so rockets don't sail over */
+  retaliateAimDropM: 0.22,
+  /** Revenge uses line-of-sight pitch (rockets fly straight; no +14° harass offset) */
+  retaliateRocketPitchOffsetDeg: 0,
+  retaliatePitchAimMaxErrorRad: 0.12,
+  /** Aim blend while turning to face the attacker before revenge fire */
+  retaliateAimSmoothing: 10,
+  /** Movement speed scale while retaliating */
+  retaliateMoveSpeedScale: 0.42,
   /** Random aim offset (m) — lowers direct hit rate */
-  rocketAimErrorM: 3.2,
+  rocketAimErrorM: 6.2,
+  /** Bot rockets travel at ROCKET.speed × this (player unchanged) */
+  rocketSpeedScale: 0.75,
 } as const;
 
 /** Third-person camera */
@@ -253,6 +502,8 @@ export const CAMERA = {
   shoulderOffset: 0,
   lookAhead: 24,
   smooth: 20,
+  /** Never pull third-person cam closer than this to the pivot (avoids clipping inside capsule) */
+  minDistanceFromPivot: 4.5,
   /** Min height above arena floor (m) */
   groundClearance: 0.55,
   /** Stop camera this far before geometry along pivot→cam ray */
@@ -270,7 +521,7 @@ export const CAMERA = {
 
 /** Aim pitch (full range for shooting) */
 export const AIM = {
-  defaultPitch: 0.1,
+  defaultPitch: 0,
   pitchMin: -1.15,
   pitchMax: 1.15,
 } as const;
@@ -281,7 +532,8 @@ export const MOVEMENT = {
   sprintSpeed: 14,
   jumpForce: 18,
   doubleJumpForce: 14,
-  maxJumps: 2,
+  tripleJumpForce: 11,
+  maxJumps: 3,
   gravity: -11,
   airControl: 0.95,
   jumpMomentumBoost: 1.12,
@@ -304,6 +556,18 @@ export const MOVEMENT = {
   stepProbeAhead: 0.42,
   /** Small upward nudge so capsule clears floor on jump */
   jumpLiftY: 0.12,
+  /** Ease mesh pitch/yaw back to normal after knock tumble (physics snaps upright) */
+  visualRecoverySec: 0.35,
+  /** Second W tap within this window triggers forward dash (seconds) */
+  dashDoubleTapWindowSec: 0.4,
+  /** Cooldown before another WW dash (seconds) */
+  dashCooldownSec: 1.35,
+  /** Sustained horizontal speed during WW dash (m/s) */
+  dashForwardSpeed: 21.6,
+  /** How long dash locks velocity along launch heading (seconds) */
+  dashDurationSec: 0.9,
+  /** Upward pop at dash start (m/s) */
+  dashUpSpeed: 2,
 } as const;
 
 /** Energy */
@@ -322,10 +586,10 @@ export const ENERGY = {
 export const BALL = {
   radius: 1.6,
   mass: 30,
-  restitution: 0.31,
-  friction: 0.24,
-  linearDamping: 0.022,
-  angularDamping: 0.07,
+  restitution: 0.58,
+  friction: 0.18,
+  linearDamping: 0.014,
+  angularDamping: 0.06,
   /** Roll rate scale on LMB / bot release (ω ≈ v/R) */
   launchSpinScale: 0.78,
   /** Scales world gravity on the ball (1 = match arena gravity) */
@@ -353,27 +617,34 @@ export const BALL = {
   holdSocketTargetSmooth: 8,
   /** How long Space stays buffered if jump was early (seconds) */
   jumpBufferSec: 0.28,
+  /** m/s impulse per m/s ball impact on characters */
+  characterStrikeKnock: 2.35,
+  characterStrikeKnockMin: 12,
+  characterStrikeKnockMax: 40,
 } as const;
+
+/** Magnetic beam — grab reach vs defaults (0.6 = 60% of prior beam/capture distances) */
+const BEAM_GRAB_RANGE_SCALE = 0.6;
 
 /** Magnetic beam */
 export const BEAM = {
-  range: 42,
-  captureDistance: 5.2,
+  range: 42 * BEAM_GRAB_RANGE_SCALE,
+  captureDistance: 4.16 * BEAM_GRAB_RANGE_SCALE,
   /** Must be this close to lock after winning tug-of-war */
-  tightCaptureDistance: 3.55,
-  botTightCaptureDistance: 3.35,
-  botCaptureReachScale: 1.28,
-  botMinCapturePull: 0.14,
-  botCaptureDominanceRatio: 0.34,
+  tightCaptureDistance: 3.55 * BEAM_GRAB_RANGE_SCALE,
+  botTightCaptureDistance: 2.55 * BEAM_GRAB_RANGE_SCALE,
+  botCaptureReachScale: 0.88,
+  botMinCapturePull: 0.42,
+  botCaptureDominanceRatio: 0.54,
   /** Ball center within this of body/chest counts as touching */
   contactStickDistance: BALL.radius + MOVEMENT.capsuleRadius + 0.55,
   contactChestDistance: BALL.radius + 0.75,
   /** Legacy hint band for “pulled” UI */
   contactCaptureDistance:
-    BALL.radius + MOVEMENT.capsuleRadius + 1.35,
+    BALL.radius + MOVEMENT.capsuleRadius + 1.35 * BEAM_GRAB_RANGE_SCALE,
   maxContactCaptureSpeed: 44,
   /** Soft lock-in before full capture */
-  stickyAttachDistance: 4.2,
+  stickyAttachDistance: 4.2 * BEAM_GRAB_RANGE_SCALE,
   stickyAttachSpeed: 14,
   /** Beam tug-of-war */
   contestDecay: 9,
@@ -390,7 +661,7 @@ export const BEAM = {
   /** Extra pull when close — scales up sharply near contact (full beam range) */
   closePullBoost: 1.42,
   /** Center distance for max close boost (~2 ball diameters / ~21 ft) */
-  closePullDistance: BALL.radius * 4,
+  closePullDistance: BALL.radius * 4 * BEAM_GRAB_RANGE_SCALE,
   /** Pull multiplier at contact inside closePullDistance (rest of beam unchanged) */
   closePullStrengthMult: 1.5,
   spinDamp: 3.4,
@@ -398,24 +669,34 @@ export const BEAM = {
   maxPullEffectSpeed: 68,
   holdDistance: 3.2,
   chestHeight: 1.15,
+  /** Max downward pitch while carrying (unit Y on aim dir; ~0.78 ≈ 51° down) */
+  holdMaxDownPitch: 0.78,
+  /** How far below chest the hold socket may sit (m, negative) */
+  holdMinSocketYBelowChest: -1.4,
 } as const;
 
 /** Rocket */
 export const ROCKET = {
-  /** Min seconds between rocket clicks (click-paced rapid fire) */
-  cooldown: 0.05,
+  /** @deprecated unlimited rockets — kept for tuning UI compatibility */
+  magazineSize: 999,
+  /** @deprecated */
+  reloadCooldownSec: 0,
   /** Hold LMB this long to fire a bouncer (tap release = explosive) */
   chargedHoldSec: 0.14,
   /** Max rockets from local player in flight at once */
   maxActive: 8,
-  speed: 144,
+  speed: 72,
   velocityInherit: 1,
-  maxSpeed: 210,
+  maxSpeed: 105,
   surfaceBounces: 2,
   bounceRestitution: 0.68,
-  ownerGraceSec: 0.18,
-  /** Must leave muzzle sphere before it can detonate on the shooter */
+  ownerGraceSec: 0.22,
+  /** Spawn ahead of chest so the rocket clears the player capsule */
+  rocketSpawnAhead: 3.2,
+  /** Must leave muzzle before it can detonate on the shooter (bots only) */
   minTravelBeforePlayerHit: 4,
+  /** Explosive rockets — min travel before floor/wall detonation (owner) */
+  minTravelBeforeExplosiveDetonate: 2.8,
   /** Same for ball hits — stops instant detonate when firing past a nearby ball */
   minTravelBeforeBallHit: 3.2,
   explosionRadius: 7,
@@ -423,22 +704,30 @@ export const ROCKET = {
   beamDenyRadius: 7,
   beamDenyDurationSec: 1,
   explosionVisualDuration: 0.38,
-  playerForce: 14,
-  rocketJumpUp: 13,
-  ballForce: 62,
-  /** Direct rocket→ball: fraction of rocket speed added along travel axis */
-  ballRocketMomentumTransfer: 0.62,
-  ballVelocityInherit: 0.9,
-  ballMinKnockSpeed: 26,
-  /** 0–1 blend toward knock velocity */
-  ballKnockBlend: 0.94,
-  ballUpBoost: 11,
+  playerForce: 24,
+  /** Brief ragdoll-like tumble on rocket hit (seconds) */
+  knockStunSec: 0.6,
+  knockStunGravityScale: 1,
+  knockStunLinearDamping: 0.14,
+  knockStunAngularDamping: 0.34,
+  knockStunSpinRad: 4.5,
+  /** Flatten upward knock (0–1) */
+  knockStunVerticalScale: 0.2,
+  knockStunHorizontalScale: 1.05,
+  /** Scales initial blast velocity (~0.5 = half the tumble speed) */
+  knockStunImpulseScale: 0.5,
+  knockStunInheritVerticalScale: 0.25,
+  /** Partial WASD while tumbling (0–1 of walk speed) */
+  knockStunMoveBlend: 0.38,
+  knockStunAirMoveBlend: 0.24,
+  knockStunSteerAccel: 11,
+  /** @deprecated — knock stun uses minimal lift only */
+  rocketJumpUp: 2,
+  /** Direct rocket body hit on local player */
+  playerDirectKnock: 26,
+  /** Velocity change applied via Rapier impulse on ball hits (× ballKnockStrength) */
+  ballHitImpulse: 22,
   ballSplashMinFalloff: 0.52,
-  /** Extra knock when ball is off the ground (units above floor + radius) */
-  ballAirMinHeight: 1.0,
-  ballAirKnockMult: 1.55,
-  ballAirVelocityInheritMult: 1.4,
-  ballAirUpMult: 1.35,
   playerHitRadius: 1.4,
   energyDamageDirect: 35,
   energyDamageSplashMin: 10,
@@ -451,6 +740,14 @@ export const MATCH = {
   durationSec: 300,
   scoreLimit: 30,
   scorePauseSec: 1,
+  /** After a goal, wait this long before 3-2-1 kickoff countdown */
+  postScoreCountdownDelaySec: 1,
+  /** Logo splash at match start before arena load countdown */
+  logoIntroSec: 2,
+  /** Arena load-in before first kickoff countdown */
+  mapLoadSec: 5,
+  /** Block rockets / combat SFX briefly after match load (pointer-lock click bleed) */
+  combatGraceSec: 5,
   /** 3-2-1 before kickoff and after each goal */
   startCountdownSec: 3,
   resetCountdownSec: 3,
@@ -467,6 +764,36 @@ export const GOAL_POINTS = {
 export const GOAL_RINGS = {
   baseRadius: 7.6,
   tierScale: 0.7,
+  /** Black backing ring scale vs scored ring */
+  backRingScale: 1.32,
+  /** Hole cap disc on backing ring — extra vs auto hole size */
+  backRingCapScale: 1.2,
+  /** Backing ring tube thickness vs normal ringTube (1.2 = 20% fatter) */
+  backRingTubeScale: 1.2,
+  /** Backing ring offset toward end wall (m) */
+  backRingWallOffsetM: 1.75,
+  /** Top (small) ring — standoff from wall toward center court (feet) */
+  topRingWallStandoffFt: 15,
+  /** Lit top ring pull-back toward wall (feet); 0 = full standoff toward court */
+  topRingLitWallPullBackFt: 0,
+  /** Top black back ring — offset from lit center toward wall (m) */
+  topRingBackWallOffsetM: 1.75,
+  /** Extra lift for top ring only (feet, toward ceiling) */
+  topRingExtraHeightFt: 3,
+  /** Extra lift for middle ring only (feet); top ring stack position stays fixed */
+  midRingExtraHeightFt: 3,
+  /** Extra push toward center court for middle ring stack (feet) */
+  midRingExtraCourtOffsetFt: 2,
+  /** Middle ring — standoff from wall toward center court (feet) */
+  midRingWallStandoffFt: 2.5,
+  /** Extra push off the wall for middle ring glow + backplate (fixes clipping) */
+  midRingArenaOffsetM: 0.55,
+  /** Middle ring black back — sits behind glow, still clear of wall */
+  midRingBackWallOffsetM: 0.85,
+  /** Middle ring hole cap — extra push toward wall on black ring (feet) */
+  midRingCapWallOffsetFt: 1,
+  /** Bottom (large) ring — standoff from wall toward center court (feet) */
+  bottomRingWallStandoffFt: 15,
   /**
    * Side-view tilt (degrees, CCW +): bottom ring up toward ceiling,
    * middle face-on, top ring opposite.
@@ -474,8 +801,43 @@ export const GOAL_RINGS = {
   ringTiltBottomDeg: -20,
   ringTiltMidDeg: 0,
   ringTiltTopDeg: 20,
-  /** Only count when ball center is inside this fraction of ring radius */
-  centerScoreRadiusScale: 0.62,
+  /** Rim trampoline launch height (feet) */
+  rimBounceHeightFt: 40,
+  /** Horizontal push back into the arena (m/s) */
+  rimOutwardSpeed: 14,
+  rimBounceRestitution: 0.82,
+  rimBounceCooldownSec: 0.28,
+  /** Launch out of the goal mouth / net back toward center (feet) */
+  netBounceHeightFt: 38,
+  /** Player/bot net eject — small hop (feet); main push is outward from goal */
+  netCharacterHopFt: 2.5,
+  /** Horizontal shove toward midfield + ball drop (m/s) */
+  netOutwardSpeed: 26,
+  /** Pull toward center Z (m/s) */
+  netTowardCenterSpeed: 11,
+  netBounceCooldownSec: 0.3,
+  /** Scoring sensor radius scale (1 = full bullseye; smaller = tighter center cylinder) */
+  scoringVolumeRadiusScale: 0.25,
+  /** Pull scoring cylinder toward wall / into ring (all tiers, m) */
+  scoringVolumeWallPullbackM: 0.4,
+  /** How far the scoring cylinder protrudes toward the arena (large / bottom ring, m) */
+  scoringVolumeStickOutM: 0.95,
+  /** Middle ring — larger sensor + further off the wall */
+  scoringVolumeStickOutMidM: 1.65,
+  scoringVolumeArenaForwardMidM: 0.5,
+  scoringVolumeRadiusScaleMidMult: 2.15,
+  /** Top ring — larger sensor + further off the wall */
+  scoringVolumeStickOutTopM: 1.55,
+  scoringVolumeArenaForwardTopM: 0.4,
+  scoringVolumeRadiusScaleTopMult: 2.35,
+  /** Bottom (large) ring scoring cylinder radius multiplier (+30% trigger diameter) */
+  scoringVolumeRadiusScaleBottomMult: 1.794,
+  /** Scoring hole as fraction of ring radius (large / bottom ring) */
+  centerScoreRadiusScale: 0.74,
+  centerScoreRadiusScaleMid: 0.86,
+  /** Middle ring scoring slab depth along hole axis (m) */
+  midScoringSensorDepth: 3.85,
+  centerScoreRadiusScaleTop: 0.82,
   /** Minimum gap between ring outer edges (m) */
   ringGap: 0.75,
   /** Center of bottom ring above floor (lifted off ground) */
@@ -490,7 +852,7 @@ export const GOAL_RINGS = {
   torusTubularSegments: 40,
   /** Distance from flat end face toward arena center (rings stay visible in play space) */
   faceInsetFromWall: 1.6,
-  sensorDepth: 1.85,
+  sensorDepth: 2.75,
 } as const;
 
 /** Renderer / lighting */
@@ -504,14 +866,17 @@ export const RENDER = {
   shadowCameraFar: 150,
   /** PCF soft shadow blur (directional) */
   shadowRadius: 5,
-  beamTubeSegments: 48,
-  beamTubeRadial: 4,
-  beamTraceLayers: 4,
+  beamTubeSegments: 56,
+  beamTubeRadial: 6,
+  beamTraceLayers: 6,
   hexFloorTileStep: 10,
-  ballPolkaTextureSize: 256,
-  rocketMaxSmoke: 56,
-  /** Smoke puff spacing along flight path (m) */
-  rocketTrailStep: 0.16,
-  rocketTrailBehind: 0.05,
+  ballPolkaTextureSize: 512,
+  /** Trail / bounce ribbon width scale */
+  rocketTrailRadius: 0.22,
+  /** Projectile sphere at rocket tip */
+  rocketHeadRadius: 0.26,
+  /** Tight additive glow halo around rocket tip — visual only */
+  rocketHeadGlowRadius: 0.31,
+  rocketPoofCount: 6,
   goalFireworkParticles: 48,
 } as const;

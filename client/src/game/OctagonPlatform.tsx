@@ -1,9 +1,11 @@
 import { interactionGroups, RigidBody, TrimeshCollider } from '@react-three/rapier';
-import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { ARENA } from '../shared/Constants';
+import { ARENA, BALL } from '../shared/Constants';
 import { buildOctagonPlatformBuffers, createOctagonShape } from './arenaOctagon';
-import { arenaPlatformMaterial } from './arenaMaterials';
+import { arenaDeckTopMaterial, arenaPlatformMaterial } from './arenaMaterials';
+import { getVisualShake, octagonShakeKey } from './visualShake';
 
 const { octagonTopRadius, octagonSlopeRadius, platformTopHeight, floorY } = ARENA;
 
@@ -35,6 +37,18 @@ export function OctagonPlatform({
     return new THREE.ShapeGeometry(shape);
   }, [topR]);
 
+  const visualRef = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    const visual = visualRef.current;
+    if (!visual) return;
+    const { tiltX, tiltY, tiltZ } = getVisualShake(
+      octagonShakeKey(x, z),
+      x + z,
+    );
+    visual.rotation.set(tiltX, tiltY, tiltZ);
+  });
+
   return (
     <group position={[x, 0, z]}>
       <RigidBody
@@ -46,23 +60,19 @@ export function OctagonPlatform({
         <TrimeshCollider
           args={[vertices, indices]}
           friction={0.55}
-          restitution={0.05}
+          restitution={BALL.restitution * 0.85}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-        <mesh geometry={geometry} material={arenaPlatformMaterial} />
+        <group ref={visualRef}>
+          <mesh geometry={geometry} material={arenaPlatformMaterial} />
+          <mesh
+            position={[0, platformTopHeight + 0.02, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            geometry={topRingGeo}
+            material={arenaDeckTopMaterial}
+          />
+        </group>
       </RigidBody>
-
-      <mesh
-        position={[0, platformTopHeight + 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        geometry={topRingGeo}
-      >
-        <meshStandardMaterial
-          color="#88aacc"
-          emissive="#5577aa"
-          emissiveIntensity={0.55}
-        />
-      </mesh>
     </group>
   );
 }

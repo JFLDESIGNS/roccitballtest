@@ -39,7 +39,8 @@ export function FallRecoveryMonitor({
   const ballTrack = useRef(createFallTracker(ballFallback.current));
 
   useFrame((_, dt) => {
-    if (gameStore.getState().phase !== 'playing' && gameStore.getState().phase !== 'countdown') {
+    const phase = gameStore.getState().phase;
+    if (phase !== 'playing' && phase !== 'countdown' && phase !== 'loading') {
       return;
     }
 
@@ -69,7 +70,7 @@ export function FallRecoveryMonitor({
 
     for (const bot of botsRef.current) {
       const body = bot.bodyRef.current;
-      if (!body) continue;
+      if (!body || bot.combat.isRagdoll) continue;
       if (holder === bot.id) {
         const t = body.translation();
         tickSafePosition(bot.fallTrack, t.x, t.y, t.z, dt);
