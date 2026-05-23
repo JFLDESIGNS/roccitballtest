@@ -463,7 +463,7 @@ export const BOT = {
    * Per-bot chance (0–1) to shoot at the local player while they hold the ball.
    * Each enemy bot rolls independently on its own timer.
    */
-  enemyPlayerCarrierShotChance: 0.35,
+  enemyPlayerCarrierShotChance: 0.05,
   /** Rocket hit retaliation — max window (seconds) */
   retaliateDurationSec: 10,
   retaliateMaxShots: 3,

@@ -401,7 +401,7 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             format={(v) => `${Math.round(v * 100)}%`}
           />
           <p className="tuning-sub">
-            Short horn when a goal registers (default 50% — stacks with crowd cheer).
+            Short horn when a goal registers (default 55% — stacks with crowd cheer).
           </p>
           <SliderRow
             label="Hit reward ching"
