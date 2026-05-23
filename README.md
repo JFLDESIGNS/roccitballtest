@@ -18,6 +18,25 @@ Open the URL shown in the terminal (usually `http://localhost:5173`). Click the 
 
 Requires **Node.js 20+**.
 
+## Deploy on Vercel
+
+This repo is a static Vite app under `client/`. Root [`vercel.json`](vercel.json) points Vercel at that folder automatically.
+
+1. Push the latest `main` branch to GitHub (if you have not already).
+2. Sign in at [vercel.com](https://vercel.com) → **Add New…** → **Project**.
+3. Import **JFLDESIGNS/roccitballtest** (or your fork).
+4. Leave defaults: **Framework Preset** Vite, **Root Directory** empty (repo root). Build uses `vercel.json`.
+5. Click **Deploy**. You get a URL like `https://roccitballtest.vercel.app`.
+
+No backend or env vars are required. The game runs entirely in the browser (WebGL + Rapier WASM).
+
+Optional CLI (after `npm i -g vercel` and `vercel login`):
+
+```bash
+cd client
+vercel
+```
+
 ## Controls
 
 | Input | Action |
