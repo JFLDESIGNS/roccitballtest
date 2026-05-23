@@ -9,11 +9,11 @@ import { CHARACTER_MESH_RENDER_ORDER } from './JerseyDecal';
 import { PLAYER_MODEL_URL, PLAYER_TEXTURE_BASE } from './playerModel';
 import type { Team } from '../shared/Types';
 
-import droneBaseUrl from '../../user/3d/NewPlayer/textures/drone_d.png';
-import droneNormalUrl from '../../user/3d/NewPlayer/textures/drone_n.png';
-import droneMetalUrl from '../../user/3d/NewPlayer/textures/drone_m.png';
-import droneRoughUrl from '../../user/3d/NewPlayer/textures/drone_r.png';
-import droneEmissiveUrl from '../../user/3d/NewPlayer/textures/drone_e.png';
+import droneBaseUrl from '../assets/models/NewPlayer/textures/drone_d.png';
+import droneNormalUrl from '../assets/models/NewPlayer/textures/drone_n.png';
+import droneMetalUrl from '../assets/models/NewPlayer/textures/drone_m.png';
+import droneRoughUrl from '../assets/models/NewPlayer/textures/drone_r.png';
+import droneEmissiveUrl from '../assets/models/NewPlayer/textures/drone_e.png';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;

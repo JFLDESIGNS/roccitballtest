@@ -28,11 +28,11 @@ Pick **one** setup in **Project → Settings → General → Build & Development
 |--------|--------|
 | Framework Preset | **Vite** |
 | Root Directory | **`client`** |
-| Build Command | *(leave default `npm run build`)* |
+| Build Command | `npm run build` |
 | Output Directory | **`dist`** |
-| Install Command | *(default `npm install`)* |
+| Install Command | `npm install` |
 
-Uses [`client/vercel.json`](client/vercel.json) for SPA routing.
+Game media lives in **`client/src/assets/`** (not `client/user/`). Uses [`client/vercel.json`](client/vercel.json) for SPA routing.
 
 ### Option B — repo root
 
@@ -88,5 +88,5 @@ client/src/
   shared/     Constants, Types
   game/       Arena, Player, Ball, Rockets, HUD, GameCanvas
   ui/         MainMenu, TuningMenu
-client/user/  Sounds, textures, 3D models (required for build/deploy)
+client/src/assets/  Sounds, textures, 3D models (bundled by Vite for deploy)
 ```

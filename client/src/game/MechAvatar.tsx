@@ -6,10 +6,10 @@ import { MOVEMENT } from '../shared/Constants';
 import { CHARACTER_MESH_RENDER_ORDER } from './JerseyDecal';
 import { MECH_MODEL_URL } from './mechModel';
 
-import mechBaseColorUrl from '../../user/3d/Mech/textures/v2_Material.002_BaseColor.png';
-import mechNormalUrl from '../../user/3d/Mech/textures/v2_Material.002_Normal.png';
-import mechMetalUrl from '../../user/3d/Mech/textures/v2_Material.002_Metallic.png';
-import mechRoughUrl from '../../user/3d/Mech/textures/v2_Material.002_Roughness.png';
+import mechBaseColorUrl from '../assets/models/Mech/textures/v2_Material.002_BaseColor.png';
+import mechNormalUrl from '../assets/models/Mech/textures/v2_Material.002_Normal.png';
+import mechMetalUrl from '../assets/models/Mech/textures/v2_Material.002_Metallic.png';
+import mechRoughUrl from '../assets/models/Mech/textures/v2_Material.002_Roughness.png';
 
 function loadMechTexture(url: string, colorSpace: THREE.ColorSpace): THREE.Texture {
   const tex = new THREE.TextureLoader().load(url);

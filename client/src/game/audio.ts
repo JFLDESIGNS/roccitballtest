@@ -1,14 +1,14 @@
 /** Web Audio — procedural fallbacks + user sample clips */
 
 import { tuningStore } from './tuningStore';
-import emptyClipUrl from '../../user/sounds/emptyclip.wav';
-import shotUrl from '../../user/sounds/shot.flac';
-import explosionUrl from '../../user/sounds/explosion.wav';
-import chingUrl from '../../user/sounds/ching.mp3';
-import ambientUrl from '../../user/sounds/ambient.wav';
-import cheerUrl from '../../user/sounds/cheering.wav';
-import panicUrl from '../../user/sounds/panic.wav';
-import goal1Url from '../../user/sounds/goal1.WAV';
+import emptyClipUrl from '../assets/sounds/emptyclip.wav';
+import shotUrl from '../assets/sounds/shot.flac';
+import explosionUrl from '../assets/sounds/explosion.wav';
+import chingUrl from '../assets/sounds/ching.mp3';
+import ambientUrl from '../assets/sounds/ambient.wav';
+import cheerUrl from '../assets/sounds/cheering.wav';
+import panicUrl from '../assets/sounds/panic.wav';
+import goal1Url from '../assets/sounds/goal1.WAV';
 
 let ctx: AudioContext | null = null;
 

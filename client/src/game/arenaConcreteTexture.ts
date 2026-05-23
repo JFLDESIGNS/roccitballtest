@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
-import concreteUrl from '../../user/images/textures/concrete.png';
+import concreteUrl from '../assets/images/textures/concrete.png';
 
 /** World meters per texture repeat on flat arena surfaces */
 export const ARENA_CONCRETE_TILE_M = 4;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const LOGO_URL = new URL(
-  '../../user/images/logo/RoccitLogo.png',
+  '../assets/images/logo/RoccitLogo.png',
   import.meta.url,
 ).href;
 
