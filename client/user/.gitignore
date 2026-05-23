@@ -1,0 +1,7 @@
+# Archives and duplicate unpack trees (not used by Vite imports)
+*.rar
+*.rar.rar
+*.zip
+**/source/drone/
+70cd08*
+*New Text Document*

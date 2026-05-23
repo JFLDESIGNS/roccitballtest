@@ -70,4 +70,5 @@ client/src/
   shared/     Constants, Types
   game/       Arena, Player, Ball, Rockets, HUD, GameCanvas
   ui/         MainMenu, TuningMenu
+client/user/  Sounds, textures, 3D models (required for build/deploy)
 ```
