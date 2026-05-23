@@ -20,22 +20,40 @@ Requires **Node.js 20+**.
 
 ## Deploy on Vercel
 
-This repo is a static Vite app under `client/`. Root [`vercel.json`](vercel.json) points Vercel at that folder automatically.
+Pick **one** setup in **Project → Settings → General → Build & Development Settings**.
 
-1. Push the latest `main` branch to GitHub (if you have not already).
-2. Sign in at [vercel.com](https://vercel.com) → **Add New…** → **Project**.
-3. Import **JFLDESIGNS/roccitballtest** (or your fork).
-4. Leave defaults: **Framework Preset** Vite, **Root Directory** empty (repo root). Build uses `vercel.json`.
-5. Click **Deploy**. You get a URL like `https://roccitballtest.vercel.app`.
+### Option A — recommended (simplest)
+
+| Setting | Value |
+|--------|--------|
+| Framework Preset | **Vite** |
+| Root Directory | **`client`** |
+| Build Command | *(leave default `npm run build`)* |
+| Output Directory | **`dist`** |
+| Install Command | *(default `npm install`)* |
+
+Uses [`client/vercel.json`](client/vercel.json) for SPA routing.
+
+### Option B — repo root
+
+| Setting | Value |
+|--------|--------|
+| Framework Preset | **Other** |
+| Root Directory | **`./`** (empty) |
+| Output Directory | **`client/dist`** *(not `dist`)* |
+
+Uses root [`vercel.json`](vercel.json).
+
+### If you see `404: NOT_FOUND` after deploy
+
+The build succeeded but Vercel is serving an **empty folder**. Almost always:
+
+- Root is `./` but **Output Directory** is `dist` → change to **`client/dist`**, or switch to **Option A** (`client` + `dist`).
+- Root is `client` but **Output Directory** is `client/dist` → change to **`dist`** only.
+
+Then **Deployments → … → Redeploy** (or push a new commit).
 
 No backend or env vars are required. The game runs entirely in the browser (WebGL + Rapier WASM).
-
-Optional CLI (after `npm i -g vercel` and `vercel login`):
-
-```bash
-cd client
-vercel
-```
 
 ## Controls
 
