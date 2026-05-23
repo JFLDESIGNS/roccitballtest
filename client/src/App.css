@@ -52,25 +52,39 @@ body,
     max(0.75rem, env(safe-area-inset-right))
     max(0.5rem, env(safe-area-inset-bottom))
     max(0.75rem, env(safe-area-inset-left));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   background: radial-gradient(ellipse at center, #1a2240 0%, #0a0c12 70%);
+}
+
+.main-menu::-webkit-scrollbar {
+  display: none;
 }
 
 .main-menu-panel {
   text-align: center;
   width: min(100%, 400px);
   max-width: 400px;
-  max-height: min(640px, calc(100dvh - 1rem));
+  max-height: calc(100dvh - 1.25rem);
   margin: auto;
-  padding: clamp(1rem, 2.5vh, 1.75rem);
+  padding: clamp(0.85rem, 2vh, 1.5rem);
   border: 1px solid #334466;
   border-radius: 12px;
   background: rgba(12, 16, 28, 0.92);
   box-shadow: 0 0 40px rgba(80, 120, 255, 0.15);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+}
+
+.main-menu-panel::-webkit-scrollbar {
+  display: none;
 }
 
 .main-menu-panel--how-to {
@@ -83,6 +97,8 @@ body,
   flex-direction: column;
   gap: 0.55rem;
   margin-top: 0.15rem;
+  flex-shrink: 0;
+  padding-bottom: 0.15rem;
 }
 
 .how-to-play-title {
@@ -147,9 +163,9 @@ body,
 
 .main-menu-logo {
   display: block;
-  width: min(100%, clamp(140px, 38vw, 220px));
+  width: min(100%, clamp(120px, 34vw, 190px));
   height: auto;
-  margin: 0 auto clamp(0.5rem, 1.5vh, 1rem);
+  margin: 0 auto clamp(0.4rem, 1.2vh, 0.75rem);
   object-fit: contain;
   filter: drop-shadow(0 0 18px rgba(100, 160, 255, 0.35));
 }
@@ -380,31 +396,42 @@ body,
 }
 
 /* Short viewports (laptops, browser chrome, embedded Vercel preview) */
+@media (max-height: 820px) {
+  .feature-list {
+    margin: 0.35rem 0;
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+}
+
 @media (max-height: 720px) {
   .main-menu-panel {
-    max-height: calc(100dvh - 0.5rem);
-    padding: 0.85rem 1rem;
+    max-height: calc(100dvh - 0.75rem);
+    padding: 0.75rem 0.95rem;
   }
 
   .main-menu-logo {
-    width: min(100%, 160px);
-    margin-bottom: 0.4rem;
+    width: min(100%, 130px);
+    margin-bottom: 0.35rem;
   }
 
   .feature-list {
-    margin: 0.4rem 0;
-    line-height: 1.35;
+    display: none;
+  }
+
+  .menu-profile {
+    margin-bottom: 0.5rem;
+    gap: 0.45rem;
+  }
+
+  .menu-option {
+    margin-bottom: 0.5rem;
+    padding: 0.45rem 0.65rem;
   }
 
   .menu-field input {
     padding: 0.45rem 0.6rem;
     font-size: 0.92rem;
-  }
-}
-
-@media (max-height: 580px) {
-  .feature-list {
-    display: none;
   }
 }
 
