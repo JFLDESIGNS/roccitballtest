@@ -10,6 +10,7 @@ import {
   setLocalProfile,
 } from '../game/playerRoster';
 import { getRocccitLogoUrl } from '../game/roccitLogo';
+import { HowToPlayContent } from './howToPlayContent';
 
 const PROFILE_NAME_KEY = 'rocketball-player-name';
 const PROFILE_NUMBER_KEY = 'rocketball-player-number';
@@ -38,6 +39,7 @@ export function MainMenu({ onPlay }: MainMenuProps) {
   const saved = loadSavedProfile();
   const [playerName, setPlayerName] = useState(saved.name);
   const [jerseyNumber, setJerseyNumber] = useState(saved.number);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
@@ -57,77 +59,101 @@ export function MainMenu({ onPlay }: MainMenuProps) {
     }
   };
 
+  const enterArena = () => {
+    commitProfile();
+    setLocalProfile(playerName, jerseyNumber);
+    resumeAudio();
+    onPlay();
+  };
+
   return (
     <div className="main-menu">
-      <div className="main-menu-panel">
-        <img
-          className="main-menu-logo"
-          src={getRocccitLogoUrl()}
-          alt="Rocccit Ball"
-        />
-        <ul className="feature-list">
-          <li>Third-person movement &amp; rockets</li>
-          <li>Magnetic beam &amp; energy system</li>
-          <li>Red rings (left) · Blue rings (right) — score on the other side</li>
-          {botsEnabled ? (
-            <li>2 red bots + 1 blue teammate</li>
-          ) : (
-            <li>Solo practice — bots off</li>
-          )}
-        </ul>
-
-        <div className="menu-profile">
-          <label className="menu-field">
-            <span>Your name</span>
-            <input
-              type="text"
-              maxLength={18}
-              value={playerName}
-              placeholder={DEFAULT_LOCAL_NAME}
-              onChange={(e) => setPlayerName(e.target.value)}
-              onBlur={commitProfile}
+      <div
+        className={`main-menu-panel${showHowToPlay ? ' main-menu-panel--how-to' : ''}`}
+      >
+        {showHowToPlay ? (
+          <>
+            <h2 className="how-to-play-title">How to Play</h2>
+            <HowToPlayContent />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowHowToPlay(false)}
+            >
+              Back to Menu
+            </button>
+          </>
+        ) : (
+          <>
+            <img
+              className="main-menu-logo"
+              src={getRocccitLogoUrl()}
+              alt="Rocccit Ball"
             />
-          </label>
-          <label className="menu-field menu-field--number">
-            <span>Jersey #</span>
-            <input
-              type="number"
-              min={0}
-              max={99}
-              value={jerseyNumber}
-              onChange={(e) => setJerseyNumber(clampJersey(Number(e.target.value)))}
-              onBlur={commitProfile}
-            />
-            <span className="menu-jersey-preview">{formatJersey(jerseyNumber)}</span>
-          </label>
-        </div>
+            <ul className="feature-list">
+              <li>Third-person movement &amp; rockets</li>
+              <li>Magnetic beam &amp; energy system</li>
+              <li>Red rings (left) · Blue rings (right) — score on the other side</li>
+              {botsEnabled ? (
+                <li>2 red bots + 1 blue teammate</li>
+              ) : (
+                <li>Solo practice — bots off</li>
+              )}
+            </ul>
 
-        <label className="menu-option">
-          <input
-            type="checkbox"
-            checked={botsEnabled}
-            onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
-          />
-          <span>Enable practice bots</span>
-        </label>
+            <div className="menu-profile">
+              <label className="menu-field">
+                <span>Your name</span>
+                <input
+                  type="text"
+                  maxLength={18}
+                  value={playerName}
+                  placeholder={DEFAULT_LOCAL_NAME}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  onBlur={commitProfile}
+                />
+              </label>
+              <label className="menu-field menu-field--number">
+                <span>Jersey #</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={jerseyNumber}
+                  onChange={(e) =>
+                    setJerseyNumber(clampJersey(Number(e.target.value)))
+                  }
+                  onBlur={commitProfile}
+                />
+                <span className="menu-jersey-preview">
+                  {formatJersey(jerseyNumber)}
+                </span>
+              </label>
+            </div>
 
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => {
-            commitProfile();
-            setLocalProfile(playerName, jerseyNumber);
-            resumeAudio();
-            onPlay();
-          }}
-        >
-          Enter Arena
-        </button>
+            <label className="menu-option">
+              <input
+                type="checkbox"
+                checked={botsEnabled}
+                onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
+              />
+              <span>Enable practice bots</span>
+            </label>
 
-        <p className="hint">
-          Triple jump (Space) · WW dash · LMB rockets · RMB beam · F kickoff drop
-          · Press 1 for tuning and graphics · Esc to exit
-        </p>
+            <div className="main-menu-actions">
+              <button type="button" className="btn-primary" onClick={enterArena}>
+                Enter Arena
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowHowToPlay(true)}
+              >
+                How to Play
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

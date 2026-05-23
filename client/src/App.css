@@ -52,9 +52,7 @@ body,
     max(0.75rem, env(safe-area-inset-right))
     max(0.5rem, env(safe-area-inset-bottom))
     max(0.75rem, env(safe-area-inset-left));
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   background: radial-gradient(ellipse at center, #1a2240 0%, #0a0c12 70%);
 }
 
@@ -69,9 +67,82 @@ body,
   border-radius: 12px;
   background: rgba(12, 16, 28, 0.92);
   box-shadow: 0 0 40px rgba(80, 120, 255, 0.15);
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-menu-panel--how-to {
+  text-align: left;
+  max-height: min(90dvh, 720px);
+}
+
+.main-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.15rem;
+}
+
+.how-to-play-title {
+  margin: 0 0 0.65rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e8f0ff;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.how-to-play-text {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-bottom: 0.85rem;
+  padding-right: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #b8c6de;
+  scrollbar-width: thin;
+  scrollbar-color: #3a5070 transparent;
+}
+
+.how-to-play-text::-webkit-scrollbar {
+  width: 6px;
+}
+
+.how-to-play-text::-webkit-scrollbar-thumb {
+  background: #3a5070;
+  border-radius: 4px;
+}
+
+.how-to-play-text section {
+  margin-bottom: 0.85rem;
+}
+
+.how-to-play-text h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #9ec8ff;
+}
+
+.how-to-play-text p {
+  margin: 0;
+}
+
+.how-to-play-text ul {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.how-to-play-text li {
+  margin-bottom: 0.25rem;
+}
+
+.how-to-play-text strong {
+  color: #dce8ff;
+  font-weight: 600;
 }
 
 .main-menu-logo {
@@ -328,10 +399,6 @@ body,
   .menu-field input {
     padding: 0.45rem 0.6rem;
     font-size: 0.92rem;
-  }
-
-  .hint {
-    display: none;
   }
 }
 
