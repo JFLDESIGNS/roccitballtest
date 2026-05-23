@@ -31,6 +31,7 @@ export function GamePointerCapture() {
       resumeAudio();
       warmAudio();
       inputManager.requestPointerLock(canvas);
+      inputManager.onGameplayResume();
     },
     [showMenu],
   );

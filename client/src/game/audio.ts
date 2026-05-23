@@ -45,7 +45,9 @@ const SAMPLE_START_OFFSET_MAX_SEC = 48;
 /** Hard cap on goal cheer / generic crowd WebAudio gain */
 const CROWD_PEAK_GAIN_CAP = 0.16;
 /** Higher cap for fan-glass hits so distance falloff can actually get loud up close */
-const FAN_GLASS_PEAK_GAIN_CAP = CROWD_PEAK_GAIN_CAP * 3;
+const FAN_GLASS_PEAK_GAIN_CAP = 1.5;
+/** Glass hits allow distance multiplier above 1.0 (same radius curve, louder overall) */
+const FAN_GLASS_VOLUME_MUL_MAX = 3;
 const GLASS_AUDIO_COOLDOWN_MS = 500;
 let lastGlassCrowdAudioAt = 0;
 /** Suppress surface bounce SFX right after a shot (avoids double-audio with shot.flac) */

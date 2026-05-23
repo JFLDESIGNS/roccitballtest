@@ -8,6 +8,7 @@ import {
   TEAM_SPAWN,
 } from '../shared/Constants';
 import type { Team } from '../shared/Types';
+import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import { getLookDirection } from './CameraController';
 
@@ -31,6 +32,101 @@ class InputManager {
   private canvas: HTMLElement | null = null;
   private lookWarmupUntil = 0;
   private pointerLocked = false;
+  private pointerCaptureId: number | null = null;
+  private lastClientX = 0;
+  private lastClientY = 0;
+  private hasLastClient = false;
+
+  private canApplyFallbackLook(): boolean {
+    if (tuningStore.getState().showMenu) return false;
+    const phase = gameStore.getState().phase;
+    return phase === 'playing' || phase === 'countdown';
+  }
+
+  private syncPointerLockState(): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    const locked = document.pointerLockElement === canvas;
+    if (locked) {
+      this.releasePointerCaptureFallback();
+      if (!this.pointerLocked) {
+        this.lookWarmupUntil = performance.now() + CAMERA.lockWarmupMs;
+      }
+    }
+    if (locked === this.pointerLocked) return;
+    this.pointerLocked = locked;
+    gameStore.setPointerLocked(locked);
+  }
+
+  private releasePointerCaptureFallback(): void {
+    const canvas = this.canvas;
+    if (!canvas || this.pointerCaptureId === null) return;
+    try {
+      canvas.releasePointerCapture(this.pointerCaptureId);
+    } catch {
+      /* already released */
+    }
+    this.pointerCaptureId = null;
+    this.hasLastClient = false;
+  }
+
+  private beginPointerCaptureFallback(e: PointerEvent): void {
+    const canvas = this.canvas;
+    if (!canvas || document.pointerLockElement === canvas) return;
+    try {
+      canvas.setPointerCapture(e.pointerId);
+      this.pointerCaptureId = e.pointerId;
+      this.lastClientX = e.clientX;
+      this.lastClientY = e.clientY;
+      this.hasLastClient = true;
+    } catch {
+      /* unsupported */
+    }
+  }
+
+  private handleMouseLook(e: MouseEvent): void {
+    const canvas = this.canvas;
+    if (!canvas) return;
+
+    if (document.pointerLockElement === canvas) {
+      this.applyMouseLook(e.movementX, e.movementY);
+      return;
+    }
+
+    if (!this.canApplyFallbackLook()) return;
+
+    const captureActive = this.pointerCaptureId !== null;
+    const buttonsHeld = this.mouseButtons.left || this.mouseButtons.right;
+    if (!captureActive && !buttonsHeld) {
+      this.hasLastClient = false;
+      return;
+    }
+
+    let dx = e.movementX;
+    let dy = e.movementY;
+    if (dx === 0 && dy === 0 && this.hasLastClient) {
+      dx = e.clientX - this.lastClientX;
+      dy = e.clientY - this.lastClientY;
+    }
+    this.lastClientX = e.clientX;
+    this.lastClientY = e.clientY;
+    this.hasLastClient = true;
+
+    if (dx !== 0 || dy !== 0) {
+      this.applyMouseLook(dx, dy);
+    }
+  }
+
+  /** After tuning menu or alt-tab — sync lock state; next click re-captures mouse */
+  onGameplayResume(): void {
+    this.syncPointerLockState();
+    this.releasePointerCaptureFallback();
+    this.lookWarmupUntil = 0;
+    const canvas = this.canvas;
+    if (canvas && typeof canvas.focus === 'function') {
+      canvas.focus({ preventScroll: true });
+    }
+  }
 
   bind(canvas: HTMLElement) {
     if (this.bound) return;
@@ -86,10 +182,20 @@ class InputManager {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button === 0) this.setFireDown(true);
       if (e.button === 2) this.mouseButtons.right = true;
+      if (document.pointerLockElement !== canvas && this.canApplyFallbackLook()) {
+        this.requestPointerLock(canvas);
+        this.beginPointerCaptureFallback(e as PointerEvent);
+      }
     };
     const onMouseUp = (e: MouseEvent) => {
       if (e.button === 0) this.setFireDown(false);
       if (e.button === 2) this.mouseButtons.right = false;
+      if (
+        this.pointerCaptureId !== null &&
+        (e as PointerEvent).pointerId === this.pointerCaptureId
+      ) {
+        this.releasePointerCaptureFallback();
+      }
     };
     const onWindowMouseUp = (e: MouseEvent) => {
       if (e.button === 0) this.setFireDown(false);
@@ -98,27 +204,35 @@ class InputManager {
     const onBlur = () => {
       if (this.mouseButtons.left) this.setFireDown(false);
       this.mouseButtons.right = false;
+      this.releasePointerCaptureFallback();
+      this.syncPointerLockState();
     };
     const onMouseMove = (e: MouseEvent) => {
-      if (document.pointerLockElement !== canvas) return;
-      this.applyMouseLook(e.movementX, e.movementY);
+      this.handleMouseLook(e);
+    };
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (document.pointerLockElement === canvas) return;
+      if (!this.mouseButtons.left && !this.mouseButtons.right) return;
+      this.handleMouseLook(e);
     };
     const onContextMenu = (e: Event) => e.preventDefault();
     const onPointerLockChange = () => {
-      const locked = document.pointerLockElement === canvas;
-      this.pointerLocked = locked;
-      if (locked) {
-        this.lookWarmupUntil = performance.now() + CAMERA.lockWarmupMs;
-      }
-      import('./gameStore').then(({ gameStore }) =>
-        gameStore.setPointerLocked(locked),
-      );
+      this.syncPointerLockState();
     };
     const onPointerLockError = () => {
       this.pointerLocked = false;
-      import('./gameStore').then(({ gameStore }) =>
-        gameStore.setPointerLocked(false),
-      );
+      gameStore.setPointerLocked(false);
+    };
+    const onLostPointerCapture = () => {
+      this.pointerCaptureId = null;
+      this.hasLastClient = false;
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        this.syncPointerLockState();
+      } else {
+        this.releasePointerCaptureFallback();
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -127,10 +241,14 @@ class InputManager {
     canvas.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mouseup', onWindowMouseUp);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', () => this.syncPointerLockState());
     canvas.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousemove', onWindowMouseMove);
     canvas.addEventListener('contextmenu', onContextMenu);
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     document.addEventListener('pointerlockerror', onPointerLockError);
+    document.addEventListener('visibilitychange', onVisibilityChange);
   }
 
   private setFireDown(down: boolean) {

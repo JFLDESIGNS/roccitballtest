@@ -133,7 +133,8 @@ export function HUD() {
             inputManager.requestPointerLock(canvas);
           }}
         >
-          Click arena to capture mouse · LMB rocket · RMB beam · F spawn ball
+          Click arena to capture mouse (needed after menu or alt-tab) · LMB rocket ·
+          RMB beam · F spawn ball
         </div>
       )}
 

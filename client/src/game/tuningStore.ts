@@ -95,8 +95,8 @@ const defaults: TuningValues = {
   impactVolume: 0.45,
   shotVolume: 0.33,
   chingVolume: 0.4,
-  goal1Volume: 0.5,
-  botPressure: 0.58,
+  goal1Volume: 0.55,
+  botPressure: 0.25,
   bouncyRocketsEnabled: false,
   trampolineStrength: 3.5,
   botBeamPullScale: BOT.beamPullScale,
@@ -168,8 +168,15 @@ export const tuningStore = {
     return () => listeners.delete(fn);
   },
   toggleMenu: () => {
-    state = { ...state, showMenu: !state.showMenu };
-    if (state.showMenu) document.exitPointerLock();
+    const opening = !state.showMenu;
+    state = { ...state, showMenu: opening };
+    if (opening) {
+      document.exitPointerLock();
+    } else {
+      void import('./InputManager').then(({ inputManager }) =>
+        inputManager.onGameplayResume(),
+      );
+    }
     notify();
   },
   setMenuTab: (tab: TuningTabId) => {
