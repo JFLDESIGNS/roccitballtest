@@ -45,6 +45,8 @@ type GameStoreState = {
   /** Team that scored last (for bot celebration, etc.) */
   lastScoringTeam: Team | null;
   botsEnabled: boolean;
+  /** Double-tap W forward dash — off by default */
+  wwDashEnabled: boolean;
   botEnergies: Record<BotId, number>;
   /** Rapier collider wireframes — off by default, G to toggle */
   showColliderDebug: boolean;
@@ -65,12 +67,21 @@ type GameStoreState = {
 const listeners = new Set<() => void>();
 
 const BOTS_ENABLED_KEY = 'rocketball-bots-enabled';
+const WW_DASH_ENABLED_KEY = 'rocketball-ww-dash-enabled';
 
 function loadBotsEnabled(): boolean {
   try {
     return localStorage.getItem(BOTS_ENABLED_KEY) !== 'false';
   } catch {
     return true;
+  }
+}
+
+function loadWwDashEnabled(): boolean {
+  try {
+    return localStorage.getItem(WW_DASH_ENABLED_KEY) === 'true';
+  } catch {
+    return false;
   }
 }
 
@@ -110,6 +121,7 @@ let state: GameStoreState = {
   goalCelebration: null,
   lastScoringTeam: null,
   botsEnabled: loadBotsEnabled(),
+  wwDashEnabled: loadWwDashEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
   showColliderDebug: false,
   ballBoundaryHelpUntil: 0,
@@ -149,6 +161,15 @@ export const gameStore = {
         ballState: state.ballState === 'held' ? 'loose' : state.ballState,
       };
     }
+    notify();
+  },
+  setWwDashEnabled: (enabled: boolean) => {
+    try {
+      localStorage.setItem(WW_DASH_ENABLED_KEY, String(enabled));
+    } catch {
+      /* ignore */
+    }
+    state = { ...state, wwDashEnabled: enabled };
     notify();
   },
   startMatch: () => {
