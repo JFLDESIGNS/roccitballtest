@@ -216,6 +216,19 @@ export function goalBackRingCenterX(
   );
 }
 
+/** Local X nudge for middle backup cap square / hole disc (matches GoalRingBackplate) */
+export function goalBackCapArenaNudgeM(team: Team, size: GoalSize): number {
+  const capNudgeScale = size === 'medium' ? 0.22 : 0.15;
+  const wallFt = size === 'medium' ? GOAL_RINGS.midRingCapWallOffsetFt : 0;
+  const courtFt =
+    size === 'medium' ? GOAL_RINGS.midRingBackCapCourtOffsetFt : 0;
+  const towardCourt = team === 'red' ? 1 : -1;
+  return (
+    towardCourt *
+    (GOAL_RINGS.backRingWallOffsetM * capNudgeScale + (wallFt - courtFt) * FT)
+  );
+}
+
 function buildWallRings(team: Team, wallX: number): GoalDef[] {
   const { bottomY, midY, topY } = stackedRingCenters();
   const tiers: { size: GoalSize; tier: 0 | 1 | 2; y: number; points: number }[] = [

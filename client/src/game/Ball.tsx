@@ -41,6 +41,8 @@ import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
 import { BallMotionRibbons } from './BallMotionRibbons';
+import { LooseBallVisual } from './LooseBallVisual';
+import { PhysicsBallWireframe } from './PhysicsBallWireframe';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
@@ -48,6 +50,10 @@ import {
   getGoalBallSuckVisualAlpha,
   tickGoalBallSuck,
 } from './ballGoalSuck';
+import {
+  advanceHeldBallReleaseBlend,
+  heldBallVisualBridge,
+} from './heldBallVisualBridge';
 import { gameStore, type BallHolderId } from './gameStore';
 import { tuningStore } from './tuningStore';
 import type { Team } from '../shared/Types';
@@ -77,11 +83,20 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const bodyRef = useRef<RapierRigidBody>(null);
   const ballMeshRef = useRef<THREE.Mesh>(null);
   const ballMatRef = useRef<THREE.MeshStandardMaterial>(null);
-  const heldVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
-  const heldVisualRef = useRef<THREE.Mesh>(null);
+  const looseVisualRef = useRef<THREE.Mesh>(null);
+  const looseVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const physicsWireRef = useRef<THREE.Mesh>(null);
+  const showPhysicsBall = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().showPhysicsBall,
+  );
   const isHeld = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().ballHolderId !== null,
+  );
+  const isLocalHeld = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().ballHolderId === 'local',
   );
   const hideTrail = useSyncExternalStore(
     gameStore.subscribe,
@@ -102,8 +117,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const glowTick = useRef(0);
   const lastHolderId = useRef<BallHolderId>(null);
   const prevBallPos = useRef(new THREE.Vector3());
-  const _ballTo = useRef(new THREE.Vector3());
-  const hasPrevBallPos = useRef(false);
+const _ballTo = useRef(new THREE.Vector3());
+const hasPrevBallPos = useRef(false);
 
   const surfaceMap = useMemo(
     () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, 'original'),
@@ -259,8 +274,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     stepBallPhysics(body);
   });
 
-  // Held mesh lives outside RigidBody so it stays visible; snap to body (no lag).
+  // Release timer + goal-suck overrides; loose proxy handles bot carry + loose display.
   useFrame((_, dt) => {
+    const nowSec = performance.now() / 1000;
     if (isGoalBallSuckActive()) {
       tickGoalBallSuck(dt);
       const body = bodyRef.current;
@@ -268,14 +284,20 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       const visible = alpha > 0.03;
       if (body) {
         const t = body.translation();
-        if (heldVisualRef.current) {
-          heldVisualRef.current.position.set(t.x, t.y, t.z);
-          heldVisualRef.current.scale.setScalar(0.35 + alpha * 0.65);
-          heldVisualRef.current.visible = visible;
+        const scale = 0.35 + alpha * 0.65;
+        const showWire = gameStore.getState().showPhysicsBall;
+        if (looseVisualRef.current) {
+          looseVisualRef.current.position.set(t.x, t.y, t.z);
+          looseVisualRef.current.scale.setScalar(scale);
+          looseVisualRef.current.visible = visible;
+        }
+        if (physicsWireRef.current) {
+          physicsWireRef.current.position.set(t.x, t.y, t.z);
+          physicsWireRef.current.scale.setScalar(scale);
+          physicsWireRef.current.visible = visible && showWire;
         }
         if (ballMeshRef.current) {
-          ballMeshRef.current.scale.setScalar(0.35 + alpha * 0.65);
-          ballMeshRef.current.visible = visible;
+          ballMeshRef.current.visible = false;
         }
         const applyAlpha = (m: THREE.MeshStandardMaterial | null) => {
           if (!m) return;
@@ -283,7 +305,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
           m.opacity = alpha;
         };
         applyAlpha(ballMatRef.current);
-        applyAlpha(heldVisualMatRef.current);
+        applyAlpha(looseVisualMatRef.current);
       }
       return;
     }
@@ -292,27 +314,27 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       ballMatRef.current.transparent = false;
       ballMatRef.current.opacity = 1;
     }
-    if (heldVisualMatRef.current) {
-      heldVisualMatRef.current.transparent = false;
-      heldVisualMatRef.current.opacity = 1;
+    if (looseVisualMatRef.current) {
+      looseVisualMatRef.current.transparent = false;
+      looseVisualMatRef.current.opacity = 1;
     }
 
     if (ballMeshRef.current) {
       ballMeshRef.current.scale.setScalar(1);
-      ballMeshRef.current.visible = !isHeld;
     }
-    if (heldVisualRef.current) {
-      heldVisualRef.current.scale.setScalar(1);
+    if (looseVisualRef.current) {
+      looseVisualRef.current.scale.setScalar(1);
     }
 
-    if (!isHeld) return;
-    const body = bodyRef.current;
-    const mesh = heldVisualRef.current;
-    if (!body || !mesh) return;
-    const t = body.translation();
-    const q = body.rotation();
-    mesh.position.set(t.x, t.y, t.z);
-    mesh.quaternion.set(q.x, q.y, q.z, q.w);
+    advanceHeldBallReleaseBlend(nowSec);
+
+    if (ballMeshRef.current) {
+      ballMeshRef.current.visible = false;
+      ballMeshRef.current.position.set(0, 0, 0);
+    }
+    if (physicsWireRef.current && heldBallVisualBridge.release.active) {
+      physicsWireRef.current.visible = false;
+    }
   }, -1);
 
   useFrame(({ clock }, dt) => {
@@ -324,24 +346,18 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     if (body && held !== wasHeldRef.current) {
       wasHeldRef.current = held;
       setBallHeldCollider(body, held);
-      if (held && heldVisualRef.current) {
-        const t = body.translation();
-        const q = body.rotation();
-        heldVisualRef.current.position.set(t.x, t.y, t.z);
-        heldVisualRef.current.quaternion.set(q.x, q.y, q.z, q.w);
-      }
     } else if (body && !held) {
       syncBallLooseCollision(body);
     }
     const localTeam = gameStore.getState().localTeam;
     const mat = ballMatRef.current;
-    const heldMat = heldVisualMatRef.current;
+    const looseMat = looseVisualMatRef.current;
     const holderChanged = holderId !== lastHolderId.current;
     lastHolderId.current = holderId;
 
     glowTick.current += 1;
     if (
-      (mat || heldMat) &&
+      (mat || looseMat) &&
       (holderChanged ||
         isHeld ||
         !held ||
@@ -375,31 +391,33 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         }
       };
       applyGlow(mat);
-      applyGlow(heldMat);
+      applyGlow(looseMat);
     }
   });
+
+  const looseProxyHidden = isLocalHeld || isGoalBallSuckActive();
+
+  const physicsWireVisible =
+    showPhysicsBall &&
+    !isLocalHeld &&
+    !heldBallVisualBridge.release.active &&
+    !isGoalBallSuckActive();
 
   return (
     <>
     <BallMotionRibbons bodyRef={bodyRef} hidden={isHeld || hideTrail} />
-    <mesh
-      ref={heldVisualRef}
-      visible={isHeld}
-      frustumCulled={false}
-      castShadow
-      receiveShadow
-    >
-      <sphereGeometry args={[BALL.radius, 14, 12]} />
-      <meshStandardMaterial
-        ref={heldVisualMatRef}
-        map={surfaceMap}
-        color="#c8d8ec"
-        emissive="#5ec8ff"
-        emissiveIntensity={0.22}
-        metalness={0.52}
-        roughness={0.32}
-      />
-    </mesh>
+    <PhysicsBallWireframe
+      bodyRef={bodyRef}
+      visible={physicsWireVisible}
+      meshRef={physicsWireRef}
+    />
+    <LooseBallVisual
+      bodyRef={bodyRef}
+      hidden={looseProxyHidden}
+      surfaceMap={surfaceMap}
+      matRef={looseVisualMatRef}
+      meshRef={looseVisualRef}
+    />
     <RigidBody
       ref={bodyRef}
       colliders={false}
@@ -423,7 +441,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       />
       <mesh
         ref={ballMeshRef}
-        visible={!isHeld}
+        visible={false}
         castShadow
         receiveShadow
       >

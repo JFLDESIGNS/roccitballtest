@@ -652,6 +652,20 @@ export const BALL = {
   holdSocketTargetSmooth: 5.5,
   /** Extra low-pass on held ball mesh vs physics body */
   holdVisualSmooth: 24,
+  /** How far the carry proxy sits beyond the hold socket (m) */
+  holdVisualExtraReachM: 1.3,
+  /** Carry proxy lag — lower = softer trailing attach */
+  holdVisualLagSmooth: 45,
+  /** Blend held proxy into physics ball on release (seconds) */
+  holdReleaseVisualLerpSec: 0.22,
+  /** Loose proxy — filter raw physics position (reduces jitter) */
+  looseVisualTargetSmooth: 34,
+  /** Loose proxy display follow — higher = snappier */
+  looseVisualPosSmooth: 28,
+  /** Loose proxy spin follow — higher = snappier */
+  looseVisualRotSmooth: 58,
+  /** Soft catch-up if display drifts farther than this from filtered target (m) */
+  looseVisualMaxLagM: 0.45,
   /** Low-pass on ramp/floor support height while held */
   holdSupportSmooth: 32,
   /** How long Space stays buffered if jump was early (seconds) */
@@ -901,8 +915,10 @@ export const GOAL_RINGS = {
   midRingBackWallOffsetM: 1.75,
   /** @deprecated visuals follow collider rigidbody — kept at 0 */
   midRingBackVisualExtraFt: 0,
-  /** Middle ring hole cap — extra push toward wall on black ring (feet) */
-  midRingCapWallOffsetFt: 1,
+  /** Middle ring back-cap square — pull toward court (feet) */
+  midRingBackCapCourtOffsetFt: 1,
+  /** Middle ring back-cap square — extra push toward wall (feet) */
+  midRingCapWallOffsetFt: 0,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */
   bottomRingWallStandoffFt: 15,
   /**

@@ -56,7 +56,13 @@ import {
   GroundJerseyDecal,
 } from './JerseyDecal';
 import { DroneThrusterFlames } from './DroneThrusterFlames';
+import { LocalHeldBallVisual } from './LocalHeldBallVisual';
 import { PlayerMotionRibbons } from './PlayerMotionRibbons';
+import {
+  beginLocalHeldBallRelease,
+  heldBallVisualBridge,
+  markLocalHeldBallCarry,
+} from './heldBallVisualBridge';
 import { inputManager } from './InputManager';
 import {
   playBallLaunch,
@@ -283,6 +289,7 @@ export function Player({
       onBallHeldChange(false);
       onBeamBreak();
       if (ball && body) {
+        beginLocalHeldBallRelease(heldBallVisualBridge.smoothPos);
         releaseBallPhysics(ball);
         const plv = body.linvel();
         ball.setLinvel(
@@ -919,7 +926,10 @@ export function Player({
         clearHoldState();
         onBeamBreak();
         gameStore.setEnergyFlash(true);
-        if (ballBodyRef.current) releaseBallPhysics(ballBodyRef.current);
+        if (ballBodyRef.current) {
+          beginLocalHeldBallRelease(heldBallVisualBridge.smoothPos);
+          releaseBallPhysics(ballBodyRef.current);
+        }
       }
     }
 
@@ -963,6 +973,7 @@ export function Player({
       swingVel = averageMomentum(ballSwingSamples.current),
     ) => {
       if (!ball) return;
+      beginLocalHeldBallRelease(heldBallVisualBridge.smoothPos);
       releaseBallPhysics(ball);
       if (tune.releaseSystem === 'superrelease') {
         computeSuperReleaseSpawn(
@@ -1161,6 +1172,7 @@ export function Player({
           holdSocketSmoothed.current.copy(ballPos);
           holdSocketSmoothReady.current = true;
           captureBallSocket(ball, holdSocketSmoothed.current, ballPos);
+          markLocalHeldBallCarry(ballPos, ball.rotation());
           resolveHeldBallPosition(
             world,
             ball,
@@ -1399,6 +1411,7 @@ export function Player({
 
   return (
     <>
+      <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
       <PlayerMotionRibbons bodyRef={bodyRef} />
       <RigidBody
         ref={bodyRef}

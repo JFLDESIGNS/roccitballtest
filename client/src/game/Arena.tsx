@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ARENA, BALL, RENDER } from '../shared/Constants';
 import {
   ARENA_GOALS,
+  goalBackCapArenaNudgeM,
   goalBackRingCenterX,
   goalScoringCenter,
   goalScoringCylinderParams,
@@ -179,12 +180,7 @@ function GoalRingBackplate({
     return m;
   }, []);
 
-  const capNudgeScale = size === 'medium' ? 0.22 : 0.15;
-  const capWallNudgeFt =
-    size === 'medium' ? GOAL_RINGS.midRingCapWallOffsetFt : 0;
-  const capArenaNudge =
-    (team === 'red' ? 1 : -1) *
-    (GOAL_RINGS.backRingWallOffsetM * capNudgeScale + capWallNudgeFt * 0.3048);
+  const capArenaNudge = goalBackCapArenaNudgeM(team, size);
   const capTiltX =
     size === 'medium' ? 0.2 : size === 'small' ? ringTiltX(team, size) * 0.35 : 0;
 

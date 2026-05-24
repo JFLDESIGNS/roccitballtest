@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { tuningStore } from './tuningStore';
+import { FpsCounter } from './FpsCounter';
 import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
@@ -47,6 +48,7 @@ export function HUD({ onMainMenu }: HUDProps) {
 
   return (
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
+      <FpsCounter />
       <BallBoundaryHelpBadge />
       <div className="hud-top">
         <div className="hud-top-center">

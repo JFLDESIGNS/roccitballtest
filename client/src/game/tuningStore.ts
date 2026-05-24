@@ -1,7 +1,7 @@
 import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId, type ReleaseSystemId } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v14';
+const STORAGE_KEY = 'rocketball-tuning-v18';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;
@@ -74,6 +74,20 @@ export type TuningValues = {
   superReleaseThrowerGraceSec: number;
   /** After grabbing the ball — rockets can't knock it loose from holder or ball */
   holdConnectImmunitySec: number;
+  /** Carry proxy — extra reach beyond hold socket (m) */
+  holdVisualExtraReachM: number;
+  /** Carry proxy follow rate — higher = less lag */
+  holdVisualLagSmooth: number;
+  /** Loose proxy — filter raw physics position (reduces jitter) */
+  looseVisualTargetSmooth: number;
+  /** Loose proxy display follow — higher = snappier */
+  looseVisualPosSmooth: number;
+  /** Loose proxy spin follow — higher = snappier */
+  looseVisualRotSmooth: number;
+  /** Max meters display may trail filtered target before extra catch-up */
+  looseVisualMaxLagM: number;
+  /** Extra follow strength multiplier cap at high ball speed */
+  looseVisualSpeedBoostMax: number;
 };
 
 type TuningState = TuningValues & {
@@ -152,6 +166,13 @@ const defaults: TuningValues = {
   superReleaseUpOffset: 1.2,
   superReleaseThrowerGraceSec: 0.15,
   holdConnectImmunitySec: BALL.holdConnectImmunitySec,
+  holdVisualExtraReachM: BALL.holdVisualExtraReachM,
+  holdVisualLagSmooth: BALL.holdVisualLagSmooth,
+  looseVisualTargetSmooth: BALL.looseVisualTargetSmooth,
+  looseVisualPosSmooth: BALL.looseVisualPosSmooth,
+  looseVisualRotSmooth: BALL.looseVisualRotSmooth,
+  looseVisualMaxLagM: BALL.looseVisualMaxLagM,
+  looseVisualSpeedBoostMax: 12,
 };
 
 const listeners = new Set<() => void>();
@@ -294,6 +315,20 @@ export const tuningStore = {
     patch({ superReleaseThrowerGraceSec: Math.max(0.05, Math.min(0.6, v)) }),
   setHoldConnectImmunitySec: (v: number) =>
     patch({ holdConnectImmunitySec: Math.max(0, Math.min(3, v)) }),
+  setHoldVisualExtraReachM: (v: number) =>
+    patch({ holdVisualExtraReachM: Math.max(0, Math.min(2.5, v)) }),
+  setHoldVisualLagSmooth: (v: number) =>
+    patch({ holdVisualLagSmooth: Math.max(4, Math.min(60, v)) }),
+  setLooseVisualTargetSmooth: (v: number) =>
+    patch({ looseVisualTargetSmooth: Math.max(4, Math.min(120, v)) }),
+  setLooseVisualPosSmooth: (v: number) =>
+    patch({ looseVisualPosSmooth: Math.max(4, Math.min(120, v)) }),
+  setLooseVisualRotSmooth: (v: number) =>
+    patch({ looseVisualRotSmooth: Math.max(8, Math.min(160, v)) }),
+  setLooseVisualMaxLagM: (v: number) =>
+    patch({ looseVisualMaxLagM: Math.max(0.05, Math.min(2, v)) }),
+  setLooseVisualSpeedBoostMax: (v: number) =>
+    patch({ looseVisualSpeedBoostMax: Math.max(0, Math.min(32, v)) }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

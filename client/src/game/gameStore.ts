@@ -54,6 +54,8 @@ type GameStoreState = {
   botEnergies: Record<BotId, number>;
   /** Rapier collider wireframes — off by default, G to toggle */
   showColliderDebug: boolean;
+  /** Show real physics ball wireframe overlay — 2 to toggle */
+  showPhysicsBall: boolean;
   /** Debug: show "helping" badge until this timestamp (performance.now) */
   ballBoundaryHelpUntil: number;
   /** Kill-feed style callout (performance.now ms when it expires) */
@@ -124,6 +126,7 @@ let state: GameStoreState = {
   botsEnabled: loadBotsEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
   showColliderDebug: false,
+  showPhysicsBall: false,
   ballBoundaryHelpUntil: 0,
   announcement: null,
   ballCombo: 0,
@@ -222,6 +225,10 @@ export const gameStore = {
   },
   toggleColliderDebug: () => {
     state = { ...state, showColliderDebug: !state.showColliderDebug };
+    notify();
+  },
+  toggleShowPhysicsBall: () => {
+    state = { ...state, showPhysicsBall: !state.showPhysicsBall };
     notify();
   },
   setEnergy: (energy: number, flash = false) => {

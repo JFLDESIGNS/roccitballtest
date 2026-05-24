@@ -158,6 +158,11 @@ class InputManager {
         e.preventDefault();
         import('./tuningStore').then(({ tuningStore }) => tuningStore.toggleMenu());
       }
+      if (e.code === 'Digit2') {
+        import('./gameStore').then(({ gameStore }) =>
+          gameStore.toggleShowPhysicsBall(),
+        );
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         this.jumpQueued = true;

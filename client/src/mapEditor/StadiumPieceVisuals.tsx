@@ -4,6 +4,7 @@ import { GOAL_RINGS } from '../shared/Constants';
 import type { GoalDef } from '../shared/Types';
 import { ARENA_PILLAR } from '../game/arenaPillars';
 import {
+  goalBackCapArenaNudgeM,
   goalBackRingCenterX,
   goalScoreHoleRadius,
   ringTiltX,
@@ -123,9 +124,7 @@ function GoalRingBackplateVisual({
     return m;
   }, []);
 
-  const capNudgeScale = goal.size === 'medium' ? 0.22 : 0.15;
-  const capArenaNudge =
-    (goal.team === 'red' ? 1 : -1) * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+  const capArenaNudge = goalBackCapArenaNudgeM(goal.team, goal.size);
   const capTiltX =
     goal.size === 'medium'
       ? 0.2

@@ -210,6 +210,78 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setHoldConnectImmunitySec}
             format={(v) => `${v.toFixed(1)}s`}
           />
+          <h3 className="tuning-section">Carry ball visual</h3>
+          <SliderRow
+            label="Hold reach (extra)"
+            hint="How far the smooth carry ball sits beyond the hold socket."
+            value={tune.holdVisualExtraReachM}
+            min={0}
+            max={2.5}
+            step={0.02}
+            onChange={tuningStore.setHoldVisualExtraReachM}
+            format={(v) => `${v.toFixed(2)} m`}
+          />
+          <SliderRow
+            label="Carry lag smooth"
+            hint="Higher = snappier follow; lower = softer trailing attach."
+            value={tune.holdVisualLagSmooth}
+            min={4}
+            max={60}
+            step={1}
+            onChange={tuningStore.setHoldVisualLagSmooth}
+            format={(v) => v.toFixed(1)}
+          />
+          <h3 className="tuning-section">Loose proxy ball</h3>
+          <SliderRow
+            label="Physics jitter filter"
+            hint="Smooths raw body position before display follow. Lower = silkier, higher = tighter."
+            value={tune.looseVisualTargetSmooth}
+            min={4}
+            max={120}
+            step={1}
+            onChange={tuningStore.setLooseVisualTargetSmooth}
+            format={(v) => v.toFixed(0)}
+          />
+          <SliderRow
+            label="Display follow"
+            hint="How fast the visible ball catches the filtered path. Press 2 for physics wireframe."
+            value={tune.looseVisualPosSmooth}
+            min={4}
+            max={120}
+            step={1}
+            onChange={tuningStore.setLooseVisualPosSmooth}
+            format={(v) => v.toFixed(0)}
+          />
+          <SliderRow
+            label="Spin follow"
+            hint="Rotation smoothing — higher tracks physics spin more closely."
+            value={tune.looseVisualRotSmooth}
+            min={8}
+            max={160}
+            step={1}
+            onChange={tuningStore.setLooseVisualRotSmooth}
+            format={(v) => v.toFixed(0)}
+          />
+          <SliderRow
+            label="Max trail distance"
+            hint="Gentle extra catch-up if the proxy trails too far (m)."
+            value={tune.looseVisualMaxLagM}
+            min={0.05}
+            max={2}
+            step={0.02}
+            onChange={tuningStore.setLooseVisualMaxLagM}
+            format={(v) => `${v.toFixed(2)} m`}
+          />
+          <SliderRow
+            label="High-speed follow boost"
+            hint="Extra follow on fast shots — lower can look smoother."
+            value={tune.looseVisualSpeedBoostMax}
+            min={0}
+            max={32}
+            step={1}
+            onChange={tuningStore.setLooseVisualSpeedBoostMax}
+            format={(v) => v.toFixed(0)}
+          />
           <h3 className="tuning-section">Hold &amp; release shot</h3>
           <SelectRow
             label="Release system"
@@ -621,7 +693,7 @@ export function TuningMenu() {
         <div className="tuning-panel-header">
           <h2>Gameplay tuning</h2>
           <p className="tuning-sub">
-            Press <kbd>1</kbd> to close · graphics &amp; gameplay save automatically · tuning v14
+            Press <kbd>1</kbd> to close · graphics &amp; gameplay save automatically · tuning v16
           </p>
         </div>
 
