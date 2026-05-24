@@ -42,8 +42,8 @@ import { VelocityPathRibbon } from './VelocityPathRibbon';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
-  isGoalBallSuckHidden,
   isGoalBallSuckActive,
+  getGoalBallSuckVisualAlpha,
   tickGoalBallSuck,
 } from './ballGoalSuck';
 import { gameStore, type BallHolderId } from './gameStore';
@@ -253,20 +253,37 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     if (isGoalBallSuckActive()) {
       tickGoalBallSuck(dt);
       const body = bodyRef.current;
-      const hidden = isGoalBallSuckHidden();
+      const alpha = getGoalBallSuckVisualAlpha();
+      const visible = alpha > 0.03;
       if (body) {
         const t = body.translation();
         if (heldVisualRef.current) {
           heldVisualRef.current.position.set(t.x, t.y, t.z);
-          heldVisualRef.current.scale.setScalar(1);
-          heldVisualRef.current.visible = !hidden;
+          heldVisualRef.current.scale.setScalar(0.35 + alpha * 0.65);
+          heldVisualRef.current.visible = visible;
         }
         if (ballMeshRef.current) {
-          ballMeshRef.current.scale.setScalar(1);
-          ballMeshRef.current.visible = !hidden;
+          ballMeshRef.current.scale.setScalar(0.35 + alpha * 0.65);
+          ballMeshRef.current.visible = visible;
         }
+        const applyAlpha = (m: THREE.MeshStandardMaterial | null) => {
+          if (!m) return;
+          m.transparent = alpha < 0.999;
+          m.opacity = alpha;
+        };
+        applyAlpha(ballMatRef.current);
+        applyAlpha(heldVisualMatRef.current);
       }
       return;
+    }
+
+    if (ballMatRef.current) {
+      ballMatRef.current.transparent = false;
+      ballMatRef.current.opacity = 1;
+    }
+    if (heldVisualMatRef.current) {
+      heldVisualMatRef.current.transparent = false;
+      heldVisualMatRef.current.opacity = 1;
     }
 
     if (ballMeshRef.current) {

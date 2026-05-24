@@ -884,12 +884,14 @@ export const GOAL_RINGS = {
   scoringVolumeRadiusScale: 0.25,
   /** All scoring cylinders — pull toward wall (ft); large / 1-pt ring */
   scoringVolumeWallPullbackFt: 6,
+  /** Extra wall pullback for bottom (1-pt) scoring cylinder only (ft) */
+  scoringVolumeWallPullbackBottomExtraFt: 1.5,
   /** Extra wall pullback for medium (2 pt) + top (5 pt) scoring cylinders (ft) */
   scoringVolumeWallPullbackMidTopExtraFt: 1.5,
-  /** After a goal — center in ring, retreat into wall, then park at drop (seconds) */
-  goalBallSuckDurationSec: 1.25,
-  /** Fraction of suck duration spent lerping to ring center (rest = retreat to wall) */
-  goalBallSuckCenterPhase: 0.32,
+  /** After a goal — pause, lerp to ring center, fade into wall */
+  goalBallSuckPauseSec: 0.2,
+  goalBallSuckLerpSec: 0.3,
+  goalBallSuckFadeSec: 0.3,
   /** Past the back ring toward the wall before hiding the ball (ft) */
   goalBallRetreatPastBackRingFt: 5,
   /** Middle + top scoring cylinder diameter scale (0.4 = 60% narrower) */
@@ -904,8 +906,8 @@ export const GOAL_RINGS = {
   scoringVolumeStickOutTopM: 1.85,
   scoringVolumeArenaForwardTopM: 0.4,
   scoringVolumeRadiusScaleTopMult: 2.75,
-  /** Bottom (large) ring scoring cylinder radius multiplier (+30% trigger diameter) */
-  scoringVolumeRadiusScaleBottomMult: 1.794,
+  /** Bottom (large) ring scoring cylinder radius multiplier (+25% trigger diameter vs prior) */
+  scoringVolumeRadiusScaleBottomMult: 2.243,
   /** Scoring hole as fraction of ring radius (large / bottom ring) */
   centerScoreRadiusScale: 0.74,
   centerScoreRadiusScaleMid: 0.86,

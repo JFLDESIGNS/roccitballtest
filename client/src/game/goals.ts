@@ -84,9 +84,13 @@ export function goalScoringWallInsetM(size: GoalSize): number {
 }
 
 function goalScoringWallPullbackM(size: GoalSize): number {
-  const extra =
+  const bottomExtra =
+    size === 'large' ? GOAL_RINGS.scoringVolumeWallPullbackBottomExtraFt : 0;
+  const midTopExtra =
     size === 'large' ? 0 : GOAL_RINGS.scoringVolumeWallPullbackMidTopExtraFt;
-  return (GOAL_RINGS.scoringVolumeWallPullbackFt + extra) * FT;
+  return (
+    (GOAL_RINGS.scoringVolumeWallPullbackFt + bottomExtra + midTopExtra) * FT
+  );
 }
 
 export function goalBallScoreRetreatPos(
