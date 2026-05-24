@@ -60,6 +60,8 @@ type GameStoreState = {
   combatGraceUntilMs: number;
   /** Rocket knock tumble — no movement input until this time */
   playerKnockStunUntilMs: number;
+  /** Increments on each new match — resets timers in MatchLoop */
+  matchGeneration: number;
 };
 
 const listeners = new Set<() => void>();
@@ -118,6 +120,7 @@ let state: GameStoreState = {
   ballComboExpiresAt: 0,
   combatGraceUntilMs: 0,
   playerKnockStunUntilMs: 0,
+  matchGeneration: 0,
 };
 
 function notify() {
@@ -171,8 +174,12 @@ export const gameStore = {
       ballCombo: 0,
       ballComboExpiresAt: 0,
       playerKnockStunUntilMs: 0,
+      matchGeneration: state.matchGeneration + 1,
     };
     notify();
+  },
+  playAgain: () => {
+    gameStore.startMatch();
   },
   armPlayerKnockStun: (untilMs: number) => {
     state = { ...state, playerKnockStunUntilMs: untilMs };

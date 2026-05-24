@@ -89,6 +89,63 @@ export type BotThinkInput = {
 
 const _flank = new THREE.Vector3();
 
+export type BotSepEntry = {
+  id: BotId;
+  team: Team;
+  x: number;
+  z: number;
+};
+
+function chaseLaneSide(id: BotId): -1 | 0 | 1 {
+  if (id === 'bot-0') return -1;
+  if (id === 'bot-1') return 1;
+  return 0;
+}
+
+/** Offset paired teammates to opposite sides of a shared chase target (~30 ft apart). */
+function applyTeammateChaseLane(
+  mode: BotMode,
+  input: BotThinkInput,
+  out: THREE.Vector3,
+): void {
+  if (isInsideShootZone(input.pos.x, input.pos.z, input.team)) return;
+
+  const laneModes: BotMode[] = [
+    'runToBall',
+    'attractBall',
+    'runToPlayer',
+    'moveAndShoot',
+  ];
+  if (!laneModes.includes(mode)) return;
+
+  const side = chaseLaneSide(input.id);
+  if (side === 0) return;
+
+  const halfLane = BOT.minBotSeparation * 0.5 * BOT.chaseLaneScale;
+
+  if (mode === 'runToPlayer' || mode === 'moveAndShoot') {
+    _flank.set(
+      input.pos.x - input.playerChest.x,
+      0,
+      input.pos.z - input.playerChest.z,
+    );
+  } else {
+    _flank.set(
+      input.playerChest.x - input.ballPos.x,
+      0,
+      input.playerChest.z - input.ballPos.z,
+    );
+  }
+  if (_flank.lengthSq() < 0.01) {
+    _flank.set(input.pos.x - input.ballPos.x, 0, input.pos.z - input.ballPos.z);
+  }
+  if (_flank.lengthSq() < 0.01) _flank.set(1, 0, 0);
+  _flank.normalize();
+
+  out.x += -_flank.z * halfLane * side;
+  out.z += _flank.x * halfLane * side;
+}
+
 export function pickBotMode(input: BotThinkInput): BotMode {
   if (input.holdingBall) {
     return pickHoldMode(input);
@@ -574,25 +631,18 @@ export function pickMoveTarget(
   input: BotThinkInput,
   out: THREE.Vector3,
 ): THREE.Vector3 {
-  const { ballPos, playerChest, goal, id } = input;
+  const { ballPos, playerChest, goal } = input;
 
   switch (mode) {
     case 'runToPlayer':
     case 'moveAndShoot':
-      return out.copy(playerChest);
+      out.copy(playerChest);
+      applyTeammateChaseLane(mode, input, out);
+      return out;
     case 'attractBall':
     case 'runToBall':
       out.copy(ballPos);
-      if (mode === 'runToBall' && id === 'bot-1') {
-        _flank.set(playerChest.x - ballPos.x, 0, playerChest.z - ballPos.z);
-        if (_flank.lengthSq() > 0.01) {
-          _flank.normalize();
-          const perpX = -_flank.z * BOT.flankOffset;
-          const perpZ = _flank.x * BOT.flankOffset;
-          out.x += perpX;
-          out.z += perpZ;
-        }
-      }
+      applyTeammateChaseLane(mode, input, out);
       return out;
     case 'allySupport':
       out.lerpVectors(ballPos, playerChest, 0.38);
@@ -637,15 +687,21 @@ export function applyAllBotSeparation(
   wish: THREE.Vector3,
   pos: THREE.Vector3,
   selfId: BotId,
-  others: { id: BotId; x: number; z: number }[],
+  selfTeam: Team,
+  others: BotSepEntry[],
+  inShootZone = false,
 ): void {
+  const minSep = inShootZone
+    ? BOT.minBotSeparationInShootZone
+    : BOT.minBotSeparation;
+
   for (const o of others) {
-    if (o.id === selfId) continue;
+    if (o.id === selfId || o.team !== selfTeam) continue;
     const dx = pos.x - o.x;
     const dz = pos.z - o.z;
     const d = Math.hypot(dx, dz);
-    if (d >= BOT.minBotSeparation || d < 0.01) continue;
-    const push = ((BOT.minBotSeparation - d) / d) * BOT.separationWeight;
+    if (d >= minSep || d < 0.01) continue;
+    const push = ((minSep - d) / d) * BOT.separationWeight;
     wish.x += dx * push;
     wish.z += dz * push;
   }

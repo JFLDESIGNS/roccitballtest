@@ -35,7 +35,7 @@ import { applyBallLaunchImpulse } from './ballPhysics';
 import { clampToHex } from './arenaHex';
 import { getTeamSpawn } from './goals';
 import { getCameraBasis, updateThirdPersonCamera } from './CameraController';
-import { gameStore } from './gameStore';
+import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import {
   alignCharacterVisualUpright,
@@ -165,6 +165,7 @@ export function Player({
   const _beamBallPos = useRef(new THREE.Vector3());
   const pivotRef = useRef(new THREE.Vector3());
   const cameraSnapped = useRef(false);
+  const lastPhaseRef = useRef<GamePhase>('menu');
   const launchMomentumSamples = useRef<THREE.Vector3[]>([]);
   const launchMomentumTimer = useRef(0);
   const ballSwingSamples = useRef<THREE.Vector3[]>([]);
@@ -375,7 +376,31 @@ export function Player({
       );
       cameraSnapped.current = true;
     }
+
     const phase = gameStore.getState().phase;
+    if (phase === 'intro' && lastPhaseRef.current !== 'intro') {
+      spawnApplied.current = false;
+      cameraSnapped.current = false;
+    }
+    lastPhaseRef.current = phase;
+
+    if (phase === 'intro' || phase === 'loading') {
+      if (spawnApplied.current) {
+        const t = body.translation();
+        pivotRef.current.set(t.x, t.y + CAMERA.pivotHeight, t.z);
+        const rot = inputManager.getRotation();
+        updateThirdPersonCamera(
+          camera,
+          pivotRef.current,
+          rot.yaw,
+          inputManager.getAimPitch(),
+          dt,
+          true,
+        );
+      }
+      return;
+    }
+
     if (phase !== 'playing' && phase !== 'countdown') return;
     if (tuningStore.getState().showMenu) return;
 

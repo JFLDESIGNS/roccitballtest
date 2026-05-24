@@ -1,10 +1,10 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { tuningStore } from './tuningStore';
-import { MATCH } from '../shared/Constants';
 import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
 import { inputManager } from './InputManager';
+import { isMatchOver, matchEndHeadline } from './matchEnd';
 import { resumeAudio, warmAudio } from './audio';
 
 function formatTime(sec: number): string {
@@ -13,12 +13,17 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function HUD() {
+type HUDProps = {
+  onMainMenu?: () => void;
+};
+
+export function HUD({ onMainMenu }: HUDProps) {
   const state = useSyncExternalStore(gameStore.subscribe, gameStore.getState);
   const bouncy = useSyncExternalStore(
     tuningStore.subscribe,
     () => tuningStore.getState().bouncyRocketsEnabled,
   );
+  const matchOver = isMatchOver(state);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -27,6 +32,12 @@ export function HUD() {
     }, 200);
     return () => window.clearInterval(id);
   }, []);
+
+  const handlePlayAgain = () => {
+    document.exitPointerLock();
+    inputManager.flushFireInput();
+    gameStore.playAgain();
+  };
 
   if (state.phase === 'menu') return null;
 
@@ -111,12 +122,14 @@ export function HUD() {
         </div>
       )}
 
-      <HudCrosshairEnergy
-        energy={state.energy}
-        lowEnergy={state.energy < 25}
-      />
+      {!matchOver && (
+        <HudCrosshairEnergy
+          energy={state.energy}
+          lowEnergy={state.energy < 25}
+        />
+      )}
 
-      {!state.pointerLocked && state.phase === 'playing' && (
+      {!state.pointerLocked && state.phase === 'playing' && !matchOver && (
         <div
           className="hud-hint"
           role="button"
@@ -138,7 +151,7 @@ export function HUD() {
         </div>
       )}
 
-      {state.lastScorePopup && (
+      {state.lastScorePopup && !matchOver && (
         <div className={`hud-popup team-${state.lastScorePopup.team}`}>
           +{state.lastScorePopup.points}
         </div>
@@ -151,7 +164,7 @@ export function HUD() {
         </div>
       )}
 
-      {state.phase === 'playing' && state.countdown > 0 && (
+      {state.phase === 'playing' && state.countdown > 0 && !matchOver && (
         <div className="hud-countdown">{state.countdown}</div>
       )}
 
@@ -163,22 +176,42 @@ export function HUD() {
         </div>
       )}
 
-      <div className="hud-controls">
-        <span>
-          {bouncy ? 'LMB Tap explosive / Hold bouncer' : 'LMB Explosive rockets'}
-        </span>
-        <span>RMB Beam</span>
-        <span>F Spawn ball</span>
-        <span>1 Tuning</span>
-        <span>Shift Sprint</span>
-      </div>
-
-      {state.score.red >= MATCH.scoreLimit || state.score.blue >= MATCH.scoreLimit ? (
-        <div className="hud-match-end">
-          Match over —{' '}
-          {state.score.blue >= MATCH.scoreLimit ? 'Blue wins!' : 'Red wins!'}
+      {!matchOver && (
+        <div className="hud-controls">
+          <span>
+            {bouncy ? 'LMB Tap explosive / Hold bouncer' : 'LMB Explosive rockets'}
+          </span>
+          <span>RMB Beam</span>
+          <span>F Spawn ball</span>
+          <span>1 Tuning</span>
+          <span>Shift Sprint</span>
         </div>
-      ) : null}
+      )}
+
+      {matchOver && (
+        <div className="hud-match-end-overlay" role="dialog" aria-modal="true">
+          <div className="hud-match-end">
+            <p className="hud-match-end-title">{matchEndHeadline(state)}</p>
+            <p className="hud-match-end-score">
+              Red {state.score.red} — Blue {state.score.blue}
+            </p>
+            <div className="hud-match-end-actions">
+              <button type="button" className="hud-match-end-btn" onClick={handlePlayAgain}>
+                Play again
+              </button>
+              {onMainMenu && (
+                <button
+                  type="button"
+                  className="hud-match-end-btn hud-match-end-btn--secondary"
+                  onClick={onMainMenu}
+                >
+                  Main menu
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

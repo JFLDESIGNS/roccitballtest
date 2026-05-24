@@ -43,7 +43,7 @@ function App() {
           <GameCanvas onExit={exitGame} />
           <GamePointerCapture />
           <MatchIntroSplash />
-          <HUD />
+          <HUD onMainMenu={exitGame} />
           <TuningMenu />
         </>
       )}

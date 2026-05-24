@@ -81,6 +81,18 @@ function MatchLoop({
   const countdownEntered = useRef(false);
   const countdownParked = useRef(false);
   const postScoreKickoffPending = useRef(false);
+  const matchGeneration = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().matchGeneration,
+  );
+
+  useEffect(() => {
+    matchTimer.current = MATCH.durationSec;
+    countdownTimer.current = 0;
+    countdownEntered.current = false;
+    countdownParked.current = false;
+    postScoreKickoffPending.current = false;
+  }, [matchGeneration]);
 
   useEffect(() => {
     registerGoalScoreBotProvider(() => botsRef.current);
@@ -95,6 +107,14 @@ function MatchLoop({
     }
 
     if (state.phase === 'playing') {
+      if (
+        state.score.red >= MATCH.scoreLimit ||
+        state.score.blue >= MATCH.scoreLimit
+      ) {
+        gameStore.setPhase('paused');
+        return;
+      }
+
       matchTimer.current -= dt;
       gameStore.setTimeLeft(Math.max(0, Math.ceil(matchTimer.current)));
       if (matchTimer.current <= 0) gameStore.setPhase('paused');
@@ -209,6 +229,15 @@ function Scene({
     inputManager.bind(canvas);
     inputManager.resetLookForTeam(gameStore.getState().localTeam);
   }, [gl]);
+
+  const matchGeneration = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().matchGeneration,
+  );
+
+  useEffect(() => {
+    inputManager.resetLookForTeam(gameStore.getState().localTeam);
+  }, [matchGeneration]);
 
   useFrame((_, dt) => {
     if (showBots) {

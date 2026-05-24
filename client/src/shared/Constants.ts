@@ -364,11 +364,13 @@ export const BOT = {
   ragdollSpinRad: 5.5,
   /** After rocket hit — no beam / ball chase (seconds) */
   rocketBallDenySec: 2.5,
-  minBotSeparation: 7,
-  separationWeight: 1.35,
+  minBotSeparation: 30 * 0.3048,
+  /** Teammates may cluster closer inside the offensive shoot cylinder */
+  minBotSeparationInShootZone: 5,
+  separationWeight: 1.85,
   flankOffset: 9,
-  /** Lane spread for paired bots chasing the same ball */
-  chaseLaneScale: 1.65,
+  /** Lane spread for paired bots chasing the same ball (1 = half minBotSeparation each side) */
+  chaseLaneScale: 1,
   /**
    * Ball engagement (dist = BALL.radius × radii).
    * Chase / contest only inside chase radii; beam only inside attract radii.

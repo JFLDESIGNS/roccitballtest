@@ -1742,7 +1742,14 @@ function BotAvatar({
       _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
       if (_wish.lengthSq() > 0.01) _wish.normalize();
       collectBotSepPositions(allBots, _botSepScratch);
-      applyAllBotSeparation(_wish, _pos, bot.id, _botSepScratch);
+      applyAllBotSeparation(
+        _wish,
+        _pos,
+        bot.id,
+        bot.team,
+        _botSepScratch,
+        isInsideShootZone(_pos.x, _pos.z, bot.team),
+      );
 
       const wallEscapeJump = applyBotMovementEscape(
         _pos,
@@ -2229,7 +2236,14 @@ function BotAvatar({
     _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
     if (_wish.lengthSq() > 0.01) _wish.normalize();
     collectBotSepPositions(allBots, _botSepScratch);
-    applyAllBotSeparation(_wish, _pos, bot.id, _botSepScratch);
+    applyAllBotSeparation(
+      _wish,
+      _pos,
+      bot.id,
+      bot.team,
+      _botSepScratch,
+      isInsideShootZone(_pos.x, _pos.z, bot.team),
+    );
 
     const wallEscapeJump = applyBotMovementEscape(
       _pos,
