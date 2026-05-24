@@ -568,7 +568,9 @@ export function Rockets({
       nx: number;
       ny: number;
       nz: number;
-      kind: 'wall' | 'floor' | 'ceiling';
+      kind: 'wall' | 'floor' | 'ceiling' | 'pillar';
+      pillarCx?: number;
+      pillarCz?: number;
     },
   ) => {
     const i = boomCount.current++;
@@ -587,11 +589,15 @@ export function Rockets({
       h.scorchNy = scorch.ny;
       h.scorchNz = scorch.nz;
       h.scorchKind = scorch.kind;
+      h.scorchPillarCx = scorch.pillarCx;
+      h.scorchPillarCz = scorch.pillarCz;
     } else {
       h.scorchNx = undefined;
       h.scorchNy = undefined;
       h.scorchNz = undefined;
       h.scorchKind = undefined;
+      h.scorchPillarCx = undefined;
+      h.scorchPillarCz = undefined;
     }
     if (impactNormal) {
       h.ballImpactNx = impactNormal.x;
@@ -709,6 +715,8 @@ export function Rockets({
               ny: e.scorchNy,
               nz: e.scorchNz,
               kind: e.scorchKind,
+              pillarCx: e.scorchPillarCx,
+              pillarCz: e.scorchPillarCz,
             }
           : undefined;
       pushBoom(e.x, e.y, e.z, undefined, undefined, undefined, scorch);

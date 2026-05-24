@@ -9,6 +9,7 @@ import {
 } from './arenaPadLayout';
 import {
   findArenaPillarSegmentHit,
+  resolveArenaPillarScorch,
   rocketSegmentHitsArenaPillar,
   tryArenaPillarRocketBounce,
 } from './arenaPillars';
@@ -245,18 +246,27 @@ export type RocketExplosionEvent = Vec3 & {
   scorchNx?: number;
   scorchNy?: number;
   scorchNz?: number;
-  scorchKind?: 'wall' | 'floor' | 'ceiling';
+  scorchKind?: 'wall' | 'floor' | 'ceiling' | 'pillar';
+  scorchPillarCx?: number;
+  scorchPillarCz?: number;
 };
 
 const _scorchNormal = new THREE.Vector3();
 
-/** Surface normal for delayed wall/floor scorch decals */
+/** Surface normal for delayed wall/floor/pillar scorch decals */
 export function resolveScorchSurface(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
   arenaRadius: number,
   arenaHeight: number,
-): { nx: number; ny: number; nz: number; kind: 'wall' | 'floor' | 'ceiling' } | null {
+): {
+  nx: number;
+  ny: number;
+  nz: number;
+  kind: 'wall' | 'floor' | 'ceiling' | 'pillar';
+  pillarCx?: number;
+  pillarCz?: number;
+} | null {
   const playR = arenaRadius - 0.6;
 
   if (prev.y >= 0.4 && pos.y < 0.55) {
@@ -266,6 +276,18 @@ export function resolveScorchSurface(
   const ceiling = arenaHeight;
   if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) {
     return { nx: 0, ny: -1, nz: 0, kind: 'ceiling' };
+  }
+
+  const pillar = resolveArenaPillarScorch(prev, pos);
+  if (pillar) {
+    return {
+      nx: pillar.nx,
+      ny: pillar.ny,
+      nz: pillar.nz,
+      kind: 'pillar',
+      pillarCx: pillar.cx,
+      pillarCz: pillar.cz,
+    };
   }
 
   const wasIn = isInsideHex(prev.x, prev.z, playR);
@@ -313,6 +335,8 @@ function pushExplosionEvent(
       event.scorchNy = scorch.ny;
       event.scorchNz = scorch.nz;
       event.scorchKind = scorch.kind;
+      event.scorchPillarCx = scorch.pillarCx;
+      event.scorchPillarCz = scorch.pillarCz;
     }
   }
   explosions.push(event);

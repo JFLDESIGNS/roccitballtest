@@ -103,6 +103,91 @@ export function findArenaPillarSegmentHit(
   return null;
 }
 
+/** Visual pillar radius at world Y (matches tapered cylinder mesh). */
+export function pillarSurfaceRadiusAtY(y: number): number {
+  const t = THREE.MathUtils.clamp(
+    (y - ARENA_PILLAR.floorY) / Math.max(ARENA_PILLAR.height, 0.001),
+    0,
+    1,
+  );
+  return THREE.MathUtils.lerp(
+    ARENA_PILLAR.radiusBase,
+    ARENA_PILLAR.radiusTop,
+    t,
+  );
+}
+
+export function rotateXZNormal(nx: number, nz: number, angleRad: number) {
+  const c = Math.cos(angleRad);
+  const s = Math.sin(angleRad);
+  return { nx: nx * c - nz * s, nz: nx * s + nz * c };
+}
+
+/** Point + outward normal on pillar surface for scorch decals */
+export function pillarScorchSurfaceAt(
+  cx: number,
+  cz: number,
+  y: number,
+  outwardNx: number,
+  outwardNz: number,
+) {
+  const surfaceR = pillarSurfaceRadiusAtY(y);
+  return {
+    x: cx + outwardNx * surfaceR,
+    y,
+    z: cz + outwardNz * surfaceR,
+    nx: outwardNx,
+    ny: 0,
+    nz: outwardNz,
+  };
+}
+
+function pillarOutwardNormal(
+  cx: number,
+  cz: number,
+  pos: THREE.Vector3,
+): { cx: number; cz: number; nx: number; ny: number; nz: number } {
+  let nx = pos.x - cx;
+  let nz = pos.z - cz;
+  const len = Math.hypot(nx, nz);
+  if (len < 1e-4) {
+    nx = cx;
+    nz = cz;
+    const fallback = Math.hypot(nx, nz) || 1;
+    nx /= fallback;
+    nz /= fallback;
+  } else {
+    nx /= len;
+    nz /= len;
+  }
+  return { cx, cz, nx, ny: 0, nz };
+}
+
+/** Radial scorch orientation when a blast hits a corner pillar */
+export function resolveArenaPillarScorch(
+  prev: THREE.Vector3,
+  pos: THREE.Vector3,
+): { cx: number; cz: number; nx: number; ny: number; nz: number } | null {
+  const segHit = findArenaPillarSegmentHit(prev, pos, 0.45);
+  if (segHit) {
+    return pillarOutwardNormal(segHit.x, segHit.z, pos);
+  }
+
+  const nearR = ARENA_PILLAR.colliderRadius + 0.65;
+  const nearRSq = nearR * nearR;
+  let best: { cx: number; cz: number; distSq: number } | null = null;
+  for (const p of getArenaCornerPillarLayouts()) {
+    const dx = pos.x - p.x;
+    const dz = pos.z - p.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq <= nearRSq && (!best || distSq < best.distSq)) {
+      best = { cx: p.x, cz: p.z, distSq };
+    }
+  }
+  if (!best) return null;
+  return pillarOutwardNormal(best.cx, best.cz, pos);
+}
+
 function pushOutOfPillarXZ(
   pos: THREE.Vector3,
   cx: number,

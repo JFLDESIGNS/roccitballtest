@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { ROCKET } from '../shared/Constants';
+import {
+  pillarScorchSurfaceAt,
+  rotateXZNormal,
+} from './arenaPillars';
 
-export const WALL_SCORCH_POOL_SIZE = 14;
+export const WALL_SCORCH_POOL_SIZE = 24;
 
-export type WallScorchKind = 'wall' | 'floor' | 'ceiling';
+export type WallScorchKind = 'wall' | 'floor' | 'ceiling' | 'pillar';
 
 export type WallScorchEmber = {
   offset: THREE.Vector3;
@@ -35,16 +39,7 @@ export function createWallScorchPool(): WallScorchSlot[] {
   }));
 }
 
-export function spawnWallScorch(
-  pool: WallScorchSlot[],
-  x: number,
-  y: number,
-  z: number,
-  nx: number,
-  ny: number,
-  nz: number,
-  kind: WallScorchKind,
-) {
+function claimWallScorchSlot(pool: WallScorchSlot[]): WallScorchSlot {
   let slot = pool.find((s) => !s.active);
   if (!slot) {
     let oldest = pool[0]!;
@@ -53,20 +48,19 @@ export function spawnWallScorch(
     }
     slot = oldest;
   }
+  return slot;
+}
 
-  const nowSec = performance.now() / 1000;
-  slot.active = true;
-  slot.pos.set(x, y, z);
-  slot.normal.set(nx, ny, nz).normalize();
-  slot.kind = kind;
-  slot.scorchSpawnAt = nowSec + ROCKET.wallScorchSpawnDelaySec;
-  slot.emberSpawnAt = nowSec + ROCKET.wallScorchEmberSpawnDelaySec;
-
+function fillWallScorchEmbers(slot: WallScorchSlot) {
   slot.embers.length = 0;
   const count = ROCKET.wallScorchEmberCount;
+  const spreadR =
+    slot.kind === 'pillar'
+      ? ROCKET.wallScorchPillarRadiusM
+      : ROCKET.wallScorchRadiusM;
   for (let i = 0; i < count; i++) {
     const angle = (i / count) * Math.PI * 2 + Math.random() * 0.8;
-    const rad = ROCKET.wallScorchRadiusM * (0.08 + Math.random() * 0.38);
+    const rad = spreadR * (0.08 + Math.random() * 0.38);
     const tangent = new THREE.Vector3();
     const bitangent = new THREE.Vector3();
     if (Math.abs(slot.normal.y) > 0.85) {
@@ -95,6 +89,94 @@ export function spawnWallScorch(
   }
 }
 
+function activateWallScorchSlot(
+  pool: WallScorchSlot[],
+  x: number,
+  y: number,
+  z: number,
+  nx: number,
+  ny: number,
+  nz: number,
+  kind: WallScorchKind,
+  nowSec: number,
+  withEmbers: boolean,
+) {
+  const slot = claimWallScorchSlot(pool);
+  slot.active = true;
+  slot.pos.set(x, y, z);
+  slot.normal.set(nx, ny, nz).normalize();
+  slot.kind = kind;
+  slot.scorchSpawnAt = nowSec + ROCKET.wallScorchSpawnDelaySec;
+  slot.emberSpawnAt = nowSec + ROCKET.wallScorchEmberSpawnDelaySec;
+  if (withEmbers) fillWallScorchEmbers(slot);
+  else slot.embers.length = 0;
+}
+
+export function spawnWallScorch(
+  pool: WallScorchSlot[],
+  x: number,
+  y: number,
+  z: number,
+  nx: number,
+  ny: number,
+  nz: number,
+  kind: WallScorchKind,
+  pillarCx?: number,
+  pillarCz?: number,
+) {
+  const nowSec = performance.now() / 1000;
+
+  if (
+    kind === 'pillar' &&
+    pillarCx !== undefined &&
+    pillarCz !== undefined
+  ) {
+    const patchCount = ROCKET.wallScorchPillarPatchCount;
+    const spread = ROCKET.wallScorchPillarPatchSpreadRad;
+    const baseLen = Math.hypot(nx, nz) || 1;
+    const baseNx = nx / baseLen;
+    const baseNz = nz / baseLen;
+    for (let i = 0; i < patchCount; i++) {
+      const angle =
+        patchCount <= 1 ? 0 : spread * (i - (patchCount - 1) * 0.5);
+      const rot = rotateXZNormal(baseNx, baseNz, angle);
+      const surf = pillarScorchSurfaceAt(
+        pillarCx,
+        pillarCz,
+        y,
+        rot.nx,
+        rot.nz,
+      );
+      activateWallScorchSlot(
+        pool,
+        surf.x,
+        surf.y,
+        surf.z,
+        surf.nx,
+        surf.ny,
+        surf.nz,
+        kind,
+        nowSec,
+        i === Math.floor(patchCount / 2),
+      );
+    }
+    return;
+  }
+
+  activateWallScorchSlot(
+    pool,
+    x,
+    y,
+    z,
+    nx,
+    ny,
+    nz,
+    kind,
+    nowSec,
+    true,
+  );
+}
+
 export function tickWallScorchPool(pool: WallScorchSlot[], nowSec: number) {
   const life = ROCKET.wallScorchHoldSec + ROCKET.wallScorchFadeSec;
   for (const slot of pool) {
@@ -113,10 +195,10 @@ function makeScorchGradientTexture(): THREE.CanvasTexture {
     const cx = size / 2;
     const cy = size / 2;
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.5);
-    g.addColorStop(0, 'rgba(0, 0, 0, 1)');
-    g.addColorStop(0.28, 'rgba(0, 0, 0, 0.82)');
-    g.addColorStop(0.55, 'rgba(0, 0, 0, 0.42)');
-    g.addColorStop(0.78, 'rgba(0, 0, 0, 0.12)');
+    g.addColorStop(0, 'rgba(0, 0, 0, 0.78)');
+    g.addColorStop(0.3, 'rgba(0, 0, 0, 0.55)');
+    g.addColorStop(0.58, 'rgba(0, 0, 0, 0.28)');
+    g.addColorStop(0.82, 'rgba(0, 0, 0, 0.08)');
     g.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, size, size);
@@ -142,4 +224,16 @@ export function orientToSurfaceNormal(
   const n = normal.clone().normalize();
   if (n.lengthSq() < 1e-6) n.set(0, 1, 0);
   return outQuat.setFromUnitVectors(_zAxis, n);
+}
+
+export function wallScorchRadiusForKind(kind: WallScorchKind): number {
+  return kind === 'pillar'
+    ? ROCKET.wallScorchPillarRadiusM
+    : ROCKET.wallScorchRadiusM;
+}
+
+export function wallScorchSurfaceLift(kind: WallScorchKind): number {
+  if (kind === 'pillar') return 0.025;
+  if (kind === 'wall') return 0.09;
+  return 0.06;
 }

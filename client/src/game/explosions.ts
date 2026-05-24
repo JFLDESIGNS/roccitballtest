@@ -35,7 +35,9 @@ export type ExplosionHit = {
   scorchNx?: number;
   scorchNy?: number;
   scorchNz?: number;
-  scorchKind?: 'wall' | 'floor' | 'ceiling';
+  scorchKind?: 'wall' | 'floor' | 'ceiling' | 'pillar';
+  scorchPillarCx?: number;
+  scorchPillarCz?: number;
 };
 
 const _dir = new THREE.Vector3();

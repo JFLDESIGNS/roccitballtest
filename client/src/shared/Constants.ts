@@ -797,10 +797,17 @@ export const ROCKET = {
   /** Delay after blast before embers appear (near end of explosion sprite) */
   wallScorchEmberSpawnDelaySec: 0.78,
   /** How long the black scorch stays at full strength before fading */
-  wallScorchHoldSec: 9,
+  wallScorchHoldSec: 5.4,
   /** Black radial scorch fade-out duration after hold */
-  wallScorchFadeSec: 3,
+  wallScorchFadeSec: 1.8,
   wallScorchRadiusM: 3.1,
+  /** Tighter scorch on tapered corner pillars */
+  wallScorchPillarRadiusM: 1.75,
+  /** Angular spread (rad) for pillar patch fan */
+  wallScorchPillarPatchSpreadRad: 0.24,
+  wallScorchPillarPatchCount: 3,
+  /** Peak scorch opacity (kept low so decals don't bleed through objects) */
+  wallScorchMaxOpacity: 0.36,
   wallScorchEmberCount: 5,
   playerForce: 24,
   /** Brief ragdoll-like tumble on rocket hit (seconds) */

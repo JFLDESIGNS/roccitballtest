@@ -375,6 +375,8 @@ function Scene({
         hit.scorchNy,
         hit.scorchNz,
         hit.scorchKind,
+        hit.scorchPillarCx,
+        hit.scorchPillarCz,
       );
     }
     registerBeamDenyZone(hit.x, hit.y, hit.z, hit.radius);

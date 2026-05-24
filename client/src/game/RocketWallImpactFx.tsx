@@ -8,6 +8,8 @@ import {
   orientToSurfaceNormal,
   spawnWallScorch,
   tickWallScorchPool,
+  wallScorchRadiusForKind,
+  wallScorchSurfaceLift,
   type WallScorchKind,
   type WallScorchSlot,
 } from './wallImpactFxPool';
@@ -21,6 +23,8 @@ export type RocketWallImpactFxHandle = {
     ny: number,
     nz: number,
     kind: WallScorchKind,
+    pillarCx?: number,
+    pillarCz?: number,
   ) => void;
 };
 
@@ -62,9 +66,12 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         toneMapped: false,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const scorch = new THREE.Mesh(SCORCH_GEO, scorchMat);
       scorch.visible = false;
@@ -79,6 +86,7 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
           transparent: true,
           opacity: 0,
           depthWrite: false,
+          depthTest: true,
           toneMapped: false,
           blending: THREE.AdditiveBlending,
         });
@@ -110,8 +118,8 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
   }, [pool.length, scorchTex]);
 
   const poolHandle = useMemo((): RocketWallImpactFxHandle => ({
-    spawn: (x, y, z, nx, ny, nz, kind) => {
-      spawnWallScorch(pool, x, y, z, nx, ny, nz, kind);
+    spawn: (x, y, z, nx, ny, nz, kind, pillarCx, pillarCz) => {
+      spawnWallScorch(pool, x, y, z, nx, ny, nz, kind, pillarCx, pillarCz);
     },
   }), [pool]);
 
@@ -123,7 +131,7 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
     const visuals = visualsRef.current;
     const holdDur = ROCKET.wallScorchHoldSec;
     const fadeDur = ROCKET.wallScorchFadeSec;
-    const radius = ROCKET.wallScorchRadiusM;
+    const maxOpacity = ROCKET.wallScorchMaxOpacity;
     const t = clock.elapsedTime;
 
     for (let i = 0; i < pool.length; i++) {
@@ -139,8 +147,9 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
 
       _normal.copy(slot.normal);
       orientToSurfaceNormal(_normal, _quat);
-      const surfaceLift = slot.kind === 'wall' ? 0.14 : 0.1;
+      const surfaceLift = wallScorchSurfaceLift(slot.kind);
       _pos.copy(slot.pos).addScaledVector(_normal, surfaceLift);
+      const radius = wallScorchRadiusForKind(slot.kind);
 
       const scorchReady = now >= slot.scorchSpawnAt;
       if (scorchReady) {
@@ -154,7 +163,7 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
         visual.scorch.position.copy(_pos);
         visual.scorch.quaternion.copy(_quat);
         visual.scorch.scale.setScalar(radius);
-        visual.scorchMat.opacity = fade * 0.95;
+        visual.scorchMat.opacity = fade * maxOpacity;
         visual.scorch.visible = fade > 0.02;
       } else {
         visual.scorch.visible = false;
