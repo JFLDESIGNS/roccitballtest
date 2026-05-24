@@ -36,11 +36,11 @@ import {
   syncBallLooseCollision,
   type PendingSpinBounce,
 } from './ballPhysics';
-import { playBallBounce, playBotHit, shouldSuppressBallBounceSound, suppressBallBounceForMs } from './audio';
+import { playBallBounce, shouldSuppressBallBounceSound, suppressBallBounceForMs } from './audio';
 import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
-import { VelocityPathRibbon } from './VelocityPathRibbon';
+import { BallMotionRibbons } from './BallMotionRibbons';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
@@ -162,8 +162,6 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         }
         if (actorId.startsWith('bot-')) {
           onBotBallStrike?.(actorId);
-        } else {
-          playBotHit();
         }
       }
       return;
@@ -381,26 +379,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     }
   });
 
-  const trailPos = useRef(new THREE.Vector3());
-
   return (
     <>
-    <VelocityPathRibbon
-      hidden={isHeld || hideTrail}
-      crossSection
-      color="#ffffff"
-      opacity={0.35}
-      lineWidthWorld={0.336}
-      maxPoints={64}
-      minStep={0.04}
-      samplePosition={() => {
-        const b = bodyRef.current;
-        if (!b) return null;
-        const t = b.translation();
-        trailPos.current.set(t.x, t.y, t.z);
-        return trailPos.current;
-      }}
-    />
+    <BallMotionRibbons bodyRef={bodyRef} hidden={isHeld || hideTrail} />
     <mesh
       ref={heldVisualRef}
       visible={isHeld}
