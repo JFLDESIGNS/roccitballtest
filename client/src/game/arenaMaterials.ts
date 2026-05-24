@@ -93,11 +93,18 @@ export const arenaPillarMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.06,
 });
 
-/** Pillar bands, goal back-rings, caps */
+/** Pillar bands — glossy dark metal */
 export const arenaBlackMetalMaterial = new THREE.MeshStandardMaterial({
   color: '#14161a',
   roughness: 0.32,
   metalness: 0.94,
+});
+
+/** Goal backing rings + hole caps — flat matte black */
+export const goalBackRingMaterial = new THREE.MeshStandardMaterial({
+  color: '#0e0f12',
+  roughness: 0.98,
+  metalness: 0,
 });
 
 /** Main arena floor */

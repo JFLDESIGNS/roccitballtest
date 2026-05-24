@@ -10,7 +10,7 @@ import {
   ringTube,
   teamGoalColor,
 } from '../game/goals';
-import { arenaBlackMetalMaterial, arenaPillarMaterial } from '../game/arenaMaterials';
+import { arenaBlackMetalMaterial, arenaPillarMaterial, goalBackRingMaterial } from '../game/arenaMaterials';
 
 const PILLAR_BAND_HEIGHT = 0.55;
 const PILLAR_BAND_RADIUS_SCALE = 1.05;
@@ -118,7 +118,7 @@ function GoalRingBackplateVisual({
     [capRadius],
   );
   const capMat = useMemo(() => {
-    const m = arenaBlackMetalMaterial.clone();
+    const m = goalBackRingMaterial.clone();
     m.side = THREE.DoubleSide;
     return m;
   }, []);
@@ -137,7 +137,7 @@ function GoalRingBackplateVisual({
     <group position={[backX, 0, 0]}>
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
-          <mesh geometry={torusGeo} castShadow receiveShadow material={arenaBlackMetalMaterial} />
+          <mesh geometry={torusGeo} castShadow receiveShadow material={goalBackRingMaterial} />
           <mesh
             geometry={capGeo}
             castShadow

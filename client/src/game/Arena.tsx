@@ -39,6 +39,7 @@ import './arenaConcreteTexture';
 import { applyPlanarTileUVs } from './arenaConcreteTexture';
 import {
   arenaBlackMetalMaterial,
+  goalBackRingMaterial,
   arenaCeilingMaterial,
   arenaFloorMaterial,
   arenaFloorTileMaterial,
@@ -174,7 +175,7 @@ function GoalRingBackplate({
     [capRadius],
   );
   const capMat = useMemo(() => {
-    const m = arenaBlackMetalMaterial.clone();
+    const m = goalBackRingMaterial.clone();
     m.side = THREE.DoubleSide;
     return m;
   }, []);
@@ -209,7 +210,7 @@ function GoalRingBackplate({
             geometry={torusGeo}
             castShadow
             receiveShadow
-            material={arenaBlackMetalMaterial}
+            material={goalBackRingMaterial}
             renderOrder={0}
           />
           <mesh

@@ -916,7 +916,7 @@ export const GOAL_RINGS = {
   scoringVolumeWallPullbackMidExtraFt: 0.6,
   /** After a goal — pause, lerp to ring center, fade into wall */
   goalBallSuckPauseSec: 0.2,
-  goalBallSuckLerpSec: 0.3,
+  goalBallSuckLerpSec: 0.6,
   goalBallSuckFadeSec: 0.3,
   /** Suck lerp target — extra stick-out toward the court from ring center (ft) */
   goalBallSuckStickOutFt: 3,
