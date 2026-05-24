@@ -106,6 +106,19 @@ export function goalBallScoreRetreatPos(
   };
 }
 
+/** Goal suck pause/lerp — pull toward court so the ball does not sit deep in the net */
+export function goalBallSuckLerpPos(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  const stickOut = GOAL_RINGS.goalBallSuckStickOutFt * FT;
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  return {
+    x: goal.center.x + towardCourt * stickOut,
+    y: goal.center.y,
+    z: goal.center.z,
+  };
+}
+
 export function goalScoringCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {

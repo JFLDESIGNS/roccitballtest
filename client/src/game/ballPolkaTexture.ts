@@ -71,6 +71,32 @@ export function createBallPolkaTexture(
     }
   }
 
+  const spinLine = superball ? 'rgba(255, 245, 200, 0.95)' : 'rgba(255, 255, 255, 0.92)';
+  const spinLineAlt = superball ? 'rgba(255, 160, 40, 0.88)' : 'rgba(255, 120, 180, 0.82)';
+
+  ctx.strokeStyle = spinLine;
+  ctx.lineWidth = Math.max(3, size * 0.009);
+  ctx.beginPath();
+  ctx.moveTo(0, cy);
+  ctx.lineTo(size, cy);
+  ctx.stroke();
+
+  ctx.strokeStyle = spinLineAlt;
+  ctx.lineWidth = Math.max(2.5, size * 0.0075);
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, size);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.PI * 0.28);
+  ctx.beginPath();
+  ctx.moveTo(0, -size * 0.5);
+  ctx.lineTo(0, size * 0.5);
+  ctx.stroke();
+  ctx.restore();
+
   ctx.strokeStyle = superball
     ? 'rgba(255, 220, 120, 0.58)'
     : 'rgba(160, 240, 255, 0.55)';
@@ -79,8 +105,6 @@ export function createBallPolkaTexture(
     [0.08, 0.42, 0.92, 0.38],
     [0.12, 0.68, 0.88, 0.22],
     [0.22, 0.12, 0.78, 0.55],
-    [0.05, 0.55, 0.45, 0.82],
-    [0.55, 0.08, 0.95, 0.48],
   ];
   for (const [x0, y0, x1, y1] of traces) {
     ctx.beginPath();

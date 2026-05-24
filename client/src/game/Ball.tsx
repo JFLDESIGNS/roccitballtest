@@ -22,6 +22,7 @@ import { getBallDropLayout } from './arenaLayout';
 import { parkBallAtDropSpawn } from './ballDropSpawn';
 import { releaseBallPhysics } from './ballAttach';
 import { createBallPolkaTexture } from './ballPolkaTexture';
+import { BallSpinMarks } from './ballSpinMarks';
 import { decayBeamContest, getBeamBallGlow, resetBeamContest } from './ballBeamContest';
 import { stepBallPhysics } from './ballRuntime';
 import {
@@ -31,8 +32,10 @@ import {
 } from './fanGlassHit';
 import {
   armBallDropCollisionGrace,
+  applyBallSpinBounce,
   setBallHeldCollider,
   syncBallLooseCollision,
+  type PendingSpinBounce,
 } from './ballPhysics';
 import { playBallBounce, playBotHit, shouldSuppressBallBounceSound, suppressBallBounceForMs } from './audio';
 import { announceBallStrike } from './announcements';
@@ -96,6 +99,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const wasHeldRef = useRef(false);
   const lastBounceAt = useRef(0);
   const lastBodyHitAt = useRef(0);
+  const pendingSpinBounceRef = useRef<PendingSpinBounce | null>(null);
   const glowTick = useRef(0);
   const lastHolderId = useRef<BallHolderId>(null);
   const prevBallPos = useRef(new THREE.Vector3());
@@ -167,6 +171,10 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     }
 
     if (impact < 1.2) return;
+    const pending = pendingSpinBounceRef.current;
+    if (!pending || impact > pending.impact) {
+      pendingSpinBounceRef.current = { nx: n.x, ny: n.y, nz: n.z, impact };
+    }
     if (shouldSuppressBallBounceSound()) return;
     lastBounceAt.current = now;
     const impactSpd = impact;
@@ -222,6 +230,12 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       prevBallPos.current.set(t.x, t.y, t.z);
       hasPrevBallPos.current = true;
       return;
+    }
+
+    const spinBounce = pendingSpinBounceRef.current;
+    if (spinBounce) {
+      pendingSpinBounceRef.current = null;
+      applyBallSpinBounce(body, spinBounce);
     }
 
     const from = prevBallPos.current;
@@ -299,7 +313,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     const mesh = heldVisualRef.current;
     if (!body || !mesh) return;
     const t = body.translation();
+    const q = body.rotation();
     mesh.position.set(t.x, t.y, t.z);
+    mesh.quaternion.set(q.x, q.y, q.z, q.w);
   }, -1);
 
   useFrame(({ clock }, dt) => {
@@ -313,7 +329,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       setBallHeldCollider(body, held);
       if (held && heldVisualRef.current) {
         const t = body.translation();
+        const q = body.rotation();
         heldVisualRef.current.position.set(t.x, t.y, t.z);
+        heldVisualRef.current.quaternion.set(q.x, q.y, q.z, q.w);
       }
     } else if (body && !held) {
       syncBallLooseCollision(body);
@@ -401,6 +419,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         metalness={0.52}
         roughness={0.32}
       />
+      <BallSpinMarks radius={BALL.radius} color="#ffe8f0" />
     </mesh>
     <RigidBody
       ref={bodyRef}
@@ -439,6 +458,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
           metalness={0.52}
           roughness={0.32}
         />
+        <BallSpinMarks radius={BALL.radius} color="#ffe8f0" />
       </mesh>
     </RigidBody>
     </>

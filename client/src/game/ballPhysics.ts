@@ -27,6 +27,74 @@ function looseBallCollisionGroups(): number {
 }
 
 const _rollAxis = new THREE.Vector3();
+const _spinNormal = new THREE.Vector3();
+const _spinContact = new THREE.Vector3();
+const _spinCross = new THREE.Vector3();
+const _spinTangent = new THREE.Vector3();
+
+export type PendingSpinBounce = {
+  nx: number;
+  ny: number;
+  nz: number;
+  impact: number;
+};
+
+/** After Rapier resolves contact — spin at the surface steers the bounce. */
+export function applyBallSpinBounce(
+  body: RapierRigidBody,
+  normal: { nx: number; ny: number; nz: number },
+): void {
+  const av = body.angvel();
+  const lv = body.linvel();
+  const r = BALL.radius;
+  const spinMag = Math.hypot(av.x, av.y, av.z);
+  if (spinMag < 0.8) return;
+
+  _spinNormal.set(normal.nx, normal.ny, normal.nz);
+  if (_spinNormal.lengthSq() < 1e-6) return;
+  _spinNormal.normalize();
+
+  _spinContact.copy(_spinNormal).multiplyScalar(-r);
+  _spinCross
+    .set(
+      av.y * _spinContact.z - av.z * _spinContact.y,
+      av.z * _spinContact.x - av.x * _spinContact.z,
+      av.x * _spinContact.y - av.y * _spinContact.x,
+    );
+
+  const alongNormal =
+    _spinCross.x * _spinNormal.x +
+    _spinCross.y * _spinNormal.y +
+    _spinCross.z * _spinNormal.z;
+  _spinTangent
+    .copy(_spinCross)
+    .addScaledVector(_spinNormal, -alongNormal);
+
+  const tanMag = _spinTangent.length();
+  if (tanMag < 0.12) return;
+
+  const coupling = BALL.spinBounceCoupling;
+  const transfer = BALL.spinBounceTransfer;
+  const blend = Math.min(1, tanMag / (BALL.maxSpeed * 0.35));
+
+  body.setLinvel(
+    {
+      x: lv.x + _spinTangent.x * coupling * blend,
+      y: lv.y + _spinTangent.y * coupling * blend,
+      z: lv.z + _spinTangent.z * coupling * blend,
+    },
+    true,
+  );
+  body.setAngvel(
+    {
+      x: av.x * (1 - transfer * blend),
+      y: av.y * (1 - transfer * blend),
+      z: av.z * (1 - transfer * blend),
+    },
+    true,
+  );
+  wakeBallBody(body);
+}
 
 /** Toggle held vs loose without React remounting the collider (avoids grab hitch). */
 export function setBallHeldCollider(body: RapierRigidBody, held: boolean): void {

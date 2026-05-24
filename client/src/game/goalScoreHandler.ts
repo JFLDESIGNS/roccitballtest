@@ -9,7 +9,7 @@ import type { BotRuntime } from './Bots';
 import type { Team } from '../shared/Types';
 import { gameStore } from './gameStore';
 import { checkGoalScore, checkGoalScoreSegment } from './scoring';
-import { ARENA_GOALS, goalBallScoreRetreatPos } from './goals';
+import { ARENA_GOALS, goalBallScoreRetreatPos, goalBallSuckLerpPos } from './goals';
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -80,11 +80,12 @@ function registerGoalScore(
 
   const from = body.translation();
   const goal = ARENA_GOALS.find((g) => g.id === hit.goalId);
+  const suckCenter = goal ? goalBallSuckLerpPos(goal) : hit.goalPos;
   const retreat = goal ? goalBallScoreRetreatPos(goal) : hit.goalPos;
   startGoalBallSuck(
     body,
     { x: from.x, y: from.y, z: from.z },
-    hit.goalPos,
+    suckCenter,
     retreat,
     () => {
       parkBallAtDropSpawn(body);

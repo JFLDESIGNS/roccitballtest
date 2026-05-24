@@ -604,11 +604,15 @@ export const BALL = {
   radius: 1.6,
   mass: 30,
   restitution: 0.58,
-  friction: 0.18,
+  friction: 0.26,
   linearDamping: 0.014,
   angularDamping: 0.06,
   /** Roll rate scale on LMB / bot release (ω ≈ v/R) */
   launchSpinScale: 0.78,
+  /** Blend ω×r tangential speed into post-bounce linear velocity */
+  spinBounceCoupling: 0.72,
+  /** Fraction of spin transferred into the bounce (reduces ω) */
+  spinBounceTransfer: 0.28,
   /** Scales world gravity on the ball (1 = match arena gravity) */
   gravityScale: 1,
   maxSpeed: 80,
@@ -892,6 +896,8 @@ export const GOAL_RINGS = {
   goalBallSuckPauseSec: 0.2,
   goalBallSuckLerpSec: 0.3,
   goalBallSuckFadeSec: 0.3,
+  /** Suck lerp target — extra stick-out toward the court from ring center (ft) */
+  goalBallSuckStickOutFt: 3,
   /** Past the back ring toward the wall before hiding the ball (ft) */
   goalBallRetreatPastBackRingFt: 5,
   /** Middle + top scoring cylinder diameter scale (0.4 = 60% narrower) */
