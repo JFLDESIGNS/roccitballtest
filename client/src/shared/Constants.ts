@@ -949,9 +949,9 @@ export const GOAL_RINGS = {
   /** Torus tube thickness relative to ring radius */
   tubeScale: 0.14,
   tubeMin: 0.24,
-  emissiveIntensity: 4.6,
+  emissiveIntensity: 3.85,
   glowTubeScale: 1.45,
-  glowOpacity: 0.42,
+  glowOpacity: 0.34,
   /** Torus tube cross-section segments */
   torusRadialSegments: 8,
   /** Torus segments around the ring (rotation) */
