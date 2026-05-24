@@ -1,7 +1,11 @@
 import * as THREE from 'three';
+import type { BallTypeId } from '../shared/Constants';
 
 /** Seamless sci-fi panel + hex grid for the match ball */
-export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
+export function createBallPolkaTexture(
+  size = 512,
+  variant: BallTypeId = 'original',
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -14,11 +18,18 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
 
   const cx = size * 0.5;
   const cy = size * 0.5;
+  const superball = variant === 'superball';
 
   const base = ctx.createRadialGradient(cx, cy, size * 0.05, cx, cy, size * 0.72);
-  base.addColorStop(0, '#5a7a9a');
-  base.addColorStop(0.45, '#2e3d52');
-  base.addColorStop(1, '#141b24');
+  if (superball) {
+    base.addColorStop(0, '#c4903a');
+    base.addColorStop(0.45, '#6a4518');
+    base.addColorStop(1, '#241408');
+  } else {
+    base.addColorStop(0, '#5a7a9a');
+    base.addColorStop(0.45, '#2e3d52');
+    base.addColorStop(1, '#141b24');
+  }
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, size, size);
 
@@ -34,9 +45,9 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
       cx + Math.cos(a1) * r1,
       cy + Math.sin(a1) * r1,
     );
-    g.addColorStop(0, 'rgba(80, 200, 255, 0)');
-    g.addColorStop(0.5, 'rgba(120, 230, 255, 0.35)');
-    g.addColorStop(1, 'rgba(40, 120, 200, 0)');
+    g.addColorStop(0, superball ? 'rgba(255, 180, 60, 0)' : 'rgba(80, 200, 255, 0)');
+    g.addColorStop(0.5, superball ? 'rgba(255, 210, 90, 0.38)' : 'rgba(120, 230, 255, 0.35)');
+    g.addColorStop(1, superball ? 'rgba(180, 90, 20, 0)' : 'rgba(40, 120, 200, 0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
@@ -48,7 +59,9 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
 
   const hexR = size / 14;
   const hexH = hexR * Math.sqrt(3);
-  ctx.strokeStyle = 'rgba(90, 220, 255, 0.28)';
+  ctx.strokeStyle = superball
+    ? 'rgba(255, 190, 80, 0.34)'
+    : 'rgba(90, 220, 255, 0.28)';
   ctx.lineWidth = Math.max(1, size * 0.0025);
   for (let row = -1; row < size / hexH + 2; row++) {
     for (let col = -1; col < size / (hexR * 1.5) + 2; col++) {
@@ -58,7 +71,9 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
     }
   }
 
-  ctx.strokeStyle = 'rgba(160, 240, 255, 0.55)';
+  ctx.strokeStyle = superball
+    ? 'rgba(255, 220, 120, 0.58)'
+    : 'rgba(160, 240, 255, 0.55)';
   ctx.lineWidth = Math.max(1.5, size * 0.004);
   const traces: [number, number, number, number][] = [
     [0.08, 0.42, 0.92, 0.38],
@@ -74,7 +89,9 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  ctx.fillStyle = 'rgba(120, 235, 255, 0.85)';
+  ctx.fillStyle = superball
+    ? 'rgba(255, 200, 80, 0.88)'
+    : 'rgba(120, 235, 255, 0.85)';
   const nodes = 18;
   for (let i = 0; i < nodes; i++) {
     const nx = ((i * 97) % 1000) / 1000;
@@ -85,13 +102,17 @@ export function createBallPolkaTexture(size = 512): THREE.CanvasTexture {
     ctx.fill();
   }
 
-  ctx.strokeStyle = 'rgba(200, 245, 255, 0.35)';
+  ctx.strokeStyle = superball
+    ? 'rgba(255, 230, 150, 0.42)'
+    : 'rgba(200, 245, 255, 0.35)';
   ctx.lineWidth = size * 0.006;
   ctx.beginPath();
   ctx.arc(cx, cy, size * 0.36, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.strokeStyle = 'rgba(60, 180, 240, 0.2)';
+  ctx.strokeStyle = superball
+    ? 'rgba(220, 140, 40, 0.28)'
+    : 'rgba(60, 180, 240, 0.2)';
   ctx.lineWidth = size * 0.003;
   ctx.beginPath();
   ctx.arc(cx, cy, size * 0.44, 0.15 * Math.PI, 0.85 * Math.PI);

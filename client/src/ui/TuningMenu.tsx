@@ -69,6 +69,36 @@ function ToggleRow({
   );
 }
 
+function SelectRow<T extends string>({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <label className="tuning-row menu-option">
+      <div className="tuning-row-head">
+        <span>{label}</span>
+      </div>
+      <select value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {hint ? <p className="tuning-sub">{hint}</p> : null}
+    </label>
+  );
+}
+
 function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tuningStore.getState> }) {
   switch (tab) {
     case 'player':
@@ -148,6 +178,16 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
     case 'ball':
       return (
         <>
+          <SelectRow
+            label="Ball type"
+            hint="Superball deflects sideways on glancing rocket hits; rear-center hits still fly forward."
+            value={tune.ballType}
+            options={[
+              { value: 'original', label: 'Original ball' },
+              { value: 'superball', label: 'Superball' },
+            ]}
+            onChange={tuningStore.setBallType}
+          />
           <SliderRow
             label="Beam pull strength"
             value={tune.pullStrength}

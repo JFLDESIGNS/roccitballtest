@@ -14,6 +14,7 @@ import {
   rocketAge,
   rocketTravelDist,
   segmentHitsSphere,
+  segmentBallSurfaceImpact,
   updateRockets,
   type ActiveRocket,
   type RocketTrailSegment,
@@ -513,6 +514,8 @@ export function Rockets({
   const firePlaneGeo = useMemo(() => new THREE.PlaneGeometry(0.52, 0.72), []);
 
   const ballCenter = useRef(new THREE.Vector3());
+  const ballImpactNormal = useRef(new THREE.Vector3());
+  const ballImpactContact = useRef(new THREE.Vector3());
   const botCenter = useRef(new THREE.Vector3());
   const segFrom = useRef(new THREE.Vector3());
   const segTo = useRef(new THREE.Vector3());
@@ -560,6 +563,7 @@ export function Rockets({
     z: number,
     rocketVel?: THREE.Vector3,
     ownerId?: string,
+    impactNormal?: THREE.Vector3,
   ) => {
     const i = boomCount.current++;
     let h = boomScratch.current[i];
@@ -572,6 +576,15 @@ export function Rockets({
     h.z = z;
     h.radius = ROCKET.explosionRadius;
     h.fromOwnerId = ownerId;
+    if (impactNormal) {
+      h.ballImpactNx = impactNormal.x;
+      h.ballImpactNy = impactNormal.y;
+      h.ballImpactNz = impactNormal.z;
+    } else {
+      h.ballImpactNx = undefined;
+      h.ballImpactNy = undefined;
+      h.ballImpactNz = undefined;
+    }
     if (rocketVel) {
       h.rocketVx = rocketVel.x;
       h.rocketVy = rocketVel.y;
@@ -664,7 +677,7 @@ export function Rockets({
 
     const pp = playerPos();
     const bp = ballPos();
-    const ballHitRadius = BALL.radius + 3.8;
+    const ballDetectRadius = BALL.radius + ROCKET.ballHitDetectPad;
     const stillFlying: ActiveRocket[] = [];
     boomCount.current = 0;
     for (const e of explosions) {
@@ -738,8 +751,9 @@ export function Rockets({
             segFrom.current,
             segTo.current,
             ballCenter.current,
-            ballHitRadius,
-          ) || segTo.current.distanceTo(ballCenter.current) < ballHitRadius;
+            ballDetectRadius,
+          ) ||
+          segTo.current.distanceTo(ballCenter.current) < ballDetectRadius;
         if (hitBall) {
           const ownerId = r.ownerId as ActorId;
           announceRocketBallHit(ownerId, ballCenter.current.y);
@@ -753,13 +767,28 @@ export function Rockets({
           }
           if (boomCount.current < MAX_BOOMS) {
             const sp = Math.max(0.001, r.velocity.length());
-            const back = BALL.radius + 0.4;
+            segmentBallSurfaceImpact(
+              segFrom.current,
+              segTo.current,
+              ballCenter.current,
+              BALL.radius,
+              ballImpactContact.current,
+              ballImpactNormal.current,
+            );
+            const pad = 0.38;
+            const bx =
+              ballImpactContact.current.x - (r.velocity.x / sp) * pad;
+            const by =
+              ballImpactContact.current.y - (r.velocity.y / sp) * pad;
+            const bz =
+              ballImpactContact.current.z - (r.velocity.z / sp) * pad;
             pushBoom(
-              ballCenter.current.x - (r.velocity.x / sp) * back,
-              ballCenter.current.y - (r.velocity.y / sp) * back * 0.35,
-              ballCenter.current.z - (r.velocity.z / sp) * back,
+              bx,
+              by,
+              bz,
               r.velocity,
               r.ownerId,
+              ballImpactNormal.current,
             );
           }
           continue;

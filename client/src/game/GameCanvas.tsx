@@ -347,6 +347,9 @@ function Scene({
           hit.rocketVx,
           hit.rocketVy,
           hit.rocketVz,
+          hit.ballImpactNx,
+          hit.ballImpactNy,
+          hit.ballImpactNz,
         )
       ) {
         holdingBallRef.current = false;

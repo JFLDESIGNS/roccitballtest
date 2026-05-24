@@ -1,6 +1,7 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import { MATCH } from '../shared/Constants';
 import { releaseBallPhysics } from './ballAttach';
+import { isGoalBallSuckActive, startGoalBallSuck } from './ballGoalSuck';
 import { parkBallAtDropSpawn } from './ballDropSpawn';
 import { playGoalCelebration, suppressBallBounceForMs } from './audio';
 import { resetBeamContest } from './ballBeamContest';
@@ -8,6 +9,7 @@ import type { BotRuntime } from './Bots';
 import type { Team } from '../shared/Types';
 import { gameStore } from './gameStore';
 import { checkGoalScore, checkGoalScoreSegment } from './scoring';
+import { ARENA_GOALS, goalBallScoreRetreatPos } from './goals';
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -39,6 +41,7 @@ export function tickGoalScoreRuntime(dt: number) {
 function canRegisterGoalScore(): boolean {
   const state = gameStore.getState();
   if (state.phase === 'intro' || state.phase === 'loading') return false;
+  if (isGoalBallSuckActive()) return false;
   if (goalScoreRuntime.scoreCooldownSec > 0 || state.ballFrozen) return false;
   return true;
 }
@@ -47,6 +50,7 @@ function registerGoalScore(
   hit: {
     points: number;
     scoringTeam: Team;
+    goalId: string;
     goalPos: { x: number; y: number; z: number };
   },
   body: RapierRigidBody,
@@ -71,10 +75,22 @@ function registerGoalScore(
   }
   resetBeamContest();
 
-  suppressBallBounceForMs(2500);
-  parkBallAtDropSpawn(body);
-  gameStore.setBallState('loose');
   gameStore.freezeBallForKickoff();
+  suppressBallBounceForMs(2500);
+
+  const from = body.translation();
+  const goal = ARENA_GOALS.find((g) => g.id === hit.goalId);
+  const retreat = goal ? goalBallScoreRetreatPos(goal) : hit.goalPos;
+  startGoalBallSuck(
+    body,
+    { x: from.x, y: from.y, z: from.z },
+    hit.goalPos,
+    retreat,
+    () => {
+      parkBallAtDropSpawn(body);
+      gameStore.setBallState('loose');
+    },
+  );
 }
 
 /** Carried / held ball — score when the ball overlaps the goal volume */

@@ -13,6 +13,7 @@ type GoalHit = {
   points: number;
   scoringTeam: Team;
   goalTeam: Team;
+  goalId: string;
   goalPos: { x: number; y: number; z: number };
   planeDist: number;
 };
@@ -23,6 +24,7 @@ export function checkGoalScore(ballPos: Vec3): {
   points: number;
   scoringTeam: Team;
   goalTeam: Team;
+  goalId: string;
   goalPos: { x: number; y: number; z: number };
 } | null {
   const best = pickBestGoalHit(ballPos, 0);
@@ -40,6 +42,7 @@ export function checkGoalScoreSegment(
   points: number;
   scoringTeam: Team;
   goalTeam: Team;
+  goalId: string;
   goalPos: { x: number; y: number; z: number };
 } | null {
   let best: GoalHit | null = null;
@@ -139,6 +142,7 @@ function goalHitFromLocal(goal: GoalDef, local: ScoringLocal): GoalHit {
     points: goal.points,
     scoringTeam,
     goalTeam: goal.team,
+    goalId: goal.id,
     goalPos: { ...goal.center },
     planeDist: Math.abs(local.lzRing),
   };

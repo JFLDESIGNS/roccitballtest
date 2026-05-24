@@ -17,7 +17,7 @@ import {
 } from 'react';
 import type { CollisionEnterPayload } from '@react-three/rapier';
 import * as THREE from 'three';
-import { BALL, BALL_SPAWN, RENDER } from '../shared/Constants';
+import { BALL, BALL_SPAWN, RENDER, SUPERBALL } from '../shared/Constants';
 import { getBallDropLayout } from './arenaLayout';
 import { parkBallAtDropSpawn } from './ballDropSpawn';
 import { releaseBallPhysics } from './ballAttach';
@@ -29,7 +29,6 @@ import {
   triggerFanGlassHit,
   trySegmentHitsFanGlass,
 } from './fanGlassHit';
-import { tickGoalRimBallBounce } from './goalRingBounce';
 import {
   armBallDropCollisionGrace,
   setBallHeldCollider,
@@ -42,7 +41,13 @@ import { applyBallStrikeKnock } from './characterKnock';
 import { VelocityPathRibbon } from './VelocityPathRibbon';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
+import {
+  isGoalBallSuckHidden,
+  isGoalBallSuckActive,
+  tickGoalBallSuck,
+} from './ballGoalSuck';
 import { gameStore, type BallHolderId } from './gameStore';
+import { tuningStore } from './tuningStore';
 import type { Team } from '../shared/Types';
 
 function holderGlowTeam(holderId: BallHolderId, localTeam: Team): Team | null {
@@ -68,6 +73,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
+  const ballMeshRef = useRef<THREE.Mesh>(null);
   const ballMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const heldVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const heldVisualRef = useRef<THREE.Mesh>(null);
@@ -77,10 +83,16 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   );
   const hideTrail = useSyncExternalStore(
     gameStore.subscribe,
-    () =>
-      gameStore.getState().phase === 'playing' &&
-      gameStore.getState().countdown > 0,
+    () => {
+      const s = gameStore.getState();
+      return (s.phase === 'playing' && s.countdown > 0) || s.ballFrozen;
+    },
   );
+  const ballType = useSyncExternalStore(
+    tuningStore.subscribe,
+    () => tuningStore.getState().ballType,
+  );
+  const isSuperball = ballType === 'superball';
   const wasHeldRef = useRef(false);
   const lastBounceAt = useRef(0);
   const lastBodyHitAt = useRef(0);
@@ -88,15 +100,24 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const lastHolderId = useRef<BallHolderId>(null);
   const prevBallPos = useRef(new THREE.Vector3());
   const _ballTo = useRef(new THREE.Vector3());
-  const goalRimCooldown = useRef(0);
   const hasPrevBallPos = useRef(false);
-  const heldVisualPos = useRef(new THREE.Vector3());
-  const heldVisualReady = useRef(false);
 
   const surfaceMap = useMemo(
-    () => createBallPolkaTexture(RENDER.ballPolkaTextureSize),
-    [],
+    () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, ballType),
+    [ballType],
   );
+
+  useEffect(() => {
+    const surfaceColor = isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec';
+    for (const m of [ballMatRef.current, heldVisualMatRef.current]) {
+      if (!m) continue;
+      m.map = surfaceMap;
+      m.color.set(surfaceColor);
+      if (!isHeld) m.emissive.set(isSuperball ? SUPERBALL.idleEmissive : '#ffffff');
+      m.emissiveIntensity = isSuperball ? 0.32 : 0.22;
+      m.needsUpdate = true;
+    }
+  }, [surfaceMap, isSuperball, isHeld]);
 
   useEffect(() => () => surfaceMap.dispose(), [surfaceMap]);
 
@@ -200,6 +221,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   useAfterPhysicsStep(() => {
     const body = bodyRef.current;
     if (!body) return;
+    if (isGoalBallSuckActive()) return;
     if (gameStore.getState().ballFrozen) {
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -228,13 +250,6 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         return;
       }
       _ballTo.current.set(t.x, t.y, t.z);
-      tickGoalRimBallBounce(
-        body,
-        from,
-        _ballTo.current,
-        goalRimCooldown,
-        1 / 60,
-      );
       refreshFanGlassBoxes();
       const glass = trySegmentHitsFanGlass(from, _ballTo.current);
       if (glass) triggerFanGlassHit(glass.bayKey);
@@ -245,26 +260,41 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     stepBallPhysics(body);
   });
 
+  // Held mesh lives outside RigidBody so it stays visible; snap to body (no lag).
   useFrame((_, dt) => {
-    if (!isHeld) {
-      heldVisualReady.current = false;
+    if (isGoalBallSuckActive()) {
+      tickGoalBallSuck(dt);
+      const body = bodyRef.current;
+      const hidden = isGoalBallSuckHidden();
+      if (body) {
+        const t = body.translation();
+        if (heldVisualRef.current) {
+          heldVisualRef.current.position.set(t.x, t.y, t.z);
+          heldVisualRef.current.scale.setScalar(1);
+          heldVisualRef.current.visible = !hidden;
+        }
+        if (ballMeshRef.current) {
+          ballMeshRef.current.scale.setScalar(1);
+          ballMeshRef.current.visible = !hidden;
+        }
+      }
       return;
     }
+
+    if (ballMeshRef.current) {
+      ballMeshRef.current.scale.setScalar(1);
+      ballMeshRef.current.visible = !isHeld;
+    }
+    if (heldVisualRef.current) {
+      heldVisualRef.current.scale.setScalar(1);
+    }
+
+    if (!isHeld) return;
     const body = bodyRef.current;
     const mesh = heldVisualRef.current;
     if (!body || !mesh) return;
     const t = body.translation();
-    if (!heldVisualReady.current) {
-      heldVisualPos.current.set(t.x, t.y, t.z);
-      heldVisualReady.current = true;
-    }
-    const alpha = 1 - Math.exp(-BALL.holdVisualSmooth * Math.max(dt, 1 / 120));
-    heldVisualPos.current.set(
-      THREE.MathUtils.lerp(heldVisualPos.current.x, t.x, alpha),
-      THREE.MathUtils.lerp(heldVisualPos.current.y, t.y, alpha),
-      THREE.MathUtils.lerp(heldVisualPos.current.z, t.z, alpha),
-    );
-    mesh.position.copy(heldVisualPos.current);
+    mesh.position.set(t.x, t.y, t.z);
   }, -1);
 
   useFrame(({ clock }, dt) => {
@@ -276,6 +306,10 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     if (body && held !== wasHeldRef.current) {
       wasHeldRef.current = held;
       setBallHeldCollider(body, held);
+      if (held && heldVisualRef.current) {
+        const t = body.translation();
+        heldVisualRef.current.position.set(t.x, t.y, t.z);
+      }
     } else if (body && !held) {
       syncBallLooseCollision(body);
     }
@@ -306,8 +340,10 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
             m.emissiveIntensity = 0.3 + Math.sin(t * 8) * 0.2;
             m.emissive.copy(glow.color);
           } else {
-            m.emissive.set('#ffffff');
-            m.emissiveIntensity = 0.58 + Math.sin(t * 4) * 0.14;
+            m.emissive.set(isSuperball ? SUPERBALL.idleEmissive : '#ffffff');
+            m.emissiveIntensity = isSuperball
+              ? 0.62 + Math.sin(t * 4) * 0.16
+              : 0.58 + Math.sin(t * 4) * 0.14;
           }
         }
       };
@@ -323,8 +359,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     <VelocityPathRibbon
       hidden={isHeld || hideTrail}
       crossSection
-      color="#ffffff"
-      opacity={0.7}
+      color={isSuperball ? SUPERBALL.trailColor : '#ffffff'}
+      opacity={0.35}
       lineWidthWorld={0.336}
       maxPoints={64}
       minStep={0.04}
@@ -347,8 +383,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       <meshStandardMaterial
         ref={heldVisualMatRef}
         map={surfaceMap}
-        color="#c8d8ec"
-        emissive="#5ec8ff"
+        color={isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec'}
+        emissive={isSuperball ? SUPERBALL.emissiveColor : '#5ec8ff'}
         emissiveIntensity={0.22}
         metalness={0.52}
         roughness={0.32}
@@ -357,11 +393,11 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     <RigidBody
       ref={bodyRef}
       colliders={false}
-      mass={BALL.mass}
+      mass={isSuperball ? SUPERBALL.mass : BALL.mass}
       onCollisionEnter={onBallCollisionEnter}
       restitution={BALL.restitution}
       friction={BALL.friction}
-      linearDamping={BALL.linearDamping}
+      linearDamping={isSuperball ? SUPERBALL.linearDamping : BALL.linearDamping}
       angularDamping={BALL.angularDamping}
       gravityScale={BALL.gravityScale}
       ccd
@@ -375,13 +411,18 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         friction={BALL.friction}
         collisionGroups={interactionGroups(1, [0, 1, 2, 4])}
       />
-      <mesh visible={!isHeld} castShadow receiveShadow>
+      <mesh
+        ref={ballMeshRef}
+        visible={!isHeld}
+        castShadow
+        receiveShadow
+      >
         <sphereGeometry args={[BALL.radius, 14, 12]} />
         <meshStandardMaterial
           ref={ballMatRef}
           map={surfaceMap}
-          color="#c8d8ec"
-          emissive="#5ec8ff"
+          color={isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec'}
+          emissive={isSuperball ? SUPERBALL.emissiveColor : '#5ec8ff'}
           emissiveIntensity={0.22}
           metalness={0.52}
           roughness={0.32}

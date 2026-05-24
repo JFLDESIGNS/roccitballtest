@@ -84,10 +84,12 @@ function PerimeterWall({
 }
 
 const GOAL_ENV_COLLISION = interactionGroups(2, [0, 1, 2]);
+/** Back-cap square — blocks players/bots in the hole; ball passes through (group 1 excluded). */
+const GOAL_BACK_CAP_COLLISION = interactionGroups(2, [0, 2]);
 const GOAL_RING_RESTITUTION = BALL.restitution * 0.92;
 const GOAL_RING_FRICTION = 0.42;
 
-/** Small cap puck behind the black ring — does not block the scoring hole */
+/** Square backup collider behind the hole disc (visible in physics debug). */
 function GoalRingBackCapCollider({
   capRadius,
 }: {
@@ -98,7 +100,7 @@ function GoalRingBackCapCollider({
       args={[capRadius, capRadius, 0.05]}
       friction={0.2}
       restitution={0.82}
-      collisionGroups={GOAL_ENV_COLLISION}
+      collisionGroups={GOAL_BACK_CAP_COLLISION}
     />
   );
 }
@@ -152,7 +154,6 @@ function GoalRingBackplate({
   const tube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const tiltX = ringTiltX(team, size);
   const backX = goalBackRingCenterX({ center, team, size });
-  const skipBackCap = size === 'small';
   const capRadius =
     Math.max(backRadius - tube * 0.92, goalScoreHoleRadius(ringRadius, size) * 0.88) *
     GOAL_RINGS.backRingCapScale;
@@ -179,8 +180,13 @@ function GoalRingBackplate({
   }, []);
 
   const capNudgeScale = size === 'medium' ? 0.22 : 0.15;
+  const capWallNudgeFt =
+    size === 'medium' ? GOAL_RINGS.midRingCapWallOffsetFt : 0;
   const capArenaNudge =
-    (team === 'red' ? 1 : -1) * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+    (team === 'red' ? 1 : -1) *
+    (GOAL_RINGS.backRingWallOffsetM * capNudgeScale + capWallNudgeFt * 0.3048);
+  const capTiltX =
+    size === 'medium' ? 0.2 : size === 'small' ? ringTiltX(team, size) * 0.35 : 0;
 
   return (
     <RigidBody
@@ -190,35 +196,31 @@ function GoalRingBackplate({
     >
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
-          {!skipBackCap && (
-            <group position={[capArenaNudge, 0, 0]}>
-              <GoalRingBackCapCollider capRadius={capColliderR} />
-            </group>
-          )}
-          <group>
-            <TrimeshCollider
-              args={[backTorusCollider.vertices, backTorusCollider.indices]}
-              friction={GOAL_RING_FRICTION}
-              restitution={GOAL_RING_RESTITUTION}
-              collisionGroups={GOAL_ENV_COLLISION}
-            />
-            <mesh
-              geometry={torusGeo}
-              castShadow
-              receiveShadow
-              material={arenaBlackMetalMaterial}
-              renderOrder={0}
-            />
-            <mesh
-              geometry={capGeo}
-              castShadow
-              receiveShadow
-              material={capMat}
-              position={[capArenaNudge, 0, 0]}
-              rotation={[size === 'medium' ? 0.2 : 0, 0, 0]}
-              renderOrder={1}
-            />
+          <group position={[capArenaNudge, 0, 0]}>
+            <GoalRingBackCapCollider capRadius={capColliderR} />
           </group>
+          <TrimeshCollider
+            args={[backTorusCollider.vertices, backTorusCollider.indices]}
+            friction={GOAL_RING_FRICTION}
+            restitution={GOAL_RING_RESTITUTION}
+            collisionGroups={GOAL_ENV_COLLISION}
+          />
+          <mesh
+            geometry={torusGeo}
+            castShadow
+            receiveShadow
+            material={arenaBlackMetalMaterial}
+            renderOrder={0}
+          />
+          <mesh
+            geometry={capGeo}
+            castShadow
+            receiveShadow
+            material={capMat}
+            position={[capArenaNudge, 0, 0]}
+            rotation={[capTiltX, 0, 0]}
+            renderOrder={1}
+          />
         </group>
       </group>
     </RigidBody>

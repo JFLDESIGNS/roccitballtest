@@ -83,12 +83,31 @@ export function goalScoringWallInsetM(size: GoalSize): number {
   return Math.max(0, half - goalScoringStickOutM(size));
 }
 
+function goalScoringWallPullbackM(size: GoalSize): number {
+  const extra =
+    size === 'large' ? 0 : GOAL_RINGS.scoringVolumeWallPullbackMidTopExtraFt;
+  return (GOAL_RINGS.scoringVolumeWallPullbackFt + extra) * FT;
+}
+
+export function goalBallScoreRetreatPos(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  const backX = goalBackRingCenterX(goal);
+  const pastWall = GOAL_RINGS.goalBallRetreatPastBackRingFt * FT;
+  const towardWall = goal.team === 'red' ? -1 : 1;
+  return {
+    x: backX + towardWall * pastWall,
+    y: goal.center.y,
+    z: goal.center.z,
+  };
+}
+
 export function goalScoringCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
   const inset = goalScoringWallInsetM(goal.size);
   const forward = goalScoringArenaForwardM(goal.size);
-  const pullBack = GOAL_RINGS.scoringVolumeWallPullbackM;
+  const pullBack = goalScoringWallPullbackM(goal.size);
   const towardCourt = goal.team === 'red' ? 1 : -1;
   return {
     x:
@@ -122,9 +141,11 @@ export function goalScoringCylinderParams(
         GOAL_RINGS.scoringVolumeRadiusScaleBottomMult
       : goal.size === 'medium'
         ? GOAL_RINGS.scoringVolumeRadiusScale *
-          GOAL_RINGS.scoringVolumeRadiusScaleMidMult
+          GOAL_RINGS.scoringVolumeRadiusScaleMidMult *
+          GOAL_RINGS.scoringVolumeMidTopRadiusMult
         : GOAL_RINGS.scoringVolumeRadiusScale *
-          GOAL_RINGS.scoringVolumeRadiusScaleTopMult;
+          GOAL_RINGS.scoringVolumeRadiusScaleTopMult *
+          GOAL_RINGS.scoringVolumeMidTopRadiusMult;
   return {
     radius: baseRadius * radiusScale,
     halfHeight: goalScoringSensorDepth(goal.size) / 2,
@@ -146,16 +167,30 @@ export function goalScoringVolumeHalfExtents(
   return { halfDepth: halfHeight, halfY: radius, halfZ: radius };
 }
 
+export function goalBackRingWallOffsetM(size: GoalSize): number {
+  const base =
+    size === 'medium'
+      ? GOAL_RINGS.midRingBackWallOffsetM
+      : size === 'small'
+        ? GOAL_RINGS.topRingBackWallOffsetM
+        : GOAL_RINGS.backRingWallOffsetM;
+  const extraWallFt =
+    size === 'large' ? 0 : GOAL_RINGS.midTopBackRingWallExtraFt;
+  return base + extraWallFt * FT;
+}
+
 export function goalBackRingCenterX(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): number {
-  const backOffset =
-    goal.size === 'medium'
-      ? GOAL_RINGS.midRingBackWallOffsetM
-      : goal.size === 'small'
-        ? GOAL_RINGS.topRingBackWallOffsetM
-        : GOAL_RINGS.backRingWallOffsetM;
-  return goal.center.x + (goal.team === 'red' ? -backOffset : backOffset);
+  const backOffset = goalBackRingWallOffsetM(goal.size);
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  const courtForward =
+    goal.size === 'small' ? GOAL_RINGS.topBackRingCourtForwardFt * FT : 0;
+  return (
+    goal.center.x +
+    (goal.team === 'red' ? -backOffset : backOffset) +
+    towardCourt * courtForward
+  );
 }
 
 function buildWallRings(team: Team, wallX: number): GoalDef[] {

@@ -153,6 +153,94 @@ export function segmentHitsSphere(
   return _closest.distanceTo(center) <= radius;
 }
 
+const _entry = new THREE.Vector3();
+
+/** First point where the segment enters the sphere shell (for off-center ball hits). */
+export function segmentSphereEntryPoint(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  center: THREE.Vector3,
+  radius: number,
+  out: THREE.Vector3 = _entry,
+): boolean {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const fx = from.x - center.x;
+  const fy = from.y - center.y;
+  const fz = from.z - center.z;
+
+  const a = dx * dx + dy * dy + dz * dz;
+  if (a < 1e-10) {
+    if (from.distanceTo(center) <= radius) {
+      out.copy(from);
+      return true;
+    }
+    return false;
+  }
+
+  const b = 2 * (fx * dx + fy * dy + fz * dz);
+  const c = fx * fx + fy * fy + fz * fz - radius * radius;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return false;
+
+  const sqrt = Math.sqrt(disc);
+  const inv2a = 1 / (2 * a);
+  const t0 = (-b - sqrt) * inv2a;
+  const t1 = (-b + sqrt) * inv2a;
+
+  let t = -1;
+  if (t0 >= 0 && t0 <= 1) t = t0;
+  else if (t1 >= 0 && t1 <= 1) t = t1;
+  else return false;
+
+  out.set(from.x + dx * t, from.y + dy * t, from.z + dz * t);
+  return true;
+}
+
+const _impactContact = new THREE.Vector3();
+const _impactNormal = new THREE.Vector3();
+
+/**
+ * Closest approach on the segment → outward surface normal + contact point.
+ * Used for superball billiards knock even when the rocket detonates slightly early.
+ */
+export function segmentBallSurfaceImpact(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  center: THREE.Vector3,
+  radius: number,
+  outContact: THREE.Vector3 = _impactContact,
+  outNormal: THREE.Vector3 = _impactNormal,
+): boolean {
+  const ab = _ab.subVectors(to, from);
+  const lenSq = ab.lengthSq();
+
+  if (lenSq < 1e-10) {
+    const dist = from.distanceTo(center);
+    if (dist < 1e-4) return false;
+    outNormal.copy(from).sub(center).multiplyScalar(1 / dist);
+    outContact.copy(center).addScaledVector(outNormal, radius);
+    return true;
+  }
+
+  const ac = _ac.subVectors(center, from);
+  let t = ac.dot(ab) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  outNormal.copy(from).addScaledVector(ab, t).sub(center);
+  const dist = outNormal.length();
+
+  if (dist > 1e-4) {
+    outNormal.multiplyScalar(1 / dist);
+  } else {
+    ab.normalize();
+    outNormal.copy(ab).negate();
+  }
+
+  outContact.copy(center).addScaledVector(outNormal, radius);
+  return true;
+}
+
 const _wallNormal = new THREE.Vector2();
 const _stepPrev = new THREE.Vector3();
 

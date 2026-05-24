@@ -1,7 +1,7 @@
-import { BOT, MOVEMENT, ROCKET } from '../shared/Constants';
+import { BOT, MOVEMENT, ROCKET, type BallTypeId } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v7';
+const STORAGE_KEY = 'rocketball-tuning-v9';
 
 export type TuningValues = {
   jumpForce: number;
@@ -55,6 +55,8 @@ export type TuningValues = {
   mouseSensitivity: number;
   /** Double-tap W forward dash */
   wwDashEnabled: boolean;
+  /** Match ball variant — same entity for beam, bots, and goals */
+  ballType: BallTypeId;
 };
 
 type TuningState = TuningValues & {
@@ -123,6 +125,7 @@ const defaults: TuningValues = {
   /** Multiplier on CAMERA.mouseSensitivityX/Y */
   mouseSensitivity: 1,
   wwDashEnabled: false,
+  ballType: 'superball',
 };
 
 const listeners = new Set<() => void>();
@@ -157,7 +160,11 @@ function persistValues(v: TuningValues) {
 
 function mergeStored(base: TuningValues): TuningValues {
   const stored = loadStored();
-  return { ...base, ...stored };
+  const merged = { ...base, ...stored };
+  if (merged.ballType !== 'original' && merged.ballType !== 'superball') {
+    merged.ballType = 'original';
+  }
+  return merged;
 }
 
 let state: TuningState = {
@@ -240,6 +247,7 @@ export const tuningStore = {
   setMouseSensitivity: (v: number) =>
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
   setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
+  setBallType: (v: BallTypeId) => patch({ ballType: v }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

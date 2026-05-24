@@ -1,6 +1,6 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
-import { BOT, ROCKET } from '../shared/Constants';
+import { BOT, ROCKET, SUPERBALL } from '../shared/Constants';
 import { releaseBallPhysics } from './ballAttach';
 import { wakeBallBody } from './ballPhysics';
 import {
@@ -9,6 +9,10 @@ import {
   armPlayerRocketKnockStun,
 } from './rocketKnockStun';
 import type { BotCombatState } from './botCombat';
+import {
+  ballRocketKnockDirection,
+  superballCenterHitFactor,
+} from './ballRocketKnock';
 import { tuningStore } from './tuningStore';
 import { splashDamageFactor } from './rocketSystem';
 
@@ -20,6 +24,10 @@ export type ExplosionHit = {
   rocketVx?: number;
   rocketVy?: number;
   rocketVz?: number;
+  /** Outward surface normal at ball contact (superball billiards knock) */
+  ballImpactNx?: number;
+  ballImpactNy?: number;
+  ballImpactNz?: number;
   /** Rocket owner when the blast came from a projectile */
   fromOwnerId?: string;
 };
@@ -39,23 +47,18 @@ function knockDirection(
   rocketVy?: number,
   rocketVz?: number,
 ): THREE.Vector3 {
-  const hasRocket =
-    rocketVx !== undefined && rocketVy !== undefined && rocketVz !== undefined;
-  const rocketSpeed = hasRocket
-    ? Math.hypot(rocketVx!, rocketVy!, rocketVz!)
-    : 0;
-
-  if (hasRocket && rocketSpeed > 1) {
-    return _dir.set(rocketVx!, rocketVy!, rocketVz!).normalize();
-  }
-
-  const dx = tx - ex;
-  const dy = ty - ey;
-  const dz = tz - ez;
-  if (dx * dx + dy * dy + dz * dz < 0.01) {
-    return _dir.set(0, 0.08, 1).normalize();
-  }
-  return _dir.set(dx, dy, dz).normalize();
+  return ballRocketKnockDirection(
+    'original',
+    tx,
+    ty,
+    tz,
+    ex,
+    ey,
+    ez,
+    rocketVx,
+    rocketVy,
+    rocketVz,
+  );
 }
 
 export function applyExplosionToBall(
@@ -71,6 +74,9 @@ export function applyExplosionToBall(
   rocketVx?: number,
   rocketVy?: number,
   rocketVz?: number,
+  ballImpactNx?: number,
+  ballImpactNy?: number,
+  ballImpactNz?: number,
 ): boolean {
   const dx = ballX - ex;
   const dy = ballY - ey;
@@ -80,31 +86,98 @@ export function applyExplosionToBall(
 
   if (wasHeld) releaseBallPhysics(ball);
 
-  const knock = tuningStore.getState().ballKnockStrength;
-  const falloff = Math.max(0.2, 1 - dist / radius);
-  const mass = ball.mass();
+  const tune = tuningStore.getState();
+  const knock = tune.ballKnockStrength;
 
-  knockDirection(
-    ballX,
-    ballY,
-    ballZ,
-    ex,
-    ey,
-    ez,
-    rocketVx,
-    rocketVy,
-    rocketVz,
-  );
+  if (tune.ballType === 'superball') {
+    const falloff = Math.max(SUPERBALL.knockMinFalloff, 1 - dist / radius);
+    const directT =
+      dist < SUPERBALL.directHitDist
+        ? 1 - dist / SUPERBALL.directHitDist
+        : 0;
+    const directBoost = 1 + directT * 0.95;
 
-  const deltaV = ROCKET.ballHitImpulse * falloff * knock;
-  ball.applyImpulse(
-    {
-      x: _dir.x * deltaV * mass,
-      y: _dir.y * deltaV * mass,
-      z: _dir.z * deltaV * mass,
-    },
-    true,
-  );
+    const dir = ballRocketKnockDirection(
+      'superball',
+      ballX,
+      ballY,
+      ballZ,
+      ex,
+      ey,
+      ez,
+      rocketVx,
+      rocketVy,
+      rocketVz,
+      ballImpactNx,
+      ballImpactNy,
+      ballImpactNz,
+    );
+
+    const hasRocket =
+      rocketVx !== undefined &&
+      rocketVy !== undefined &&
+      rocketVz !== undefined;
+    const rocketSpeed = hasRocket
+      ? Math.hypot(rocketVx!, rocketVy!, rocketVz!)
+      : 0;
+
+    let deltaV =
+      SUPERBALL.hitImpulse *
+      falloff *
+      knock *
+      directBoost *
+      SUPERBALL.knockScale;
+
+    if (hasRocket && rocketSpeed > 1) {
+      const centerFactor = superballCenterHitFactor(
+        ballImpactNx,
+        ballImpactNy,
+        ballImpactNz,
+        rocketVx,
+        rocketVy,
+        rocketVz,
+      );
+      deltaV += rocketSpeed * SUPERBALL.rocketSpeedInherit * falloff * centerFactor;
+    }
+
+    const lv = ball.linvel();
+    let nx = lv.x + dir.x * deltaV;
+    let ny = lv.y + dir.y * deltaV;
+    let nz = lv.z + dir.z * deltaV;
+    const spd = Math.hypot(nx, ny, nz);
+    if (spd > SUPERBALL.maxSpeed) {
+      const s = SUPERBALL.maxSpeed / spd;
+      nx *= s;
+      ny *= s;
+      nz *= s;
+    }
+    ball.setLinvel({ x: nx, y: ny, z: nz }, true);
+  } else {
+    const falloff = Math.max(0.2, 1 - dist / radius);
+    const mass = ball.mass();
+    const dir = ballRocketKnockDirection(
+      'original',
+      ballX,
+      ballY,
+      ballZ,
+      ex,
+      ey,
+      ez,
+      rocketVx,
+      rocketVy,
+      rocketVz,
+    );
+    const deltaV = ROCKET.ballHitImpulse * falloff * knock;
+    ball.applyImpulse(
+      {
+        x: dir.x * deltaV * mass,
+        y: dir.y * deltaV * mass,
+        z: dir.z * deltaV * mass,
+      },
+      true,
+    );
+  }
+
   wakeBallBody(ball);
   return true;
 }

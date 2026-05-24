@@ -103,7 +103,6 @@ function GoalRingBackplateVisual({
   const tube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const tiltX = ringTiltX(goal.team, goal.size);
   const backX = goalBackRingCenterX(goal) - goal.center.x;
-  const skipBackCap = goal.size === 'small';
   const capRadius =
     Math.max(backRadius - tube * 0.92, goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.88) *
     GOAL_RINGS.backRingCapScale;
@@ -127,22 +126,26 @@ function GoalRingBackplateVisual({
   const capNudgeScale = goal.size === 'medium' ? 0.22 : 0.15;
   const capArenaNudge =
     (goal.team === 'red' ? 1 : -1) * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+  const capTiltX =
+    goal.size === 'medium'
+      ? 0.2
+      : goal.size === 'small'
+        ? ringTiltX(goal.team, goal.size) * 0.35
+        : 0;
 
   return (
     <group position={[backX, 0, 0]}>
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
           <mesh geometry={torusGeo} castShadow receiveShadow material={arenaBlackMetalMaterial} />
-          {!skipBackCap && (
-            <mesh
-              geometry={capGeo}
-              castShadow
-              receiveShadow
-              material={capMat}
-              position={[capArenaNudge, 0, 0]}
-              rotation={[goal.size === 'medium' ? 0.2 : 0, 0, 0]}
-            />
-          )}
+          <mesh
+            geometry={capGeo}
+            castShadow
+            receiveShadow
+            material={capMat}
+            position={[capArenaNudge, 0, 0]}
+            rotation={[capTiltX, 0, 0]}
+          />
         </group>
       </group>
     </group>

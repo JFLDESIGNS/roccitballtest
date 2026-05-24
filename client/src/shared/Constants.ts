@@ -629,6 +629,35 @@ export const BALL = {
   characterStrikeKnockMax: 40,
 } as const;
 
+export type BallTypeId = 'original' | 'superball';
+
+/** Superball — billiards-style rocket deflection; slightly heavier and slower */
+export const SUPERBALL = {
+  radius: BALL.radius,
+  mass: 42,
+  restitution: BALL.restitution,
+  friction: BALL.friction,
+  linearDamping: BALL.linearDamping * 1.08,
+  angularDamping: BALL.angularDamping,
+  gravityScale: BALL.gravityScale,
+  maxSpeed: 68,
+  /** Rear-align dot above this with low lateral offset = straight rocket-axis knock */
+  forwardAxialMin: 0.88,
+  /** Max lateral offset (0–1) while still counting as a centered rear hit */
+  centerHitMaxLateral: 0.14,
+  /** Rocket impulse multiplier vs original ball */
+  knockScale: 1.02,
+  /** Superball rocket knock — stronger than original */
+  hitImpulse: 36,
+  knockMinFalloff: 0.52,
+  rocketSpeedInherit: 0.26,
+  directHitDist: 4.2,
+  trailColor: '#ffd966',
+  surfaceColor: '#f0c060',
+  emissiveColor: '#ff9933',
+  idleEmissive: '#ffcc66',
+} as const;
+
 /** Magnetic beam — grab reach vs defaults (0.6 = 60% of prior beam/capture distances) */
 const BEAM_GRAB_RANGE_SCALE = 0.6;
 
@@ -705,6 +734,8 @@ export const ROCKET = {
   minTravelBeforeExplosiveDetonate: 2.8,
   /** Same for ball hits — stops instant detonate when firing past a nearby ball */
   minTravelBeforeBallHit: 3.2,
+  /** Swept-sphere pad beyond ball radius for rocket–ball direct hit (m) */
+  ballHitDetectPad: 0.85,
   explosionRadius: 7,
   /** No beam on ball / bots inside this radius after a rocket blast */
   beamDenyRadius: 7,
@@ -776,8 +807,12 @@ export const GOAL_RINGS = {
   backRingCapScale: 1.2,
   /** Backing ring tube thickness vs normal ringTube (1.2 = 20% fatter) */
   backRingTubeScale: 1.2,
-  /** Backing ring offset toward end wall (m) */
+  /** Bottom (large) black back-ring offset from lit center toward wall (m) */
   backRingWallOffsetM: 1.75,
+  /** Middle + top — extra push toward wall beyond tier back offset (ft) */
+  midTopBackRingWallExtraFt: 2,
+  /** Top (5 pt) backup plate — nudge toward court from wall-backed position (ft) */
+  topBackRingCourtForwardFt: 1,
   /** Top (small) ring — standoff from wall toward center court (feet) */
   topRingWallStandoffFt: 15,
   /** Lit top ring pull-back toward wall (feet); 0 = full standoff toward court */
@@ -795,7 +830,9 @@ export const GOAL_RINGS = {
   /** Extra lit-ring nudge toward court (m); 0 = use standoff only */
   midRingArenaOffsetM: 0,
   /** Middle ring black back — sits behind glow toward the wall */
-  midRingBackWallOffsetM: 0.85,
+  midRingBackWallOffsetM: 1.75,
+  /** @deprecated visuals follow collider rigidbody — kept at 0 */
+  midRingBackVisualExtraFt: 0,
   /** Middle ring hole cap — extra push toward wall on black ring (feet) */
   midRingCapWallOffsetFt: 1,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */
@@ -824,18 +861,28 @@ export const GOAL_RINGS = {
   netBounceCooldownSec: 0.3,
   /** Scoring sensor radius scale (1 = full bullseye; smaller = tighter center cylinder) */
   scoringVolumeRadiusScale: 0.25,
-  /** Pull scoring cylinder toward wall / into ring (all tiers, m) */
-  scoringVolumeWallPullbackM: 0.4,
+  /** All scoring cylinders — pull toward wall (ft); large / 1-pt ring */
+  scoringVolumeWallPullbackFt: 5,
+  /** Extra wall pullback for medium (2 pt) + top (5 pt) scoring cylinders (ft) */
+  scoringVolumeWallPullbackMidTopExtraFt: 1.5,
+  /** After a goal — center in ring, retreat into wall, then park at drop (seconds) */
+  goalBallSuckDurationSec: 1.25,
+  /** Fraction of suck duration spent lerping to ring center (rest = retreat to wall) */
+  goalBallSuckCenterPhase: 0.32,
+  /** Past the back ring toward the wall before hiding the ball (ft) */
+  goalBallRetreatPastBackRingFt: 5,
+  /** Middle + top scoring cylinder diameter scale (0.4 = 60% narrower) */
+  scoringVolumeMidTopRadiusMult: 0.4,
   /** How far the scoring cylinder protrudes toward the arena (large / bottom ring, m) */
   scoringVolumeStickOutM: 0.95,
   /** Middle ring — larger sensor + further off the wall */
-  scoringVolumeStickOutMidM: 1.65,
+  scoringVolumeStickOutMidM: 1.95,
   scoringVolumeArenaForwardMidM: 0.5,
-  scoringVolumeRadiusScaleMidMult: 2.15,
+  scoringVolumeRadiusScaleMidMult: 2.55,
   /** Top ring — larger sensor + further off the wall */
-  scoringVolumeStickOutTopM: 1.55,
+  scoringVolumeStickOutTopM: 1.85,
   scoringVolumeArenaForwardTopM: 0.4,
-  scoringVolumeRadiusScaleTopMult: 2.35,
+  scoringVolumeRadiusScaleTopMult: 2.75,
   /** Bottom (large) ring scoring cylinder radius multiplier (+30% trigger diameter) */
   scoringVolumeRadiusScaleBottomMult: 1.794,
   /** Scoring hole as fraction of ring radius (large / bottom ring) */

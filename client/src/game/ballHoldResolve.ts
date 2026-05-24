@@ -47,13 +47,14 @@ function castHoldRay(
 }
 
 function smoothSupportY(targetMinY: number, dt: number): number {
+  const saneTarget = Math.min(targetMinY, ARENA.wallHeight - 4);
   if (!supportSmoothReady) {
-    smoothedSupportY = targetMinY;
+    smoothedSupportY = saneTarget;
     supportSmoothReady = true;
-    return targetMinY;
+    return saneTarget;
   }
   const alpha = 1 - Math.exp(-BALL.holdSupportSmooth * Math.max(dt, 1 / 120));
-  smoothedSupportY = THREE.MathUtils.lerp(smoothedSupportY, targetMinY, alpha);
+  smoothedSupportY = THREE.MathUtils.lerp(smoothedSupportY, saneTarget, alpha);
   return smoothedSupportY;
 }
 
@@ -84,7 +85,12 @@ function ballSupportCenterY(
   const hit = castHoldRay(world, ball, holderBody, probeTopY + 20);
   if (hit) {
     const surfaceY = _rayOrig.y - hit.timeOfImpact;
-    supportSurface = Math.max(supportSurface, surfaceY);
+    // Ignore ceiling / ball-drop hits above the ball — they read as "floor" when probing high.
+    const maxSupportY = probeTopY - radius * 0.35;
+    const belowCeiling = surfaceY < ARENA.wallHeight - 3;
+    if (surfaceY <= maxSupportY && belowCeiling) {
+      supportSurface = Math.max(supportSurface, surfaceY);
+    }
   }
 
   return supportSurface + radius + 0.06;
@@ -171,7 +177,35 @@ function applyHeldSupportAt(
     chest,
     dt,
   );
+  // Never snap the held ball upward to a bogus "support" (ceiling / drop cube hits).
+  if (minY > out.y + radius * 0.12) return;
   if (out.y < minY) out.y = minY;
+}
+
+function isNearHolder(
+  out: THREE.Vector3,
+  holderBody: RapierRigidBody,
+  radius: number,
+): boolean {
+  const ht = holderBody.translation();
+  return (
+    Math.hypot(out.x - ht.x, out.z - ht.z) <
+    MOVEMENT.capsuleRadius + radius + 2.4
+  );
+}
+
+function clampHeldBallNearHolder(
+  out: THREE.Vector3,
+  holderBody: RapierRigidBody,
+  holdSocket: THREE.Vector3,
+  radius: number,
+  chest: THREE.Vector3,
+): void {
+  nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
+  const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
+  if (out.y < minYNear) out.y = minYNear;
+  const maxYNear = chest.y + BEAM.holdDistance + radius * 1.1;
+  if (out.y > maxYNear) out.y = maxYNear;
 }
 
 /**
@@ -192,18 +226,20 @@ export function resolveHeldBallPosition(
   const cur = body.translation();
   out.copy(desired);
 
+  const nearHolder =
+    holderBody && chest && holdSocket && isNearHolder(out, holderBody, radius);
+
+  if (nearHolder) {
+    clampHeldBallNearHolder(out, holderBody, holdSocket, radius, chest);
+    return;
+  }
+
   applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
 
   if (holderBody && chest && holdSocket) {
-    const ht = holderBody.translation();
-    const nearHolder =
-      Math.hypot(out.x - ht.x, out.z - ht.z) <
-      MOVEMENT.capsuleRadius + radius + 2.4;
-    if (nearHolder) {
-      nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-      const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
-      if (out.y < minYNear) out.y = minYNear;
-    }
+    nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
+    const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
+    if (out.y < minYNear) out.y = minYNear;
   }
 
   const dx = out.x - cur.x;
@@ -235,9 +271,18 @@ export function resolveHeldBallPosition(
 
   if (hit) {
     const safe = Math.max(hit.timeOfImpact - radius * 0.92, 0);
-    out.x = cur.x + _rayDir.x * safe;
-    out.y = cur.y + _rayDir.y * safe;
-    out.z = cur.z + _rayDir.z * safe;
+    const nx = cur.x + _rayDir.x * safe;
+    const ny = cur.y + _rayDir.y * safe;
+    const nz = cur.z + _rayDir.z * safe;
+  // Wall slide only — do not ride segment hits up into ceiling geometry.
+    if (ny <= desired.y + radius * 0.55) {
+      out.x = nx;
+      out.y = ny;
+      out.z = nz;
+    } else {
+      out.x = nx;
+      out.z = nz;
+    }
   }
 
   applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
