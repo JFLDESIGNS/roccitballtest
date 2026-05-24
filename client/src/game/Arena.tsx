@@ -38,7 +38,6 @@ import { ArenaInteractables } from './ArenaInteractables';
 import './arenaConcreteTexture';
 import { applyPlanarTileUVs } from './arenaConcreteTexture';
 import {
-  arenaBlackMetalMaterial,
   goalBackRingMaterial,
   arenaCeilingMaterial,
   arenaFloorMaterial,
