@@ -621,7 +621,7 @@ export function TuningMenu() {
         <div className="tuning-panel-header">
           <h2>Gameplay tuning</h2>
           <p className="tuning-sub">
-            Press <kbd>1</kbd> to close · graphics &amp; gameplay save automatically
+            Press <kbd>1</kbd> to close · graphics &amp; gameplay save automatically · tuning v14
           </p>
         </div>
 
