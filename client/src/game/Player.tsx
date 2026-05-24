@@ -33,7 +33,6 @@ import {
 import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse } from './ballPhysics';
 import { clampToHex } from './arenaHex';
-import { canKnockLooseHeldBall } from './ballHoldImmunity';
 import { getTeamSpawn } from './goals';
 import { getCameraBasis, updateThirdPersonCamera } from './CameraController';
 import { gameStore, type GamePhase } from './gameStore';
@@ -90,6 +89,7 @@ import {
 } from './superRelease';
 import {
   blendPlayerKnockStunMovement,
+  isPlayerKnockStunActive,
   tickPlayerKnockStun,
 } from './rocketKnockStun';
 import { tuningStore } from './tuningStore';
@@ -262,7 +262,9 @@ export function Player({
     const dur = ROCKET.beamDenyDurationSec;
     playerBeamDenyUntil.current = now + dur;
     ballReleaseLockUntil.current = Math.max(ballReleaseLockUntil.current, now + dur);
+    beamNeedsRepress.current = true;
     setBeamAttractActive(false);
+    gameStore.setIsBeaming(false);
 
     const body = bodyRef.current;
     const ball = ballBodyRef.current;
@@ -280,7 +282,7 @@ export function Player({
 
     const wasHolding =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
-    if (wasHolding && canKnockLooseHeldBall()) {
+    if (wasHolding) {
       holdingBall.current = false;
       if (gameStore.getState().ballHolderId === 'local') {
         gameStore.clearBallHolder(true);
@@ -305,6 +307,7 @@ export function Player({
       resetMomentumSamples(ballSwingSamples.current, ballSwingTimer);
       holdSocketReady.current = false;
       holdLatchT.current = 0;
+      holdSocketSmoothReady.current = false;
     }
   }, [ballBodyRef, onBallHeldChange, onBeamBreak]);
 
@@ -898,9 +901,12 @@ export function Player({
       beamNeedsRepress.current = false;
     }
 
+    const knockStunned = isPlayerKnockStunActive();
+
     const beamInput =
       inputManager.isBeam() &&
       !beamNeedsRepress.current &&
+      !knockStunned &&
       energy.current >= ENERGY.minBeam &&
       !beamDenied &&
       !gameStore.getState().ballFrozen;
@@ -1321,7 +1327,7 @@ export function Player({
         fireLaunchedBall.current = false;
         chargedRocketFired.current = false;
       }
-    } else if (holdingBall.current && ball) {
+    } else if (holdingBall.current && ball && !knockStunned) {
       const plv = body.linvel();
       tickMomentumSamples(
         launchMomentumSamples.current,

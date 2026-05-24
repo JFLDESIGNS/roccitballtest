@@ -172,6 +172,11 @@ export function isBotKnockStunActive(combat: BotCombatState): boolean {
   );
 }
 
+export function isPlayerKnockStunActive(): boolean {
+  const until = gameStore.getState().playerKnockStunUntilMs;
+  return until > 0 && performance.now() < until;
+}
+
 export function tickBotKnockStun(
   body: RapierRigidBody,
   combat: BotCombatState,
