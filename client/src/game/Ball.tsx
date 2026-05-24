@@ -103,21 +103,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const hasPrevBallPos = useRef(false);
 
   const surfaceMap = useMemo(
-    () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, ballType),
-    [ballType],
+    () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, 'original'),
+    [],
   );
-
-  useEffect(() => {
-    const surfaceColor = isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec';
-    for (const m of [ballMatRef.current, heldVisualMatRef.current]) {
-      if (!m) continue;
-      m.map = surfaceMap;
-      m.color.set(surfaceColor);
-      if (!isHeld) m.emissive.set(isSuperball ? SUPERBALL.idleEmissive : '#ffffff');
-      m.emissiveIntensity = isSuperball ? 0.32 : 0.22;
-      m.needsUpdate = true;
-    }
-  }, [surfaceMap, isSuperball, isHeld]);
 
   useEffect(() => () => surfaceMap.dispose(), [surfaceMap]);
 
@@ -340,10 +328,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
             m.emissiveIntensity = 0.3 + Math.sin(t * 8) * 0.2;
             m.emissive.copy(glow.color);
           } else {
-            m.emissive.set(isSuperball ? SUPERBALL.idleEmissive : '#ffffff');
-            m.emissiveIntensity = isSuperball
-              ? 0.62 + Math.sin(t * 4) * 0.16
-              : 0.58 + Math.sin(t * 4) * 0.14;
+            m.emissive.set('#ffffff');
+            m.emissiveIntensity = 0.58 + Math.sin(t * 4) * 0.14;
           }
         }
       };
@@ -359,7 +345,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     <VelocityPathRibbon
       hidden={isHeld || hideTrail}
       crossSection
-      color={isSuperball ? SUPERBALL.trailColor : '#ffffff'}
+      color="#ffffff"
       opacity={0.35}
       lineWidthWorld={0.336}
       maxPoints={64}
@@ -383,8 +369,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       <meshStandardMaterial
         ref={heldVisualMatRef}
         map={surfaceMap}
-        color={isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec'}
-        emissive={isSuperball ? SUPERBALL.emissiveColor : '#5ec8ff'}
+        color="#c8d8ec"
+        emissive="#5ec8ff"
         emissiveIntensity={0.22}
         metalness={0.52}
         roughness={0.32}
@@ -421,8 +407,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         <meshStandardMaterial
           ref={ballMatRef}
           map={surfaceMap}
-          color={isSuperball ? SUPERBALL.surfaceColor : '#c8d8ec'}
-          emissive={isSuperball ? SUPERBALL.emissiveColor : '#5ec8ff'}
+          color="#c8d8ec"
+          emissive="#5ec8ff"
           emissiveIntensity={0.22}
           metalness={0.52}
           roughness={0.32}

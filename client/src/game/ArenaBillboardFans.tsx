@@ -43,6 +43,9 @@ function fanMatchesScoringTeam(colorIndex: number, team: Team): boolean {
     : colorIndex === FAN_COLOR_BLUE;
 }
 const WALL_COLLISION = interactionGroups(2, [0, 1, 2]);
+/** Booth interior — players/bots only; ball bounces on the glass facade instead. */
+const FAN_BOOTH_INTERIOR_COLLISION = interactionGroups(2, [0, 2]);
+const FAN_GLASS_RESTITUTION = BALL.restitution * 0.92;
 
 function fanOpeningWorldY() {
   const bottom =
@@ -549,7 +552,7 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
           position={[0, bayY + bayH * 0.08, backZ]}
           friction={0.2}
           restitution={BALL.restitution}
-          collisionGroups={WALL_COLLISION}
+          collisionGroups={FAN_BOOTH_INTERIOR_COLLISION}
         />
       </RigidBody>
 
@@ -636,6 +639,19 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
       })}
 
       {/* Glass at wall cut — fans sit behind it in the recess */}
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider
+          args={[
+            (bayW * 0.992) / 2,
+            (bayH * 0.992) / 2,
+            glassThick / 2,
+          ]}
+          position={[0, bayY, glassZ]}
+          friction={0.14}
+          restitution={FAN_GLASS_RESTITUTION}
+          collisionGroups={WALL_COLLISION}
+        />
+      </RigidBody>
       <mesh
         ref={(mesh) => {
           if (mesh) registerFanGlassMesh(bayKey, homeTeam, mesh);

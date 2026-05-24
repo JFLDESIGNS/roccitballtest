@@ -610,6 +610,8 @@ export const BALL = {
   postLaunchSeparationGraceSec: 0.35,
   /** After drop/shot — blocks beam grab and pull on loose ball */
   beamRegrabLockSec: 0.35,
+  /** After a ball shot — block rockets until LMB is released, then this grace (sec) */
+  postShotRocketGraceSec: 0.32,
   spawnCooldownSec: 1.2,
   /** Smooth snap when ball first latches to hold socket */
   holdLatchDurationSec: 0.28,
@@ -862,7 +864,7 @@ export const GOAL_RINGS = {
   /** Scoring sensor radius scale (1 = full bullseye; smaller = tighter center cylinder) */
   scoringVolumeRadiusScale: 0.25,
   /** All scoring cylinders — pull toward wall (ft); large / 1-pt ring */
-  scoringVolumeWallPullbackFt: 5,
+  scoringVolumeWallPullbackFt: 6,
   /** Extra wall pullback for medium (2 pt) + top (5 pt) scoring cylinders (ft) */
   scoringVolumeWallPullbackMidTopExtraFt: 1.5,
   /** After a goal — center in ring, retreat into wall, then park at drop (seconds) */

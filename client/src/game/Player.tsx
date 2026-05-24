@@ -179,6 +179,9 @@ export function Player({
   const chargedRocketFired = useRef(false);
   /** LMB press on this click launched the ball — skip tap rocket on release */
   const fireLaunchedBall = useRef(false);
+  /** After a ball shot — wait for LMB release before rockets can fire */
+  const blockRocketsUntilFireUp = useRef(false);
+  const blockRocketsUntil = useRef(0);
   const holdSocketSmoothed = useRef(new THREE.Vector3());
   const holdSocketSmoothReady = useRef(false);
   const _rocketOrigin = useRef(new THREE.Vector3());
@@ -812,6 +815,17 @@ export function Player({
     const ballLooseCooldown = now >= ballReleaseLockUntil.current;
     const ball = ballBodyRef.current;
 
+    const armPostShotRocketBlock = () => {
+      if (inputManager.isFireDown()) {
+        blockRocketsUntilFireUp.current = true;
+      } else {
+        blockRocketsUntil.current = now + BALL.postShotRocketGraceSec;
+      }
+    };
+
+    const rocketsBlockedByShot = () =>
+      blockRocketsUntilFireUp.current || now < blockRocketsUntil.current;
+
     const resetHoldMomentum = () => {
       resetMomentumSamples(launchMomentumSamples.current, launchMomentumTimer);
       resetMomentumSamples(ballSwingSamples.current, ballSwingTimer);
@@ -870,6 +884,7 @@ export function Player({
           release.active ? 'launched' : 'loose',
         );
         if (release.active) playBallLaunch();
+        if (release.active) armPostShotRocketBlock();
       }
 
       resetHoldMomentum();
@@ -913,6 +928,7 @@ export function Player({
       draining.current = true;
       regenTimer.current = 0;
       resetHoldMomentum();
+      armPostShotRocketBlock();
       return true;
     };
 
@@ -1018,6 +1034,7 @@ export function Player({
 
     const tryFireRocket = (explosive: boolean): boolean => {
       if (!canShootRockets || !body) return false;
+      if (rocketsBlockedByShot()) return false;
       if (canFireRocket && !canFireRocket()) {
         if (!firePressHandled.current) {
           playRocketEmpty();
@@ -1085,6 +1102,10 @@ export function Player({
     }
 
     if (inputManager.consumeFireRelease()) {
+      if (blockRocketsUntilFireUp.current) {
+        blockRocketsUntilFireUp.current = false;
+        blockRocketsUntil.current = now + BALL.postShotRocketGraceSec;
+      }
       const holdDur =
         fireHoldStart.current !== null ? now - fireHoldStart.current : 0;
       fireHoldStart.current = null;
@@ -1102,7 +1123,7 @@ export function Player({
     }
 
     if (inputManager.consumeThrow() && !launchedBallThisFrame) {
-      launchHeldBall();
+      if (launchHeldBall()) armPostShotRocketBlock();
     }
 
     if (holdingBall.current && !beamInput && !launchedBallThisFrame) {
