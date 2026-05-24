@@ -211,103 +211,193 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             format={(v) => `${v.toFixed(1)}s`}
           />
           <h3 className="tuning-section">Hold &amp; release shot</h3>
-          <SliderRow
-            label="Base launch power"
-            value={tune.baseLaunchForce}
-            min={0.2}
-            max={2}
-            step={0.05}
-            onChange={tuningStore.setBaseLaunchForce}
-            format={(v) => `${Math.round(v * 100)}%`}
+          <SelectRow
+            label="Release system"
+            hint="Super release inherits movement like classic Rokkit Ball; classic uses swing + carry momentum."
+            value={tune.releaseSystem}
+            options={[
+              { value: 'superrelease', label: 'Super release (default)' },
+              { value: 'classic', label: 'Classic release' },
+            ]}
+            onChange={tuningStore.setReleaseSystem}
           />
-          <SliderRow
-            label="Short arc (vertical lift)"
-            value={tune.shortArc}
-            min={-18}
-            max={18}
-            step={0.25}
-            onChange={tuningStore.setShortArc}
-            format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} m/s`}
-          />
-          <SliderRow
-            label="Swing → shot"
-            value={tune.swingToShot}
-            min={0}
-            max={3}
-            step={0.05}
-            onChange={tuningStore.setSwingToShot}
-            format={(v) => `${v.toFixed(2)}×`}
-          />
-          <SliderRow
-            label="Move speed → shot"
-            value={tune.moveSpeedToShot}
-            min={0}
-            max={3}
-            step={0.05}
-            onChange={tuningStore.setMoveSpeedToShot}
-            format={(v) => `${v.toFixed(2)}×`}
-          />
-          <SliderRow
-            label="Carry momentum → shot"
-            value={tune.carryMomentumToShot}
-            min={0}
-            max={3}
-            step={0.05}
-            onChange={tuningStore.setCarryMomentumToShot}
-            format={(v) => `${v.toFixed(2)}×`}
-          />
-          <h3 className="tuning-section">Beam release (RMB)</h3>
-          <SliderRow
-            label="Swing threshold"
-            value={tune.releaseSwingMinSpeed}
-            min={0}
-            max={10}
-            step={0.25}
-            onChange={tuningStore.setReleaseSwingMinSpeed}
-          />
-          <SliderRow
-            label="Active release scale"
-            value={tune.releaseMomentumScale}
-            min={0}
-            max={1.5}
-            step={0.05}
-            onChange={tuningStore.setReleaseMomentumScale}
-            format={(v) => `${v.toFixed(2)}×`}
-          />
-          <SliderRow
-            label="Idle swing carry"
-            value={tune.releaseIdleSwingScale}
-            min={0}
-            max={0.6}
-            step={0.02}
-            onChange={tuningStore.setReleaseIdleSwingScale}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <SliderRow
-            label="Idle move carry"
-            value={tune.releaseIdlePlayerScale}
-            min={0}
-            max={0.4}
-            step={0.02}
-            onChange={tuningStore.setReleaseIdlePlayerScale}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-          <SliderRow
-            label="Idle max speed"
-            value={tune.releaseIdleMaxSpeed}
-            min={0}
-            max={8}
-            step={0.25}
-            onChange={tuningStore.setReleaseIdleMaxSpeed}
-          />
-          <SliderRow
-            label="Active release max speed"
-            value={tune.releaseMaxActiveSpeed}
-            min={4}
-            max={28}
-            step={0.5}
-            onChange={tuningStore.setReleaseMaxActiveSpeed}
-          />
+          {tune.releaseSystem === 'superrelease' ? (
+            <>
+              <SliderRow
+                label="Shot strength"
+                hint="Multiplies super release throw power on LMB."
+                value={tune.superReleaseShotStrength}
+                min={0.25}
+                max={2.5}
+                step={0.05}
+                onChange={tuningStore.setSuperReleaseShotStrength}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+              <SliderRow
+                label="Inherited player speed"
+                value={tune.superReleaseInheritedVel}
+                min={0}
+                max={1.2}
+                step={0.05}
+                onChange={tuningStore.setSuperReleaseInheritedVel}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+              <SliderRow
+                label="Throw power"
+                value={tune.superReleaseThrowPower}
+                min={6}
+                max={48}
+                step={1}
+                onChange={tuningStore.setSuperReleaseThrowPower}
+                format={(v) => `${v.toFixed(0)} m/s`}
+              />
+              <SliderRow
+                label="Arc lift"
+                value={tune.superReleaseArcLift}
+                min={-6}
+                max={12}
+                step={0.25}
+                onChange={tuningStore.setSuperReleaseArcLift}
+                format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} m/s`}
+              />
+              <SliderRow
+                label="Hold forward offset"
+                value={tune.superReleaseForwardOffset}
+                min={0.5}
+                max={4}
+                step={0.1}
+                onChange={tuningStore.setSuperReleaseForwardOffset}
+                format={(v) => `${v.toFixed(1)} m`}
+              />
+              <SliderRow
+                label="Hold height"
+                value={tune.superReleaseUpOffset}
+                min={0.4}
+                max={2.5}
+                step={0.05}
+                onChange={tuningStore.setSuperReleaseUpOffset}
+                format={(v) => `${v.toFixed(2)} m`}
+              />
+              <SliderRow
+                label="Thrower no-collide window"
+                value={tune.superReleaseThrowerGraceSec}
+                min={0.05}
+                max={0.6}
+                step={0.05}
+                onChange={tuningStore.setSuperReleaseThrowerGraceSec}
+                format={(v) => `${v.toFixed(2)}s`}
+              />
+              <SliderRow
+                label="Short arc (extra lift)"
+                value={tune.shortArc}
+                min={-18}
+                max={18}
+                step={0.25}
+                onChange={tuningStore.setShortArc}
+                format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} m/s`}
+              />
+            </>
+          ) : (
+            <>
+              <SliderRow
+                label="Base launch power"
+                value={tune.baseLaunchForce}
+                min={0.2}
+                max={2}
+                step={0.05}
+                onChange={tuningStore.setBaseLaunchForce}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+              <SliderRow
+                label="Short arc (vertical lift)"
+                value={tune.shortArc}
+                min={-18}
+                max={18}
+                step={0.25}
+                onChange={tuningStore.setShortArc}
+                format={(v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} m/s`}
+              />
+              <SliderRow
+                label="Swing → shot"
+                value={tune.swingToShot}
+                min={0}
+                max={3}
+                step={0.05}
+                onChange={tuningStore.setSwingToShot}
+                format={(v) => `${v.toFixed(2)}×`}
+              />
+              <SliderRow
+                label="Move speed → shot"
+                value={tune.moveSpeedToShot}
+                min={0}
+                max={3}
+                step={0.05}
+                onChange={tuningStore.setMoveSpeedToShot}
+                format={(v) => `${v.toFixed(2)}×`}
+              />
+              <SliderRow
+                label="Carry momentum → shot"
+                value={tune.carryMomentumToShot}
+                min={0}
+                max={3}
+                step={0.05}
+                onChange={tuningStore.setCarryMomentumToShot}
+                format={(v) => `${v.toFixed(2)}×`}
+              />
+              <h3 className="tuning-section">Beam release (RMB)</h3>
+              <SliderRow
+                label="Swing threshold"
+                value={tune.releaseSwingMinSpeed}
+                min={0}
+                max={10}
+                step={0.25}
+                onChange={tuningStore.setReleaseSwingMinSpeed}
+              />
+              <SliderRow
+                label="Active release scale"
+                value={tune.releaseMomentumScale}
+                min={0}
+                max={1.5}
+                step={0.05}
+                onChange={tuningStore.setReleaseMomentumScale}
+                format={(v) => `${v.toFixed(2)}×`}
+              />
+              <SliderRow
+                label="Idle swing carry"
+                value={tune.releaseIdleSwingScale}
+                min={0}
+                max={0.6}
+                step={0.02}
+                onChange={tuningStore.setReleaseIdleSwingScale}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+              <SliderRow
+                label="Idle move carry"
+                value={tune.releaseIdlePlayerScale}
+                min={0}
+                max={0.4}
+                step={0.02}
+                onChange={tuningStore.setReleaseIdlePlayerScale}
+                format={(v) => `${Math.round(v * 100)}%`}
+              />
+              <SliderRow
+                label="Idle max speed"
+                value={tune.releaseIdleMaxSpeed}
+                min={0}
+                max={8}
+                step={0.25}
+                onChange={tuningStore.setReleaseIdleMaxSpeed}
+              />
+              <SliderRow
+                label="Active release max speed"
+                value={tune.releaseMaxActiveSpeed}
+                min={4}
+                max={28}
+                step={0.5}
+                onChange={tuningStore.setReleaseMaxActiveSpeed}
+              />
+            </>
+          )}
         </>
       );
     case 'bots':

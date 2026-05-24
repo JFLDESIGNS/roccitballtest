@@ -662,6 +662,9 @@ export const BALL = {
 
 export type BallTypeId = 'original' | 'superball';
 
+/** Ball release recipe — classic momentum shot vs Torque-style super release */
+export type ReleaseSystemId = 'classic' | 'superrelease';
+
 /** Superball — billiards-style rocket deflection; slightly heavier and slower */
 export const SUPERBALL = {
   radius: BALL.radius,
@@ -909,6 +912,8 @@ export const GOAL_RINGS = {
   scoringVolumeWallPullbackBottomExtraFt: 1.5,
   /** Extra wall pullback for medium (2 pt) + top (5 pt) scoring cylinders (ft) */
   scoringVolumeWallPullbackMidTopExtraFt: 1.5,
+  /** Extra wall pullback for middle (2 pt) scoring cylinder only (ft) */
+  scoringVolumeWallPullbackMidExtraFt: 0.6,
   /** After a goal — pause, lerp to ring center, fade into wall */
   goalBallSuckPauseSec: 0.2,
   goalBallSuckLerpSec: 0.3,

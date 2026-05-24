@@ -1,8 +1,7 @@
-import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId } from '../shared/Constants';
+import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId, type ReleaseSystemId } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v12';
-
+const STORAGE_KEY = 'rocketball-tuning-v14';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;
@@ -57,6 +56,22 @@ export type TuningValues = {
   wwDashEnabled: boolean;
   /** Match ball variant — same entity for beam, bots, and goals */
   ballType: BallTypeId;
+  /** Classic momentum release vs Torque-style super release */
+  releaseSystem: ReleaseSystemId;
+  /** Super release — inherit player velocity on throw (0–1) */
+  superReleaseInheritedVel: number;
+  /** Super release — aim-direction throw speed (m/s) */
+  superReleaseThrowPower: number;
+  /** Super release — multiplier on LMB shot power */
+  superReleaseShotStrength: number;
+  /** Super release — extra upward lift on LMB (m/s) */
+  superReleaseArcLift: number;
+  /** Super release — hold/spawn forward offset from body (m) */
+  superReleaseForwardOffset: number;
+  /** Super release — hold/spawn height above body origin (m) */
+  superReleaseUpOffset: number;
+  /** Super release — skip thrower separation / overlap push (sec) */
+  superReleaseThrowerGraceSec: number;
   /** After grabbing the ball — rockets can't knock it loose from holder or ball */
   holdConnectImmunitySec: number;
 };
@@ -128,6 +143,14 @@ const defaults: TuningValues = {
   mouseSensitivity: 1,
   wwDashEnabled: false,
   ballType: 'superball',
+  releaseSystem: 'superrelease',
+  superReleaseInheritedVel: 0.75,
+  superReleaseThrowPower: 24,
+  superReleaseShotStrength: 1,
+  superReleaseArcLift: 3,
+  superReleaseForwardOffset: 1.5,
+  superReleaseUpOffset: 1.2,
+  superReleaseThrowerGraceSec: 0.15,
   holdConnectImmunitySec: BALL.holdConnectImmunitySec,
 };
 
@@ -166,6 +189,9 @@ function mergeStored(base: TuningValues): TuningValues {
   const merged = { ...base, ...stored };
   if (merged.ballType !== 'original' && merged.ballType !== 'superball') {
     merged.ballType = 'original';
+  }
+  if (merged.releaseSystem !== 'classic' && merged.releaseSystem !== 'superrelease') {
+    merged.releaseSystem = 'superrelease';
   }
   return merged;
 }
@@ -251,6 +277,21 @@ export const tuningStore = {
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
   setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
   setBallType: (v: BallTypeId) => patch({ ballType: v }),
+  setReleaseSystem: (v: ReleaseSystemId) => patch({ releaseSystem: v }),
+  setSuperReleaseInheritedVel: (v: number) =>
+    patch({ superReleaseInheritedVel: Math.max(0, Math.min(1.2, v)) }),
+  setSuperReleaseThrowPower: (v: number) =>
+    patch({ superReleaseThrowPower: Math.max(6, Math.min(48, v)) }),
+  setSuperReleaseShotStrength: (v: number) =>
+    patch({ superReleaseShotStrength: Math.max(0.25, Math.min(2.5, v)) }),
+  setSuperReleaseArcLift: (v: number) =>
+    patch({ superReleaseArcLift: Math.max(-6, Math.min(12, v)) }),
+  setSuperReleaseForwardOffset: (v: number) =>
+    patch({ superReleaseForwardOffset: Math.max(0.5, Math.min(4, v)) }),
+  setSuperReleaseUpOffset: (v: number) =>
+    patch({ superReleaseUpOffset: Math.max(0.4, Math.min(2.5, v)) }),
+  setSuperReleaseThrowerGraceSec: (v: number) =>
+    patch({ superReleaseThrowerGraceSec: Math.max(0.05, Math.min(0.6, v)) }),
   setHoldConnectImmunitySec: (v: number) =>
     patch({ holdConnectImmunitySec: Math.max(0, Math.min(3, v)) }),
   resetDefaults: () => {

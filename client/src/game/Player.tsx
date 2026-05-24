@@ -77,6 +77,12 @@ import {
   computeBallLaunchSpawn,
 } from './launchShot';
 import {
+  computeSuperReleaseDropVelocity,
+  computeSuperReleaseShotVelocity,
+  computeSuperReleaseSpawn,
+  smoothSuperReleaseHoldSocket,
+} from './superRelease';
+import {
   blendPlayerKnockStunMovement,
   tickPlayerKnockStun,
 } from './rocketKnockStun';
@@ -958,12 +964,30 @@ export function Player({
     ) => {
       if (!ball) return;
       releaseBallPhysics(ball);
-      computeBallLaunchSpawn(
-        chestPos.current,
-        lookDir,
-        velocity,
-        _holdSocket.current,
-      );
+      if (tune.releaseSystem === 'superrelease') {
+        computeSuperReleaseSpawn(
+          pos,
+          forward,
+          lookDir,
+          tune,
+          _holdSocket.current,
+        );
+        if (ballState === 'launched') {
+          ballSeparationGraceUntil.current =
+            now + tune.superReleaseThrowerGraceSec;
+        }
+      } else {
+        computeBallLaunchSpawn(
+          chestPos.current,
+          lookDir,
+          velocity,
+          _holdSocket.current,
+        );
+        if (ballState === 'launched') {
+          ballSeparationGraceUntil.current =
+            now + BALL.postLaunchSeparationGraceSec;
+        }
+      }
       ball.setTranslation(
         {
           x: _holdSocket.current.x,
@@ -974,10 +998,6 @@ export function Player({
       );
       applyBallLaunchImpulse(ball, velocity, swingVel);
       gameStore.setBallState(ballState);
-      if (ballState === 'launched') {
-        ballSeparationGraceUntil.current =
-          now + BALL.postLaunchSeparationGraceSec;
-      }
     };
 
     const dropHeldBall = () => {
@@ -987,22 +1007,41 @@ export function Player({
 
       if (ball) {
         const plv = body.linvel();
-        const release = computeBeamReleaseVelocity(
-          {
-            lookDir,
-            playerCarry: averageMomentum(launchMomentumSamples.current),
-            ballSwing: averageMomentum(ballSwingSamples.current),
-            playerVel: new THREE.Vector3(plv.x, plv.y, plv.z),
-            tune,
-          },
-          _launchVel.current,
-        );
-        releaseBallWithVelocity(
-          release.velocity,
-          release.active ? 'launched' : 'loose',
-        );
-        if (release.active) playBallLaunch();
-        if (release.active) armPostShotRocketBlock();
+        const playerVel = _swingVelScratch.current.set(plv.x, plv.y, plv.z);
+        if (tune.releaseSystem === 'superrelease') {
+          const release = computeSuperReleaseDropVelocity(
+            {
+              lookDir,
+              playerVel,
+              ballSwing: averageMomentum(ballSwingSamples.current),
+              tune,
+            },
+            _launchVel.current,
+          );
+          releaseBallWithVelocity(
+            release.velocity,
+            release.active ? 'launched' : 'loose',
+          );
+          if (release.active) playBallLaunch();
+          if (release.active) armPostShotRocketBlock();
+        } else {
+          const release = computeBeamReleaseVelocity(
+            {
+              lookDir,
+              playerCarry: averageMomentum(launchMomentumSamples.current),
+              ballSwing: averageMomentum(ballSwingSamples.current),
+              playerVel,
+              tune,
+            },
+            _launchVel.current,
+          );
+          releaseBallWithVelocity(
+            release.velocity,
+            release.active ? 'launched' : 'loose',
+          );
+          if (release.active) playBallLaunch();
+          if (release.active) armPostShotRocketBlock();
+        }
       }
 
       resetHoldMomentum();
@@ -1018,18 +1057,29 @@ export function Player({
 
       if (ball) {
         const plv = body.linvel();
-        computeDirectedShotVelocity(
-          {
-            lookDir,
-            playerCarry: averageMomentum(launchMomentumSamples.current),
-            ballSwing: averageMomentum(ballSwingSamples.current),
-            playerVel: new THREE.Vector3(plv.x, plv.y, plv.z),
-            tune,
-          },
-          _launchVel.current,
-        );
-        if (tune.shortArc !== 0) {
-          _launchVel.current.y += tune.shortArc;
+        if (tune.releaseSystem === 'superrelease') {
+          computeSuperReleaseShotVelocity(
+            {
+              lookDir,
+              playerVel: _swingVelScratch.current.set(plv.x, plv.y, plv.z),
+              tune,
+            },
+            _launchVel.current,
+          );
+        } else {
+          computeDirectedShotVelocity(
+            {
+              lookDir,
+              playerCarry: averageMomentum(launchMomentumSamples.current),
+              ballSwing: averageMomentum(ballSwingSamples.current),
+              playerVel: new THREE.Vector3(plv.x, plv.y, plv.z),
+              tune,
+            },
+            _launchVel.current,
+          );
+          if (tune.shortArc !== 0) {
+            _launchVel.current.y += tune.shortArc;
+          }
         }
         releaseBallWithVelocity(_launchVel.current);
         playBallLaunch();
@@ -1260,17 +1310,30 @@ export function Player({
         new THREE.Vector3(plv.x, plv.y, plv.z),
       );
 
-      holdSocketSmoothReady.current = smoothHoldSocketTarget(
-        holdSocketSmoothed.current,
-        chestPos.current,
-        lookDir,
-        BEAM.holdDistance,
-        BALL.radius,
-        dt,
-        BALL.holdSocketTargetSmooth,
-        holdSocketSmoothReady.current,
-        body,
-      );
+      holdSocketSmoothReady.current =
+        tune.releaseSystem === 'superrelease'
+          ? smoothSuperReleaseHoldSocket(
+              holdSocketSmoothed.current,
+              pos,
+              forward,
+              dt,
+              BALL.holdSocketTargetSmooth,
+              holdSocketSmoothReady.current,
+              body,
+              tune,
+              chestPos.current,
+            )
+          : smoothHoldSocketTarget(
+              holdSocketSmoothed.current,
+              chestPos.current,
+              lookDir,
+              BEAM.holdDistance,
+              BALL.radius,
+              dt,
+              BALL.holdSocketTargetSmooth,
+              holdSocketSmoothReady.current,
+              body,
+            );
 
       holdLatchT.current = Math.min(
         1,

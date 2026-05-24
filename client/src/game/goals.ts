@@ -88,8 +88,14 @@ function goalScoringWallPullbackM(size: GoalSize): number {
     size === 'large' ? GOAL_RINGS.scoringVolumeWallPullbackBottomExtraFt : 0;
   const midTopExtra =
     size === 'large' ? 0 : GOAL_RINGS.scoringVolumeWallPullbackMidTopExtraFt;
+  const midOnlyExtra =
+    size === 'medium' ? GOAL_RINGS.scoringVolumeWallPullbackMidExtraFt : 0;
   return (
-    (GOAL_RINGS.scoringVolumeWallPullbackFt + bottomExtra + midTopExtra) * FT
+    (GOAL_RINGS.scoringVolumeWallPullbackFt +
+      bottomExtra +
+      midTopExtra +
+      midOnlyExtra) *
+    FT
   );
 }
 
