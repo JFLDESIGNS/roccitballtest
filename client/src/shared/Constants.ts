@@ -534,6 +534,12 @@ export const CAMERA = {
   maxMouseDelta: 90,
   mouseSensitivityX: 0.0026,
   mouseSensitivityY: 0.002,
+  /** Extra follow distance (m) at full sprint */
+  speedDistanceMax: 2.85,
+  /** How quickly camera pulls back when speeding up (lower = more gradual) */
+  speedDistanceSmoothIn: 1.05,
+  /** How quickly camera returns when slowing down */
+  speedDistanceSmoothOut: 1.55,
 } as const;
 
 /** Aim pitch (full range for shooting) */
@@ -767,7 +773,16 @@ export const ROCKET = {
   /** No beam on ball / bots inside this radius after a rocket blast */
   beamDenyRadius: 7,
   beamDenyDurationSec: 1,
-  explosionVisualDuration: 0.38,
+  /** Sprite-sheet explosion plays over this duration (seconds) */
+  explosionVisualDuration: 1,
+  explosionSpriteCols: 8,
+  explosionSpriteRows: 4,
+  /** Active frames before empty cells at end of sheet */
+  explosionSpriteFrames: 22,
+  /** World-size multiplier vs blast radius (~⅓ of original 1.55) */
+  explosionSpriteSize: 0.52,
+  /** HDR-style emissive boost (toneMapped off) */
+  explosionSpriteBrightness: 3.2,
   playerForce: 24,
   /** Brief ragdoll-like tumble on rocket hit (seconds) */
   knockStunSec: 0.6,

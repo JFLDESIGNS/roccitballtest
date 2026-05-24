@@ -3,6 +3,8 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import { useRef } from 'react';
 import { BALL_SPAWN, TEAM_SPAWN } from '../shared/Constants';
 import { gameStore } from './gameStore';
+import { tuningStore } from './tuningStore';
+import { isGoalBallSuckActive } from './ballGoalSuck';
 import {
   createFallTracker,
   recoverBody,
@@ -43,6 +45,17 @@ export function FallRecoveryMonitor({
     if (phase !== 'playing' && phase !== 'countdown' && phase !== 'loading') {
       return;
     }
+    if (tuningStore.getState().showMenu) return;
+
+    const gs = gameStore.getState();
+    playerTrack.current.recoverCooldown = Math.max(
+      0,
+      playerTrack.current.recoverCooldown - dt,
+    );
+    ballTrack.current.recoverCooldown = Math.max(
+      0,
+      ballTrack.current.recoverCooldown - dt,
+    );
 
     const player = playerBodyRef.current;
     if (player) {
@@ -55,9 +68,9 @@ export function FallRecoveryMonitor({
       }
     }
 
-    const holder = gameStore.getState().ballHolderId;
+    const holder = gs.ballHolderId;
     const ball = ballBodyRef.current;
-    if (ball && holder === null) {
+    if (ball && holder === null && !gs.ballFrozen && !isGoalBallSuckActive()) {
       const t = ball.translation();
       tickSafePosition(ballTrack.current, t.x, t.y, t.z, dt);
       if (recoverBody(ball, ballTrack.current, ballFallback.current, 'ball')) {
@@ -69,6 +82,10 @@ export function FallRecoveryMonitor({
     }
 
     for (const bot of botsRef.current) {
+      bot.fallTrack.recoverCooldown = Math.max(
+        0,
+        bot.fallTrack.recoverCooldown - dt,
+      );
       const body = bot.bodyRef.current;
       if (!body || bot.combat.isRagdoll) continue;
       if (holder === bot.id) {

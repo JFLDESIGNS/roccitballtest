@@ -1,4 +1,17 @@
-const STORAGE_KEY = 'rocketball-graphics-v5';
+const STORAGE_KEY = 'rocketball-graphics-v6';
+
+function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
+  return {
+    ...defaults,
+    ...raw,
+    chromaticAberration: raw.chromaticAberration ?? defaults.chromaticAberration,
+    chromaticAberrationIntensity:
+      raw.chromaticAberrationIntensity ?? defaults.chromaticAberrationIntensity,
+    fisheye: raw.fisheye ?? defaults.fisheye,
+    fisheyeIntensity: raw.fisheyeIntensity ?? defaults.fisheyeIntensity,
+    lensFlare: raw.lensFlare ?? defaults.lensFlare,
+  };
+}
 
 export type GraphicsSettings = {
   shadows: boolean;
@@ -15,6 +28,11 @@ export type GraphicsSettings = {
   particleCount: number;
   particleSize: number;
   particleOpacity: number;
+  chromaticAberration: boolean;
+  chromaticAberrationIntensity: number;
+  fisheye: boolean;
+  fisheyeIntensity: number;
+  lensFlare: boolean;
 };
 
 type GraphicsState = GraphicsSettings;
@@ -33,6 +51,11 @@ const defaults: GraphicsSettings = {
   particleCount: 18,
   particleSize: 0.22,
   particleOpacity: 0.55,
+  chromaticAberration: false,
+  chromaticAberrationIntensity: 0.35,
+  fisheye: false,
+  fisheyeIntensity: 0.28,
+  lensFlare: false,
 };
 
 const listeners = new Set<() => void>();
@@ -60,10 +83,10 @@ function persist(v: GraphicsSettings) {
   }
 }
 
-let state: GraphicsState = { ...defaults, ...loadStored() };
+let state: GraphicsState = normalizeSettings(loadStored());
 
 function patch(partial: Partial<GraphicsSettings>) {
-  state = { ...state, ...partial };
+  state = normalizeSettings({ ...state, ...partial });
   persist(state);
   notify();
 }
@@ -96,8 +119,15 @@ export const graphicsStore = {
     patch({ particleSize: Math.max(0.05, Math.min(0.8, v)) }),
   setParticleOpacity: (v: number) =>
     patch({ particleOpacity: Math.max(0.05, Math.min(1, v)) }),
+  setChromaticAberration: (v: boolean) => patch({ chromaticAberration: v }),
+  setChromaticAberrationIntensity: (v: number) =>
+    patch({ chromaticAberrationIntensity: Math.max(0, Math.min(1, v)) }),
+  setFisheye: (v: boolean) => patch({ fisheye: v }),
+  setFisheyeIntensity: (v: number) =>
+    patch({ fisheyeIntensity: Math.max(0, Math.min(1, v)) }),
+  setLensFlare: (v: boolean) => patch({ lensFlare: v }),
   resetDefaults: () => {
-    state = { ...defaults };
+    state = normalizeSettings({});
     persist(state);
     notify();
   },

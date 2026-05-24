@@ -56,7 +56,7 @@ import {
   GroundJerseyDecal,
 } from './JerseyDecal';
 import { DroneThrusterFlames } from './DroneThrusterFlames';
-import { VelocityPathRibbon } from './VelocityPathRibbon';
+import { PlayerMotionRibbons } from './PlayerMotionRibbons';
 import { inputManager } from './InputManager';
 import {
   playBallLaunch,
@@ -99,6 +99,29 @@ import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 
+/** Smooth 0→1 ramp for speed-based camera pull-back */
+function speedCameraFactor(
+  moveSpeed: number,
+  walkSpeed: number,
+  sprintSpeed: number,
+): number {
+  const span = Math.max(0.01, sprintSpeed - walkSpeed);
+  const raw = THREE.MathUtils.clamp((moveSpeed - walkSpeed) / span, 0, 1);
+  return raw * raw * (3 - 2 * raw);
+}
+
+function smoothAsymmetric(
+  current: number,
+  target: number,
+  dt: number,
+  rateIn: number,
+  rateOut: number,
+): number {
+  const rate = target > current ? rateIn : rateOut;
+  const alpha = 1 - Math.exp(-rate * dt);
+  return current + (target - current) * alpha;
+}
+
 type PlayerProps = {
   ballBodyRef: React.RefObject<RapierRigidBody | null>;
   onRocketFired: (rocket: ReturnType<typeof createRocket>) => void;
@@ -135,7 +158,8 @@ export function Player({
   const visualRecovery = useRef(createVisualRecoveryState());
   const knockTumble = useRef(createKnockVisualTumbleState());
   const knockStunWasActive = useRef(false);
-  const trailPos = useRef(new THREE.Vector3());
+  const camSpeedExtra = useRef(0);
+  const thrusterThrottle = useRef(0);
   const { camera } = useThree();
   const { world } = useRapier();
   const velocity = useRef(new THREE.Vector3());
@@ -385,6 +409,8 @@ export function Player({
     if (phase === 'intro' && lastPhaseRef.current !== 'intro') {
       spawnApplied.current = false;
       cameraSnapped.current = false;
+      camSpeedExtra.current = 0;
+      thrusterThrottle.current = 0;
       clearKnockVisualTumble(knockTumble.current);
       pitchSmooth.current = 0;
     }
@@ -476,6 +502,26 @@ export function Player({
       });
 
       const lv = body.linvel();
+      const stunMoveSpeed = Math.hypot(lv.x, lv.z);
+      const stunFactor = speedCameraFactor(
+        stunMoveSpeed,
+        tune.walkSpeed,
+        tune.sprintSpeed,
+      );
+      camSpeedExtra.current = smoothAsymmetric(
+        camSpeedExtra.current,
+        stunFactor * CAMERA.speedDistanceMax,
+        dt,
+        CAMERA.speedDistanceSmoothIn,
+        CAMERA.speedDistanceSmoothOut,
+      );
+      thrusterThrottle.current = smoothAsymmetric(
+        thrusterThrottle.current,
+        0,
+        dt,
+        18,
+        22,
+      );
       chestPos.current.set(tr.x, tr.y + BEAM.chestHeight, tr.z);
       const knockNow = performance.now() / 1000;
       if (knockNow < playerBeamDenyUntil.current) {
@@ -496,6 +542,7 @@ export function Player({
         inputManager.getAimPitch(),
         dt,
         false,
+        camSpeedExtra.current,
       );
       gameStore.setSpeeds(
         Math.hypot(lv.x, lv.z),
@@ -531,6 +578,35 @@ export function Player({
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
     onPositionUpdate(pos, chestPos.current);
 
+    const linvel = body.linvel();
+    const moveSpeed = Math.hypot(linvel.x, linvel.z);
+    const moveEarly = inputManager.getMoveVector();
+    const sprintGlowTarget =
+      inputManager.isSprint() &&
+      energy.current > 0 &&
+      (moveEarly.x !== 0 || moveEarly.y !== 0)
+        ? 1
+        : 0;
+    const speedFactor = speedCameraFactor(
+      moveSpeed,
+      tune.walkSpeed,
+      tune.sprintSpeed,
+    );
+    camSpeedExtra.current = smoothAsymmetric(
+      camSpeedExtra.current,
+      speedFactor * CAMERA.speedDistanceMax,
+      dt,
+      CAMERA.speedDistanceSmoothIn,
+      CAMERA.speedDistanceSmoothOut,
+    );
+    thrusterThrottle.current = smoothAsymmetric(
+      thrusterThrottle.current,
+      sprintGlowTarget,
+      dt,
+      16,
+      24,
+    );
+
     const locked = inputManager.isPointerLocked();
     if (!locked) cameraSnapped.current = false;
     const snapCam = locked && !cameraSnapped.current;
@@ -543,11 +619,10 @@ export function Player({
       inputManager.getAimPitch(),
       dt,
       snapCam,
+      camSpeedExtra.current,
     );
 
-    const linvel = body.linvel();
     const aimPitch = inputManager.getAimPitch();
-    const moveSpeed = Math.hypot(linvel.x, linvel.z);
 
     if (
       !tickCharacterVisualRecovery(
@@ -1253,18 +1328,7 @@ export function Player({
 
   return (
     <>
-      <VelocityPathRibbon
-        opacity={0.26}
-        maxPoints={12}
-        minStep={0.28}
-        samplePosition={() => {
-          const b = bodyRef.current;
-          if (!b) return null;
-          const t = b.translation();
-          trailPos.current.set(t.x, t.y + BEAM.chestHeight * 0.45, t.z);
-          return trailPos.current;
-        }}
-      />
+      <PlayerMotionRibbons bodyRef={bodyRef} team={localTeam} />
       <RigidBody
         ref={bodyRef}
         position={[spawnPos.x, spawnPos.y, spawnPos.z]}
@@ -1288,7 +1352,10 @@ export function Player({
             <group ref={bobRef}>
               <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
                 <PlayerAvatar rotationY={0} team={localTeam} />
-                <DroneThrusterFlames team={localTeam} />
+                <DroneThrusterFlames
+                  team={localTeam}
+                  throttleRef={thrusterThrottle}
+                />
               </group>
             </group>
           </group>

@@ -151,8 +151,8 @@ export function applyBallRocketHitSpin(
 export function setBallHeldCollider(body: RapierRigidBody, held: boolean): void {
   const collider = body.collider(0);
   if (!collider) return;
-  // Sensor while held — kinematic socket + raycast resolve; solid collider fights teleport.
-  collider.setSensor(held);
+  // Solid while held — arena floor/walls only (see BALL_HELD_COLLISION); raycast still resolves target Y.
+  collider.setSensor(false);
   collider.setCollisionGroups(
     held ? BALL_HELD_COLLISION : looseBallCollisionGroups(),
   );

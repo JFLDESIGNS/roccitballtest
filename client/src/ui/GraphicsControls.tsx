@@ -171,6 +171,43 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
           />
         </>
       ) : null}
+      <GfxToggle
+        label="Chromatic aberration"
+        checked={gfx.chromaticAberration}
+        onChange={graphicsStore.setChromaticAberration}
+      />
+      {gfx.chromaticAberration ? (
+        <GfxSlider
+          label="Chromatic strength"
+          value={gfx.chromaticAberrationIntensity}
+          min={0.05}
+          max={1}
+          step={0.05}
+          onChange={graphicsStore.setChromaticAberrationIntensity}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
+      ) : null}
+      <GfxToggle
+        label="Fisheye lens"
+        checked={gfx.fisheye}
+        onChange={graphicsStore.setFisheye}
+      />
+      {gfx.fisheye ? (
+        <GfxSlider
+          label="Fisheye strength"
+          value={gfx.fisheyeIntensity}
+          min={0.05}
+          max={1}
+          step={0.05}
+          onChange={graphicsStore.setFisheyeIntensity}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
+      ) : null}
+      <GfxToggle
+        label="Lens flare"
+        checked={gfx.lensFlare}
+        onChange={graphicsStore.setLensFlare}
+      />
       {!compact ? (
         <button
           type="button"

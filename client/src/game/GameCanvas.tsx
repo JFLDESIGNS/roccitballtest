@@ -41,9 +41,9 @@ import {
   warmAudio,
 } from './audio';
 import {
-  ExplosionSplashes,
-  type ExplosionSplashesHandle,
-} from './ExplosionSplashes';
+  RocketExplosionSprites,
+  type RocketExplosionSpritesHandle,
+} from './RocketExplosionSprites';
 import {
   BotRagdollBurstFx,
   type BotRagdollBurstHandle,
@@ -166,7 +166,7 @@ function Scene({
   const ballRef = useRef<BallHandle>(null);
   const ballBodyRef = useRef<RapierRigidBody | null>(null);
   const holdingBallRef = useRef(false);
-  const splashFxRef = useRef<ExplosionSplashesHandle | null>(null);
+  const splashFxRef = useRef<RocketExplosionSpritesHandle | null>(null);
   const botRagdollFxRef = useRef<BotRagdollBurstHandle | null>(null);
   const playerPosRef = useRef(new THREE.Vector3(0, 2, 24));
   const playerChestRef = useRef(new THREE.Vector3());
@@ -495,7 +495,7 @@ function Scene({
         lowEnergy={beamLowEnergy}
         team={localTeam}
       />
-      <ExplosionSplashes poolRef={splashFxRef} />
+      <RocketExplosionSprites poolRef={splashFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
       <GoalFireworks />

@@ -109,26 +109,10 @@ export function updateBallSocketSmooth(
   const alpha = 1 - Math.exp(-smooth * Math.max(dt, 1 / 120));
   const t = body.translation();
 
-  if (world) {
-    resolveHeldBallPosition(
-      world,
-      body,
-      target,
-      _lerpPos,
-      BALL.radius,
-      holderBody,
-      target,
-      chest,
-      dt,
-    );
-  } else {
-    _lerpPos.copy(target);
-  }
-
   _lerpPos.set(
-    THREE.MathUtils.lerp(t.x, _lerpPos.x, alpha),
-    THREE.MathUtils.lerp(t.y, _lerpPos.y, alpha),
-    THREE.MathUtils.lerp(t.z, _lerpPos.z, alpha),
+    THREE.MathUtils.lerp(t.x, target.x, alpha),
+    THREE.MathUtils.lerp(t.y, target.y, alpha),
+    THREE.MathUtils.lerp(t.z, target.z, alpha),
   );
 
   if (world) {

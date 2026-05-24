@@ -28,12 +28,18 @@ const TEAM_FLAME: Record<
 
 type DroneThrusterFlamesProps = {
   team: Team;
+  /** 0 = idle, 1 = full sprint — scales glow and rear lights */
+  throttleRef?: React.RefObject<number>;
 };
 
 /** Glowing flame cones at drone foot thrusters */
-export function DroneThrusterFlames({ team }: DroneThrusterFlamesProps) {
+export function DroneThrusterFlames({
+  team,
+  throttleRef,
+}: DroneThrusterFlamesProps) {
   const colors = TEAM_FLAME[team];
   const pulseRefs = useRef<THREE.Mesh[]>([]);
+  const lightRefs = useRef<THREE.PointLight[]>([]);
 
   const coneGeo = useMemo(
     () => new THREE.ConeGeometry(0.14, 0.42, 8, 1, true),
@@ -69,13 +75,28 @@ export function DroneThrusterFlames({ team }: DroneThrusterFlamesProps) {
   );
 
   useFrame(({ clock }) => {
+    const throttle = THREE.MathUtils.clamp(throttleRef?.current ?? 0, 0, 1);
     const t = clock.elapsedTime;
     const pulse = 0.82 + Math.sin(t * 14) * 0.18;
-    mat.opacity = pulse;
-    glowMat.opacity = 0.28 + Math.sin(t * 11) * 0.1;
+    const glowPulse = 0.28 + Math.sin(t * 11) * 0.1;
+    mat.opacity = pulse * (1 + throttle * 0.55);
+    glowMat.opacity = glowPulse * (1 + throttle * 0.65);
     for (let i = 0; i < pulseRefs.current.length; i++) {
       const m = pulseRefs.current[i];
-      if (m) m.scale.setScalar(0.92 + Math.sin(t * 18 + i * 1.7) * 0.12);
+      if (m) {
+        const s =
+          0.92 + Math.sin(t * 18 + i * 1.7) * 0.12 + throttle * 0.22;
+        m.scale.setScalar(s);
+      }
+    }
+    const lightIntensity = 16 + throttle * 28;
+    const lightReach = 5.5 + throttle * 2.5;
+    for (let i = 0; i < lightRefs.current.length; i++) {
+      const light = lightRefs.current[i];
+      if (light) {
+        light.intensity = lightIntensity;
+        light.distance = lightReach;
+      }
     }
   });
 
@@ -102,6 +123,9 @@ export function DroneThrusterFlames({ team }: DroneThrusterFlamesProps) {
             renderOrder={105}
           />
           <pointLight
+            ref={(el) => {
+              if (el) lightRefs.current[i] = el;
+            }}
             color={colors.light}
             intensity={16}
             distance={5.5}

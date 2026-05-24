@@ -194,20 +194,6 @@ function isNearHolder(
   );
 }
 
-function clampHeldBallNearHolder(
-  out: THREE.Vector3,
-  holderBody: RapierRigidBody,
-  holdSocket: THREE.Vector3,
-  radius: number,
-  chest: THREE.Vector3,
-): void {
-  nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-  const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
-  if (out.y < minYNear) out.y = minYNear;
-  const maxYNear = chest.y + BEAM.holdDistance + radius * 1.1;
-  if (out.y > maxYNear) out.y = maxYNear;
-}
-
 /**
  * Clamp kinematic hold target so the ball stays on top of arena geometry
  * and does not sweep through walls/floors along the move segment.
@@ -226,68 +212,52 @@ export function resolveHeldBallPosition(
   const cur = body.translation();
   out.copy(desired);
 
-  const nearHolder =
-    holderBody && chest && holdSocket && isNearHolder(out, holderBody, radius);
+  const dx = out.x - cur.x;
+  const dy = out.y - cur.y;
+  const dz = out.z - cur.z;
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist >= 0.04) {
+    const inv = 1 / dist;
+    _rayDir.x = dx * inv;
+    _rayDir.y = dy * inv;
+    _rayDir.z = dz * inv;
+    _rayOrig.x = cur.x;
+    _rayOrig.y = cur.y;
+    _rayOrig.z = cur.z;
 
-  if (nearHolder) {
-    clampHeldBallNearHolder(out, holderBody, holdSocket, radius, chest);
-    return;
+    const hit = castHoldRay(
+      world,
+      body,
+      holderBody,
+      Math.max(dist - radius * 0.82, 0.02),
+    );
+
+    if (hit) {
+      const safe = Math.max(hit.timeOfImpact - radius * 0.92, 0);
+      const nx = cur.x + _rayDir.x * safe;
+      const ny = cur.y + _rayDir.y * safe;
+      const nz = cur.z + _rayDir.z * safe;
+      if (ny <= desired.y + radius * 0.55) {
+        out.x = nx;
+        out.y = ny;
+        out.z = nz;
+      } else {
+        out.x = nx;
+        out.z = nz;
+      }
+    }
   }
 
   applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
 
   if (holderBody && chest && holdSocket) {
-    nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-    const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
-    if (out.y < minYNear) out.y = minYNear;
-  }
-
-  const dx = out.x - cur.x;
-  const dy = out.y - cur.y;
-  const dz = out.z - cur.z;
-  const dist = Math.hypot(dx, dy, dz);
-  if (dist < 0.04) {
-    if (holderBody && holdSocket) {
-      nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
+    const nearHolder = isNearHolder(out, holderBody, radius);
+    if (nearHolder) {
+      const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
+      const maxYNear = chest.y + BEAM.holdDistance + radius * 1.1;
+      if (out.y < minYNear) out.y = minYNear;
+      if (out.y > maxYNear) out.y = maxYNear;
     }
-    applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
-    return;
-  }
-
-  const inv = 1 / dist;
-  _rayDir.x = dx * inv;
-  _rayDir.y = dy * inv;
-  _rayDir.z = dz * inv;
-  _rayOrig.x = cur.x;
-  _rayOrig.y = cur.y;
-  _rayOrig.z = cur.z;
-
-  const hit = castHoldRay(
-    world,
-    body,
-    holderBody,
-    Math.max(dist - radius * 0.82, 0.02),
-  );
-
-  if (hit) {
-    const safe = Math.max(hit.timeOfImpact - radius * 0.92, 0);
-    const nx = cur.x + _rayDir.x * safe;
-    const ny = cur.y + _rayDir.y * safe;
-    const nz = cur.z + _rayDir.z * safe;
-  // Wall slide only — do not ride segment hits up into ceiling geometry.
-    if (ny <= desired.y + radius * 0.55) {
-      out.x = nx;
-      out.y = ny;
-      out.z = nz;
-    } else {
-      out.x = nx;
-      out.z = nz;
-    }
-  }
-
-  applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
-
-  if (holderBody && holdSocket) {
     nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
     applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
   }

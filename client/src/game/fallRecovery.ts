@@ -7,11 +7,17 @@ export type SafePosition = { x: number; y: number; z: number };
 export type FallTracker = {
   lastSafe: SafePosition;
   recordCooldown: number;
+  recoverCooldown: number;
   fallCount: number;
 };
 
 export function createFallTracker(initial: SafePosition): FallTracker {
-  return { lastSafe: { ...initial }, recordCooldown: 0, fallCount: 0 };
+  return {
+    lastSafe: { ...initial },
+    recordCooldown: 0,
+    recoverCooldown: 0,
+    fallCount: 0,
+  };
 }
 
 export const FALL_LIMITS = {
@@ -52,9 +58,10 @@ export function recoverBody(
   body: RapierRigidBody,
   tracker: FallTracker,
   fallback: SafePosition,
-  label: string,
+  _label: string,
 ): boolean {
   const t = body.translation();
+  if (tracker.recoverCooldown > 0) return false;
   if (!shouldRecoverPosition(t.x, t.y, t.z)) return false;
 
   const safe = isValidWorldPosition(
@@ -66,7 +73,7 @@ export function recoverBody(
     : fallback;
 
   tracker.fallCount += 1;
-  console.warn(`[fall-recovery] ${label} #${tracker.fallCount} →`, safe);
+  tracker.recoverCooldown = 0.45;
 
   body.setTranslation({ x: safe.x, y: safe.y, z: safe.z }, true);
   body.setLinvel({ x: 0, y: 0, z: 0 }, true);

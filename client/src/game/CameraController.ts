@@ -57,10 +57,11 @@ export function updateThirdPersonCamera(
   aimPitch: number,
   dt: number,
   snap = false,
+  extraDistance = 0,
 ) {
   setLookDirection(yaw, aimPitch, _lookDir);
 
-  _behind.copy(_lookDir).multiplyScalar(-CAMERA.distance);
+  _behind.copy(_lookDir).multiplyScalar(-(CAMERA.distance + extraDistance));
   _behind.y *= CAMERA.verticalInfluence;
 
   _side.crossVectors(_worldUp, _lookDir);
