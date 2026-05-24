@@ -74,6 +74,12 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
     case 'player':
       return (
         <>
+          <ToggleRow
+            label="WW dash (double-tap W)"
+            hint="Off by default. Forward burst when you double-tap W."
+            checked={tune.wwDashEnabled}
+            onChange={tuningStore.setWwDashEnabled}
+          />
           <SliderRow
             label="Jump height"
             value={tune.jumpForce}

@@ -48,10 +48,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
   );
-  const wwDashEnabled = useSyncExternalStore(
-    gameStore.subscribe,
-    () => gameStore.getState().wwDashEnabled,
-  );
   const activeMapId = useSyncExternalStore(
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapId(),
@@ -160,15 +156,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                 onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
               />
               <span>Enable practice bots</span>
-            </label>
-
-            <label className="menu-option">
-              <input
-                type="checkbox"
-                checked={wwDashEnabled}
-                onChange={(e) => gameStore.setWwDashEnabled(e.target.checked)}
-              />
-              <span>Enable WW dash (double-tap W)</span>
             </label>
 
             <label className="menu-map-picker">

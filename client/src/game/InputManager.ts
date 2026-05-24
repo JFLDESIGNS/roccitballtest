@@ -135,7 +135,7 @@ class InputManager {
 
     const onKeyDown = (e: KeyboardEvent) => {
       this.keys[e.code] = true;
-      if (e.code === 'KeyW' && !e.repeat && gameStore.getState().wwDashEnabled) {
+      if (e.code === 'KeyW' && !e.repeat && tuningStore.getState().wwDashEnabled) {
         const nowSec = performance.now() / 1000;
         if (
           this.lastForwardTapAt > 0 &&

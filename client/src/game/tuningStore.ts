@@ -53,6 +53,8 @@ export type TuningValues = {
   botPlayerCarrierShotChance: number;
   /** Multiplier on CAMERA.mouseSensitivityX/Y */
   mouseSensitivity: number;
+  /** Double-tap W forward dash */
+  wwDashEnabled: boolean;
 };
 
 type TuningState = TuningValues & {
@@ -120,6 +122,7 @@ const defaults: TuningValues = {
   botPlayerCarrierShotChance: BOT.enemyPlayerCarrierShotChance,
   /** Multiplier on CAMERA.mouseSensitivityX/Y */
   mouseSensitivity: 1,
+  wwDashEnabled: false,
 };
 
 const listeners = new Set<() => void>();
@@ -236,6 +239,7 @@ export const tuningStore = {
     patch({ botPlayerCarrierShotChance: Math.max(0.05, Math.min(0.95, v)) }),
   setMouseSensitivity: (v: number) =>
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
+  setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
