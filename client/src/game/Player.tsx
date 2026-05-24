@@ -40,10 +40,13 @@ import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import {
   alignCharacterVisualUpright,
+  clearKnockVisualTumble,
   createKnockVisualTumbleState,
   createVisualRecoveryState,
   forceCharacterUpright,
   impulseKnockVisualTumble,
+  resetCharacterVisualGroups,
+  snapRigidBodyUpright,
   syncCharacterVisualPresentation,
   tickCharacterVisualRecovery,
   tickKnockVisualTumble,
@@ -382,14 +385,35 @@ export function Player({
     if (phase === 'intro' && lastPhaseRef.current !== 'intro') {
       spawnApplied.current = false;
       cameraSnapped.current = false;
+      clearKnockVisualTumble(knockTumble.current);
+      pitchSmooth.current = 0;
     }
     lastPhaseRef.current = phase;
+
+    const visualPresentation = {
+      visual: visualRef.current,
+      tilt: tiltRef.current,
+      bob: bobRef.current,
+      pitchSmooth,
+      bobPhase,
+    };
+
+    const syncPreGamePresentation = (yaw: number) => {
+      snapRigidBodyUpright(body);
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      clearKnockVisualTumble(knockTumble.current);
+      resetCharacterVisualGroups(visualPresentation);
+      pitchSmooth.current = 0;
+      alignCharacterVisualUpright(body, visualPresentation, yaw, null, 0);
+    };
 
     if (phase === 'intro' || phase === 'loading') {
       if (spawnApplied.current) {
         const t = body.translation();
         pivotRef.current.set(t.x, t.y + CAMERA.pivotHeight, t.z);
         const rot = inputManager.getRotation();
+        syncPreGamePresentation(rot.yaw);
         updateThirdPersonCamera(
           camera,
           pivotRef.current,
@@ -409,13 +433,6 @@ export function Player({
 
     const knockTick = tickPlayerKnockStun(body);
     const rotEarly = inputManager.getRotation();
-    const visualPresentation = {
-      visual: visualRef.current,
-      tilt: tiltRef.current,
-      bob: bobRef.current,
-      pitchSmooth,
-      bobPhase,
-    };
     if (knockTick === 'ended') {
       knockStunWasActive.current = false;
       forceCharacterUpright(
