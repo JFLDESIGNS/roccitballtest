@@ -54,7 +54,7 @@ type GameStoreState = {
   botEnergies: Record<BotId, number>;
   /** Rapier collider wireframes — off by default, G to toggle */
   showColliderDebug: boolean;
-  /** Show real physics ball wireframe overlay — 2 to toggle */
+  /** Show real physics ball mesh (hides proxy) — 2 to toggle */
   showPhysicsBall: boolean;
   /** Debug: show "helping" badge until this timestamp (performance.now) */
   ballBoundaryHelpUntil: number;

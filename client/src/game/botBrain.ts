@@ -516,6 +516,40 @@ export function shouldGiveShootZoneSpace(
 }
 
 const _away = new THREE.Vector3();
+const _approachDir = new THREE.Vector3();
+const FT = 0.3048;
+
+/** Move here to beam — offset from ball center so bots don't drive underneath */
+export function pickBallApproachTarget(
+  input: Pick<BotThinkInput, 'pos' | 'ballPos' | 'playerChest' | 'team'>,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  const standOff = BALL.radius + BOT.ballApproachOffsetFt * FT;
+
+  _approachDir.set(
+    input.pos.x - input.ballPos.x,
+    0,
+    input.pos.z - input.ballPos.z,
+  );
+  if (_approachDir.lengthSq() < 0.04) {
+    _approachDir.set(
+      input.playerChest.x - input.ballPos.x,
+      0,
+      input.playerChest.z - input.ballPos.z,
+    );
+  }
+  if (_approachDir.lengthSq() < 0.04) {
+    const towardCourt = input.team === 'red' ? 1 : -1;
+    _approachDir.set(towardCourt, 0, 0);
+  }
+  _approachDir.normalize().multiplyScalar(standOff);
+
+  return out.set(
+    input.ballPos.x + _approachDir.x,
+    input.pos.y,
+    input.ballPos.z + _approachDir.z,
+  );
+}
 
 /** Move target when yielding the shoot zone to a teammate */
 export function pickGiveShootZoneSpaceTarget(
@@ -720,7 +754,7 @@ export function pickMoveTarget(
       return out;
     case 'attractBall':
     case 'runToBall':
-      out.copy(ballPos);
+      pickBallApproachTarget(input, out);
       applyTeammateChaseLane(mode, input, out);
       return out;
     case 'allySupport':

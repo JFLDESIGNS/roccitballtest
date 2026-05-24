@@ -2274,6 +2274,22 @@ function BotAvatar({
 
     _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
     if (_wish.lengthSq() > 0.01) _wish.normalize();
+    if (
+      (mode === 'attractBall' || mode === 'runToBall') &&
+      !holder &&
+      !iHold
+    ) {
+      const distApproach = Math.hypot(
+        _moveTarget.x - _pos.x,
+        _moveTarget.z - _pos.z,
+      );
+      if (
+        mode === 'attractBall' &&
+        distApproach < BOT.ballApproachArriveM
+      ) {
+        _wish.set(0, 0, 0);
+      }
+    }
     collectBotSepPositions(allBots, _botSepScratch);
     applyAllBotSeparation(
       _wish,

@@ -390,6 +390,10 @@ export const BOT = {
    */
   ballChaseBallRadii: 18,
   ballAttractBallRadii: 4.5,
+  /** Horizontal stand-off when chasing / beaming loose ball (feet) */
+  ballApproachOffsetFt: 1.75,
+  /** Stop driving once this close to the approach point (m) */
+  ballApproachArriveM: 0.95,
   /** Energy drain while a bot carries the ball (drops at 0 like the player) */
   holdBallEnergyDrain: 10,
   /** Only rocket / harass local player when this close and they hold the ball */

@@ -42,7 +42,6 @@ import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
 import { BallMotionRibbons } from './BallMotionRibbons';
 import { LooseBallVisual } from './LooseBallVisual';
-import { PhysicsBallWireframe } from './PhysicsBallWireframe';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
@@ -85,7 +84,6 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const ballMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const looseVisualRef = useRef<THREE.Mesh>(null);
   const looseVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
-  const physicsWireRef = useRef<THREE.Mesh>(null);
   const showPhysicsBall = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().showPhysicsBall,
@@ -285,19 +283,15 @@ const hasPrevBallPos = useRef(false);
       if (body) {
         const t = body.translation();
         const scale = 0.35 + alpha * 0.65;
-        const showWire = gameStore.getState().showPhysicsBall;
+        const showPhysics = gameStore.getState().showPhysicsBall;
         if (looseVisualRef.current) {
           looseVisualRef.current.position.set(t.x, t.y, t.z);
           looseVisualRef.current.scale.setScalar(scale);
           looseVisualRef.current.visible = visible;
         }
-        if (physicsWireRef.current) {
-          physicsWireRef.current.position.set(t.x, t.y, t.z);
-          physicsWireRef.current.scale.setScalar(scale);
-          physicsWireRef.current.visible = visible && showWire;
-        }
         if (ballMeshRef.current) {
-          ballMeshRef.current.visible = false;
+          ballMeshRef.current.scale.setScalar(scale);
+          ballMeshRef.current.visible = visible && showPhysics;
         }
         const applyAlpha = (m: THREE.MeshStandardMaterial | null) => {
           if (!m) return;
@@ -328,12 +322,15 @@ const hasPrevBallPos = useRef(false);
 
     advanceHeldBallReleaseBlend(nowSec);
 
+    const showPhysics = gameStore.getState().showPhysicsBall;
+    const canShowPhysicsDebug =
+      showPhysics &&
+      !isLocalHeld &&
+      !heldBallVisualBridge.release.active;
+
     if (ballMeshRef.current) {
-      ballMeshRef.current.visible = false;
+      ballMeshRef.current.visible = canShowPhysicsDebug;
       ballMeshRef.current.position.set(0, 0, 0);
-    }
-    if (physicsWireRef.current && heldBallVisualBridge.release.active) {
-      physicsWireRef.current.visible = false;
     }
   }, -1);
 
@@ -382,11 +379,11 @@ const hasPrevBallPos = useRef(false);
         } else {
           const glow = getBeamBallGlow();
           if (glow.contested) {
-            m.emissiveIntensity = 0.3 + Math.sin(t * 8) * 0.2;
+            m.emissiveIntensity = 0.5;
             m.emissive.copy(glow.color);
           } else {
             m.emissive.set('#ffffff');
-            m.emissiveIntensity = 0.58 + Math.sin(t * 4) * 0.14;
+            m.emissiveIntensity = 0.72;
           }
         }
       };
@@ -395,22 +392,12 @@ const hasPrevBallPos = useRef(false);
     }
   });
 
-  const looseProxyHidden = isLocalHeld || isGoalBallSuckActive();
-
-  const physicsWireVisible =
-    showPhysicsBall &&
-    !isLocalHeld &&
-    !heldBallVisualBridge.release.active &&
-    !isGoalBallSuckActive();
+  const looseProxyHidden =
+    isLocalHeld || isGoalBallSuckActive() || showPhysicsBall;
 
   return (
     <>
     <BallMotionRibbons bodyRef={bodyRef} hidden={isHeld || hideTrail} />
-    <PhysicsBallWireframe
-      bodyRef={bodyRef}
-      visible={physicsWireVisible}
-      meshRef={physicsWireRef}
-    />
     <LooseBallVisual
       bodyRef={bodyRef}
       hidden={looseProxyHidden}

@@ -244,7 +244,7 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
           />
           <SliderRow
             label="Display follow"
-            hint="How fast the visible ball catches the filtered path. Press 2 for physics wireframe."
+            hint="How fast the visible ball catches the filtered path. Press 2 to show real physics ball."
             value={tune.looseVisualPosSmooth}
             min={4}
             max={120}
