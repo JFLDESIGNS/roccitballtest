@@ -1,7 +1,7 @@
-import { BOT, MOVEMENT, ROCKET, type BallTypeId } from '../shared/Constants';
+import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v9';
+const STORAGE_KEY = 'rocketball-tuning-v10';
 
 export type TuningValues = {
   jumpForce: number;
@@ -57,6 +57,8 @@ export type TuningValues = {
   wwDashEnabled: boolean;
   /** Match ball variant — same entity for beam, bots, and goals */
   ballType: BallTypeId;
+  /** After grabbing the ball — rockets can't knock it loose from holder or ball */
+  holdConnectImmunitySec: number;
 };
 
 type TuningState = TuningValues & {
@@ -126,6 +128,7 @@ const defaults: TuningValues = {
   mouseSensitivity: 1,
   wwDashEnabled: false,
   ballType: 'superball',
+  holdConnectImmunitySec: BALL.holdConnectImmunitySec,
 };
 
 const listeners = new Set<() => void>();
@@ -248,6 +251,8 @@ export const tuningStore = {
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
   setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
   setBallType: (v: BallTypeId) => patch({ ballType: v }),
+  setHoldConnectImmunitySec: (v: number) =>
+    patch({ holdConnectImmunitySec: Math.max(0, Math.min(3, v)) }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

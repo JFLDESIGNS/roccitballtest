@@ -631,7 +631,7 @@ export const BALL = {
   /** Smooth snap when ball first latches to hold socket */
   holdLatchDurationSec: 0.28,
   /** Brief invulnerability after latch — rockets/beam hits cannot strip the ball */
-  holdConnectImmunitySec: 0.6,
+  holdConnectImmunitySec: 1,
   holdLatchSmooth: 14,
   holdFollowSmooth: 20,
   /** Aim smoothing while carrying — lower = snappier */

@@ -8,6 +8,7 @@ import { GraphicsControls } from './GraphicsControls';
 
 type SliderRowProps = {
   label: string;
+  hint?: string;
   value: number;
   min: number;
   max: number;
@@ -18,6 +19,7 @@ type SliderRowProps = {
 
 function SliderRow({
   label,
+  hint,
   value,
   min,
   max,
@@ -31,6 +33,7 @@ function SliderRow({
         <span>{label}</span>
         <span className="tuning-value">{format(value)}</span>
       </div>
+      {hint ? <p className="tuning-sub">{hint}</p> : null}
       <input
         type="range"
         min={min}
@@ -196,6 +199,16 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             step={0.05}
             onChange={tuningStore.setPullStrength}
             format={(v) => `${Math.round(v * 100)}%`}
+          />
+          <SliderRow
+            label="Hold rocket immunity"
+            hint="After grabbing the ball, rockets can't knock it loose from your body or the ball for this long."
+            value={tune.holdConnectImmunitySec}
+            min={0}
+            max={3}
+            step={0.1}
+            onChange={tuningStore.setHoldConnectImmunitySec}
+            format={(v) => `${v.toFixed(1)}s`}
           />
           <h3 className="tuning-section">Hold &amp; release shot</h3>
           <SliderRow

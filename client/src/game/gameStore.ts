@@ -1,7 +1,12 @@
-import { BALL, MATCH } from '../shared/Constants';
+import { MATCH } from '../shared/Constants';
 import { clearBotTeamRelease } from './botTeamRelease';
 import { EMPTY_MATCH_STATS, type MatchStats } from './matchStats';
+import { tuningStore } from './tuningStore';
 import type { BallStateKind, GoalSize, MatchScore, Team } from '../shared/Types';
+
+function holdImmunityDurationMs(): number {
+  return tuningStore.getState().holdConnectImmunitySec * 1000;
+}
 
 export type BotId = 'bot-0' | 'bot-1' | 'bot-2';
 
@@ -383,7 +388,7 @@ export const gameStore = {
       ...(newCapture
         ? {
             holdImmunityUntilMs:
-              performance.now() + BALL.holdConnectImmunitySec * 1000,
+              performance.now() + holdImmunityDurationMs(),
           }
         : {}),
     };
@@ -393,7 +398,7 @@ export const gameStore = {
     state = {
       ...state,
       holdImmunityUntilMs:
-        performance.now() + BALL.holdConnectImmunitySec * 1000,
+        performance.now() + holdImmunityDurationMs(),
     };
     notify();
   },
