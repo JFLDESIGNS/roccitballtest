@@ -41,6 +41,8 @@ import {
   beamTraceBallAnchor,
 } from './beamPhysics';
 import { botFireHeldBall, type BotLaunchKind } from './botHeldBallShot';
+import { canKnockLooseHeldBall } from './ballHoldImmunity';
+import { setBotBallChaseActive } from './botTeamBallChase';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
   captureBallSocket,
@@ -65,7 +67,6 @@ import { createRocket, type ActiveRocket } from './rocketSystem';
 import { CHARACTER_MESH_RENDER_ORDER, GroundJerseyDecal } from './JerseyDecal';
 import { PlayerAvatar } from './PlayerAvatar';
 import { TeamOrb } from './TeamOrb';
-import { BotHeartIndicator } from './BotHeartIndicator';
 import {
   createBotCombatState,
   registerPlayerHitOnBot,
@@ -104,7 +105,10 @@ import {
   stunnedBallFallbackMode,
   pickGiveShootZoneSpaceTarget,
   shouldGiveShootZoneSpace,
+  applyTeammateBallChaseMode,
+  isBallChaseBroadcastMode,
   type AllyShootZoneMagnetState,
+  type TeammateBallChaseState,
   type BotZonePosition,
   pickLookTarget,
   pickMoveTarget,
@@ -546,10 +550,21 @@ function tickBotJumpCycle(
   return null;
 }
 
-function releaseBotBall(bot: BotRuntime, ball: RapierRigidBody | null) {
+function releaseBotBall(
+  bot: BotRuntime,
+  ball: RapierRigidBody | null,
+  force = false,
+) {
+  if (
+    !force &&
+    gameStore.getState().ballHolderId === bot.id &&
+    !canKnockLooseHeldBall()
+  ) {
+    return;
+  }
   bot.holdingBall = false;
   if (gameStore.getState().ballHolderId === bot.id) {
-    gameStore.clearBallHolder();
+    gameStore.clearBallHolder(true);
   }
   if (ball) releaseBallPhysics(ball);
   gameStore.setBallState('loose');
@@ -874,6 +889,11 @@ function BotAvatar({
     magnetAllowed: null,
     shooterId: null,
   });
+  const teammateBallChaseState = useRef<TeammateBallChaseState>({
+    chaserId: null,
+    response: null,
+    centerUntilMs: 0,
+  });
   const botZoneScratch = useRef<BotZonePosition[]>([]);
   const carryLookState = useRef<CarryLookState>({
     focus: 'goal',
@@ -956,7 +976,7 @@ function BotAvatar({
     holdTimer.current = 0;
     velocity.current.set(0, 0, 0);
     if (gameStore.getState().ballHolderId === bot.id) {
-      gameStore.clearBallHolder();
+      gameStore.clearBallHolder(true);
     }
   };
 
@@ -1544,7 +1564,7 @@ function BotAvatar({
       );
       botEnergyLevelsRef.current[bot.id] = energy.current;
       if (energy.current <= 0) {
-        releaseBotBall(bot, ball);
+        releaseBotBall(bot, ball, true);
         applyBotVisual(linvel, dt, body);
         return;
       }
@@ -2031,7 +2051,26 @@ function BotAvatar({
     if (mode === 'allyDunk' && !teamAllyDunkPoster) {
       mode = holderNearGoal ? 'allyReceive' : 'allySupport';
     }
+    if (
+      isEnemyBot &&
+      !retaliating &&
+      !iHold &&
+      !isPlayerChaseMode(mode)
+    ) {
+      mode = applyTeammateBallChaseMode(
+        teammateBallChaseState.current,
+        bot.id,
+        bot.team,
+        true,
+        mode,
+      );
+    }
     modeRef.current = mode;
+    setBotBallChaseActive(
+      bot.id,
+      bot.team,
+      isEnemyBot && isBallChaseBroadcastMode(mode),
+    );
     pickMoveTarget(mode, think, _moveTarget);
     if (mode === 'allyDunk') {
       pickAllyDunkSpot(bot.team, _pos, _moveTarget);
@@ -2582,8 +2621,7 @@ function BotAvatar({
               <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
                 <PlayerAvatar rotationY={0} team={bot.team} />
                 <DroneThrusterFlames team={bot.team} />
-                <TeamOrb team={bot.team} />
-                <BotHeartIndicator combat={bot.combat} />
+                <TeamOrb team={bot.team} combat={bot.combat} />
               </group>
             </group>
           </group>

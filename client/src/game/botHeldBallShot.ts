@@ -81,6 +81,6 @@ export function botFireHeldBall(
   computeBallLaunchSpawn(chest, _look, launchVel, _spawn);
   ball.setTranslation({ x: _spawn.x, y: _spawn.y, z: _spawn.z }, true);
   applyBallLaunchImpulse(ball, launchVel, _zero);
-  gameStore.clearBallHolder();
+  gameStore.clearBallHolder(true);
   gameStore.setBallState('launched');
 }

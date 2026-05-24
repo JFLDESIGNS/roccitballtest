@@ -1,4 +1,4 @@
-import { MATCH } from '../shared/Constants';
+import { BALL, MATCH } from '../shared/Constants';
 import { clearBotTeamRelease } from './botTeamRelease';
 import { EMPTY_MATCH_STATS, type MatchStats } from './matchStats';
 import type { BallStateKind, GoalSize, MatchScore, Team } from '../shared/Types';
@@ -65,6 +65,8 @@ type GameStoreState = {
   matchGeneration: number;
   /** Local-player totals for the end-game stats screen */
   matchStats: MatchStats;
+  /** performance.now() — held ball cannot be knocked loose until this time */
+  holdImmunityUntilMs: number;
 };
 
 const listeners = new Set<() => void>();
@@ -125,6 +127,7 @@ let state: GameStoreState = {
   playerKnockStunUntilMs: 0,
   matchGeneration: 0,
   matchStats: { ...EMPTY_MATCH_STATS },
+  holdImmunityUntilMs: 0,
 };
 
 function notify() {
@@ -180,6 +183,7 @@ export const gameStore = {
       playerKnockStunUntilMs: 0,
       matchGeneration: state.matchGeneration + 1,
       matchStats: { ...EMPTY_MATCH_STATS },
+      holdImmunityUntilMs: 0,
     };
     notify();
   },
@@ -369,12 +373,27 @@ export const gameStore = {
       return;
     }
     const clearCombo = holder === 'local';
+    const newCapture = holder !== null && holder !== state.ballHolderId;
     state = {
       ...state,
       ballHolderId: holder,
       isHoldingBall: holder === 'local',
       ballState: holder ? 'held' : state.ballState === 'held' ? 'loose' : state.ballState,
       ...(clearCombo ? { ballCombo: 0, ballComboExpiresAt: 0 } : {}),
+      ...(newCapture
+        ? {
+            holdImmunityUntilMs:
+              performance.now() + BALL.holdConnectImmunitySec * 1000,
+          }
+        : {}),
+    };
+    notify();
+  },
+  armHoldImmunity: () => {
+    state = {
+      ...state,
+      holdImmunityUntilMs:
+        performance.now() + BALL.holdConnectImmunitySec * 1000,
     };
     notify();
   },
@@ -399,8 +418,15 @@ export const gameStore = {
     state = { ...state, ballCombo: 0, ballComboExpiresAt: 0 };
     notify();
   },
-  clearBallHolder: () => {
+  clearBallHolder: (force = false) => {
     if (state.ballHolderId === null) return;
+    if (
+      !force &&
+      state.holdImmunityUntilMs > performance.now() &&
+      state.ballHolderId !== null
+    ) {
+      return;
+    }
     state = {
       ...state,
       ballHolderId: null,
@@ -412,6 +438,12 @@ export const gameStore = {
   /** Single notify when rocket knocks ball loose */
   setBallLooseAfterHit: () => {
     if (state.ballHolderId === null && state.ballState === 'loose') return;
+    if (
+      state.holdImmunityUntilMs > performance.now() &&
+      state.ballHolderId !== null
+    ) {
+      return;
+    }
     state = {
       ...state,
       isHoldingBall: false,

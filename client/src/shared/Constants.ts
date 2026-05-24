@@ -120,6 +120,8 @@ export const ARENA_PADS = {
   fanCelebrateDiagSpeed: 2.05,
   /** Black-tinted glass at the front of the fan recess (m) */
   fanFacadeGlassThicknessM: 0.06,
+  /** Physics collider depth for fan glass (visual stays thin) */
+  fanGlassColliderDepthM: 0.18,
   /** Fan glass — higher = darker, fans harder to see */
   fanFacadeGlassOpacity: 0.84,
   fanFacadeGlassTransmission: 0.06,
@@ -371,6 +373,17 @@ export const BOT = {
   flankOffset: 9,
   /** Lane spread for paired bots chasing the same ball (1 = half minBotSeparation each side) */
   chaseLaneScale: 1,
+  /** Teammate is chasing the ball — signal TTL (seconds) */
+  teammateBallChaseSignalTTL: 3.5,
+  /** Roll once per chaser — join / center / offense / defense / default */
+  teammateBallChaseJoinChance: 0.3,
+  teammateBallChaseCenterChance: 0.3,
+  /** After rolling center, dash to midfield then rejoin ball chase */
+  teammateBallChaseCenterSec: 1,
+  teammateBallChaseOffenseChance: 0.15,
+  teammateBallChaseDefenseChance: 0.15,
+  /** Stand-off from own net when rolling defense */
+  teammateBallChaseDefenseInsetM: 14,
   /**
    * Ball engagement (dist = BALL.radius × radii).
    * Chase / contest only inside chase radii; beam only inside attract radii.
@@ -617,6 +630,8 @@ export const BALL = {
   spawnCooldownSec: 1.2,
   /** Smooth snap when ball first latches to hold socket */
   holdLatchDurationSec: 0.28,
+  /** Brief invulnerability after latch — rockets/beam hits cannot strip the ball */
+  holdConnectImmunitySec: 0.6,
   holdLatchSmooth: 14,
   holdFollowSmooth: 20,
   /** Aim smoothing while carrying — lower = snappier */
@@ -654,6 +669,8 @@ export const SUPERBALL = {
   /** Superball rocket knock — stronger than original */
   hitImpulse: 36,
   knockMinFalloff: 0.52,
+  /** Fan-glass wall bounce — lower than arena walls to avoid pinball ricochets */
+  fanGlassRestitution: 0.34,
   rocketSpeedInherit: 0.26,
   directHitDist: 4.2,
   trailColor: '#ffd966',

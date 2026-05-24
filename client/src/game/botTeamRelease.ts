@@ -1,4 +1,5 @@
 import { BOT } from '../shared/Constants';
+import { clearTeammateBallChase } from './botTeamBallChase';
 import type { BotId } from './gameStore';
 import type { Team } from '../shared/Types';
 
@@ -26,6 +27,7 @@ export function recordBotTeamRelease(
 export function clearBotTeamRelease(): void {
   lastRelease = null;
   allySaveReactedAt.clear();
+  clearTeammateBallChase();
 }
 
 export type TeammateReleaseIntent = {

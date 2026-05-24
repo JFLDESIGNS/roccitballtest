@@ -69,7 +69,7 @@ function registerGoalScore(
   if (gameStore.getState().ballHolderId) {
     releaseBallPhysics(body);
   }
-  gameStore.clearBallHolder();
+  gameStore.clearBallHolder(true);
   for (const b of bots) {
     b.holdingBall = false;
   }

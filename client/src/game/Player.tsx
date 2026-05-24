@@ -33,6 +33,7 @@ import {
 import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse } from './ballPhysics';
 import { clampToHex } from './arenaHex';
+import { canKnockLooseHeldBall } from './ballHoldImmunity';
 import { getTeamSpawn } from './goals';
 import { getCameraBasis, updateThirdPersonCamera } from './CameraController';
 import { gameStore, type GamePhase } from './gameStore';
@@ -239,10 +240,10 @@ export function Player({
 
     const wasHolding =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
-    if (wasHolding) {
+    if (wasHolding && canKnockLooseHeldBall()) {
       holdingBall.current = false;
       if (gameStore.getState().ballHolderId === 'local') {
-        gameStore.clearBallHolder();
+        gameStore.clearBallHolder(true);
       }
       gameStore.setBallState('loose');
       onBallHeldChange(false);
@@ -809,7 +810,7 @@ export function Player({
     const clearHoldState = () => {
       holdingBall.current = false;
       if (gameStore.getState().ballHolderId === 'local') {
-        gameStore.clearBallHolder();
+        gameStore.clearBallHolder(true);
       }
       requestAnimationFrame(() => onBallHeldChange(false));
     };

@@ -1,6 +1,7 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import { ARENA, BALL, SUPERBALL } from '../shared/Constants';
 import { clampToHex, hexSlackToBoundary } from './arenaHex';
+import { sanitizeFanGlassBallBounce } from './ballFanGlassBounce';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 
@@ -24,6 +25,7 @@ const floorPenetrationMin = 0.22;
  * After Rapier step: rare unstick only. Wall bounces stay on Rapier materials.
  */
 export function stepBallPhysics(body: RapierRigidBody): void {
+  sanitizeFanGlassBallBounce(body);
   applyBallFloorAssist(body);
   applyBallWallUnstick(body);
   clampBallSpeed(body);

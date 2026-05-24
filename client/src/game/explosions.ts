@@ -2,6 +2,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BOT, ROCKET, SUPERBALL } from '../shared/Constants';
 import { releaseBallPhysics } from './ballAttach';
+import { canKnockLooseHeldBall } from './ballHoldImmunity';
 import { wakeBallBody } from './ballPhysics';
 import {
   applyRocketKnockStun,
@@ -84,7 +85,8 @@ export function applyExplosionToBall(
   const dist = Math.hypot(dx, dy, dz);
   if (dist >= radius) return false;
 
-  if (wasHeld) releaseBallPhysics(ball);
+  if (wasHeld && canKnockLooseHeldBall()) releaseBallPhysics(ball);
+  else if (wasHeld) return false;
 
   const tune = tuningStore.getState();
   const knock = tune.ballKnockStrength;

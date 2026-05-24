@@ -3,6 +3,12 @@ import { ARENA, BALL, BOT } from '../shared/Constants';
 import type { BallHolderId, BotId } from './gameStore';
 import { getBotPressureScalars } from './botTuning';
 import { isInsideShootZone } from './botShootZone';
+import {
+  findTeammateBallChaser,
+  rollTeammateBallChaseResponse,
+  type TeammateBallChaseResponse,
+} from './botTeamBallChase';
+import { getEnemyGoalTarget, getOwnGoalAnchor, pickFieldCenterTarget } from './botGoals';
 import type { Team } from '../shared/Types';
 
 export type BotRole = 'ball' | 'pressure';
@@ -14,7 +20,10 @@ export type BotFieldMode =
   | 'moveAndShoot'
   | 'allySupport'
   | 'allyReceive'
-  | 'allyDunk';
+  | 'allyDunk'
+  | 'teamCenter'
+  | 'teamOffense'
+  | 'teamDefense';
 
 export type BotFarHoldAction = 'pass' | 'carry' | 'looseShoot';
 export type HoldReleaseKind = 'pass' | 'shoot' | 'loft';
@@ -37,6 +46,12 @@ export type CarryLookState = {
 export type BotHoldMode = 'carryToGoal' | 'setupShot' | 'shootGoal';
 
 export type BotMode = BotFieldMode | BotHoldMode;
+
+function isHoldMode(mode: BotMode): mode is BotHoldMode {
+  return (
+    mode === 'carryToGoal' || mode === 'setupShot' || mode === 'shootGoal'
+  );
+}
 
 export type BotHoldPhase = 'advance' | 'setup' | 'shoot';
 
@@ -352,6 +367,70 @@ export type AllyShootZoneMagnetState = {
   shooterId: BotId | null;
 };
 
+export type TeammateBallChaseState = {
+  chaserId: BotId | null;
+  response: TeammateBallChaseResponse | null;
+  /** performance.now() deadline for the brief center dash */
+  centerUntilMs: number;
+};
+
+const CHASE_RESPONSE_MODE: Record<
+  TeammateBallChaseResponse,
+  BotFieldMode
+> = {
+  join: 'runToBall',
+  center: 'teamCenter',
+  offense: 'teamOffense',
+  defense: 'teamDefense',
+};
+
+/** True when this bot is actively pursuing the loose ball (broadcast to teammates). */
+export function isBallChaseBroadcastMode(mode: BotMode): boolean {
+  return mode === 'runToBall' || mode === 'attractBall';
+}
+
+/**
+ * When a teammate is chasing the ball, roll once how this bot supports:
+ * 30% join chase, 30% center (1s then rejoin), 15% offense, 15% defense, 10% unchanged.
+ */
+export function applyTeammateBallChaseMode(
+  state: TeammateBallChaseState,
+  selfId: BotId,
+  team: Team,
+  isEnemy: boolean,
+  picked: BotMode,
+  nowMs = performance.now(),
+): BotMode {
+  if (!isEnemy || isHoldMode(picked)) return picked;
+
+  const chaserId = findTeammateBallChaser(selfId, team, nowMs / 1000);
+  if (!chaserId) {
+    state.chaserId = null;
+    state.response = null;
+    state.centerUntilMs = 0;
+    return picked;
+  }
+
+  if (state.chaserId !== chaserId) {
+    state.chaserId = chaserId;
+    state.response = rollTeammateBallChaseResponse();
+    state.centerUntilMs = 0;
+  }
+
+  if (!state.response) return picked;
+
+  if (state.response === 'center') {
+    if (state.centerUntilMs === 0) {
+      state.centerUntilMs =
+        nowMs + BOT.teammateBallChaseCenterSec * 1000;
+    }
+    if (nowMs < state.centerUntilMs) return 'teamCenter';
+    return 'runToBall';
+  }
+
+  return CHASE_RESPONSE_MODE[state.response];
+}
+
 export type BotZonePosition = {
   id: BotId;
   team: Team;
@@ -655,6 +734,12 @@ export function pickMoveTarget(
     case 'setupShot':
     case 'shootGoal':
       return out.copy(goal);
+    case 'teamCenter':
+      return pickFieldCenterTarget(input.id, input.pos.y, out);
+    case 'teamOffense':
+      return getEnemyGoalTarget(input.team, out).setY(input.pos.y);
+    case 'teamDefense':
+      return getOwnGoalAnchor(input.team, out).setY(input.pos.y);
     default:
       return out.copy(ballPos);
   }
@@ -680,6 +765,9 @@ export function pickLookTarget(
   if (mode === 'allyReceive') return out.lerpVectors(input.ballPos, input.goal, 0.35);
   if (mode === 'allyDunk') return out.copy(input.goal);
   if (mode === 'attractBall') return out.copy(input.ballPos);
+  if (mode === 'teamOffense') return out.copy(input.goal);
+  if (mode === 'teamDefense') return getOwnGoalAnchor(input.team, out);
+  if (mode === 'teamCenter') return pickFieldCenterTarget(input.id, moveTarget.y, out);
   return out.copy(moveTarget);
 }
 
@@ -734,7 +822,9 @@ export function modeSprint(mode: BotMode): boolean {
     mode === 'runToPlayer' ||
     mode === 'moveAndShoot' ||
     mode === 'carryToGoal' ||
-    mode === 'allySupport'
+    mode === 'allySupport' ||
+    mode === 'teamOffense' ||
+    mode === 'teamCenter'
   );
 }
 

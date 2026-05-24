@@ -45,7 +45,7 @@ function fanMatchesScoringTeam(colorIndex: number, team: Team): boolean {
 const WALL_COLLISION = interactionGroups(2, [0, 1, 2]);
 /** Booth interior — players/bots only; ball bounces on the glass facade instead. */
 const FAN_BOOTH_INTERIOR_COLLISION = interactionGroups(2, [0, 2]);
-const FAN_GLASS_RESTITUTION = BALL.restitution * 0.92;
+const FAN_GLASS_RESTITUTION = BALL.restitution * 0.62;
 
 function fanOpeningWorldY() {
   const bottom =
@@ -638,16 +638,16 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         );
       })}
 
-      {/* Glass at wall cut — fans sit behind it in the recess */}
+      {/* Glass physics — thicker than visual so fast balls don't tunnel / double-hit */}
       <RigidBody type="fixed" colliders={false}>
         <CuboidCollider
           args={[
             (bayW * 0.992) / 2,
             (bayH * 0.992) / 2,
-            glassThick / 2,
+            ARENA_PADS.fanGlassColliderDepthM / 2,
           ]}
           position={[0, bayY, glassZ]}
-          friction={0.14}
+          friction={0.22}
           restitution={FAN_GLASS_RESTITUTION}
           collisionGroups={WALL_COLLISION}
         />

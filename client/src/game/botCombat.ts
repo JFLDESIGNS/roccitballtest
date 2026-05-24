@@ -9,7 +9,7 @@ import { snapRigidBodyUpright } from './characterVisual';
 import type { BotId } from './gameStore';
 import type { SafePosition } from './fallRecovery';
 
-export type BotHeartPhase = 'full' | 'half' | 'hidden';
+export type BotMarkerPhase = 'full' | 'half' | 'hidden';
 
 export type BotCombatState = {
   hitCount: number;
@@ -32,7 +32,7 @@ export function createBotCombatState(): BotCombatState {
   };
 }
 
-export function getBotHeartPhase(combat: BotCombatState): BotHeartPhase {
+export function getBotMarkerPhase(combat: BotCombatState): BotMarkerPhase {
   if (combat.isRagdoll) return 'hidden';
   if (combat.hitCount >= 1) {
     const elapsed = performance.now() - combat.lastHitAtMs;

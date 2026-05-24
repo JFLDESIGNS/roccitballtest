@@ -16,6 +16,29 @@ export function getEnemyGoalTarget(team: Team, out = _target): THREE.Vector3 {
   return out.set(medium.center.x, medium.center.y, medium.center.z);
 }
 
+/** Defensive anchor in front of this team's net */
+export function getOwnGoalAnchor(team: Team, out = _target): THREE.Vector3 {
+  const goals = ARENA_GOALS.filter((g) => g.team === team);
+  const medium = goals.find((g) => g.size === 'medium') ?? goals[0];
+  const towardCourt = team === 'red' ? 1 : -1;
+  return out.set(
+    medium.center.x + towardCourt * BOT.teammateBallChaseDefenseInsetM,
+    medium.center.y,
+    medium.center.z,
+  );
+}
+
+/** Mid-field anchor when a teammate chases the ball */
+export function pickFieldCenterTarget(
+  botId: string,
+  y: number,
+  out = _target,
+): THREE.Vector3 {
+  const lane =
+    botId === 'bot-0' ? -BOT.celebrateRadius * 0.55 : BOT.celebrateRadius * 0.55;
+  return out.set(BOT.celebrateCenterX + lane, y, BOT.celebrateCenterZ);
+}
+
 export function aimAnglesToward(
   from: THREE.Vector3,
   to: THREE.Vector3,

@@ -310,18 +310,27 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     glowTick.current += 1;
     if (
       (mat || heldMat) &&
-      (holderChanged || isHeld || !held || glowTick.current % 2 === 0)
+      (holderChanged ||
+        isHeld ||
+        !held ||
+        glowTick.current % 2 === 0)
     ) {
       const t = clock.getElapsedTime();
+      const holdImmunityActive =
+        isHeld &&
+        performance.now() < gameStore.getState().holdImmunityUntilMs;
       const applyGlow = (m: THREE.MeshStandardMaterial | null) => {
         if (!m) return;
         if (isHeld) {
           const ht = holderGlowTeam(holderId, localTeam);
-          const pulse = 0.78 + Math.sin(t * 5) * 0.18;
+          const immune = holdImmunityActive;
+          const pulse = immune
+            ? 1.18 + Math.sin(t * 7) * 0.24
+            : 0.78 + Math.sin(t * 5) * 0.18;
           m.emissiveIntensity = pulse;
-          if (ht === 'red') m.emissive.set('#ff5544');
-          else if (ht === 'blue') m.emissive.set('#55aaff');
-          else m.emissive.set('#ffee88');
+          if (ht === 'red') m.emissive.set(immune ? '#ff8877' : '#ff5544');
+          else if (ht === 'blue') m.emissive.set(immune ? '#88ccff' : '#55aaff');
+          else m.emissive.set(immune ? '#fff4aa' : '#ffee88');
         } else {
           const glow = getBeamBallGlow();
           if (glow.contested) {

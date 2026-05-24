@@ -12,9 +12,13 @@ export type FanGlassPanel = {
   bayKey: string;
   homeTeam: Team;
   box: THREE.Box3;
+  courtFaceCenter: THREE.Vector3;
+  outwardNormal: THREE.Vector3;
 };
 
 const panels: FanGlassPanel[] = [];
+const _courtFace = new THREE.Vector3();
+const _outNormal = new THREE.Vector3();
 const glassMeshes = new Map<
   string,
   { bayKey: string; homeTeam: Team; mesh: THREE.Mesh }
@@ -46,11 +50,19 @@ export function fanBayKey(edgeIndex: number): string {
   return `fan-bay-${edgeIndex}`;
 }
 
-function storeGlassPanel(bayKey: string, homeTeam: Team, box: THREE.Box3): void {
+function storeGlassPanel(
+  bayKey: string,
+  homeTeam: Team,
+  box: THREE.Box3,
+  courtFaceCenter: THREE.Vector3,
+  outwardNormal: THREE.Vector3,
+): void {
   const entry: FanGlassPanel = {
     bayKey,
     homeTeam,
     box: box.clone().expandByScalar(0.85),
+    courtFaceCenter: courtFaceCenter.clone(),
+    outwardNormal: outwardNormal.clone(),
   };
   const i = panels.findIndex((p) => p.bayKey === bayKey);
   if (i >= 0) panels[i] = entry;
@@ -76,8 +88,15 @@ export function refreshFanGlassBoxes(): void {
   for (const { bayKey, homeTeam, mesh } of glassMeshes.values()) {
     mesh.updateWorldMatrix(true, false);
     _box.setFromObject(mesh);
-    storeGlassPanel(bayKey, homeTeam, _box);
+    const halfDepth = ARENA_PADS.fanFacadeGlassThicknessM * 0.5;
+    _courtFace.set(0, 0, halfDepth).applyMatrix4(mesh.matrixWorld);
+    _outNormal.set(0, 0, 1).transformDirection(mesh.matrixWorld).normalize();
+    storeGlassPanel(bayKey, homeTeam, _box, _courtFace, _outNormal);
   }
+}
+
+export function getFanGlassPanels(): readonly FanGlassPanel[] {
+  return panels;
 }
 
 export function trySegmentHitsFanGlass(
