@@ -1,5 +1,6 @@
 import { MATCH } from '../shared/Constants';
 import { clearBotTeamRelease } from './botTeamRelease';
+import { EMPTY_MATCH_STATS, type MatchStats } from './matchStats';
 import type { BallStateKind, GoalSize, MatchScore, Team } from '../shared/Types';
 
 export type BotId = 'bot-0' | 'bot-1' | 'bot-2';
@@ -62,6 +63,8 @@ type GameStoreState = {
   playerKnockStunUntilMs: number;
   /** Increments on each new match — resets timers in MatchLoop */
   matchGeneration: number;
+  /** Local-player totals for the end-game stats screen */
+  matchStats: MatchStats;
 };
 
 const listeners = new Set<() => void>();
@@ -121,6 +124,7 @@ let state: GameStoreState = {
   combatGraceUntilMs: 0,
   playerKnockStunUntilMs: 0,
   matchGeneration: 0,
+  matchStats: { ...EMPTY_MATCH_STATS },
 };
 
 function notify() {
@@ -175,6 +179,7 @@ export const gameStore = {
       ballComboExpiresAt: 0,
       playerKnockStunUntilMs: 0,
       matchGeneration: state.matchGeneration + 1,
+      matchStats: { ...EMPTY_MATCH_STATS },
     };
     notify();
   },
@@ -223,6 +228,11 @@ export const gameStore = {
     notify();
   },
   addScore: (team: Team, points: number, goalPos?: { x: number; y: number; z: number }) => {
+    const nextStats = { ...state.matchStats };
+    if (team === state.localTeam) {
+      nextStats.goals += 1;
+      nextStats.pointsScored += points;
+    }
     state = {
       ...state,
       score: { ...state.score, [team]: state.score[team] + points },
@@ -233,6 +243,7 @@ export const gameStore = {
       lastScoringTeam: team,
       ballCombo: 0,
       ballComboExpiresAt: 0,
+      matchStats: nextStats,
     };
     notify();
   },
@@ -368,7 +379,13 @@ export const gameStore = {
     notify();
   },
   setBallCombo: (combo: number, expiresAt: number) => {
-    state = { ...state, ballCombo: combo, ballComboExpiresAt: expiresAt };
+    const maxCombo = Math.max(state.matchStats.maxCombo, combo);
+    state = {
+      ...state,
+      ballCombo: combo,
+      ballComboExpiresAt: expiresAt,
+      matchStats: { ...state.matchStats, maxCombo },
+    };
     notify();
   },
   clearBallCombo: () => {
@@ -445,6 +462,36 @@ export const gameStore = {
     }
     if (!changed) return;
     state = { ...state, botEnergies: next };
+    notify();
+  },
+  recordMidAirHit: () => {
+    state = {
+      ...state,
+      matchStats: {
+        ...state.matchStats,
+        midAirHits: state.matchStats.midAirHits + 1,
+      },
+    };
+    notify();
+  },
+  recordKill: () => {
+    state = {
+      ...state,
+      matchStats: {
+        ...state.matchStats,
+        kills: state.matchStats.kills + 1,
+      },
+    };
+    notify();
+  },
+  recordRocketHit: () => {
+    state = {
+      ...state,
+      matchStats: {
+        ...state.matchStats,
+        rocketHits: state.matchStats.rocketHits + 1,
+      },
+    };
     notify();
   },
 };

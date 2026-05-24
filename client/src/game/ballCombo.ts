@@ -24,6 +24,7 @@ export function registerLocalBallComboHit(
   }
   next = next <= 0 ? 1 : next + 1;
   gameStore.setBallCombo(next, now + BALL_COMBO_TIMEOUT_MS);
+  gameStore.recordMidAirHit();
 }
 
 export function clearBallCombo(): void {

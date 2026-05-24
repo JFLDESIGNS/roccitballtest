@@ -542,7 +542,10 @@ function Scene({
             botEnergyLevelsRef,
             ownerId,
           );
+          if (ownerId !== 'local') return;
+          gameStore.recordRocketHit();
           if (ragdolled) {
+            gameStore.recordKill();
             announceBotDestroyed('local', botId);
           } else {
             announceRocketPlayerHit('local', botId);

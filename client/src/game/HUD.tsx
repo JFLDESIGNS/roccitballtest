@@ -5,6 +5,7 @@ import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
 import { inputManager } from './InputManager';
 import { isMatchOver, matchEndHeadline } from './matchEnd';
+import { matchStatRows } from './matchStats';
 import { resumeAudio, warmAudio } from './audio';
 
 function formatTime(sec: number): string {
@@ -195,6 +196,17 @@ export function HUD({ onMainMenu }: HUDProps) {
             <p className="hud-match-end-score">
               Red {state.score.red} — Blue {state.score.blue}
             </p>
+            <div className="hud-match-stats">
+              <p className="hud-match-stats-heading">Your stats</p>
+              <dl className="hud-match-stats-grid">
+                {matchStatRows(state.matchStats).map((row) => (
+                  <div key={row.label} className="hud-match-stat">
+                    <dt>{row.label}</dt>
+                    <dd>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
             <div className="hud-match-end-actions">
               <button type="button" className="hud-match-end-btn" onClick={handlePlayAgain}>
                 Play again
