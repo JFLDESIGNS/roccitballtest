@@ -170,7 +170,7 @@ function GoalRingBackplate({
     [backRadius, tube, radial, tubular],
   );
   const capGeo = useMemo(
-    () => new THREE.CircleGeometry(capRadius, 32),
+    () => new THREE.CircleGeometry(capRadius, GOAL_RINGS.ringCapSegments),
     [capRadius],
   );
   const capMat = useMemo(() => {
@@ -257,7 +257,13 @@ function GoalRing({
     [ringRadius, tube, radial, tubular],
   );
   const glowGeo = useMemo(
-    () => new THREE.TorusGeometry(ringRadius, glowTube, 14, 28),
+    () =>
+      new THREE.TorusGeometry(
+        ringRadius,
+        glowTube,
+        GOAL_RINGS.torusRadialSegments,
+        GOAL_RINGS.torusTubularSegments,
+      ),
     [ringRadius, glowTube],
   );
 
@@ -305,7 +311,13 @@ function GoalRing({
                 />
               </mesh>
               <mesh renderOrder={2}>
-                <ringGeometry args={[scoreHalf * 0.75, scoreHalf * 1.05, 16]} />
+                <ringGeometry
+                  args={[
+                    scoreHalf * 0.75,
+                    scoreHalf * 1.05,
+                    GOAL_RINGS.ringCapSegments,
+                  ]}
+                />
                 <meshBasicMaterial
                   color={color}
                   transparent

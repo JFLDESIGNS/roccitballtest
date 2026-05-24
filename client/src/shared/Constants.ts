@@ -932,8 +932,12 @@ export const GOAL_RINGS = {
   emissiveIntensity: 4.6,
   glowTubeScale: 1.45,
   glowOpacity: 0.42,
-  torusRadialSegments: 20,
-  torusTubularSegments: 40,
+  /** Torus tube cross-section segments */
+  torusRadialSegments: 8,
+  /** Torus segments around the ring (rotation) */
+  torusTubularSegments: 8,
+  /** Backing cap disc + score hole ring segments */
+  ringCapSegments: 8,
   /** Distance from flat end face toward arena center (rings stay visible in play space) */
   faceInsetFromWall: 1.6,
   sensorDepth: 2.75,
