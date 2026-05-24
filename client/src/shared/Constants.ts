@@ -759,7 +759,7 @@ export const ROCKET = {
   /** Max rockets from local player in flight at once */
   maxActive: 8,
   /** Min seconds between rocket shots — faster clicks play empty clip */
-  fireCooldownSec: 1,
+  fireCooldownSec: 1.5,
   speed: 72,
   velocityInherit: 1,
   maxSpeed: 105,
