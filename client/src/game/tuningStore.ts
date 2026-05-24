@@ -91,7 +91,7 @@ const defaults: TuningValues = {
   sprintSpeed: MOVEMENT.sprintSpeed,
   rocketSpeed: ROCKET.speed,
   gravity: MOVEMENT.gravity,
-  ballKnockStrength: 1.6,
+  ballKnockStrength: 1,
   carryMomentumToShot: 1.05,
   baseLaunchForce: 0.6,
   shortArc: 0.5,
