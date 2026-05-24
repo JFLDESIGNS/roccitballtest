@@ -45,6 +45,10 @@ import {
   type RocketExplosionSpritesHandle,
 } from './RocketExplosionSprites';
 import {
+  RocketWallImpactFx,
+  type RocketWallImpactFxHandle,
+} from './RocketWallImpactFx';
+import {
   BotRagdollBurstFx,
   type BotRagdollBurstHandle,
 } from './BotRagdollBurstFx';
@@ -167,6 +171,7 @@ function Scene({
   const ballBodyRef = useRef<RapierRigidBody | null>(null);
   const holdingBallRef = useRef(false);
   const splashFxRef = useRef<RocketExplosionSpritesHandle | null>(null);
+  const wallImpactFxRef = useRef<RocketWallImpactFxHandle | null>(null);
   const botRagdollFxRef = useRef<BotRagdollBurstHandle | null>(null);
   const playerPosRef = useRef(new THREE.Vector3(0, 2, 24));
   const playerChestRef = useRef(new THREE.Vector3());
@@ -356,6 +361,22 @@ function Scene({
       );
     }
     splashFxRef.current?.spawn(hit.x, hit.y, hit.z, hit.radius);
+    if (
+      hit.scorchNx !== undefined &&
+      hit.scorchNy !== undefined &&
+      hit.scorchNz !== undefined &&
+      hit.scorchKind
+    ) {
+      wallImpactFxRef.current?.spawn(
+        hit.x,
+        hit.y,
+        hit.z,
+        hit.scorchNx,
+        hit.scorchNy,
+        hit.scorchNz,
+        hit.scorchKind,
+      );
+    }
     registerBeamDenyZone(hit.x, hit.y, hit.z, hit.radius);
 
     const holder = gameStore.getState().ballHolderId;
@@ -496,6 +517,7 @@ function Scene({
         team={localTeam}
       />
       <RocketExplosionSprites poolRef={splashFxRef} />
+      <RocketWallImpactFx poolRef={wallImpactFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
       <GoalFireworks />

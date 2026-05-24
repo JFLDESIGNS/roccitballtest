@@ -1,22 +1,13 @@
-import { useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BEAM } from '../shared/Constants';
-import type { Team } from '../shared/Types';
 import { VelocityPathRibbon } from './VelocityPathRibbon';
 
-const TEAM_TRAIL: Record<
-  Team,
-  { primary: string; secondary: string; accent: string }
-> = {
-  blue: { primary: '#88eeff', secondary: '#44bbff', accent: '#cceeff' },
-  red: { primary: '#ffaa88', secondary: '#ff6644', accent: '#ffd4cc' },
-};
+const RIBBON_WHITE = '#ffffff';
 
 type RibbonLayer = {
-  colorKey: keyof (typeof TEAM_TRAIL)['blue'];
   opacity: number;
-  lineWidthWorld: number;
   back: number;
   lateral: number;
   y: number;
@@ -26,9 +17,7 @@ type RibbonLayer = {
 
 const RIBBON_LAYERS: RibbonLayer[] = [
   {
-    colorKey: 'primary',
-    opacity: 0.52,
-    lineWidthWorld: 0.44,
+    opacity: 0.42,
     back: 0.78,
     lateral: 0,
     y: BEAM.chestHeight * 0.42,
@@ -36,9 +25,7 @@ const RIBBON_LAYERS: RibbonLayer[] = [
     minStep: 0.16,
   },
   {
-    colorKey: 'secondary',
-    opacity: 0.44,
-    lineWidthWorld: 0.36,
+    opacity: 0.36,
     back: 0.72,
     lateral: -0.32,
     y: BEAM.chestHeight * 0.28,
@@ -46,9 +33,7 @@ const RIBBON_LAYERS: RibbonLayer[] = [
     minStep: 0.18,
   },
   {
-    colorKey: 'secondary',
-    opacity: 0.4,
-    lineWidthWorld: 0.36,
+    opacity: 0.36,
     back: 0.72,
     lateral: 0.32,
     y: BEAM.chestHeight * 0.28,
@@ -56,9 +41,7 @@ const RIBBON_LAYERS: RibbonLayer[] = [
     minStep: 0.18,
   },
   {
-    colorKey: 'accent',
-    opacity: 0.34,
-    lineWidthWorld: 0.28,
+    opacity: 0.3,
     back: 0.58,
     lateral: 0,
     y: BEAM.chestHeight * 0.12,
@@ -109,51 +92,32 @@ function samplePlayerTrailPoint(
 
 type PlayerMotionRibbonsProps = {
   bodyRef: React.RefObject<RapierRigidBody | null>;
-  team: Team;
   hidden?: boolean;
 };
 
-/** Thick layered motion ribbons trailing behind the player drone */
+/** Four thin white motion strings trailing behind the player drone */
 export function PlayerMotionRibbons({
   bodyRef,
-  team,
   hidden,
 }: PlayerMotionRibbonsProps) {
-  const colors = TEAM_TRAIL[team];
   const sampleOut = useRef(
     RIBBON_LAYERS.map(() => new THREE.Vector3()),
   );
 
-  const layers = useMemo(
-    () =>
-      RIBBON_LAYERS.map((layer, i) => ({
-        ...layer,
-        color: colors[layer.colorKey],
-        sampleIndex: i,
-      })),
-    [colors],
-  );
-
   return (
     <>
-      {layers.map((layer) => (
+      {RIBBON_LAYERS.map((layer, i) => (
         <VelocityPathRibbon
-          key={`${layer.colorKey}-${layer.lateral}-${layer.y}`}
+          key={`${layer.lateral}-${layer.y}`}
           hidden={hidden}
-          crossSection
-          color={layer.color}
+          color={RIBBON_WHITE}
           opacity={layer.opacity}
-          lineWidthWorld={layer.lineWidthWorld}
           maxPoints={layer.maxPoints}
           minStep={layer.minStep}
           samplePosition={() => {
             const body = bodyRef.current;
             if (!body) return null;
-            return samplePlayerTrailPoint(
-              body,
-              layer,
-              sampleOut.current[layer.sampleIndex]!,
-            );
+            return samplePlayerTrailPoint(body, layer, sampleOut.current[i]!);
           }}
         />
       ))}

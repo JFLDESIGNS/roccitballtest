@@ -564,6 +564,12 @@ export function Rockets({
     rocketVel?: THREE.Vector3,
     ownerId?: string,
     impactNormal?: THREE.Vector3,
+    scorch?: {
+      nx: number;
+      ny: number;
+      nz: number;
+      kind: 'wall' | 'floor' | 'ceiling';
+    },
   ) => {
     const i = boomCount.current++;
     let h = boomScratch.current[i];
@@ -576,6 +582,17 @@ export function Rockets({
     h.z = z;
     h.radius = ROCKET.explosionRadius;
     h.fromOwnerId = ownerId;
+    if (scorch) {
+      h.scorchNx = scorch.nx;
+      h.scorchNy = scorch.ny;
+      h.scorchNz = scorch.nz;
+      h.scorchKind = scorch.kind;
+    } else {
+      h.scorchNx = undefined;
+      h.scorchNy = undefined;
+      h.scorchNz = undefined;
+      h.scorchKind = undefined;
+    }
     if (impactNormal) {
       h.ballImpactNx = impactNormal.x;
       h.ballImpactNy = impactNormal.y;
@@ -682,7 +699,19 @@ export function Rockets({
     boomCount.current = 0;
     for (const e of explosions) {
       if (boomCount.current >= MAX_BOOMS) break;
-      pushBoom(e.x, e.y, e.z);
+      const scorch =
+        e.scorchNx !== undefined &&
+        e.scorchNy !== undefined &&
+        e.scorchNz !== undefined &&
+        e.scorchKind
+          ? {
+              nx: e.scorchNx,
+              ny: e.scorchNy,
+              nz: e.scorchNz,
+              kind: e.scorchKind,
+            }
+          : undefined;
+      pushBoom(e.x, e.y, e.z, undefined, undefined, undefined, scorch);
     }
 
     for (const r of moved) {

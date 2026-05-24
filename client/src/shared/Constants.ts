@@ -598,7 +598,9 @@ export const ENERGY = {
   max: 100,
   sprintDrain: 14,
   beamDrain: 17,
-  /** No drain while carrying — beam only costs energy while pulling */
+  /** RMB + carrying ball — ~8s from full (100 / 12.5) */
+  carryBeamDrain: 12.5,
+  /** No passive drain while carrying without beam */
   holdBallDrain: 0,
   regen: 26,
   regenDelay: 0.75,
@@ -756,6 +758,8 @@ export const ROCKET = {
   chargedHoldSec: 0.14,
   /** Max rockets from local player in flight at once */
   maxActive: 8,
+  /** Min seconds between rocket shots — faster clicks play empty clip */
+  fireCooldownSec: 1,
   speed: 72,
   velocityInherit: 1,
   maxSpeed: 105,
@@ -786,6 +790,18 @@ export const ROCKET = {
   explosionSpriteSize: 0.52,
   /** HDR-style emissive boost (toneMapped off) */
   explosionSpriteBrightness: 3.2,
+  /** Nudge sprite toward camera (× size) — reduces floor/wall clipping when turning */
+  explosionSpriteCameraPull: 0.38,
+  /** Delay after blast before black scorch appears (before embers) */
+  wallScorchSpawnDelaySec: 0.52,
+  /** Delay after blast before embers appear (near end of explosion sprite) */
+  wallScorchEmberSpawnDelaySec: 0.78,
+  /** How long the black scorch stays at full strength before fading */
+  wallScorchHoldSec: 9,
+  /** Black radial scorch fade-out duration after hold */
+  wallScorchFadeSec: 3,
+  wallScorchRadiusM: 3.1,
+  wallScorchEmberCount: 5,
   playerForce: 24,
   /** Brief ragdoll-like tumble on rocket hit (seconds) */
   knockStunSec: 0.6,

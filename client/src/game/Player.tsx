@@ -177,6 +177,7 @@ export function Player({
   /** One fire SFX per LMB press; edge attempt skips release retry */
   const firePressHandled = useRef(false);
   const dashCooldown = useRef(0);
+  const rocketFireCooldown = useRef(0);
   const dashActiveTimer = useRef(0);
   const goalNetCooldown = useRef(0);
   const goalRimCooldown = useRef(0);
@@ -571,6 +572,7 @@ export function Player({
     knockStunWasActive.current = false;
     const localTeam = gameStore.getState().localTeam;
     dashCooldown.current = Math.max(0, dashCooldown.current - dt);
+    rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     goalNetCooldown.current = Math.max(0, goalNetCooldown.current - dt);
     goalRimCooldown.current = Math.max(0, goalRimCooldown.current - dt);
@@ -895,13 +897,11 @@ export function Player({
       energy.current >= ENERGY.minBeam &&
       !beamDenied &&
       !gameStore.getState().ballFrozen;
-    if (beamInput && !holdingBall.current) {
-      energy.current -= ENERGY.beamDrain * dt;
+    if (beamInput && holdingBall.current) {
+      energy.current -= ENERGY.carryBeamDrain * dt;
       draining.current = true;
-    }
-
-    if (holdingBall.current && ENERGY.holdBallDrain > 0) {
-      energy.current -= ENERGY.holdBallDrain * dt;
+    } else if (beamInput && !holdingBall.current) {
+      energy.current -= ENERGY.beamDrain * dt;
       draining.current = true;
     }
 
@@ -1203,6 +1203,13 @@ export function Player({
     const tryFireRocket = (explosive: boolean): boolean => {
       if (!canShootRockets || !body) return false;
       if (rocketsBlockedByShot()) return false;
+      if (rocketFireCooldown.current > 0) {
+        if (!firePressHandled.current) {
+          playRocketEmpty();
+          firePressHandled.current = true;
+        }
+        return false;
+      }
       if (canFireRocket && !canFireRocket()) {
         if (!firePressHandled.current) {
           playRocketEmpty();
@@ -1232,6 +1239,7 @@ export function Player({
         firePressHandled.current = true;
       }
       onRocketFired(rocket);
+      rocketFireCooldown.current = ROCKET.fireCooldownSec;
       return true;
     };
 
@@ -1391,7 +1399,7 @@ export function Player({
 
   return (
     <>
-      <PlayerMotionRibbons bodyRef={bodyRef} team={localTeam} />
+      <PlayerMotionRibbons bodyRef={bodyRef} />
       <RigidBody
         ref={bodyRef}
         position={[spawnPos.x, spawnPos.y, spawnPos.z]}

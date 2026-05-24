@@ -31,6 +31,11 @@ export type ExplosionHit = {
   ballImpactNz?: number;
   /** Rocket owner when the blast came from a projectile */
   fromOwnerId?: string;
+  /** Delayed wall/floor scorch decal */
+  scorchNx?: number;
+  scorchNy?: number;
+  scorchNz?: number;
+  scorchKind?: 'wall' | 'floor' | 'ceiling';
 };
 
 const _dir = new THREE.Vector3();

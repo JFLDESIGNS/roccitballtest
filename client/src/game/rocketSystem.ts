@@ -241,8 +241,82 @@ export function segmentBallSurfaceImpact(
   return true;
 }
 
+export type RocketExplosionEvent = Vec3 & {
+  scorchNx?: number;
+  scorchNy?: number;
+  scorchNz?: number;
+  scorchKind?: 'wall' | 'floor' | 'ceiling';
+};
+
+const _scorchNormal = new THREE.Vector3();
+
+/** Surface normal for delayed wall/floor scorch decals */
+export function resolveScorchSurface(
+  prev: THREE.Vector3,
+  pos: THREE.Vector3,
+  arenaRadius: number,
+  arenaHeight: number,
+): { nx: number; ny: number; nz: number; kind: 'wall' | 'floor' | 'ceiling' } | null {
+  const playR = arenaRadius - 0.6;
+
+  if (prev.y >= 0.4 && pos.y < 0.55) {
+    return { nx: 0, ny: 1, nz: 0, kind: 'floor' };
+  }
+
+  const ceiling = arenaHeight;
+  if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) {
+    return { nx: 0, ny: -1, nz: 0, kind: 'ceiling' };
+  }
+
+  const wasIn = isInsideHex(prev.x, prev.z, playR);
+  const nowIn = isInsideHex(pos.x, pos.z, playR);
+  if ((wasIn && !nowIn) || !nowIn) {
+    const n2 = hexBoundaryNormal(pos.x, pos.z, playR);
+    _scorchNormal.set(-n2.x, 0, -n2.y);
+    if (_scorchNormal.lengthSq() < 1e-6) _scorchNormal.set(0, 0, 1);
+    else _scorchNormal.normalize();
+    return {
+      nx: _scorchNormal.x,
+      ny: _scorchNormal.y,
+      nz: _scorchNormal.z,
+      kind: 'wall',
+    };
+  }
+
+  if (pos.y < 0.75) {
+    return { nx: 0, ny: 1, nz: 0, kind: 'floor' };
+  }
+
+  return null;
+}
+
 const _wallNormal = new THREE.Vector2();
 const _stepPrev = new THREE.Vector3();
+
+function pushExplosionEvent(
+  explosions: RocketExplosionEvent[],
+  prev: THREE.Vector3,
+  pos: THREE.Vector3,
+  arenaRadius: number,
+  arenaHeight: number,
+  withScorch: boolean,
+) {
+  const event: RocketExplosionEvent = {
+    x: pos.x,
+    y: Math.max(pos.y, 0.5),
+    z: pos.z,
+  };
+  if (withScorch) {
+    const scorch = resolveScorchSurface(prev, pos, arenaRadius, arenaHeight);
+    if (scorch) {
+      event.scorchNx = scorch.nx;
+      event.scorchNy = scorch.ny;
+      event.scorchNz = scorch.nz;
+      event.scorchKind = scorch.kind;
+    }
+  }
+  explosions.push(event);
+}
 
 function reflectVelocityOffWall(
   velocity: THREE.Vector3,
@@ -421,10 +495,10 @@ export function updateRockets(
   arenaHalf: { w: number; d: number; h: number },
 ): {
   rockets: ActiveRocket[];
-  explosions: Vec3[];
+  explosions: RocketExplosionEvent[];
   trailSegments: RocketTrailSegment[];
 } {
-  const explosions: Vec3[] = [];
+  const explosions: RocketExplosionEvent[] = [];
   const trailSegments: RocketTrailSegment[] = [];
   const now = performance.now() / 1000;
   const remaining: ActiveRocket[] = [];
@@ -459,7 +533,14 @@ export function updateRockets(
     if (glassHit) {
       triggerFanGlassHit(glassHit.bayKey);
       if (r.explosive) {
-        explosions.push({ x, y: Math.max(y, 0.5), z });
+        pushExplosionEvent(
+          explosions,
+          _stepPrev,
+          pos,
+          arenaRadius,
+          arenaHalf.h,
+          true,
+        );
         continue;
       }
       r.bouncesLeft = Math.max(0, r.bouncesLeft - 1);
@@ -473,7 +554,14 @@ export function updateRockets(
     const goalRingContact = findGoalRimSegmentContact(_stepPrev, pos, 0.55);
     if (goalRingContact) {
       if (r.explosive) {
-        explosions.push({ x, y: Math.max(y, 0.5), z });
+        pushExplosionEvent(
+          explosions,
+          _stepPrev,
+          pos,
+          arenaRadius,
+          arenaHalf.h,
+          true,
+        );
         continue;
       }
       const rim = goalRingContact;
@@ -497,7 +585,14 @@ export function updateRockets(
       const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
       if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
       tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
-      explosions.push({ x, y: Math.max(y, 0.5), z });
+      pushExplosionEvent(
+        explosions,
+        _stepPrev,
+        pos,
+        arenaRadius,
+        arenaHalf.h,
+        true,
+      );
       continue;
     }
 
@@ -526,7 +621,14 @@ export function updateRockets(
       const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
       if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
       tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
-      explosions.push({ x, y: Math.max(y, 0.5), z });
+      pushExplosionEvent(
+        explosions,
+        _stepPrev,
+        pos,
+        arenaRadius,
+        arenaHalf.h,
+        true,
+      );
       continue;
     }
 
