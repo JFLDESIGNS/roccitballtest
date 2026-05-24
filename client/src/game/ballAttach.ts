@@ -2,7 +2,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import type { World } from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { ARENA, BALL, BEAM } from '../shared/Constants';
-import { resolveHeldBallPosition } from './ballHoldResolve';
+import { resolveHeldBallPosition, resetHeldBallSupportSmooth } from './ballHoldResolve';
 import { setBallHeldCollider, wakeBallBody } from './ballPhysics';
 
 const KINEMATIC = 2;
@@ -75,6 +75,7 @@ export function captureBallSocket(
   target: THREE.Vector3,
   startPos?: THREE.Vector3,
 ) {
+  resetHeldBallSupportSmooth();
   body.setBodyType(KINEMATIC, true);
   body.setGravityScale(0, true);
   setBallHeldCollider(body, true);
@@ -100,27 +101,6 @@ export function updateBallSocketSmooth(
   holderBody?: RapierRigidBody | null,
   chest?: THREE.Vector3 | null,
 ) {
-  const latched = latchT >= 1;
-  if (latched) {
-    _lerpPos.copy(target);
-    if (world) {
-      resolveHeldBallPosition(
-        world,
-        body,
-        _lerpPos,
-        _lerpPos,
-        BALL.radius,
-        holderBody,
-        target,
-        chest,
-      );
-    }
-    body.setTranslation({ x: _lerpPos.x, y: _lerpPos.y, z: _lerpPos.z }, true);
-    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    return;
-  }
-
   const smooth = THREE.MathUtils.lerp(
     BALL.holdLatchSmooth,
     followSmooth,
@@ -128,11 +108,29 @@ export function updateBallSocketSmooth(
   );
   const alpha = 1 - Math.exp(-smooth * Math.max(dt, 1 / 120));
   const t = body.translation();
+
+  if (world) {
+    resolveHeldBallPosition(
+      world,
+      body,
+      target,
+      _lerpPos,
+      BALL.radius,
+      holderBody,
+      target,
+      chest,
+      dt,
+    );
+  } else {
+    _lerpPos.copy(target);
+  }
+
   _lerpPos.set(
-    THREE.MathUtils.lerp(t.x, target.x, alpha),
-    THREE.MathUtils.lerp(t.y, target.y, alpha),
-    THREE.MathUtils.lerp(t.z, target.z, alpha),
+    THREE.MathUtils.lerp(t.x, _lerpPos.x, alpha),
+    THREE.MathUtils.lerp(t.y, _lerpPos.y, alpha),
+    THREE.MathUtils.lerp(t.z, _lerpPos.z, alpha),
   );
+
   if (world) {
     resolveHeldBallPosition(
       world,
@@ -143,8 +141,10 @@ export function updateBallSocketSmooth(
       holderBody,
       target,
       chest,
+      dt,
     );
   }
+
   body.setTranslation({ x: _lerpPos.x, y: _lerpPos.y, z: _lerpPos.z }, true);
   body.setLinvel({ x: 0, y: 0, z: 0 }, true);
   body.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -179,7 +179,7 @@ export function smoothHoldSocketTarget(
   if (holderBody) {
     const lv = holderBody.linvel();
     const speed = Math.hypot(lv.x, lv.y, lv.z);
-    if (speed > 6) effectiveRate += Math.min(speed * 1.1, 36);
+    if (speed > 5) effectiveRate += Math.min(speed * 0.65, 22);
   }
   const alpha = 1 - Math.exp(-effectiveRate * Math.max(dt, 1 / 120));
   smoothed.lerp(_rawSocket, alpha);
@@ -188,6 +188,7 @@ export function smoothHoldSocketTarget(
 }
 
 export function releaseBallPhysics(body: RapierRigidBody) {
+  resetHeldBallSupportSmooth();
   setBallHeldCollider(body, false);
   body.setBodyType(DYNAMIC, true);
   body.setGravityScale(BALL.gravityScale, true);

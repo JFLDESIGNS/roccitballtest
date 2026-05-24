@@ -1,7 +1,7 @@
 import { BOT, MOVEMENT, ROCKET } from '../shared/Constants';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v6';
+const STORAGE_KEY = 'rocketball-tuning-v7';
 
 export type TuningValues = {
   jumpForce: number;
@@ -88,11 +88,11 @@ const defaults: TuningValues = {
   rocketSpeed: ROCKET.speed,
   gravity: MOVEMENT.gravity,
   ballKnockStrength: 2.5,
-  carryMomentumToShot: 1.35,
-  baseLaunchForce: 0.7,
-  shortArc: 10.3,
+  carryMomentumToShot: 1.05,
+  baseLaunchForce: 0.6,
+  shortArc: 0.5,
   swingToShot: 1,
-  moveSpeedToShot: 0.4,
+  moveSpeedToShot: 0.15,
   releaseSwingMinSpeed: 0.3,
   releaseMomentumScale: 0.65,
   releaseIdleSwingScale: 0.26,

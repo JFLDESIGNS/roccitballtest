@@ -612,11 +612,15 @@ export const BALL = {
   beamRegrabLockSec: 0.35,
   spawnCooldownSec: 1.2,
   /** Smooth snap when ball first latches to hold socket */
-  holdLatchDurationSec: 0.24,
-  holdLatchSmooth: 16,
-  holdFollowSmooth: 26,
+  holdLatchDurationSec: 0.28,
+  holdLatchSmooth: 14,
+  holdFollowSmooth: 20,
   /** Aim smoothing while carrying — lower = snappier */
-  holdSocketTargetSmooth: 8,
+  holdSocketTargetSmooth: 5.5,
+  /** Extra low-pass on held ball mesh vs physics body */
+  holdVisualSmooth: 24,
+  /** Low-pass on ramp/floor support height while held */
+  holdSupportSmooth: 32,
   /** How long Space stays buffered if jump was early (seconds) */
   jumpBufferSec: 0.28,
   /** m/s impulse per m/s ball impact on characters */

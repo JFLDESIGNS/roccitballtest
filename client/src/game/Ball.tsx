@@ -90,6 +90,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const _ballTo = useRef(new THREE.Vector3());
   const goalRimCooldown = useRef(0);
   const hasPrevBallPos = useRef(false);
+  const heldVisualPos = useRef(new THREE.Vector3());
+  const heldVisualReady = useRef(false);
 
   const surfaceMap = useMemo(
     () => createBallPolkaTexture(RENDER.ballPolkaTextureSize),
@@ -243,13 +245,26 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     stepBallPhysics(body);
   });
 
-  useFrame(() => {
-    if (!isHeld) return;
+  useFrame((_, dt) => {
+    if (!isHeld) {
+      heldVisualReady.current = false;
+      return;
+    }
     const body = bodyRef.current;
     const mesh = heldVisualRef.current;
     if (!body || !mesh) return;
     const t = body.translation();
-    mesh.position.set(t.x, t.y, t.z);
+    if (!heldVisualReady.current) {
+      heldVisualPos.current.set(t.x, t.y, t.z);
+      heldVisualReady.current = true;
+    }
+    const alpha = 1 - Math.exp(-BALL.holdVisualSmooth * Math.max(dt, 1 / 120));
+    heldVisualPos.current.set(
+      THREE.MathUtils.lerp(heldVisualPos.current.x, t.x, alpha),
+      THREE.MathUtils.lerp(heldVisualPos.current.y, t.y, alpha),
+      THREE.MathUtils.lerp(heldVisualPos.current.z, t.z, alpha),
+    );
+    mesh.position.copy(heldVisualPos.current);
   }, -1);
 
   useFrame(({ clock }, dt) => {

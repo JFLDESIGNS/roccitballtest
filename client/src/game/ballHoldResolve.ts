@@ -8,6 +8,13 @@ import { getMaxPlatformSurfaceY } from './arenaSpawn';
 const _rayOrig = { x: 0, y: 0, z: 0 };
 const _rayDir = { x: 0, y: 0, z: 0 };
 
+let smoothedSupportY = ARENA.floorY + BALL.radius;
+let supportSmoothReady = false;
+
+export function resetHeldBallSupportSmooth(): void {
+  supportSmoothReady = false;
+}
+
 function holdRayExclude(
   ball: RapierRigidBody,
   holderBody?: RapierRigidBody | null,
@@ -39,6 +46,17 @@ function castHoldRay(
   );
 }
 
+function smoothSupportY(targetMinY: number, dt: number): number {
+  if (!supportSmoothReady) {
+    smoothedSupportY = targetMinY;
+    supportSmoothReady = true;
+    return targetMinY;
+  }
+  const alpha = 1 - Math.exp(-BALL.holdSupportSmooth * Math.max(dt, 1 / 120));
+  smoothedSupportY = THREE.MathUtils.lerp(smoothedSupportY, targetMinY, alpha);
+  return smoothedSupportY;
+}
+
 /** Lowest valid center Y for a held ball at (x, z) — floor, ramps, and platforms. */
 function ballSupportCenterY(
   world: World,
@@ -49,6 +67,13 @@ function ballSupportCenterY(
   holderBody: RapierRigidBody | null | undefined,
   radius: number,
 ): number {
+  const platformY = getMaxPlatformSurfaceY(x, z);
+  let supportSurface: number = ARENA.floorY;
+
+  if (platformY !== null) {
+    supportSurface = Math.max(supportSurface, platformY);
+  }
+
   _rayOrig.x = x;
   _rayOrig.y = probeTopY + 14;
   _rayOrig.z = z;
@@ -57,14 +82,12 @@ function ballSupportCenterY(
   _rayDir.z = 0;
 
   const hit = castHoldRay(world, ball, holderBody, probeTopY + 20);
-
   if (hit) {
     const surfaceY = _rayOrig.y - hit.timeOfImpact;
-    return surfaceY + radius + 0.06;
+    supportSurface = Math.max(supportSurface, surfaceY);
   }
 
-  const plat = getMaxPlatformSurfaceY(x, z);
-  return (plat ?? ARENA.floorY) + radius + 0.06;
+  return supportSurface + radius + 0.06;
 }
 
 /** Keep held ball outside the holder capsule so it is not buried in the mesh. */
@@ -107,6 +130,7 @@ function heldSupportMinY(
   holderBody: RapierRigidBody | null | undefined,
   radius: number,
   chest?: THREE.Vector3 | null,
+  dt = 1 / 60,
 ): number {
   const floorY = ballSupportCenterY(
     world,
@@ -117,12 +141,37 @@ function heldSupportMinY(
     holderBody,
     radius,
   );
-  if (!holderBody || !chest) return floorY;
+  let minY = smoothSupportY(floorY, dt);
+  if (!holderBody || !chest) return minY;
   const t = holderBody.translation();
   const nearHolder =
     Math.hypot(x - t.x, z - t.z) < MOVEMENT.capsuleRadius + BALL.radius + 1.8;
-  if (!nearHolder) return floorY;
-  return Math.max(floorY, chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.35);
+  if (!nearHolder) return minY;
+  return Math.max(minY, chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.35);
+}
+
+function applyHeldSupportAt(
+  world: World,
+  body: RapierRigidBody,
+  out: THREE.Vector3,
+  radius: number,
+  holderBody: RapierRigidBody | null | undefined,
+  chest: THREE.Vector3 | null | undefined,
+  curY: number,
+  dt: number,
+): void {
+  const minY = heldSupportMinY(
+    world,
+    out.x,
+    out.z,
+    Math.max(out.y, curY),
+    body,
+    holderBody,
+    radius,
+    chest,
+    dt,
+  );
+  if (out.y < minY) out.y = minY;
 }
 
 /**
@@ -138,45 +187,34 @@ export function resolveHeldBallPosition(
   holderBody?: RapierRigidBody | null,
   holdSocket?: THREE.Vector3 | null,
   chest?: THREE.Vector3 | null,
+  dt = 1 / 60,
 ): void {
   const cur = body.translation();
   out.copy(desired);
 
-  if (holderBody && chest) {
+  applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
+
+  if (holderBody && chest && holdSocket) {
     const ht = holderBody.translation();
     const nearHolder =
       Math.hypot(out.x - ht.x, out.z - ht.z) <
       MOVEMENT.capsuleRadius + radius + 2.4;
     if (nearHolder) {
-      if (holdSocket) {
-        nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-      }
+      nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
       const minYNear = chest.y + BEAM.holdMinSocketYBelowChest - radius * 0.2;
       if (out.y < minYNear) out.y = minYNear;
-      return;
     }
   }
-
-  const minY = heldSupportMinY(
-    world,
-    out.x,
-    out.z,
-    Math.max(out.y, cur.y),
-    body,
-    holderBody,
-    radius,
-    chest,
-  );
-  if (out.y < minY) out.y = minY;
 
   const dx = out.x - cur.x;
   const dy = out.y - cur.y;
   const dz = out.z - cur.z;
   const dist = Math.hypot(dx, dy, dz);
-  if (dist < 0.06) {
+  if (dist < 0.04) {
     if (holderBody && holdSocket) {
       nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
     }
+    applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
     return;
   }
 
@@ -192,45 +230,20 @@ export function resolveHeldBallPosition(
     world,
     body,
     holderBody,
-    Math.max(dist - radius * 0.85, 0.02),
+    Math.max(dist - radius * 0.82, 0.02),
   );
 
-  if (!hit) {
-    if (holderBody && holdSocket) {
-      nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-    }
-    return;
+  if (hit) {
+    const safe = Math.max(hit.timeOfImpact - radius * 0.92, 0);
+    out.x = cur.x + _rayDir.x * safe;
+    out.y = cur.y + _rayDir.y * safe;
+    out.z = cur.z + _rayDir.z * safe;
   }
 
-  const safe = Math.max(hit.timeOfImpact - radius * 0.92, 0);
-  out.x = cur.x + _rayDir.x * safe;
-  out.y = cur.y + _rayDir.y * safe;
-  out.z = cur.z + _rayDir.z * safe;
-
-  const minY2 = heldSupportMinY(
-    world,
-    out.x,
-    out.z,
-    Math.max(out.y, cur.y),
-    body,
-    holderBody,
-    radius,
-    chest,
-  );
-  if (out.y < minY2) out.y = minY2;
+  applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
 
   if (holderBody && holdSocket) {
     nudgeHeldBallClearOfHolder(out, holderBody, holdSocket, radius, chest);
-    const minY3 = heldSupportMinY(
-      world,
-      out.x,
-      out.z,
-      Math.max(out.y, cur.y),
-      body,
-      holderBody,
-      radius,
-      chest,
-    );
-    if (out.y < minY3) out.y = minY3;
+    applyHeldSupportAt(world, body, out, radius, holderBody, chest, cur.y, dt);
   }
 }

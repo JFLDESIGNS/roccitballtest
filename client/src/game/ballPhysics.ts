@@ -32,7 +32,7 @@ const _rollAxis = new THREE.Vector3();
 export function setBallHeldCollider(body: RapierRigidBody, held: boolean): void {
   const collider = body.collider(0);
   if (!collider) return;
-  collider.setSensor(held);
+  collider.setSensor(false);
   collider.setCollisionGroups(
     held ? BALL_HELD_COLLISION : looseBallCollisionGroups(),
   );
