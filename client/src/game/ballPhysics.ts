@@ -96,6 +96,57 @@ export function applyBallSpinBounce(
   wakeBallBody(body);
 }
 
+const _rocketHitNormal = new THREE.Vector3();
+
+/** Off-center rocket impulse → spin (τ = r × J on a solid sphere). */
+export function applyBallRocketHitSpin(
+  body: RapierRigidBody,
+  impulseX: number,
+  impulseY: number,
+  impulseZ: number,
+  impactNx: number,
+  impactNy: number,
+  impactNz: number,
+): void {
+  const impulseMag = Math.hypot(impulseX, impulseY, impulseZ);
+  if (impulseMag < 0.5) return;
+
+  _rocketHitNormal.set(impactNx, impactNy, impactNz);
+  if (_rocketHitNormal.lengthSq() < 1e-6) return;
+  _rocketHitNormal.normalize();
+
+  const r = BALL.radius;
+  const mass = body.mass();
+  const invI = 2.5 / (mass * r * r);
+
+  const rx = _rocketHitNormal.x * r;
+  const ry = _rocketHitNormal.y * r;
+  const rz = _rocketHitNormal.z * r;
+
+  const tx = ry * impulseZ - rz * impulseY;
+  const ty = rz * impulseX - rx * impulseZ;
+  const tz = rx * impulseY - ry * impulseX;
+
+  const alongNormal =
+    (impulseX * _rocketHitNormal.x +
+      impulseY * _rocketHitNormal.y +
+      impulseZ * _rocketHitNormal.z) /
+    impulseMag;
+  const tangentFactor = Math.sqrt(Math.max(0, 1 - alongNormal * alongNormal));
+  const spinScale = BALL.rocketHitSpinScale * (0.3 + 0.7 * tangentFactor);
+  const dw = invI * spinScale;
+
+  const av = body.angvel();
+  body.setAngvel(
+    {
+      x: av.x + tx * dw,
+      y: av.y + ty * dw,
+      z: av.z + tz * dw,
+    },
+    true,
+  );
+}
+
 /** Toggle held vs loose without React remounting the collider (avoids grab hitch). */
 export function setBallHeldCollider(body: RapierRigidBody, held: boolean): void {
   const collider = body.collider(0);

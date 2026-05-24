@@ -22,7 +22,6 @@ import { getBallDropLayout } from './arenaLayout';
 import { parkBallAtDropSpawn } from './ballDropSpawn';
 import { releaseBallPhysics } from './ballAttach';
 import { createBallPolkaTexture } from './ballPolkaTexture';
-import { BallSpinMarks } from './ballSpinMarks';
 import { decayBeamContest, getBeamBallGlow, resetBeamContest } from './ballBeamContest';
 import { stepBallPhysics } from './ballRuntime';
 import {
@@ -419,7 +418,6 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
         metalness={0.52}
         roughness={0.32}
       />
-      <BallSpinMarks radius={BALL.radius} color="#ffe8f0" />
     </mesh>
     <RigidBody
       ref={bodyRef}
@@ -458,7 +456,6 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
           metalness={0.52}
           roughness={0.32}
         />
-        <BallSpinMarks radius={BALL.radius} color="#ffe8f0" />
       </mesh>
     </RigidBody>
     </>

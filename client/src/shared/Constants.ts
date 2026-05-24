@@ -613,6 +613,8 @@ export const BALL = {
   spinBounceCoupling: 0.72,
   /** Fraction of spin transferred into the bounce (reduces ω) */
   spinBounceTransfer: 0.28,
+  /** Off-center rocket impulse → angular velocity (τ = r × J) */
+  rocketHitSpinScale: 0.92,
   /** Scales world gravity on the ball (1 = match arena gravity) */
   gravityScale: 1,
   maxSpeed: 80,

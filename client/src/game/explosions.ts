@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { BOT, ROCKET, SUPERBALL } from '../shared/Constants';
 import { releaseBallPhysics } from './ballAttach';
 import { canKnockLooseHeldBall } from './ballHoldImmunity';
-import { wakeBallBody } from './ballPhysics';
+import { wakeBallBody, applyBallRocketHitSpin } from './ballPhysics';
 import {
   applyRocketKnockStun,
   armBotRocketKnockStun,
@@ -35,6 +35,36 @@ export type ExplosionHit = {
 
 const _dir = new THREE.Vector3();
 const _inherit = new THREE.Vector3();
+const _impactNormal = new THREE.Vector3();
+
+function resolveBallImpactNormal(
+  ballX: number,
+  ballY: number,
+  ballZ: number,
+  ex: number,
+  ey: number,
+  ez: number,
+  impactNx?: number,
+  impactNy?: number,
+  impactNz?: number,
+): THREE.Vector3 {
+  if (
+    impactNx !== undefined &&
+    impactNy !== undefined &&
+    impactNz !== undefined
+  ) {
+    const len = Math.hypot(impactNx, impactNy, impactNz);
+    if (len > 1e-4) {
+      return _impactNormal.set(impactNx / len, impactNy / len, impactNz / len);
+    }
+  }
+  const dx = ballX - ex;
+  const dy = ballY - ey;
+  const dz = ballZ - ez;
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 0.01) return _impactNormal.set(0, 1, 0);
+  return _impactNormal.set(dx / len, dy / len, dz / len);
+}
 
 /** Prefer rocket travel axis; otherwise push target away from blast center. */
 function knockDirection(
@@ -90,6 +120,20 @@ export function applyExplosionToBall(
 
   const tune = tuningStore.getState();
   const knock = tune.ballKnockStrength;
+  const impactNormal = resolveBallImpactNormal(
+    ballX,
+    ballY,
+    ballZ,
+    ex,
+    ey,
+    ez,
+    ballImpactNx,
+    ballImpactNy,
+    ballImpactNz,
+  );
+  let impulseX = 0;
+  let impulseY = 0;
+  let impulseZ = 0;
 
   if (tune.ballType === 'superball') {
     const falloff = Math.max(SUPERBALL.knockMinFalloff, 1 - dist / radius);
@@ -154,6 +198,9 @@ export function applyExplosionToBall(
       nz *= s;
     }
     ball.setLinvel({ x: nx, y: ny, z: nz }, true);
+    impulseX = (nx - lv.x) * ball.mass();
+    impulseY = (ny - lv.y) * ball.mass();
+    impulseZ = (nz - lv.z) * ball.mass();
   } else {
     const falloff = Math.max(0.2, 1 - dist / radius);
     const mass = ball.mass();
@@ -168,15 +215,37 @@ export function applyExplosionToBall(
       rocketVx,
       rocketVy,
       rocketVz,
+      impactNormal.x,
+      impactNormal.y,
+      impactNormal.z,
     );
     const deltaV = ROCKET.ballHitImpulse * falloff * knock;
+    impulseX = dir.x * deltaV * mass;
+    impulseY = dir.y * deltaV * mass;
+    impulseZ = dir.z * deltaV * mass;
     ball.applyImpulse(
       {
-        x: dir.x * deltaV * mass,
-        y: dir.y * deltaV * mass,
-        z: dir.z * deltaV * mass,
+        x: impulseX,
+        y: impulseY,
+        z: impulseZ,
       },
       true,
+    );
+  }
+
+  if (
+    rocketVx !== undefined &&
+    rocketVy !== undefined &&
+    rocketVz !== undefined
+  ) {
+    applyBallRocketHitSpin(
+      ball,
+      impulseX,
+      impulseY,
+      impulseZ,
+      impactNormal.x,
+      impactNormal.y,
+      impactNormal.z,
     );
   }
 

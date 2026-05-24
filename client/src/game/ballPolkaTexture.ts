@@ -71,31 +71,26 @@ export function createBallPolkaTexture(
     }
   }
 
-  const spinLine = superball ? 'rgba(255, 245, 200, 0.95)' : 'rgba(255, 255, 255, 0.92)';
-  const spinLineAlt = superball ? 'rgba(255, 160, 40, 0.88)' : 'rgba(255, 120, 180, 0.82)';
+  const stripeDark = superball ? '#2a1408' : '#101820';
+  const stripeLight = superball ? '#f0d090' : '#e8eef4';
+  const stripeAccent = superball ? '#8a3010' : '#b83818';
 
-  ctx.strokeStyle = spinLine;
-  ctx.lineWidth = Math.max(3, size * 0.009);
-  ctx.beginPath();
-  ctx.moveTo(0, cy);
-  ctx.lineTo(size, cy);
-  ctx.stroke();
+  const drawMatteStripe = (
+    angleRad: number,
+    halfWidth: number,
+    color: string,
+  ) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angleRad);
+    ctx.fillStyle = color;
+    ctx.fillRect(-size * 0.52, -halfWidth, size * 1.04, halfWidth * 2);
+    ctx.restore();
+  };
 
-  ctx.strokeStyle = spinLineAlt;
-  ctx.lineWidth = Math.max(2.5, size * 0.0075);
-  ctx.beginPath();
-  ctx.moveTo(cx, 0);
-  ctx.lineTo(cx, size);
-  ctx.stroke();
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(Math.PI * 0.28);
-  ctx.beginPath();
-  ctx.moveTo(0, -size * 0.5);
-  ctx.lineTo(0, size * 0.5);
-  ctx.stroke();
-  ctx.restore();
+  drawMatteStripe(0, size * 0.018, stripeDark);
+  drawMatteStripe(Math.PI / 2, size * 0.015, stripeLight);
+  drawMatteStripe(Math.PI * 0.28, size * 0.012, stripeAccent);
 
   ctx.strokeStyle = superball
     ? 'rgba(255, 220, 120, 0.58)'
