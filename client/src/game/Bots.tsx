@@ -163,9 +163,12 @@ import {
   isKickoffContestPhase,
   kickoffAllyOopPassWaitExceeded,
   noteKickoffAllyOopAtRim,
+  kickoffContestHorizDistToAim,
   kickoffContestJumpForce,
+  kickoffContestShouldDoubleJump,
+  kickoffContestShouldJump,
   kickoffContestSprintSpeed,
-  pickKickoffContestGroundTarget,
+  pickKickoffContestMoveTarget,
   tickKickoffState,
 } from './botKickoff';
 import { isBotTeamAllyDunkPoster } from './botAllyDunkRole';
@@ -837,6 +840,9 @@ function BotAvatar({
   const modeRef = useRef<BotMode>('runToBall');
   const allyDunkCatchHold = useRef(false);
   const groundJumpTimer = useRef(staggerTimer(bot.id, BOT.groundJumpIntervalSec));
+  const kickoffContestJumpTimer = useRef(
+    staggerTimer(bot.id, BOT.kickoffContestJumpIntervalSec),
+  );
   const passCooldown = useRef(0);
   const holdFarAction = useRef<BotFarHoldAction | null>(null);
   const holdFarActionTimer = useRef(0);
@@ -1312,6 +1318,7 @@ function BotAvatar({
     if (
       phase === 'playing' &&
       gs.countdown > 0 &&
+      !gs.ballFrozen &&
       gs.lastScoringTeam === bot.team &&
       !isKickoffAllyOopBot(bot.id, nowSecKick)
     ) {
@@ -1379,9 +1386,13 @@ function BotAvatar({
       !isKickoffAllyOopBot(bot.id, nowSecKick)
     ) {
       beamPullActive.current = false;
-      pickKickoffContestGroundTarget(bot.id, feetY, _moveTarget);
       getKickoffBallAimPoint(_kickoffAim);
-      _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
+      pickKickoffContestMoveTarget(bot.id, feetY, _kickoffAim, _moveTarget);
+      _wish.set(
+        _moveTarget.x - _pos.x,
+        _moveTarget.y - _pos.y,
+        _moveTarget.z - _pos.z,
+      );
       const distDrop = _wish.length();
       if (distDrop > 0.05) _wish.normalize();
 
@@ -1410,14 +1421,27 @@ function BotAvatar({
       smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt, BOT.aimSmoothing * 1.15);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
 
+      const horizToAim = kickoffContestHorizDistToAim(
+        _chest.x,
+        _chest.z,
+        _kickoffAim,
+      );
+      const gapToBall = _kickoffAim.y - _chest.y;
+
       let vyKick = linvelKick.y;
-      const underDrop = distDrop < BOT.kickoffContestArriveRadius;
+      kickoffContestJumpTimer.current -= dt;
       if (
-        grounded.current &&
-        jumpsLeft.current > 0 &&
-        (underDrop || _chest.y < _kickoffAim.y - 2) &&
-        Math.random() < BOT.kickoffContestJumpChance * dt * 3.5
+        kickoffContestJumpTimer.current <= 0 &&
+        kickoffContestShouldJump(
+          _chest.y,
+          _kickoffAim.y,
+          horizToAim,
+          grounded.current,
+          jumpsLeft.current,
+        )
       ) {
+        kickoffContestJumpTimer.current =
+          BOT.kickoffContestJumpIntervalSec * (0.75 + Math.random() * 0.4);
         vyKick = botApplyJump(
           body,
           feetY,
@@ -1428,21 +1452,28 @@ function BotAvatar({
           grounded,
           jumpsLeft,
         );
-        doubleJumpPending.current =
-          Math.random() < BOT.kickoffContestDoubleJumpChance;
+        doubleJumpPending.current = kickoffContestShouldDoubleJump(
+          _chest.y,
+          _kickoffAim.y,
+          horizToAim,
+        );
         if (doubleJumpPending.current) {
-          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.45;
+          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.32;
         }
       }
 
-      if (doubleJumpPending.current && airGrace.current > 0.1) {
+      if (doubleJumpPending.current && airGrace.current > 0.08) {
         doubleJumpDelay.current -= dt;
-        if (doubleJumpDelay.current <= 0 && jumpsLeft.current > 0) {
+        if (
+          doubleJumpDelay.current <= 0 &&
+          jumpsLeft.current > 0 &&
+          kickoffContestShouldDoubleJump(_chest.y, _kickoffAim.y, horizToAim)
+        ) {
           doubleJumpPending.current = false;
           vyKick = botApplyJump(
             body,
             feetY,
-            tuningStore.getDoubleJumpForce(),
+            kickoffContestJumpForce(tuningStore.getDoubleJumpForce()),
             linvelKick,
             velocity,
             airGrace,
@@ -1452,6 +1483,15 @@ function BotAvatar({
         }
       } else if (grounded.current && airGrace.current <= 0.06) {
         doubleJumpPending.current = false;
+      }
+
+      if (
+        !grounded.current &&
+        horizToAim < BOT.kickoffContestReachHorizM &&
+        gapToBall > 2.5 &&
+        vyKick < 6
+      ) {
+        vyKick += BOT.kickoffContestClimbAccel * dt;
       }
 
       vyKick += tune.gravity * dt;

@@ -312,11 +312,15 @@ export const BOT = {
   /** After abort — sprint here before normal bot brain resumes */
   kickoffAllyOopReturnArriveDist: 5.5,
   /** Countdown + flap hold — sprint under the drop and jump for the ball */
-  kickoffContestSprintMult: 1.1,
-  kickoffContestJumpForceScale: 1.12,
+  kickoffContestSprintMult: 1.22,
+  kickoffContestJumpForceScale: 1.38,
+  kickoffContestJumpIntervalSec: 0.28,
+  kickoffContestReachHorizM: 26,
   kickoffContestJumpChance: 0.55,
-  kickoffContestDoubleJumpChance: 0.62,
+  kickoffContestDoubleJumpChance: 0.85,
   kickoffContestArriveRadius: 6.5,
+  /** In-air boost toward the drop while contesting */
+  kickoffContestClimbAccel: 14,
   kickoffAllyOopSpotRadius: 9,
   kickoffAllyOopJumpChance: 0.35,
   /** Teammate in shoot zone with ball — only this often beam-steal (else give space) */

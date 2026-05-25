@@ -148,6 +148,51 @@ export function pickKickoffContestGroundTarget(
   return out.set(BALL_SPAWN.x + laneX, feetY, BALL_SPAWN.z + laneZ);
 }
 
+/** Lane target blended toward the elevated spawn point when close horizontally */
+export function pickKickoffContestMoveTarget(
+  botId: BotId,
+  feetY: number,
+  aim: THREE.Vector3,
+  out = _lane,
+): THREE.Vector3 {
+  pickKickoffContestGroundTarget(botId, feetY, out);
+  const horiz = Math.hypot(out.x - aim.x, out.z - aim.z);
+  const blend = THREE.MathUtils.clamp(1 - horiz / BOT.kickoffContestReachHorizM, 0, 1);
+  if (blend > 0) {
+    out.y = THREE.MathUtils.lerp(feetY, aim.y - 1.6, blend * 0.4);
+  }
+  return out;
+}
+
+export function kickoffContestHorizDistToAim(
+  chestX: number,
+  chestZ: number,
+  aim: THREE.Vector3,
+): number {
+  return Math.hypot(chestX - aim.x, chestZ - aim.z);
+}
+
+/** Grounded jump toward the ball in the drop cube */
+export function kickoffContestShouldJump(
+  chestY: number,
+  aimY: number,
+  horizDist: number,
+  grounded: boolean,
+  jumpsLeft: number,
+): boolean {
+  if (!grounded || jumpsLeft <= 0) return false;
+  if (horizDist > BOT.kickoffContestReachHorizM) return false;
+  return chestY < aimY - 1.2;
+}
+
+export function kickoffContestShouldDoubleJump(
+  chestY: number,
+  aimY: number,
+  horizDist: number,
+): boolean {
+  return horizDist < BOT.kickoffContestReachHorizM * 0.85 && chestY < aimY - 3.5;
+}
+
 export function kickoffContestSprintSpeed(): number {
   return BOT.sprintSpeed * BOT.kickoffContestSprintMult;
 }
