@@ -175,7 +175,7 @@ export function getSpeedBoosterPads(): never[] {
   return [];
 }
 
-/** Standable surface Y at (x,z) on trampoline pads — stone ring or cyan deck */
+/** Standable surface Y at (x,z) on trampoline pads — stone ring or concrete deck */
 export function sampleTrampolineFloorY(x: number, z: number): number | null {
   const pads = getBounceTrampolinePads();
   for (const pad of pads) {

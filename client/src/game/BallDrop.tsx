@@ -131,7 +131,7 @@ function BottomDropSlice({
           <mesh
             geometry={slice.geometry}
             material={mat}
-            castShadow={false}
+            castShadow
             receiveShadow
           />
         </RigidBody>
@@ -295,7 +295,7 @@ export function BallDrop() {
           <BallDropSquareLights cubeHalf={cubeHalf} withColliders />
           <BallDropSpotlightCones cubeHalf={cubeHalf} />
 
-          <mesh position={[0, 0, 0]}>
+          <mesh position={[0, 0, 0]} castShadow receiveShadow>
             <boxGeometry
               args={[
                 ARENA.ballDropCubeSize,
@@ -316,6 +316,8 @@ export function BallDrop() {
             position={[0, drumCenterLocal, 0]}
             geometry={drumWallGeometry}
             material={drumMaterial}
+            castShadow
+            receiveShadow
           />
         </RigidBody>
 
@@ -330,7 +332,7 @@ export function BallDrop() {
             rotation={[0, yaw, 0]}
           >
             <group rotation={[TILT, 0, 0]} position={[0, 0, 0.22]}>
-              <mesh position={[0, 0, -0.04]}>
+              <mesh position={[0, 0, -0.04]} castShadow receiveShadow>
                 <boxGeometry args={[screenW, screenH, 0.1]} />
                 <meshStandardMaterial
                   color="#080c14"

@@ -1,4 +1,4 @@
-import { useFrame } from '@react-three/fiber';
+﻿import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
@@ -98,7 +98,7 @@ function teamSpotColors(team: Team): {
 }
 
 /**
- * Emissive cone spotlights under cube corners — sweep rig pivots on cone tip (apex).
+ * Emissive cone spotlights under cube corners ΓÇö sweep rig pivots on cone tip (apex).
  */
 export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps) {
   const rigs = useRef<(THREE.Group | null)[]>([]);

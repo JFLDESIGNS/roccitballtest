@@ -21,7 +21,7 @@ import { GOAL_RINGS } from '../shared/Constants';
 import type { GoalDef, GoalSize, Team } from '../shared/Types';
 import {
   buildHexWallSegments,
-  createHexShape,
+  createArenaHexFloorGeometry,
   hexCornerPositions,
   isGoalHexEdge,
   isMidMapWallCorner,
@@ -30,6 +30,7 @@ import { SplitPerimeterWallWithFans } from './ArenaBillboardFans';
 import { ArenaCornerPillars } from './ArenaCornerPillars';
 import { ArenaCeilingStrip } from './ArenaCeilingStrip';
 import { ArenaRetractableRoof } from './ArenaRetractableRoof';
+import { ArenaRoofLightBlocker } from './ArenaRoofLightBlocker';
 import { WallTopTrim } from './arenaWallTrim';
 import { BallDrop } from './BallDrop';
 import { OctagonPlatform } from './OctagonPlatform';
@@ -38,8 +39,9 @@ import { BackWallEscapeZones } from './BackWallEscapeZones';
 import { GoalNetBackstop } from './GoalNetBackstop';
 import { ArenaInteractables } from './ArenaInteractables';
 import { GoalZoneDebugVisuals } from './GoalZoneDebugVisuals';
-import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
-import { ArenaTurfBlades } from './arenaTurfBlades';
+import {
+  createMeterTiledBoxGeometry,
+} from './arenaConcreteTexture';
 import {
   goalBackRingMaterial,
   arenaHexFloorMaterial,
@@ -82,7 +84,7 @@ function PerimeterWall({
         collisionGroups={interactionGroups(2, [0, 1, 2])}
       />
       <mesh
-        castShadow={false}
+        castShadow
         receiveShadow
         material={arenaWallMaterial}
         geometry={wallGeo}
@@ -348,51 +350,19 @@ function GoalWallAccentLights() {
     <>
       <pointLight
         position={[redX + 3, midY, 0]}
-        color="#ff6644"
-        intensity={90}
-        distance={50}
+        color="#ff8866"
+        intensity={22}
+        distance={36}
         decay={2}
       />
       <pointLight
         position={[blueX - 3, midY, 0]}
-        color="#4488ff"
-        intensity={90}
-        distance={50}
+        color="#8a9098"
+        intensity={10}
+        distance={28}
         decay={2}
       />
     </>
-  );
-}
-
-function TeamHalfFloorTint() {
-  const { red: redX, blue: blueX } = goalWallPositions();
-  return (
-    <group position={[0, 0.04, 0]}>
-      <mesh
-        position={[(redX + 8) / 2, 0, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <planeGeometry args={[hexRadius * 0.9, hexRadius * 1.05]} />
-        <meshStandardMaterial
-          color="#552218"
-          transparent
-          opacity={0.22}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh
-        position={[(blueX - 8) / 2, 0, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <planeGeometry args={[hexRadius * 0.9, hexRadius * 1.05]} />
-        <meshStandardMaterial
-          color="#182a55"
-          transparent
-          opacity={0.22}
-          depthWrite={false}
-        />
-      </mesh>
-    </group>
   );
 }
 
@@ -403,14 +373,10 @@ export function Arena({
   hiddenGoalIds?: string[];
   hiddenPillarIndices?: number[];
 } = {}) {
-  const floorShape = useMemo(() => createHexShape(hexRadius), []);
-  const floorGeo = useMemo(() => {
-    const geo = new THREE.ShapeGeometry(floorShape);
-    geo.rotateX(-Math.PI / 2);
-    geo.scale(1, 1, -1);
-    geo.computeVertexNormals();
-    return geo;
-  }, [floorShape]);
+  const floorGeo = useMemo(
+    () => createArenaHexFloorGeometry(hexRadius),
+    [hexRadius],
+  );
   const wallSegments = useMemo(
     () => buildHexWallSegments(hexRadius, wallThickness),
     [],
@@ -429,12 +395,13 @@ export function Arena({
           restitution={BALL.restitution}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-        <mesh geometry={floorGeo} receiveShadow material={arenaHexFloorMaterial} />
+        <mesh
+          geometry={floorGeo}
+          receiveShadow
+          castShadow={false}
+          material={arenaHexFloorMaterial}
+        />
       </RigidBody>
-
-      <ArenaTurfBlades />
-
-      <TeamHalfFloorTint />
 
       <OctagonPlatform />
       <group
@@ -486,6 +453,7 @@ export function Arena({
       <ArenaCornerPillars hiddenIndices={hiddenPillarIndices} />
 
       <ArenaRetractableRoof />
+      <ArenaRoofLightBlocker />
       <ArenaCeilingStrip />
 
       <GoalWallAccentLights />

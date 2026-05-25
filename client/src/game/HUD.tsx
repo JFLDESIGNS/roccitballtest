@@ -8,6 +8,7 @@ import { inputManager } from './InputManager';
 import { isMatchOver, matchEndHeadline } from './matchEnd';
 import { matchStatRows } from './matchStats';
 import { resumeAudio, warmAudio } from './audio';
+import { StadiumLightEditorPanel } from './StadiumLightEditorPanel';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -52,9 +53,10 @@ export function HUD({ onMainMenu }: HUDProps) {
       <BallBoundaryHelpBadge />
       {state.debugFreelook && (
         <div className="debug-freelook-hint" role="status">
-          Debug fly (match paused) — U resume · WASD move · Q/E up-down · Shift fast · mouse to look
+          Debug fly — cursor on · RMB hold to look · WASD fly · U exit · Tab respawn ball
         </div>
       )}
+      <StadiumLightEditorPanel />
       <div className="hud-top">
         <div className="hud-top-center">
           {state.announcement && performance.now() < state.announcement.expiresAt && (
@@ -137,7 +139,10 @@ export function HUD({ onMainMenu }: HUDProps) {
         />
       )}
 
-      {!state.pointerLocked && state.phase === 'playing' && !matchOver && (
+      {!state.pointerLocked &&
+        state.phase === 'playing' &&
+        !matchOver &&
+        !state.debugFreelook && (
         <div
           className="hud-hint"
           role="button"

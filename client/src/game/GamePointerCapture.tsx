@@ -18,11 +18,15 @@ export function GamePointerCapture() {
     tuningStore.subscribe,
     () => tuningStore.getState().showMenu,
   );
+  const debugFreelook = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().debugFreelook,
+  );
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
-      if (showMenu) return;
+      if (showMenu || debugFreelook) return;
       e.preventDefault();
       const canvas =
         document.querySelector<HTMLCanvasElement>('.game-canvas canvas') ??
@@ -33,10 +37,10 @@ export function GamePointerCapture() {
       inputManager.requestPointerLock(canvas);
       inputManager.onGameplayResume();
     },
-    [showMenu],
+    [showMenu, debugFreelook],
   );
 
-  if (showMenu || pointerLocked || phase !== 'playing') {
+  if (showMenu || debugFreelook || pointerLocked || phase !== 'playing') {
     return null;
   }
 

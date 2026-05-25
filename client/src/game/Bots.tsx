@@ -80,6 +80,7 @@ import {
 } from './rocketKnockStun';
 import { BotDroneThrusters } from './BotDroneVisual';
 import { VelocityPathRibbon } from './VelocityPathRibbon';
+import { triggerRocketRecoil } from './rocketRecoil';
 import {
   alignCharacterVisualUpright,
   createKnockVisualTumbleState,
@@ -600,6 +601,9 @@ function botFireRocket(
   if (rocketCooldownUntil && now < rocketCooldownUntil.current) {
     return false;
   }
+  const t = body.translation();
+  _pos.set(t.x, t.y, t.z);
+  triggerRocketRecoil(botId, lookDir, _pos, explosive);
   _launchSpawn.copy(chest).addScaledVector(lookDir, 1.2);
   const lv = body.linvel();
   onRocketFired(
@@ -975,6 +979,7 @@ function BotAvatar({
         pitch.current,
         Math.hypot(lv.x, lv.z),
         frameDt,
+        bot.id,
       )
     ) {
       return;
@@ -987,6 +992,7 @@ function BotAvatar({
         pitch.current,
         Math.hypot(lv.x, lv.z),
         frameDt,
+        bot.id,
       );
     }
   };
@@ -1030,10 +1036,6 @@ function BotAvatar({
     const gs = gameStore.getState();
     const phase = gs.phase;
     if (!body) {
-      beamPullActive.current = false;
-      return;
-    }
-    if (gs.debugFreelook) {
       beamPullActive.current = false;
       return;
     }
@@ -3023,7 +3025,6 @@ function EnemyRocketVolley({
 
   useFrame((_, dt) => {
     const gs = gameStore.getState();
-    if (gs.debugFreelook) return;
     if (!gs.botsEnabled || gs.phase !== 'playing') return;
 
     const botScalars = getBotPressureScalars();

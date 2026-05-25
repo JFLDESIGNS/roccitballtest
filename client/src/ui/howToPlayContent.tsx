@@ -85,7 +85,8 @@ export function HowToPlayContent() {
             <strong>Tab</strong> — Scoreboard (hold)
           </li>
           <li>
-            <strong>1</strong> — Tuning &amp; graphics (bots, audio, sensitivity)
+            <strong>1</strong> — Tuning menu (opens <strong>Brightness</strong> — exposure,
+            arena light)
           </li>
           <li>
             <strong>Esc</strong> — Leave match back to this menu

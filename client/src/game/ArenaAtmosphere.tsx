@@ -1,62 +1,53 @@
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
 import { graphicsStore } from './graphicsStore';
-import type { ActiveRocket } from './rocketSystem';
 
 const POOL = 160;
-const CULL_RADIUS = 2.4;
 
-type ArenaAtmosphereProps = {
-  rocketsRef: React.RefObject<ActiveRocket[]>;
-};
+const pointsVertexShader = /* glsl */ `
+  attribute float aAlpha;
+  uniform float uSize;
+  varying float vAlpha;
 
-function distPointToSegment(
-  px: number,
-  py: number,
-  pz: number,
-  ax: number,
-  ay: number,
-  az: number,
-  bx: number,
-  by: number,
-  bz: number,
-): number {
-  const abx = bx - ax;
-  const aby = by - ay;
-  const abz = bz - az;
-  const apx = px - ax;
-  const apy = py - ay;
-  const apz = pz - az;
-  const abLenSq = abx * abx + aby * aby + abz * abz;
-  const t =
-    abLenSq > 1e-6
-      ? Math.max(0, Math.min(1, (apx * abx + apy * aby + apz * abz) / abLenSq))
-      : 0;
-  const cx = ax + abx * t;
-  const cy = ay + aby * t;
-  const cz = az + abz * t;
-  return Math.hypot(px - cx, py - cy, pz - cz);
-}
+  void main() {
+    vAlpha = aAlpha;
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = uSize * (520.0 / max(-mvPosition.z, 1.0));
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
 
-/** Soft floating dust — culled when rockets pass through */
-export function ArenaAtmosphere({ rocketsRef }: ArenaAtmosphereProps) {
+const pointsFragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  varying float vAlpha;
+
+  void main() {
+    vec2 c = gl_PointCoord - vec2(0.5);
+    float d = length(c);
+    if (d > 0.5) discard;
+    float soft = 1.0 - smoothstep(0.08, 0.5, d);
+    gl_FragColor = vec4(uColor, soft * vAlpha);
+  }
+`;
+
+/** Soft floating dust in the stadium volume */
+export function ArenaAtmosphere() {
   const gfx = useSyncExternalStore(
     graphicsStore.subscribe,
     graphicsStore.getState,
   );
 
-  const pointsRef = useRef<THREE.Points>(null);
   const count = gfx.atmosphere ? Math.min(gfx.particleCount, POOL) : 0;
 
-  const { geometry, base, seeds, alive } = useMemo(() => {
+  const { geometry, base, seeds, fade, material } = useMemo(() => {
     const positions = new Float32Array(POOL * 3);
     const basePos = new Float32Array(POOL * 3);
     const seed = new Float32Array(POOL * 3);
-    const aliveMask = new Uint8Array(POOL);
-    aliveMask.fill(1);
+    const fadePhase = new Float32Array(POOL * 2);
+    const alpha = new Float32Array(POOL);
     const r = ARENA.hexRadius * 0.88;
     for (let i = 0; i < POOL; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -71,85 +62,90 @@ export function ArenaAtmosphere({ rocketsRef }: ArenaAtmosphereProps) {
       basePos[i * 3 + 1] = y;
       basePos[i * 3 + 2] = z;
       seed[i * 3] = Math.random() * Math.PI * 2;
-      seed[i * 3 + 1] = 0.4 + Math.random() * 0.85;
-      seed[i * 3 + 2] = 0.55 + Math.random() * 1.4;
+      seed[i * 3 + 1] = 0.65 + Math.random() * 1.15;
+      seed[i * 3 + 2] = 1.05 + Math.random() * 2.35;
+      fadePhase[i * 2] = Math.random() * Math.PI * 2;
+      fadePhase[i * 2 + 1] = 0.35 + Math.random() * 0.95;
+      alpha[i] = 0;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    return { geometry: geo, base: basePos, seeds: seed, alive: aliveMask };
+    geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uSize: { value: 0.32 },
+        uColor: { value: new THREE.Color('#c5ccd4') },
+      },
+      vertexShader: pointsVertexShader,
+      fragmentShader: pointsFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+      toneMapped: false,
+    });
+    return {
+      geometry: geo,
+      base: basePos,
+      seeds: seed,
+      fade: fadePhase,
+      material: mat,
+    };
   }, []);
 
   useFrame(({ clock }) => {
-    if (!gfx.atmosphere || count <= 0 || !pointsRef.current) return;
+    if (!gfx.atmosphere || count <= 0) return;
 
-    const rockets = rocketsRef.current;
-    for (const r of rockets) {
-      const px = r.position.x;
-      const py = r.position.y;
-      const pz = r.position.z;
-      const sx = r.segmentStart.x;
-      const sy = r.segmentStart.y;
-      const sz = r.segmentStart.z;
-      for (let i = 0; i < count; i++) {
-        if (!alive[i]) continue;
-        const i3 = i * 3;
-        const bx = base[i3];
-        const by = base[i3 + 1];
-        const bz = base[i3 + 2];
-        const d = distPointToSegment(
-          bx,
-          by,
-          bz,
-          sx,
-          sy,
-          sz,
-          px,
-          py,
-          pz,
-        );
-        if (d < CULL_RADIUS) {
-          alive[i] = 0;
-        }
-      }
-    }
+    material.uniforms.uSize!.value = gfx.particleSize;
 
     const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const alphaAttr = geometry.getAttribute('aAlpha') as THREE.BufferAttribute;
     const t = clock.elapsedTime;
+    const baseOpacity = gfx.particleOpacity;
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      if (!alive[i]) {
-        pos.setXYZ(i, 0, -500, 0);
-        continue;
-      }
+      const i2 = i * 2;
       const bx = seeds[i * 3];
       const spd = seeds[i * 3 + 1];
       const amp = seeds[i * 3 + 2];
-      pos.setX(i, base[i3] + Math.sin(t * 0.22 + bx) * 0.55);
+      const fadePhase = fade[i2];
+      const fadeSpeed = fade[i2 + 1];
+      const pulse = 0.5 + 0.5 * Math.sin(t * fadeSpeed + fadePhase);
+      const alpha = (0.22 + 0.78 * Math.pow(pulse, 1.15)) * baseOpacity;
+
+      pos.setX(
+        i,
+        base[i3] +
+          Math.sin(t * 0.34 + bx) * 1.15 +
+          Math.cos(t * 0.21 + i * 0.11) * 0.45,
+      );
       pos.setY(
         i,
         base[i3 + 1] +
           Math.sin(t * spd + bx) * amp +
-          Math.sin(t * 0.18 + i * 0.09) * 0.85,
+          Math.sin(t * 0.28 + i * 0.09) * 1.35,
       );
-      pos.setZ(i, base[i3 + 2] + Math.cos(t * 0.19 + bx) * 0.55);
+      pos.setZ(
+        i,
+        base[i3 + 2] +
+          Math.cos(t * 0.31 + bx) * 1.15 +
+          Math.sin(t * 0.24 + i * 0.13) * 0.45,
+      );
+      alphaAttr.setX(i, alpha);
     }
+    geometry.setDrawRange(0, count);
     pos.needsUpdate = true;
+    alphaAttr.needsUpdate = true;
   });
 
   if (!gfx.atmosphere || count <= 0) return null;
 
   return (
-    <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
-      <pointsMaterial
-        color="#9ed8ff"
-        size={gfx.particleSize}
-        transparent
-        opacity={gfx.particleOpacity}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        sizeAttenuation
-        toneMapped={false}
-      />
-    </points>
+    <points
+      geometry={geometry}
+      material={material}
+      frustumCulled={false}
+      renderOrder={6}
+    />
   );
 }

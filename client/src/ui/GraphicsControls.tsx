@@ -1,64 +1,9 @@
 import { useSyncExternalStore } from 'react';
 import { graphicsStore } from '../game/graphicsStore';
+import { SHADOW_MAP_TYPE_OPTIONS } from '../game/shadowMapType';
+import { GfxSelect, GfxSlider, GfxToggle } from './gfxMenuFields';
 
-type SliderProps = {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-  format?: (v: number) => string;
-};
-
-function GfxSlider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  format = (v) => v.toFixed(2),
-}: SliderProps) {
-  return (
-    <label className="menu-field menu-field--range">
-      <span>
-        {label} <em className="menu-range-val">{format(value)}</em>
-      </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-      />
-    </label>
-  );
-}
-
-function GfxToggle({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="menu-option">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-/** Shared graphics settings block for main + tuning menus */
+/** Visual effects — brightness lives in the Brightness tab (press 1) */
 export function GraphicsControls({ compact }: { compact?: boolean }) {
   const gfx = useSyncExternalStore(
     graphicsStore.subscribe,
@@ -68,24 +13,27 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
   return (
     <div className={compact ? 'graphics-controls graphics-controls--compact' : 'graphics-controls'}>
       {!compact ? <h3 className="menu-section-title">Graphics</h3> : null}
+      <p className="tuning-sub">
+        Shadows, fog, and post effects. Ceiling strip lights are on the{' '}
+        <strong>Brightness</strong> tab.
+      </p>
       <GfxToggle
         label="Shadows"
         checked={gfx.shadows}
         onChange={graphicsStore.setShadows}
       />
-      <GfxToggle
-        label="Bloom glow"
-        checked={gfx.bloom}
-        onChange={graphicsStore.setBloom}
-      />
-      {gfx.bloom ? (
-        <GfxSlider
-          label="Bloom strength"
-          value={gfx.bloomIntensity}
-          min={0}
-          max={1.5}
-          step={0.05}
-          onChange={graphicsStore.setBloomIntensity}
+      {gfx.shadows ? (
+        <GfxSelect
+          label="Shadow type"
+          value={gfx.shadowMapType}
+          options={SHADOW_MAP_TYPE_OPTIONS.map((o) => ({
+            id: o.id,
+            label: o.label,
+          }))}
+          onChange={graphicsStore.setShadowMapType}
+          hint={
+            SHADOW_MAP_TYPE_OPTIONS.find((o) => o.id === gfx.shadowMapType)?.hint
+          }
         />
       ) : null}
       <GfxToggle
@@ -103,23 +51,6 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
           onChange={graphicsStore.setAoIntensity}
         />
       ) : null}
-      <GfxSlider
-        label="Arena brightness"
-        value={gfx.arenaBrightness ?? 1.35}
-        min={0.5}
-        max={2}
-        step={0.05}
-        onChange={graphicsStore.setArenaBrightness}
-        format={(v) => `${Math.round(v * 100)}%`}
-      />
-      <GfxSlider
-        label="Exposure"
-        value={gfx.exposure}
-        min={0.7}
-        max={2}
-        step={0.05}
-        onChange={graphicsStore.setExposure}
-      />
       <GfxToggle
         label="Arena fog"
         checked={gfx.fog}
@@ -147,8 +78,8 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
             label="Particle count"
             value={gfx.particleCount}
             min={0}
-            max={80}
-            step={20}
+            max={160}
+            step={16}
             onChange={graphicsStore.setParticleCount}
             format={(v) => String(Math.round(v))}
           />

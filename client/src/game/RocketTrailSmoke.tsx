@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { COMBAT_VFX_RENDER_ORDER } from './renderOrderConstants';
 import {
   MAX_ROCKET_TRAIL_PUFFS,
   tickRocketTrailSmokePuffs,
@@ -15,9 +16,9 @@ export function RocketTrailSmoke() {
   const mat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#d8d4cc',
+        color: '#b8b4ac',
         transparent: true,
-        opacity: 0.52,
+        opacity: 0.32,
         depthWrite: false,
         depthTest: true,
         toneMapped: true,
@@ -47,10 +48,10 @@ export function RocketTrailSmoke() {
       if (lifeT < 0.06) continue;
 
       const fade = lifeT * lifeT;
-      const s = p.size * (0.55 + fade * 0.75);
+      const s = p.size * (0.45 + fade * 0.55);
       dummy.position.set(p.x, p.y, p.z);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(s * 1.08, s * 0.92, s * 1.08);
+      dummy.scale.set(s, s * 0.88, s);
       dummy.updateMatrix();
       inst.setMatrixAt(n, dummy.matrix);
       n++;
@@ -67,7 +68,7 @@ export function RocketTrailSmoke() {
       ref={meshRef}
       args={[geo, mat, MAX_ROCKET_TRAIL_PUFFS]}
       frustumCulled={false}
-      renderOrder={9}
+      renderOrder={COMBAT_VFX_RENDER_ORDER + 2}
     />
   );
 }

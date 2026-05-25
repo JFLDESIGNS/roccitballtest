@@ -8,6 +8,7 @@ import { ArenaAtmosphere } from './ArenaAtmosphere';
 import { ArenaSky } from './ArenaSky';
 import { graphicsStore } from './graphicsStore';
 import { SceneEnvironment } from './SceneEnvironment';
+import { shadowMapTypeToThree } from './shadowMapType';
 import { ScenePostFX } from './ScenePostFX';
 import { tuningStore } from './tuningStore';
 import { Arena } from './Arena';
@@ -23,6 +24,7 @@ import { inputManager } from './InputManager';
 import { DebugFreelook } from './DebugFreelook';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
+import { RocketRecoilFx } from './RocketRecoilFx';
 import { RocketTrailSmoke } from './RocketTrailSmoke';
 import {
   goalScoreRuntime,
@@ -113,7 +115,6 @@ function MatchLoop({
 
   useFrame((_, dt) => {
     const state = gameStore.getState();
-    if (state.debugFreelook) return;
 
     tickGoalScoreRuntime(dt);
 
@@ -310,6 +311,11 @@ function Scene({
 
     ballSpawnCooldown.current = Math.max(0, ballSpawnCooldown.current - dt);
     if (inputManager.consumeSpawnBall() && ballSpawnCooldown.current <= 0) {
+      gameStore.beginKickoffDrop();
+      ballRef.current?.parkAtDrop();
+      ballSpawnCooldown.current = BALL.spawnCooldownSec;
+    }
+    if (inputManager.consumeBallRespawn() && ballSpawnCooldown.current <= 0) {
       gameStore.beginKickoffDrop();
       ballRef.current?.parkAtDrop();
       ballSpawnCooldown.current = BALL.spawnCooldownSec;
@@ -576,6 +582,7 @@ function Scene({
         }}
         onRecoverBall={() => gameStore.clearBallHolder()}
       />
+      <RocketRecoilFx />
       <RocketTrailSmoke />
       <Rockets
         rocketsRef={rocketsRef}
@@ -663,8 +670,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
   }, []);
 
   const handleClick = () => {
-    if (tuningStore.getState().showMenu) return;
-    if (gameStore.getState().debugFreelook) return;
+    if (tuningStore.getState().showMenu || debugFreelook) return;
     const canvas = wrapRef.current?.querySelector('canvas');
     if (!canvas || document.pointerLockElement === canvas) return;
     resumeAudio();
@@ -673,9 +679,15 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
   };
 
   return (
-    <div ref={wrapRef} className="game-canvas" onClick={handleClick}>
+    <div
+      ref={wrapRef}
+      className={
+        debugFreelook ? 'game-canvas game-canvas--debug-fly' : 'game-canvas'
+      }
+      onClick={handleClick}
+    >
       <Canvas
-        style={{ background: '#1a2438' }}
+        style={{ background: '#181c22' }}
         camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
         dpr={[RENDER.dprMin, RENDER.dprMax]}
         gl={{
@@ -688,22 +700,22 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         onCreated={({ gl }) => {
           gl.domElement.tabIndex = 0;
           gl.domElement.style.outline = 'none';
-          gl.setClearColor('#6ec0f5', 1);
+          gl.setClearColor('#181c22', 1);
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = gfx.exposure;
           if (gfx.shadows) {
-            gl.shadowMap.type = THREE.PCFShadowMap;
+            gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
           }
         }}
       >
         <SceneEnvironment />
         <ArenaSky />
         <ArenaLighting />
-        <ArenaAtmosphere rocketsRef={rocketsRef} />
+        <ArenaAtmosphere />
         <Suspense fallback={null}>
           <Physics
             gravity={[0, tune.gravity, 0]}
-            timeStep={debugFreelook ? 0 : 1 / 60}
+            timeStep={1 / 60}
             debug={showColliderDebug}
           >
             <Scene onExit={onExit} rocketsRef={rocketsRef} />

@@ -12,7 +12,8 @@ import { graphicsStore } from './graphicsStore';
 import { LensDistortion } from './sceneLensDistortion';
 import { tuningStore } from './tuningStore';
 
-import { ARENA_SUN_POSITION } from './ArenaLighting';
+/** Fixed sky anchor when lens flare is enabled (no orbiting sun). */
+const LENS_FLARE_SKY = new THREE.Vector3(44, 88, 34);
 
 export function ScenePostFX() {
   const gfx = useSyncExternalStore(
@@ -53,12 +54,12 @@ export function ScenePostFX() {
         key="n8ao"
         halfRes
         quality="performance"
-        aoRadius={14}
-        intensity={gfx.aoIntensity}
+        aoRadius={10}
+        intensity={gfx.aoIntensity * 0.82}
         aoSamples={8}
         denoiseSamples={3}
-        denoiseRadius={10}
-        distanceFalloff={0.85}
+        denoiseRadius={8}
+        distanceFalloff={0.8}
       />,
     );
   }
@@ -82,8 +83,8 @@ export function ScenePostFX() {
       <Bloom
         key="bloom"
         intensity={gfx.bloomIntensity}
-        luminanceThreshold={0.28}
-        luminanceSmoothing={0.82}
+        luminanceThreshold={0.42}
+        luminanceSmoothing={0.75}
         mipmapBlur
       />,
     );
@@ -93,7 +94,7 @@ export function ScenePostFX() {
       <LensFlare
         key="lensflare"
         enabled
-        lensPosition={ARENA_SUN_POSITION}
+        lensPosition={LENS_FLARE_SKY}
         opacity={0.9}
         glareSize={0.16}
         flareSize={0.011}

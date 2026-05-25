@@ -34,16 +34,23 @@ export const arenaRoofStore = {
       }
       return;
     }
-    const next =
-      state.open + Math.sign(diff) * speed * dt;
-    state = {
-      ...state,
-      open: Math.max(0, Math.min(1, next)),
-    };
-    notify();
+    const next = Math.max(
+      0,
+      Math.min(1, state.open + Math.sign(diff) * speed * dt),
+    );
+    state = { ...state, open: next };
+    /* No notify — roof + strips read open in useFrame (avoids React hitch) */
   },
   reset: () => {
     state = { open: 0, target: 0 };
     notify();
   },
 };
+
+/**
+ * Always 1 — ceiling strip lights are NOT gated by roof (leak fix later).
+ * Roof open amount is only for slab animation / future FX.
+ */
+export function roofSkyLightFactor(_open = state.open): number {
+  return 1;
+}

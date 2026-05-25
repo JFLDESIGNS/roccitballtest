@@ -1,5 +1,6 @@
 import { MATCH } from '../shared/Constants';
 import { arenaRoofStore } from './arenaRoofStore';
+import { stadiumLightStore } from './stadiumLightStore';
 import { clearBotTeamRelease } from './botTeamRelease';
 import { EMPTY_MATCH_STATS, type MatchStats } from './matchStats';
 import { tuningStore } from './tuningStore';
@@ -251,25 +252,28 @@ export const gameStore = {
     notify();
   },
   toggleDebugFreelook: () => {
-    const next = !state.debugFreelook;
-    if (next) {
-      try {
-        document.exitPointerLock();
-      } catch {
-        /* ignore */
-      }
-      state = {
-        ...state,
-        debugFreelook: true,
-        pointerLocked: false,
-      };
-    } else {
-      state = {
-        ...state,
-        debugFreelook: false,
-      };
+    const entering = !state.debugFreelook;
+    const releaseBall =
+      entering &&
+      (state.ballHolderId === 'local' || state.isHoldingBall);
+    state = { ...state, debugFreelook: entering };
+    if (!entering) {
+      stadiumLightStore.deselect();
+      stadiumLightStore.setGizmoDragging(false);
     }
     notify();
+    if (releaseBall) {
+      requestAnimationFrame(() => {
+        if (!state.debugFreelook) return;
+        state = {
+          ...state,
+          ballHolderId: null,
+          isHoldingBall: false,
+          ballState: 'loose',
+        };
+        notify();
+      });
+    }
   },
   toggleColliderDebug: () => {
     state = { ...state, showColliderDebug: !state.showColliderDebug };

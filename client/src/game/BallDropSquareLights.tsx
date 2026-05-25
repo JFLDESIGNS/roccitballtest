@@ -1,4 +1,4 @@
-import { CuboidCollider, interactionGroups } from '@react-three/rapier';
+﻿import { CuboidCollider, interactionGroups } from '@react-three/rapier';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 const DROP_COLLISION = interactionGroups(4, [0, 1]);

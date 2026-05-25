@@ -27,6 +27,14 @@ body,
   cursor: crosshair;
 }
 
+.game-canvas--debug-fly {
+  cursor: default;
+}
+
+.game-canvas--debug-fly canvas {
+  cursor: default;
+}
+
 .game-canvas canvas {
   display: block;
   width: 100% !important;
@@ -265,13 +273,20 @@ body,
   color: #aab8d0;
 }
 
-.menu-field input {
+.menu-field input,
+.menu-field select {
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
   border: 1px solid #3a4a66;
   background: rgba(10, 14, 26, 0.9);
   color: #e8ecf4;
   font-size: 1rem;
+}
+
+.menu-field-hint {
+  font-size: 0.72rem;
+  color: #7888a0;
+  line-height: 1.35;
 }
 
 .menu-field--number {
@@ -324,6 +339,22 @@ body,
   display: flex;
   justify-content: space-between;
   font-size: 0.82rem;
+}
+
+.menu-field--color {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.menu-field--color input[type='color'] {
+  width: 2.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid #3a5070;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
 }
 
 .menu-range-val {
@@ -613,6 +644,341 @@ body,
   letter-spacing: 0.02em;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
   pointer-events: none;
+}
+
+.stadium-light-editor {
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  z-index: 60;
+  cursor: default;
+  width: min(320px, 92vw);
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 12px 14px;
+  background: rgba(10, 14, 22, 0.92);
+  border: 1px solid rgba(255, 200, 100, 0.35);
+  border-radius: 6px;
+  color: #e8ecf0;
+  font-size: 0.78rem;
+  pointer-events: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.stadium-light-editor__title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: #ffd699;
+}
+
+.stadium-light-editor__hint {
+  margin: 0 0 10px;
+  color: #9aa8b8;
+  line-height: 1.35;
+}
+
+.stadium-light-editor__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 0.75rem;
+  color: #b0bcc8;
+}
+
+.stadium-light-editor__label input[type='text'],
+.stadium-light-editor__label input[type='number'] {
+  padding: 4px 6px;
+  background: #1a2230;
+  border: 1px solid #3a4a5a;
+  border-radius: 3px;
+  color: #fff;
+}
+
+.stadium-light-editor__selected {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stadium-light-editor__kind {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: rgba(255, 200, 100, 0.15);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: #ffc870;
+}
+
+.stadium-light-editor__none {
+  margin: 8px 0;
+  color: #788898;
+  font-style: italic;
+}
+
+.stadium-light-editor__selected-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.stadium-light-editor__gizmo-modes {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 4px;
+}
+
+.stadium-light-editor__gizmo-btn {
+  flex: 1;
+  padding: 5px 6px;
+  background: #1a2230;
+  border: 1px solid #3a4a5a;
+  border-radius: 3px;
+  color: #b0bcc8;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.stadium-light-editor__gizmo-btn:hover {
+  border-color: #5a7a98;
+}
+
+.stadium-light-editor__gizmo-btn--on {
+  border-color: rgba(255, 200, 100, 0.65);
+  background: rgba(255, 200, 100, 0.12);
+  color: #ffe8b0;
+}
+
+.stadium-light-editor__gizmo-hint {
+  margin: 0 0 8px;
+  font-size: 0.66rem;
+  color: #788898;
+  line-height: 1.35;
+}
+
+.stadium-light-editor__locked {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  background: rgba(80, 120, 160, 0.15);
+  border-radius: 3px;
+  color: #9ab8d0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.stadium-light-editor__label--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.stadium-light-editor__fieldset {
+  margin: 8px 0;
+  padding: 6px 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.stadium-light-editor__fieldset legend {
+  padding: 0 4px;
+  font-size: 0.72rem;
+  color: #9aa8b8;
+}
+
+.stadium-light-editor__vec3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.stadium-light-editor__vec3-axis {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.68rem;
+  color: #8898a8;
+}
+
+.stadium-light-editor__vec3-axis input {
+  padding: 3px 4px;
+  background: #1a2230;
+  border: 1px solid #3a4a5a;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.stadium-light-editor__row-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stadium-light-editor__row-btns .stadium-light-editor__btn--danger {
+  margin-top: 0;
+}
+
+.stadium-light-editor__add-section {
+  margin: 12px 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stadium-light-editor__add-title {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  color: #c8d4e0;
+}
+
+.stadium-light-editor__add-hint {
+  margin: 0 0 8px;
+  color: #788898;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.stadium-light-editor__kind-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stadium-light-editor__kind-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 8px;
+  background: #1a2230;
+  border: 1px solid #3a4a5a;
+  border-radius: 4px;
+  color: #b8c4d0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stadium-light-editor__kind-card:hover {
+  border-color: #5a7a98;
+  background: #222c3c;
+}
+
+.stadium-light-editor__kind-card--on {
+  border-color: rgba(255, 200, 100, 0.65);
+  background: rgba(255, 200, 100, 0.1);
+  color: #ffe8b0;
+}
+
+.stadium-light-editor__kind-card-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.stadium-light-editor__kind-card-blurb {
+  font-size: 0.62rem;
+  color: #788898;
+  line-height: 1.25;
+}
+
+.stadium-light-editor__kind-card--on .stadium-light-editor__kind-card-blurb {
+  color: #c8a878;
+}
+
+.stadium-light-editor__btn--primary {
+  width: 100%;
+  padding: 8px 10px;
+  background: #3a5a28;
+  border-color: #6a9a48;
+  font-weight: 600;
+}
+
+.stadium-light-editor__btn--primary:hover {
+  background: #4a7032;
+}
+
+.stadium-light-editor__btn {
+  padding: 5px 10px;
+  background: #2a4a68;
+  border: 1px solid #4a7aa8;
+  border-radius: 3px;
+  color: #e8f4ff;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.stadium-light-editor__btn:hover {
+  background: #356080;
+}
+
+.stadium-light-editor__btn--danger {
+  background: #5a2828;
+  border-color: #aa4444;
+  margin-top: 6px;
+}
+
+.stadium-light-editor__btn--muted {
+  background: #2a2e36;
+  border-color: #4a5058;
+}
+
+.stadium-light-editor__list {
+  margin: 10px 0;
+}
+
+.stadium-light-editor__list h4 {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  color: #aab4c0;
+}
+
+.stadium-light-editor__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.stadium-light-editor__list-item {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 4px 8px;
+  margin-bottom: 2px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #c8d0d8;
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.stadium-light-editor__list-item span {
+  color: #788898;
+  font-size: 0.65rem;
+}
+
+.stadium-light-editor__list-item--on {
+  background: rgba(255, 220, 100, 0.12);
+  border-color: rgba(255, 200, 80, 0.45);
+  color: #ffe8a0;
+}
+
+.stadium-light-editor__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.stadium-light-editor__export-msg {
+  margin: 6px 0 0;
+  color: #88ddaa;
+  font-size: 0.72rem;
 }
 
 .ball-boundary-help {

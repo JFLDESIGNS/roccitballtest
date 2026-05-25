@@ -19,6 +19,9 @@ import {
   registerFanGlassMesh,
   unregisterFanGlass,
 } from './fanGlassHit';
+import { FAN_BOOTH_RENDER_ORDER } from './renderOrderConstants';
+
+const FAN_RO = FAN_BOOTH_RENDER_ORDER;
 
 const FT = 0.3048;
 
@@ -353,12 +356,12 @@ function FanCrowdSign({
 
   return (
     <group ref={groupRef} visible={false}>
-      <mesh position={[0, 0, 0.06]} renderOrder={6}>
+      <mesh position={[0, 0, 0.06]} renderOrder={FAN_RO + 1}>
         <planeGeometry args={[width, height]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.42}
+          emissiveIntensity={0.28}
           roughness={0.82}
           metalness={0.06}
           side={THREE.FrontSide}
@@ -429,7 +432,7 @@ function FanCutoutWallFrame({
   const trimMat = arenaBlackMetalMaterial;
 
   return (
-    <group renderOrder={6}>
+    <group renderOrder={FAN_RO + 1}>
       <mesh
         position={[0, bayY + hh + fw * 0.5, z]}
         material={trimMat}
@@ -501,7 +504,7 @@ function FanGlassPanelFrame({
   const hh = panelH * 0.5;
 
   return (
-    <group position={[0, 0, z]} renderOrder={5}>
+    <group position={[0, 0, z]} renderOrder={FAN_RO + 1}>
       <mesh position={[0, hh + t * 0.5, 0]} material={mat} castShadow={false}>
         <boxGeometry args={[panelW + t * 2, t, t]} />
       </mesh>
@@ -821,7 +824,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
         ref={meshRef}
         args={[sphereGeo, sphereMat, seats.length]}
         frustumCulled={false}
-        renderOrder={1}
+        renderOrder={FAN_RO}
       />
 
       <FanBayPhotoFlashes
@@ -873,7 +876,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
             if (mesh) registerFanGlassMesh(bayKey, homeTeam, mesh);
           }}
           material={glassMat}
-          renderOrder={3}
+          renderOrder={FAN_RO}
         >
           <boxGeometry
             args={[
@@ -940,7 +943,7 @@ function FanBoothBlackTrim({
   const sideWallX = bayW * 0.5 - sideInset;
 
   return (
-    <group renderOrder={4}>
+    <group renderOrder={FAN_RO + 1}>
       {/* Court-facing glass frame */}
       <mesh position={[0, bayY + bayH * 0.5 + fw * 0.5, glassTrimZ]} material={mat} castShadow={false}>
         <boxGeometry args={[bayW + fw * 2.2, fw, fd]} />
@@ -1035,7 +1038,7 @@ function FanOpeningWallFill({
         collisionGroups={WALL_COLLISION}
       />
       <mesh
-        castShadow={false}
+        castShadow
         receiveShadow
         material={arenaWallMaterial}
         geometry={wallGeo}
@@ -1108,7 +1111,7 @@ export function SplitPerimeterWallWithFans({
             collisionGroups={WALL_COLLISION}
           />
           <mesh
-            castShadow={false}
+            castShadow
             receiveShadow
             material={arenaWallMaterial}
             geometry={wingGeo}

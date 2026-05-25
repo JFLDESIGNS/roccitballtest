@@ -11,6 +11,7 @@ import { ARENA } from '../shared/Constants';
 import { hexVertices, isPointInHex } from './arenaHex';
 import { isPointInOctagon, octagonArea } from './arenaOctagon';
 import { listArenaPlatforms, platformSurfaceYAt } from './arenaSpawn';
+import { isArenaGrassBuildEnabled } from './arenaGrassConfig';
 import { setArenaTurfShaderGrassScale } from './arenaTurfMaterial';
 import { gamePreloadStore } from './gamePreloadStore';
 import { gameStore, type GamePhase } from './gameStore';
@@ -181,7 +182,7 @@ function buildTurfBladeInstancesAsync(
 
 /** Menu / preload — chunked build */
 export function startTurfPreheat(grassScale: number): void {
-  if (!tuningStore.getState().turfGrassEnabled) {
+  if (!isArenaGrassBuildEnabled() || !tuningStore.getState().turfGrassEnabled) {
     gamePreloadStore.setGrassReady();
     return;
   }
@@ -312,7 +313,10 @@ export function ArenaTurfBlades() {
   const [blades, setBlades] = useState<BladeInstance[]>([]);
   const buildGen = useRef(0);
 
-  const grassEnabled = grassActiveForPhase(phase) && turfGrassEnabled;
+  const grassEnabled =
+    isArenaGrassBuildEnabled() &&
+    grassActiveForPhase(phase) &&
+    turfGrassEnabled;
 
   useLayoutEffect(() => {
     setArenaTurfShaderGrassScale(grassScale);

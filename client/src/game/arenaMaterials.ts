@@ -5,6 +5,7 @@ import { applyArenaMetalWearShader } from './arenaMetalWear';
 import { ARENA_PILLAR } from './arenaPillarConfig';
 import {
   ARENA_CONCRETE_TILE_M,
+  arenaFloorConcreteRepeat,
   cloneArenaConcreteMap,
   onArenaConcreteReady,
 } from './arenaConcreteTexture';
@@ -71,6 +72,24 @@ const darkDeckMetalMap = makeRepeatingCanvas(256, 256, (ctx, w, h) => {
 });
 darkDeckMetalMap.repeat.set(3, 3);
 
+/** Matte concrete like perimeter walls — no sky IBL, emissive, or blue fog */
+function createArenaConcreteSurfaceMaterial(
+  color: string,
+  flatShading = false,
+): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.92,
+    metalness: 0.02,
+    flatShading,
+    emissive: '#000000',
+    emissiveIntensity: 0,
+    envMap: null,
+    envMapIntensity: 0,
+    fog: false,
+  });
+}
+
 function bindConcrete(
   mat: THREE.MeshStandardMaterial,
   repeatX: number,
@@ -79,22 +98,18 @@ function bindConcrete(
   const map = cloneArenaConcreteMap(repeatX, repeatY);
   if (!map) return;
   mat.map = map;
+  mat.envMap = null;
+  mat.envMapIntensity = 0;
+  mat.emissive.set('#000000');
+  mat.emissiveIntensity = 0;
   mat.needsUpdate = true;
 }
 
 /** Hex perimeter walls — grey concrete (darker than pillars) */
-export const arenaWallMaterial = new THREE.MeshStandardMaterial({
-  color: '#4a5159',
-  roughness: 0.9,
-  metalness: 0.04,
-});
+export const arenaWallMaterial = createArenaConcreteSurfaceMaterial('#4a5159');
 
 /** Corner pillars */
-export const arenaPillarMaterial = new THREE.MeshStandardMaterial({
-  color: '#5a626c',
-  roughness: 0.92,
-  metalness: 0.06,
-});
+export const arenaPillarMaterial = createArenaConcreteSurfaceMaterial('#5a626c');
 
 /** Pillar bands — glossy dark metal */
 export const arenaBlackMetalMaterial = new THREE.MeshStandardMaterial({
@@ -103,11 +118,16 @@ export const arenaBlackMetalMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.94,
 });
 
-/** Goal backing rings + hole caps — flat matte black */
+/** Goal backing rings + hole caps — deep matte black, no sky IBL/fog fill */
 export const goalBackRingMaterial = new THREE.MeshStandardMaterial({
-  color: '#0e0f12',
-  roughness: 0.98,
+  color: '#050608',
+  roughness: 1,
   metalness: 0,
+  emissive: '#000000',
+  emissiveIntensity: 0,
+  envMap: null,
+  envMapIntensity: 0,
+  fog: false,
 });
 
 /** Legacy concrete floor (map editor fallback) */
@@ -117,52 +137,63 @@ export const arenaFloorMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.04,
 });
 
-export { arenaTurfMaterial } from './arenaTurfMaterial';
-
-/** Hex arena floor — dark brown matte dirt under instanced grass */
-export const arenaHexFloorMaterial = new THREE.MeshStandardMaterial({
-  color: '#2e2218',
-  roughness: 1,
-  metalness: 0,
-  envMapIntensity: 0,
-});
+/** Hex arena floor — same concrete as walls; DoubleSide in case winding varies */
+export const arenaHexFloorMaterial = (() => {
+  const mat = createArenaConcreteSurfaceMaterial('#4a5159');
+  mat.side = THREE.DoubleSide;
+  return mat;
+})();
 
 /** Trampoline / pad stone ring bases */
-export const arenaPadStoneMaterial = new THREE.MeshStandardMaterial({
-  color: '#6a7582',
-  roughness: 0.9,
-  metalness: 0.05,
-});
+export const arenaPadStoneMaterial =
+  createArenaConcreteSurfaceMaterial('#5a626c');
 
-/** Center octagon + ramp platforms — dark brushed metal */
+/** Octagon ramp — dark shiny metal, flat facets */
 export const arenaPlatformMaterial = new THREE.MeshStandardMaterial({
   map: darkDeckMetalMap,
-  color: '#6a7888',
-  metalness: 0.7,
-  roughness: 0.4,
+  color: '#3a424c',
+  metalness: 0.88,
+  roughness: 0.28,
   flatShading: true,
   envMap: arenaMetalEnv,
-  envMapIntensity: 1.2,
+  envMapIntensity: 0.28,
+  fog: false,
 });
 applyArenaMetalWearShader(arenaPlatformMaterial, {
-  scratchStrength: 0.5,
-  wearStrength: 0.35,
+  scratchStrength: 0.42,
+  wearStrength: 0.26,
 });
 
-/** Flat octagon cap on ramp platforms */
-export const arenaDeckTopMaterial = new THREE.MeshStandardMaterial({
+/** Octagon deck cap — slightly brighter dark metal */
+export const arenaPlatformTopMaterial = new THREE.MeshStandardMaterial({
   map: darkDeckMetalMap,
-  color: '#5a6674',
-  metalness: 0.76,
-  roughness: 0.36,
+  color: '#454f5a',
+  metalness: 0.9,
+  roughness: 0.24,
   flatShading: true,
   envMap: arenaMetalEnv,
-  envMapIntensity: 1.3,
+  envMapIntensity: 0.32,
+  fog: false,
 });
-applyArenaMetalWearShader(arenaDeckTopMaterial, {
-  scratchStrength: 0.45,
+applyArenaMetalWearShader(arenaPlatformTopMaterial, {
+  scratchStrength: 0.48,
   wearStrength: 0.3,
 });
+
+/** Jump / bounce pad top deck — white emissive glow (not grey metal) */
+export const arenaJumpPadTopMaterial = new THREE.MeshStandardMaterial({
+  color: '#f6f8ff',
+  emissive: '#ffffff',
+  emissiveIntensity: 0.78,
+  metalness: 0.08,
+  roughness: 0.42,
+  flatShading: true,
+  toneMapped: false,
+  fog: false,
+});
+
+/** @deprecated use arenaJumpPadTopMaterial */
+export const arenaTrampolineDeckMaterial = arenaJumpPadTopMaterial;
 
 /** Trampoline / pad pedestals — metal deck ring */
 export const arenaPadMetalMaterial = new THREE.MeshStandardMaterial({
@@ -203,7 +234,10 @@ function applyAllConcreteMaps(): void {
     ARENA_PADS.trampolineDeckRaiseM;
   const padRep = cylinderConcreteRepeat(padStemR, padStemR * 1.22, padStemH);
 
+  const floorRep = arenaFloorConcreteRepeat();
+
   bindConcrete(arenaWallMaterial, 1, 1);
+  bindConcrete(arenaHexFloorMaterial, floorRep.x, floorRep.y);
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
 }

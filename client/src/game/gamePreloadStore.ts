@@ -4,7 +4,6 @@ export type GamePreloadStage =
   | 'audio'
   | 'textures'
   | 'models'
-  | 'grass'
   | 'ready';
 
 type GamePreloadState = {
@@ -12,7 +11,6 @@ type GamePreloadState = {
   /** 0–1 overall */
   progress: number;
   modelsReady: boolean;
-  grassReady: boolean;
 };
 
 const listeners = new Set<() => void>();
@@ -21,7 +19,6 @@ let state: GamePreloadState = {
   stage: 'idle',
   progress: 0,
   modelsReady: false,
-  grassReady: false,
 };
 
 function notify() {
@@ -44,17 +41,11 @@ export const gamePreloadStore = {
     state = { ...state, modelsReady: true };
     notify();
   },
-  setGrassReady: () => {
-    if (state.grassReady) return;
-    state = { ...state, grassReady: true };
-    notify();
-  },
   markReady: () => {
     state = {
       stage: 'ready',
       progress: 1,
       modelsReady: true,
-      grassReady: true,
     };
     notify();
   },

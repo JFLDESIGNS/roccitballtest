@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { ARENA, BALL, BOT, RENDER, ROCKET } from '../shared/Constants';
+import { COMBAT_VFX_RENDER_ORDER } from './renderOrderConstants';
 import type { BotId } from './Bots';
 import type { ExplosionHit } from './explosions';
 import {
@@ -10,7 +11,6 @@ import {
 } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import type { ActorId } from './playerRoster';
-import { gameStore } from './gameStore';
 import {
   rocketAge,
   rocketTravelDist,
@@ -23,7 +23,7 @@ import {
   releaseRocketSmokeTrail,
   spawnRocketSmokeStreak,
 } from './rocketSmokeStreak';
-import { spawnRocketTrailSmokeAlongSegment } from './rocketTrailSmokePuffs';
+import { spawnRocketTrailSmokePuff } from './rocketTrailSmokePuffs';
 
 const MAX_BOOMS = 8;
 const HEAD_R = RENDER.rocketHeadRadius;
@@ -122,7 +122,7 @@ function createFireGroup(
   for (let i = 0; i < 3; i++) {
     const plane = new THREE.Mesh(planeGeo, fireMat);
     plane.rotation.z = (i * Math.PI * 2) / 3;
-    plane.renderOrder = 12;
+    plane.renderOrder = COMBAT_VFX_RENDER_ORDER + 2;
     group.add(plane);
   }
   return group;
@@ -141,7 +141,7 @@ function createRocketVisual(
 
   const emissiveGlow = new THREE.Mesh(glowGeo, mats.emissiveGlowBouncer);
   emissiveGlow.frustumCulled = false;
-  emissiveGlow.renderOrder = 12;
+  emissiveGlow.renderOrder = COMBAT_VFX_RENDER_ORDER + 2;
 
   const fire = createFireGroup(mats.fireBouncer, firePlaneGeo);
   fire.frustumCulled = false;
@@ -270,18 +270,9 @@ function updateRocketVisual(
 
 function hideRocketVisual(vis: RocketVisual, explosive: boolean) {
   const h = vis.history;
-  if (h.length >= 2) {
+  if (h.length >= 1) {
     const tail = h[h.length - 1]!;
-    const lead = h[Math.max(0, h.length - 3)]!;
-    spawnRocketTrailSmokeAlongSegment(
-      lead.x,
-      lead.y,
-      lead.z,
-      tail.x,
-      tail.y,
-      tail.z,
-      explosive,
-    );
+    spawnRocketTrailSmokePuff(tail.x, tail.y, tail.z, explosive);
   }
   vis.root.visible = false;
   vis.head.visible = false;
@@ -405,8 +396,6 @@ export function Rockets({
   };
 
   useFrame(({ camera }, dt) => {
-    if (gameStore.getState().debugFreelook) return;
-
     const rockets = rocketsRef.current;
     const group = groupRef.current;
     if (!group) return;

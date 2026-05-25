@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { FAN_BOOTH_RENDER_ORDER } from './renderOrderConstants';
 
 const _worldCam = new THREE.Vector3();
 const _localCam = new THREE.Vector3();
@@ -135,7 +136,7 @@ export function FanGlassReflections({ panelW, panelH }: FanGlassReflectionsProps
   );
 
   return (
-    <group ref={groupRef} renderOrder={4}>
+    <group ref={groupRef} renderOrder={FAN_BOOTH_RENDER_ORDER}>
       <mesh
         ref={shineA}
         material={streakMat}

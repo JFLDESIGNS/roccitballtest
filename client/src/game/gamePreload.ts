@@ -6,8 +6,7 @@ import explosionSheetUrl from '../assets/images/explosion.png';
 import glassCrackUrl from '../assets/images/glasscrack.png';
 import { preloadGameAudioSamples } from './audio';
 import { gamePreloadStore } from './gamePreloadStore';
-import { startTurfPreheat } from './arenaTurfBlades';
-import { tuningStore } from './tuningStore';
+import { initStadiumRectAreaLights } from './stadiumRectAreaLightInit';
 
 function waitFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
@@ -85,7 +84,7 @@ function waitForPreloadFlag(
 
 let preloadStarted = false;
 
-/** Chunked preload — maps, audio, textures, models (parallel canvas), grass */
+/** Chunked preload — maps, audio, textures, models */
 export async function runGamePreload(): Promise<void> {
   if (preloadStarted) return;
   preloadStarted = true;
@@ -103,20 +102,13 @@ export async function runGamePreload(): Promise<void> {
     });
 
     gamePreloadStore.setStage('textures', 0.32);
+    initStadiumRectAreaLights();
     await preloadTexturesChunked((t) => {
       gamePreloadStore.setStage('textures', 0.32 + t * 0.18);
     });
 
     gamePreloadStore.setStage('models', 0.52);
-    startTurfPreheat(tuningStore.getState().turfGrassScale);
-
-    await Promise.all([
-      waitForPreloadFlag(() => gamePreloadStore.getState().modelsReady),
-      (async () => {
-        gamePreloadStore.setStage('grass', 0.72);
-        await waitForPreloadFlag(() => gamePreloadStore.getState().grassReady);
-      })(),
-    ]);
+    await waitForPreloadFlag(() => gamePreloadStore.getState().modelsReady);
 
     gamePreloadStore.markReady();
   } catch {

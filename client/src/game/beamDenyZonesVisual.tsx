@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { ROCKET } from '../shared/Constants';
+import { SHOW_BEAM_DENY_RINGS } from './beamDenyConfig';
 import { getActiveBeamDenyZones, tickBeamDenyZones } from './beamDenyZones';
 
 const RING_GEO = new THREE.RingGeometry(0.92, 1, 24);
@@ -30,6 +31,8 @@ function makeSlot(): ZoneSlot {
 /** Pooled deny rings — no React state updates per frame */
 export function BeamDenyZonesVisual() {
   const slots = useMemo(() => Array.from({ length: MAX_RINGS }, makeSlot), []);
+
+  if (!SHOW_BEAM_DENY_RINGS) return null;
 
   useFrame(() => {
     tickBeamDenyZones();

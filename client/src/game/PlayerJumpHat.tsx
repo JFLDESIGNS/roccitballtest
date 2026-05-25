@@ -1,5 +1,13 @@
 import { useFrame, useLoader } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
+import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { MOVEMENT } from '../shared/Constants';
@@ -24,12 +32,27 @@ const CROWN_RAISE_IN = 4;
 const CROWN_FORWARD_Z = 0.06;
 const CROWN_POP_HEIGHT = 0.39;
 const CROWN_POP_DURATION_SEC = 0.6;
-/** Rest on cap top: slightly lowered then raised */
 const CROWN_REST_Y = CAP_TOP_Y - CROWN_LOWER_FT * FT + CROWN_RAISE_IN * INCH;
 
-/** Crown forward aligns with player look (-Z) */
 const CROWN_YAW = Math.PI;
 const CROWN_PITCH = 0;
+
+/** Start floating crown when falling faster than this (m/s) */
+const FALL_DETACH_VY = -1.6;
+/** Extra lift above head when fully floated */
+const FALL_FLOAT_ABOVE_M = 0.42;
+/** Seconds to ease up to full float height (quick overall, slow start) */
+const FALL_FLOAT_RISE_SEC = 0.34;
+const REATTACH_LERP = 14;
+
+/** Slow lift at first, reaches full height within FALL_FLOAT_RISE_SEC */
+function floatRiseEase(t: number): number {
+  const u = Math.min(1, Math.max(0, t));
+  return u * u * u;
+}
+
+const _restLocal = new THREE.Vector3(0, CROWN_REST_Y, CROWN_FORWARD_Z);
+const _headWorld = new THREE.Vector3();
 
 function disposeMaterial(m: THREE.Material | THREE.Material[]): void {
   const list = Array.isArray(m) ? m : [m];
@@ -69,7 +92,6 @@ function prepareCrownModel(
   return scene;
 }
 
-/** Anticipation dip → high launch → bouncy settle */
 function cartoonPopOffset(u: number): number {
   if (u <= 0 || u >= 1) return 0;
 
@@ -89,12 +111,26 @@ function cartoonPopOffset(u: number): number {
   return CROWN_POP_HEIGHT * fall * bounce;
 }
 
-/** Gold crown on local player — pops up on jump then settles back */
-export function PlayerJumpHat() {
+type PlayerJumpHatProps = {
+  bodyRef: RefObject<RapierRigidBody | null>;
+  visualRef: RefObject<THREE.Group | null>;
+  groundedRef: RefObject<boolean>;
+};
+
+/** Gold crown on local player — pops on jump; floats above head while falling */
+export function PlayerJumpHat({
+  bodyRef,
+  visualRef,
+  groundedRef,
+}: PlayerJumpHatProps) {
   const anchorRef = useRef<THREE.Group>(null);
   const popWrapRef = useRef<THREE.Group>(null);
   const popStartMs = useRef(0);
   const lastPopSeq = useRef(0);
+  const detached = useRef(false);
+  const floatRiseK = useRef(0);
+  const reattachK = useRef(1);
+  const floatHoldLocal = useRef(new THREE.Vector3());
 
   const popSeq = useSyncExternalStore(
     gameStore.subscribe,
@@ -116,23 +152,68 @@ export function PlayerJumpHat() {
     popStartMs.current = performance.now();
   }, [popSeq]);
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     const anchor = anchorRef.current;
     const wrap = popWrapRef.current;
-    if (!anchor) return;
+    const visual = visualRef.current;
+    const body = bodyRef.current;
+    if (!anchor || !visual) return;
+
+    const vy = body ? body.linvel().y : 0;
+    const isGrounded = groundedRef.current;
+    const shouldDetach = !isGrounded && vy < FALL_DETACH_VY;
+
+    if (shouldDetach) {
+      if (!detached.current) floatRiseK.current = 0;
+      detached.current = true;
+      reattachK.current = 0;
+    } else if (detached.current && isGrounded && vy > -1.2) {
+      detached.current = false;
+      floatRiseK.current = 0;
+      reattachK.current = 0;
+    }
 
     const elapsed = (performance.now() - popStartMs.current) / 1000;
     let pop = 0;
     let u = 1;
-    if (elapsed < CROWN_POP_DURATION_SEC) {
+    const allowPop = !detached.current && reattachK.current >= 0.98;
+    if (allowPop && elapsed < CROWN_POP_DURATION_SEC) {
       u = elapsed / CROWN_POP_DURATION_SEC;
       pop = cartoonPopOffset(u);
     }
 
-    anchor.position.set(0, CROWN_REST_Y + pop, CROWN_FORWARD_Z);
+    if (detached.current) {
+      floatRiseK.current = Math.min(
+        1,
+        floatRiseK.current + dt / FALL_FLOAT_RISE_SEC,
+      );
+      const rise = floatRiseEase(floatRiseK.current);
+      visual.getWorldPosition(_headWorld);
+      _headWorld.y += CROWN_REST_Y + FALL_FLOAT_ABOVE_M * rise;
+      if (rise > 0.72) {
+        _headWorld.y += Math.sin(performance.now() * 0.009) * 0.05 * rise;
+      }
+      const parent = anchor.parent;
+      if (parent) {
+        parent.updateWorldMatrix(true, false);
+        parent.worldToLocal(_headWorld);
+      }
+      floatHoldLocal.current.copy(_headWorld);
+      anchor.position.copy(_headWorld);
+    } else if (reattachK.current < 1) {
+      reattachK.current = Math.min(1, reattachK.current + dt * REATTACH_LERP);
+      _restLocal.y = CROWN_REST_Y + pop;
+      anchor.position.lerpVectors(
+        floatHoldLocal.current,
+        _restLocal,
+        reattachK.current,
+      );
+    } else {
+      anchor.position.set(_restLocal.x, _restLocal.y + pop, _restLocal.z);
+    }
 
     if (wrap) {
-      if (elapsed < CROWN_POP_DURATION_SEC) {
+      if (allowPop && elapsed < CROWN_POP_DURATION_SEC) {
         const wave = Math.sin(u * Math.PI);
         const stretchY = 1 + 0.14 * wave;
         const squashXZ = 1 - 0.07 * wave;

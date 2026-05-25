@@ -11,25 +11,26 @@ float fanGlassEdge(vec2 uv) {
 /** Court-facing fan booth glass — darker rim vignette, clearer center */
 export function createFanGlassMaterial(): THREE.MeshBasicMaterial {
   const baseOpacity = Math.min(
-    0.5,
-    ARENA_PADS.fanFacadeGlassOpacity * 1.42,
+    0.62,
+    ARENA_PADS.fanFacadeGlassOpacity * 1.05,
   );
 
   const mat = new THREE.MeshBasicMaterial({
-    color: '#060a12',
+    color: '#010204',
     transparent: true,
     opacity: baseOpacity,
-    depthWrite: false,
+    depthWrite: true,
+    depthTest: true,
     side: THREE.DoubleSide,
-    toneMapped: false,
+    toneMapped: true,
   });
 
   mat.customProgramCacheKey = () => 'fan_glass_vignette_v2';
 
   mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uCenterAlpha = { value: baseOpacity * 0.52 };
-    shader.uniforms.uEdgeAlpha = { value: Math.min(0.58, baseOpacity * 1.35) };
-    shader.uniforms.uEdgeDarken = { value: 0.72 };
+    shader.uniforms.uCenterAlpha = { value: baseOpacity * 0.55 };
+    shader.uniforms.uEdgeAlpha = { value: Math.min(0.72, baseOpacity * 0.95) };
+    shader.uniforms.uEdgeDarken = { value: 0.98 };
 
     shader.vertexShader = shader.vertexShader.replace(
       '#include <common>',
@@ -59,8 +60,8 @@ export function createFanGlassMaterial(): THREE.MeshBasicMaterial {
       {
         float edge = fanGlassEdge(vGlassUv);
         diffuseColor.a = mix(uCenterAlpha, uEdgeAlpha, edge);
-        vec3 edgeTint = vec3(0.02, 0.03, 0.05);
-        vec3 centerTint = vec3(0.05, 0.07, 0.11);
+        vec3 edgeTint = vec3(0.004, 0.005, 0.008);
+        vec3 centerTint = vec3(0.012, 0.014, 0.02);
         diffuseColor.rgb = mix(centerTint, edgeTint, edge * uEdgeDarken);
       }`,
     );

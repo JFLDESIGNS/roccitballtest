@@ -91,10 +91,6 @@ export type TuningValues = {
   looseVisualMaxLagM: number;
   /** Extra follow strength multiplier cap at high ball speed */
   looseVisualSpeedBoostMax: number;
-  /** Arena grass density + blade height (0.25 = sparse/short, 3 = dense/tall) */
-  turfGrassScale: number;
-  /** Instanced grass blades on the hex floor */
-  turfGrassEnabled: boolean;
 };
 
 type TuningState = TuningValues & {
@@ -108,6 +104,7 @@ export type TuningTabId =
   | 'ball'
   | 'bots'
   | 'arena'
+  | 'brightness'
   | 'graphics'
   | 'audio';
 
@@ -117,6 +114,7 @@ export const TUNING_TABS: { id: TuningTabId; label: string }[] = [
   { id: 'ball', label: 'Ball & beam' },
   { id: 'bots', label: 'Bots' },
   { id: 'arena', label: 'Arena' },
+  { id: 'brightness', label: 'Brightness' },
   { id: 'graphics', label: 'Graphics' },
   { id: 'audio', label: 'Audio' },
 ];
@@ -181,8 +179,6 @@ const defaults: TuningValues = {
   looseVisualRotSmooth: BALL.looseVisualRotSmooth,
   looseVisualMaxLagM: BALL.looseVisualMaxLagM,
   looseVisualSpeedBoostMax: 12,
-  turfGrassScale: 1,
-  turfGrassEnabled: true,
 };
 
 const listeners = new Set<() => void>();
@@ -224,9 +220,6 @@ function mergeStored(base: TuningValues): TuningValues {
   if (merged.releaseSystem !== 'classic' && merged.releaseSystem !== 'superrelease') {
     merged.releaseSystem = 'superrelease';
   }
-  if (typeof merged.turfGrassEnabled !== 'boolean') {
-    merged.turfGrassEnabled = defaults.turfGrassEnabled;
-  }
   return merged;
 }
 
@@ -251,7 +244,11 @@ export const tuningStore = {
   },
   toggleMenu: () => {
     const opening = !state.showMenu;
-    state = { ...state, showMenu: opening };
+    state = {
+      ...state,
+      showMenu: opening,
+      menuTab: opening ? 'brightness' : state.menuTab,
+    };
     if (opening) {
       document.exitPointerLock();
     } else {
@@ -349,9 +346,6 @@ export const tuningStore = {
     patch({ looseVisualMaxLagM: Math.max(0.05, Math.min(2, v)) }),
   setLooseVisualSpeedBoostMax: (v: number) =>
     patch({ looseVisualSpeedBoostMax: Math.max(0, Math.min(32, v)) }),
-  setTurfGrassScale: (v: number) =>
-    patch({ turfGrassScale: Math.max(0.25, Math.min(3, v)) }),
-  setTurfGrassEnabled: (v: boolean) => patch({ turfGrassEnabled: v }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

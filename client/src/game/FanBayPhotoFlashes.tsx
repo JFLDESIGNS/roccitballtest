@@ -5,6 +5,7 @@ import { ARENA_PADS } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 import { getFanCelebrationState } from './fanCelebration';
 import { isFanBayGlassCelebrating } from './fanGlassHit';
+import { FAN_BOOTH_RENDER_ORDER } from './renderOrderConstants';
 
 const FT = 0.3048;
 const MAX_FLASHES = 72;
@@ -390,7 +391,7 @@ export function FanBayPhotoFlashes({
       ref={meshRef}
       args={[geo, mat, MAX_FLASHES]}
       frustumCulled={false}
-      renderOrder={20}
+      renderOrder={FAN_BOOTH_RENDER_ORDER + 1}
     />
   );
 }

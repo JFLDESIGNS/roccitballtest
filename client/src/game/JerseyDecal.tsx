@@ -40,13 +40,13 @@ function makeNumberTexture(digits: string, fill: string): THREE.CanvasTexture {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  ctx.shadowColor = '#2ad4ff';
-  ctx.shadowBlur = 22;
-  ctx.lineWidth = 24;
-  ctx.strokeStyle = 'rgba(20, 28, 38, 0.92)';
+  ctx.shadowColor = 'rgba(0,0,0,0.35)';
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = 'rgba(20, 24, 28, 0.85)';
   ctx.strokeText(digits, cx, cy);
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = 'rgba(55, 210, 255, 0.9)';
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = 'rgba(90, 98, 108, 0.7)';
   ctx.strokeText(digits, cx, cy);
   ctx.shadowBlur = 0;
   ctx.fillStyle = fill;
@@ -65,14 +65,19 @@ type GroundJerseyDecalProps = {
   fillColor?: string;
   /** World-space size on floor (m) */
   size?: number;
+  /** When set with hideWhenGrounded, skip the decal while feet are on the ground */
+  groundedRef?: React.RefObject<boolean>;
+  hideWhenGrounded?: boolean;
 };
 
 /** Jersey number flat on the floor, yaw toward the active camera */
 export function GroundJerseyDecal({
   bodyRef,
   jerseyNumber,
-  fillColor = '#f4f8ff',
+  fillColor = '#d8dce2',
   size = 3.6,
+  groundedRef,
+  hideWhenGrounded = false,
 }: GroundJerseyDecalProps) {
   const { world } = useRapier();
   const groupRef = useRef<THREE.Group>(null);
@@ -88,6 +93,11 @@ export function GroundJerseyDecal({
     const body = bodyRef.current;
     if (!group) return;
     if (!body) {
+      group.visible = false;
+      return;
+    }
+
+    if (hideWhenGrounded && groundedRef?.current) {
       group.visible = false;
       return;
     }

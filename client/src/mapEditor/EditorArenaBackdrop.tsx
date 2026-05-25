@@ -1,20 +1,19 @@
 import { memo, useMemo } from 'react';
-import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
-import { buildHexWallSegments, createHexShape } from '../game/arenaHex';
+import {
+  buildHexWallSegments,
+  createArenaHexFloorGeometry,
+} from '../game/arenaHex';
 import { arenaHexFloorMaterial, arenaWallMaterial } from '../game/arenaMaterials';
 
 /** Static arena visuals for the map editor — no Rapier / colliders. */
 export const EditorArenaBackdrop = memo(function EditorArenaBackdrop() {
   const { hexRadius, wallHeight, wallThickness } = ARENA;
 
-  const floorGeo = useMemo(() => {
-    const geo = new THREE.ShapeGeometry(createHexShape(hexRadius));
-    geo.rotateX(-Math.PI / 2);
-    geo.scale(1, 1, -1);
-    geo.computeVertexNormals();
-    return geo;
-  }, [hexRadius]);
+  const floorGeo = useMemo(
+    () => createArenaHexFloorGeometry(hexRadius),
+    [hexRadius],
+  );
 
   const wallSegments = useMemo(
     () => buildHexWallSegments(hexRadius, wallThickness),

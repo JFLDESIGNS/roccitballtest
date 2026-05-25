@@ -102,6 +102,7 @@ import {
 import { tuningStore } from './tuningStore';
 import { isBeamDenied, registerBeamDenyZone } from './beamDenyZones';
 import { canCaptureWithContest, recordBeamPull } from './ballBeamContest';
+import { triggerRocketRecoil } from './rocketRecoil';
 import { createRocket } from './rocketSystem';
 import { sampleTrampolineFloorY } from './arenaPadLayout';
 import {
@@ -435,23 +436,7 @@ export function Player({
     }
   });
 
-  useEffect(() => {
-    const body = bodyRef.current;
-    if (!body) return;
-    const col = body.collider(0);
-    if (!col) return;
-    if (debugFreelook) {
-      col.setCollisionGroups(PLAYER_DEBUG_NOCLIP);
-      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    } else {
-      const carrying =
-        holdingBall.current || gameStore.getState().ballHolderId === 'local';
-      col.setCollisionGroups(
-        carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
-      );
-    }
-  }, [debugFreelook]);
+  const flyModeActive = useRef(false);
 
   useFrame((_, dt) => {
     const body = bodyRef.current;
@@ -460,7 +445,24 @@ export function Player({
     if (debugFreelook) {
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      if (!flyModeActive.current) {
+        flyModeActive.current = true;
+        const col = body.collider(0);
+        if (col) col.setCollisionGroups(PLAYER_DEBUG_NOCLIP);
+      }
       return;
+    }
+
+    if (flyModeActive.current) {
+      flyModeActive.current = false;
+      const col = body.collider(0);
+      if (col) {
+        const carrying =
+          holdingBall.current || gameStore.getState().ballHolderId === 'local';
+        col.setCollisionGroups(
+          carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+        );
+      }
     }
 
     const carryingBall =
@@ -737,6 +739,7 @@ export function Player({
         aimPitch,
         moveSpeed,
         dt,
+        'local',
       )
     ) {
       syncCharacterVisualPresentation(
@@ -746,6 +749,7 @@ export function Player({
         aimPitch,
         moveSpeed,
         dt,
+        'local',
       );
     }
     const holdingNow =
@@ -1350,6 +1354,7 @@ export function Player({
         playRocketFire(explosive);
         firePressHandled.current = true;
       }
+      triggerRocketRecoil('local', lookDir, pos, explosive);
       onRocketFired(rocket);
       rocketFireCooldown.current = ROCKET.fireCooldownSec;
       return true;
@@ -1512,7 +1517,11 @@ export function Player({
   const characterMesh = (
     <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
       <PlayerAvatar rotationY={0} team={localTeam} />
-      <PlayerJumpHat />
+      <PlayerJumpHat
+        bodyRef={bodyRef}
+        visualRef={visualRef}
+        groundedRef={grounded}
+      />
     </group>
   );
 
@@ -1573,7 +1582,9 @@ export function Player({
       <GroundJerseyDecal
         bodyRef={bodyRef}
         jerseyNumber={getJerseyNumber('local')}
-        fillColor="#b8f4ff"
+        fillColor="#c8cdd4"
+        groundedRef={grounded}
+        hideWhenGrounded
       />
     </group>
   );

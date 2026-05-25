@@ -2,6 +2,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import type { MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { MOVEMENT } from '../shared/Constants';
+import { getRocketRecoilPitch } from './rocketRecoil';
 
 /** Team markers / billboards above characters */
 export const CHARACTER_INDICATOR_RENDER_ORDER = 160;
@@ -148,6 +149,7 @@ export function syncCharacterVisualPresentation(
   aimPitch: number,
   moveSpeed: number,
   dt: number,
+  actorId?: string,
 ) {
   const targetPitch = THREE.MathUtils.clamp(
     aimPitch * PITCH_VISUAL_SCALE,
@@ -160,7 +162,14 @@ export function syncCharacterVisualPresentation(
     targetPitch,
     ps,
   );
-  alignCharacterVisualUpright(body, refs, yaw, null, refs.pitchSmooth.current);
+  const recoil = actorId ? getRocketRecoilPitch(actorId) : 0;
+  alignCharacterVisualUpright(
+    body,
+    refs,
+    yaw,
+    null,
+    refs.pitchSmooth.current + recoil,
+  );
 
   const bobFactor = Math.min(1, moveSpeed / 4.5);
   if (bobFactor > 0.02) {
@@ -264,6 +273,7 @@ export function tickCharacterVisualRecovery(
   aimPitch: number,
   moveSpeed: number,
   dt: number,
+  actorId?: string,
 ): boolean {
   if (state.secLeft <= 0) return false;
   state.secLeft = Math.max(0, state.secLeft - dt);
@@ -277,7 +287,14 @@ export function tickCharacterVisualRecovery(
     targetPitch,
     1 - Math.exp(-PITCH_SMOOTH * dt * 2.4),
   );
-  alignCharacterVisualUpright(body, refs, yaw, null, refs.pitchSmooth.current);
+  const recoil = actorId ? getRocketRecoilPitch(actorId) : 0;
+  alignCharacterVisualUpright(
+    body,
+    refs,
+    yaw,
+    null,
+    refs.pitchSmooth.current + recoil,
+  );
   void moveSpeed;
   return state.secLeft > 0;
 }

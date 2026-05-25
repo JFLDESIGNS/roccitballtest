@@ -12,6 +12,7 @@ import { arenaRoofStore } from './arenaRoofStore';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import { getLookDirection } from './CameraController';
+import { shouldIgnoreGameplayKeys } from './uiFocus';
 
 type Keys = Record<string, boolean>;
 
@@ -27,6 +28,7 @@ class InputManager {
   private lastForwardTapAt = 0;
   private dashBoostQueued = false;
   private spawnBallQueued = false;
+  private ballRespawnQueued = false;
   private bound = false;
   private fireEdge = false;
   private fireReleaseEdge = false;
@@ -40,7 +42,11 @@ class InputManager {
 
   private canApplyFallbackLook(): boolean {
     if (tuningStore.getState().showMenu) return false;
-    if (gameStore.getState().debugFreelook) return true;
+    if (gameStore.getState().debugFreelook) {
+      return (
+        this.mouseButtons.right || this.pointerCaptureId !== null
+      );
+    }
     const phase = gameStore.getState().phase;
     return phase === 'playing' || phase === 'countdown';
   }
@@ -96,6 +102,9 @@ class InputManager {
     }
 
     if (gameStore.getState().debugFreelook) {
+      if (!this.mouseButtons.right && this.pointerCaptureId === null) {
+        return;
+      }
       let dx = e.movementX;
       let dy = e.movementY;
       if (dx === 0 && dy === 0 && this.hasLastClient) {
@@ -133,6 +142,30 @@ class InputManager {
     }
   }
 
+  /** Release lock so the OS cursor works for the light editor panel */
+  exitPointerLock(): void {
+    this.releasePointerCaptureFallback();
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+    this.pointerLocked = false;
+    gameStore.setPointerLocked(false);
+  }
+
+  /** Enter U-mode — free cursor; hold RMB on arena to look around */
+  enterDebugFlyMode(): void {
+    this.exitPointerLock();
+    this.flushFireInput();
+    this.mouseButtons.left = false;
+    this.mouseButtons.right = false;
+  }
+
+  exitDebugFlyMode(): void {
+    this.exitPointerLock();
+    this.mouseButtons.right = false;
+    this.hasLastClient = false;
+  }
+
   /** After tuning menu or alt-tab — sync lock state; next click re-captures mouse */
   onGameplayResume(): void {
     this.syncPointerLockState();
@@ -150,6 +183,13 @@ class InputManager {
     this.canvas = canvas;
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' && gameStore.getState().debugFreelook) {
+        import('./stadiumLightStore').then(({ stadiumLightStore }) =>
+          stadiumLightStore.deselect(),
+        );
+      }
+      if (shouldIgnoreGameplayKeys()) return;
+
       this.keys[e.code] = true;
       if (e.code === 'KeyW' && !e.repeat && tuningStore.getState().wwDashEnabled) {
         const nowSec = performance.now() / 1000;
@@ -163,7 +203,9 @@ class InputManager {
           this.lastForwardTapAt = nowSec;
         }
       }
-      if (e.code === 'KeyE') this.throwQueued = true;
+      if (e.code === 'KeyE' && !gameStore.getState().debugFreelook) {
+        this.throwQueued = true;
+      }
       if (e.code === 'KeyF') this.spawnBallQueued = true;
       if (e.code === 'KeyR' && !e.repeat) {
         if (tuningStore.getState().showMenu) return;
@@ -172,7 +214,17 @@ class InputManager {
           arenaRoofStore.toggleTarget();
         }
       }
-      if (e.code === 'KeyG') {
+      if (e.code === 'KeyG' && !e.repeat) {
+        if (tuningStore.getState().showMenu) return;
+        const phase = gameStore.getState().phase;
+        if (phase === 'playing' || phase === 'countdown') {
+          import('./stadiumRectLightDebugStore').then(
+            ({ stadiumRectLightDebugStore }) =>
+              stadiumRectLightDebugStore.toggleWireframe(),
+          );
+        }
+      }
+      if (e.code === 'KeyH' && !e.repeat) {
         import('./gameStore').then(({ gameStore }) =>
           gameStore.toggleColliderDebug(),
         );
@@ -210,20 +262,30 @@ class InputManager {
       }
       if (e.code === 'Tab') {
         e.preventDefault();
-        import('./gameStore').then(({ gameStore }) =>
-          gameStore.setShowScoreboard(true),
-        );
+        if (gameStore.getState().debugFreelook) {
+          if (!e.repeat) this.ballRespawnQueued = true;
+          return;
+        }
+        gameStore.setShowScoreboard(true);
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      if (shouldIgnoreGameplayKeys()) return;
       this.keys[e.code] = false;
       if (e.code === 'Tab') {
-        import('./gameStore').then(({ gameStore }) =>
-          gameStore.setShowScoreboard(false),
-        );
+        if (!gameStore.getState().debugFreelook) {
+          gameStore.setShowScoreboard(false);
+        }
       }
     };
     const onMouseDown = (e: MouseEvent) => {
+      if (gameStore.getState().debugFreelook) {
+        if (e.button === 2) {
+          this.mouseButtons.right = true;
+          this.beginPointerCaptureFallback(e as PointerEvent);
+        }
+        return;
+      }
       if (e.button === 0) this.setFireDown(true);
       if (e.button === 2) this.mouseButtons.right = true;
       if (document.pointerLockElement !== canvas && this.canApplyFallbackLook()) {
@@ -232,6 +294,14 @@ class InputManager {
       }
     };
     const onMouseUp = (e: MouseEvent) => {
+      if (gameStore.getState().debugFreelook) {
+        if (e.button === 2) {
+          this.mouseButtons.right = false;
+          this.releasePointerCaptureFallback();
+          this.hasLastClient = false;
+        }
+        return;
+      }
       if (e.button === 0) this.setFireDown(false);
       if (e.button === 2) this.mouseButtons.right = false;
       if (
@@ -436,6 +506,12 @@ class InputManager {
     return true;
   }
 
+  consumeBallRespawn(): boolean {
+    if (!this.ballRespawnQueued) return false;
+    this.ballRespawnQueued = false;
+    return true;
+  }
+
   wantsJump(): boolean {
     return this.jumpQueued;
   }
@@ -461,14 +537,6 @@ class InputManager {
 
   isSprint(): boolean {
     return !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'];
-  }
-
-  /** Q down / E up — used in debug freelook (E throw is ignored while flying) */
-  getFlyVertical(): number {
-    let v = 0;
-    if (this.keys['KeyE']) v += 1;
-    if (this.keys['KeyQ']) v -= 1;
-    return v;
   }
 
   isBeam(): boolean {

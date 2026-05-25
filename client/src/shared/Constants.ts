@@ -131,7 +131,7 @@ export const ARENA_PADS = {
   /** Physics collider depth for fan glass (visual stays thin) */
   fanGlassColliderDepthM: 0.18,
   /** Fan glass — higher = darker, fans harder to see */
-  fanFacadeGlassOpacity: 0.28,
+  fanFacadeGlassOpacity: 0.52,
   fanFacadeGlassTransmission: 0,
   /** Push glass court face toward opening (+Z wall-local) */
   fanFacadeGlassForwardM: 0.58,
@@ -211,11 +211,11 @@ export const BOT = {
   maxJumps: 2,
   beamDrain: 12,
   /** Bot beam = tuning pullStrength × this (player uses 1.0) */
-  beamPullScale: 0.78,
+  beamPullScale: 0.5,
   /** Teammate bot (bot-2) — pull loose floor balls toward player */
-  allyBeamPullScale: 1.08,
+  allyBeamPullScale: 0.62,
   /** Red/blue enemy bots — beam pull on loose balls */
-  enemyBeamPullScale: 0.88,
+  enemyBeamPullScale: 0.52,
   /** Seconds a bot must hold beam attract before socketing the ball */
   beamCaptureLatchSec: 0.75,
   /** Teammate bot: beam loose balls — relaxed so ally can contest bounces like enemies */
@@ -969,7 +969,7 @@ export const MATCH = {
   /** Logo splash at match start before arena load countdown */
   logoIntroSec: 2,
   /** Arena load-in before first kickoff countdown */
-  mapLoadSec: 20,
+  mapLoadSec: 10,
   /** After load screen — map visible, 5-4-3-2-1 settle before kickoff 3-2-1 */
   arenaSettleCountdownSec: 5,
   /** Block rockets / combat SFX briefly after match load (pointer-lock click bleed) */
@@ -1127,12 +1127,13 @@ export const RENDER = {
   dprMax: 1.35,
   antialias: true,
   enableShadows: true,
-  /** Lower res + PCF (not soft) — shadows are low priority */
-  shadowMapSize: 1024,
-  shadowCameraSpan: 72,
-  shadowCameraFar: 130,
-  /** PCF kernel radius (keep low for perf) */
-  shadowRadius: 1.5,
+  shadowMapSize: 4096,
+  shadowCameraSpan: 80,
+  shadowCameraFar: 155,
+  /** PCF kernel for arena fill lights (if any cast) */
+  shadowRadius: 7,
+  /** Overhead sun directional — lower = harder, more distinct shadows */
+  sunShadowRadius: 1.75,
   beamTubeSegments: 56,
   beamTubeRadial: 6,
   beamTraceLayers: 6,

@@ -18,9 +18,11 @@ type CloudClusterSpec = {
 
 const DIST = 3;
 const NEAR_RING_M = 31 * DIST;
+/** Extra world-Y lift so clumps sit higher above the stadium */
+const CLOUD_LIFT_M = 14;
 
 function farPos(x: number, y: number, z: number): [number, number, number] {
-  return [x * DIST, y * 1.12, z * DIST];
+  return [x * DIST, y * 1.12 + CLOUD_LIFT_M, z * DIST];
 }
 
 /** Hand-tuned billowy shapes — rotated/scaled per cluster for variety */
@@ -103,12 +105,15 @@ const CLOUD_CLUSTERS: CloudClusterSpec[] = CLOUD_CLUMP_PLACES.map((c, i) => ({
   ),
 })).filter((c) => c.puffs.length > 0);
 
-const cloudPuffMaterial = new THREE.MeshBasicMaterial({
-  color: '#f6faff',
-  transparent: true,
-  opacity: 0.8,
-  depthWrite: false,
+const cloudPuffMaterial = new THREE.MeshLambertMaterial({
+  color: '#e2f0fc',
+  emissive: '#9cc4ea',
+  emissiveIntensity: 0.22,
+  transparent: false,
+  opacity: 1,
+  depthWrite: true,
   fog: false,
+  toneMapped: false,
 });
 
 const skyDomeMaterial = new THREE.ShaderMaterial({

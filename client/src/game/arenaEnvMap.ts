@@ -1,16 +1,22 @@
 import * as THREE from 'three';
 
 let arenaEnvMap: THREE.Texture | null = null;
+const ENV_VERSION = 2;
+let envVersion = -1;
 
 /** Lightweight gradient cubemap for metal reflections (no HDR load) */
 export function getArenaEnvMap(): THREE.CubeTexture {
-  if (arenaEnvMap) return arenaEnvMap as THREE.CubeTexture;
+  if (arenaEnvMap && envVersion === ENV_VERSION) {
+    return arenaEnvMap as THREE.CubeTexture;
+  }
+  arenaEnvMap?.dispose();
+  arenaEnvMap = null;
 
   const size = 64;
   const faces: HTMLCanvasElement[] = [];
-  const skyTop = '#5eb0f0';
-  const skyHorizon = '#8fd0f8';
-  const ground = '#2a323c';
+  const skyTop = '#4a5c6a';
+  const skyHorizon = '#5c6d7a';
+  const ground = '#181e26';
 
   for (let f = 0; f < 6; f++) {
     const canvas = document.createElement('canvas');
@@ -40,6 +46,7 @@ export function getArenaEnvMap(): THREE.CubeTexture {
   cube.colorSpace = THREE.SRGBColorSpace;
   cube.needsUpdate = true;
   arenaEnvMap = cube;
+  envVersion = ENV_VERSION;
   return cube;
 }
 

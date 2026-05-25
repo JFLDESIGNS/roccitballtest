@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { RENDER } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 import { buildLaserBeamCurve } from './beamTraceCurve';
+import { COMBAT_VFX_RENDER_ORDER } from './renderOrderConstants';
 
 export type BeamTraceTeam = Team | 'enemy';
 
@@ -232,14 +233,52 @@ export function BeamPullTrace({
     coreMat.opacity = opacity;
   });
 
+  const beamOrder = COMBAT_VFX_RENDER_ORDER;
+
   return (
-    <group ref={groupRef} visible={false}>
-      <mesh ref={outerTrace} frustumCulled={false} material={outerMat} geometry={placeholderGeo} />
-      <mesh ref={haloTrace} frustumCulled={false} material={haloMat} geometry={placeholderGeo} />
-      <mesh ref={glowTrace} frustumCulled={false} material={glowMat} geometry={placeholderGeo} />
-      <mesh ref={midTrace} frustumCulled={false} material={midMat} geometry={placeholderGeo} />
-      <mesh ref={innerTrace} frustumCulled={false} material={innerMat} geometry={placeholderGeo} />
-      <mesh ref={coreTrace} frustumCulled={false} material={coreMat} geometry={placeholderGeo} />
+    <group ref={groupRef} visible={false} renderOrder={beamOrder}>
+      <mesh
+        ref={outerTrace}
+        frustumCulled={false}
+        material={outerMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder}
+      />
+      <mesh
+        ref={haloTrace}
+        frustumCulled={false}
+        material={haloMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder + 1}
+      />
+      <mesh
+        ref={glowTrace}
+        frustumCulled={false}
+        material={glowMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder + 2}
+      />
+      <mesh
+        ref={midTrace}
+        frustumCulled={false}
+        material={midMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder + 3}
+      />
+      <mesh
+        ref={innerTrace}
+        frustumCulled={false}
+        material={innerMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder + 4}
+      />
+      <mesh
+        ref={coreTrace}
+        frustumCulled={false}
+        material={coreMat}
+        geometry={placeholderGeo}
+        renderOrder={beamOrder + 5}
+      />
     </group>
   );
 }

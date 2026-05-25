@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
+import { applyWorldXZTileUVs } from './arenaConcreteTexture';
 
 /** Hex corners where perimeter walls meet (Vector2.y is world Z) */
 export function hexCornerPositions(radius: number): { x: number; z: number }[] {
@@ -45,6 +46,22 @@ export function createHexShape(radius: number): THREE.Shape {
   }
   shape.closePath();
   return shape;
+}
+
+/** Hex court floor — normals face +Y (no scale flip that hid faces from above). */
+export function createArenaHexFloorGeometry(
+  radius = ARENA.hexRadius,
+): THREE.BufferGeometry {
+  const geo = new THREE.ShapeGeometry(createHexShape(radius));
+  geo.rotateX(-Math.PI / 2);
+  applyWorldXZTileUVs(geo);
+  geo.computeVertexNormals();
+  const norm = geo.getAttribute('normal') as THREE.BufferAttribute;
+  for (let i = 0; i < norm.count; i++) {
+    if (norm.getY(i) < 0) norm.setY(i, -norm.getY(i));
+  }
+  norm.needsUpdate = true;
+  return geo;
 }
 
 export type HexWallSegment = {

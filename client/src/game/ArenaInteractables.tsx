@@ -11,7 +11,10 @@ import { ARENA, ARENA_PADS, BALL } from '../shared/Constants';
 import type { WallMount, FloorPad } from './arenaPadLayout';
 import { getBillboardMounts, getBounceTrampolinePads } from './arenaPadLayout';
 import { RocccitLogoStamp } from './RocccitLogoStamp';
-import { arenaPadStoneMaterial } from './arenaMaterials';
+import {
+  arenaPadStoneMaterial,
+  arenaJumpPadTopMaterial,
+} from './arenaMaterials';
 import { billboardShakeKey, getVisualShake } from './visualShake';
 
 const BILLBOARD_FRAME = '#08090c';
@@ -115,7 +118,6 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
   const deckH = ARENA_PADS.bouncePadHeightM;
   const r = pad.radius;
   const stoneTopY = pad.platformTopY;
-  const deckTopY = stoneTopY + deckH;
   const floorY = ARENA.floorY;
   const stemH = stoneTopY - floorY;
   const stemCenterY = floorY + stemH * 0.5;
@@ -127,28 +129,13 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
 
   return (
     <group position={[pad.x, 0, pad.z]}>
-      <mesh position={[0, stemCenterY, 0]} receiveShadow castShadow={false}>
-        <cylinderGeometry args={[stemTopR, stemBotR, stemH, 8]} />
-        <meshStandardMaterial
-          color="#2a3a52"
-          metalness={0.06}
-          roughness={0.92}
-          flatShading
-          map={arenaPadStoneMaterial.map}
-        />
-      </mesh>
       <mesh
-        position={[0, stoneTopY - 0.06, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, stemCenterY, 0]}
+        receiveShadow
+        castShadow={false}
+        material={arenaPadStoneMaterial}
       >
-        <ringGeometry args={[r * 0.82, stemTopR * 0.88, 32]} />
-        <meshBasicMaterial
-          color="#6a7a8a"
-          transparent
-          opacity={0.35}
-          toneMapped={false}
-          side={THREE.DoubleSide}
-        />
+        <cylinderGeometry args={[stemTopR, stemBotR, stemH, 8]} />
       </mesh>
       <RigidBody
         type="fixed"
@@ -164,37 +151,14 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
       </RigidBody>
-      <mesh position={[0, stoneTopY + deckH * 0.5, 0]} castShadow={false} receiveShadow>
-        <cylinderGeometry args={[r, r, deckH, 32]} />
-        <meshStandardMaterial
-          color="#3d6d7a"
-          emissive="#1a4a58"
-          emissiveIntensity={0.32}
-          metalness={0.1}
-          roughness={0.55}
-        />
-      </mesh>
       <mesh
-        position={[0, deckTopY + 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, stoneTopY + deckH * 0.5, 0]}
+        castShadow
+        receiveShadow
+        material={arenaJumpPadTopMaterial}
       >
-        <ringGeometry args={[r * 0.88, r * 1.02, 48]} />
-        <meshBasicMaterial
-          color="#c8e8f0"
-          transparent
-          opacity={0.45}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          toneMapped={false}
-          side={THREE.DoubleSide}
-        />
+        <cylinderGeometry args={[r, r, deckH, 32]} />
       </mesh>
-      <pointLight
-        position={[0, deckTopY + 1, 0]}
-        color="#88eeff"
-        intensity={32}
-        distance={14}
-      />
     </group>
   );
 }

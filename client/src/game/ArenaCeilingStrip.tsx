@@ -62,7 +62,7 @@ export function ArenaCeilingStrip() {
         args={[lengthX, STRIP_DROP_Y, STRIP_THICKNESS_Z]}
         radius={CHAMFER_RADIUS}
         smoothness={6}
-        castShadow={false}
+        castShadow
         receiveShadow
       >
         <primitive object={stripBodyMaterial} attach="material" />
@@ -105,9 +105,9 @@ function CeilingStripPointLights({
         <pointLight
           key={x}
           position={[x, y - 0.4, 0]}
-          color="#99ddff"
-          intensity={52}
-          distance={48}
+          color="#b8a890"
+          intensity={14}
+          distance={40}
           decay={2}
         />
       ))}

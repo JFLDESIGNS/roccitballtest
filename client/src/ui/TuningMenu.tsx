@@ -5,6 +5,7 @@ import {
   TUNING_TABS,
   type TuningTabId,
 } from '../game/tuningStore';
+import { BrightnessControls } from './BrightnessControls';
 import { GraphicsControls } from './GraphicsControls';
 
 type SliderRowProps = {
@@ -627,22 +628,6 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
       return (
         <>
           <ToggleRow
-            label="Arena grass"
-            hint="Instanced grass on the hex floor. Off = brown floor only (better FPS)."
-            checked={tune.turfGrassEnabled}
-            onChange={tuningStore.setTurfGrassEnabled}
-          />
-          <SliderRow
-            label="Grass scale"
-            hint="Density and blade height on the arena floor. 1.0 = very dense default; lower = sparse/shorter, higher = thicker carpet (capped for performance)."
-            value={tune.turfGrassScale}
-            min={0.25}
-            max={3}
-            step={0.05}
-            onChange={tuningStore.setTurfGrassScale}
-            format={(v) => `${v.toFixed(2)}×`}
-          />
-          <ToggleRow
             label="Show goal zone volumes"
             hint="Scoring sensors, shoot zone, and net-finish cylinders (debug only)."
             checked={showGoalZones}
@@ -658,10 +643,12 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             format={(v) => `${v.toFixed(1)}×`}
           />
           <p className="tuning-sub">
-            Jump pads — height &amp; launch power. Rockets bounce off the cyan deck.
+            Jump pads — height &amp; launch power. Rockets bounce off the concrete deck.
           </p>
         </>
       );
+    case 'brightness':
+      return <BrightnessControls compact />;
     case 'graphics':
       return <GraphicsControls compact />;
     case 'audio':
@@ -755,7 +742,8 @@ export function TuningMenu() {
         <div className="tuning-panel-header">
           <h2>Gameplay tuning</h2>
           <p className="tuning-sub">
-            Press <kbd>1</kbd> to close · graphics &amp; gameplay save automatically · tuning v16
+            Press <kbd>1</kbd> to close · opens <strong>Brightness</strong> tab · settings save
+            automatically
           </p>
         </div>
 
