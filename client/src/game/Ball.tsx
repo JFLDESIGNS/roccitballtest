@@ -1,3 +1,4 @@
+import { Billboard } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import {
   BallCollider,
@@ -57,6 +58,28 @@ import { gameStore, type BallHolderId } from './gameStore';
 import { tuningStore } from './tuningStore';
 import type { Team } from '../shared/Types';
 
+function createBallLetterTexture(letter: string): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, size, size);
+    ctx.font = 'bold 92px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 10;
+    ctx.strokeText(letter, size / 2, size / 2);
+    ctx.fillStyle = '#ffee22';
+    ctx.fillText(letter, size / 2, size / 2);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function holderGlowTeam(holderId: BallHolderId, localTeam: Team): Team | null {
   if (!holderId) return null;
   if (holderId === 'local') return localTeam;
@@ -80,7 +103,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
-  const ballMeshRef = useRef<THREE.Mesh>(null);
+  const physicsBallVisualRef = useRef<THREE.Group>(null);
   const ballMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const looseVisualRef = useRef<THREE.Mesh>(null);
   const looseVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -122,6 +145,8 @@ const hasPrevBallPos = useRef(false);
     () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, 'original'),
     [],
   );
+  const physicsLabelMap = useMemo(() => createBallLetterTexture('P'), []);
+  useEffect(() => () => physicsLabelMap.dispose(), [physicsLabelMap]);
 
   useEffect(() => () => surfaceMap.dispose(), [surfaceMap]);
 
@@ -289,9 +314,9 @@ const hasPrevBallPos = useRef(false);
           looseVisualRef.current.scale.setScalar(scale);
           looseVisualRef.current.visible = visible;
         }
-        if (ballMeshRef.current) {
-          ballMeshRef.current.scale.setScalar(scale);
-          ballMeshRef.current.visible = visible && showPhysics;
+        if (physicsBallVisualRef.current) {
+          physicsBallVisualRef.current.scale.setScalar(scale);
+          physicsBallVisualRef.current.visible = visible && showPhysics;
         }
         const applyAlpha = (m: THREE.MeshStandardMaterial | null) => {
           if (!m) return;
@@ -313,8 +338,8 @@ const hasPrevBallPos = useRef(false);
       looseVisualMatRef.current.opacity = 1;
     }
 
-    if (ballMeshRef.current) {
-      ballMeshRef.current.scale.setScalar(1);
+    if (physicsBallVisualRef.current) {
+      physicsBallVisualRef.current.scale.setScalar(1);
     }
     if (looseVisualRef.current) {
       looseVisualRef.current.scale.setScalar(1);
@@ -328,9 +353,9 @@ const hasPrevBallPos = useRef(false);
       !isLocalHeld &&
       !heldBallVisualBridge.release.active;
 
-    if (ballMeshRef.current) {
-      ballMeshRef.current.visible = canShowPhysicsDebug;
-      ballMeshRef.current.position.set(0, 0, 0);
+    if (physicsBallVisualRef.current) {
+      physicsBallVisualRef.current.visible = canShowPhysicsDebug;
+      physicsBallVisualRef.current.position.set(0, 0, 0);
     }
   }, -1);
 
@@ -426,23 +451,32 @@ const hasPrevBallPos = useRef(false);
         friction={BALL.friction}
         collisionGroups={interactionGroups(1, [0, 1, 2, 4])}
       />
-      <mesh
-        ref={ballMeshRef}
-        visible={false}
-        castShadow
-        receiveShadow
-      >
-        <sphereGeometry args={[BALL.radius, 14, 12]} />
-        <meshStandardMaterial
-          ref={ballMatRef}
-          map={surfaceMap}
-          color="#c8d8ec"
-          emissive="#5ec8ff"
-          emissiveIntensity={0.22}
-          metalness={0.52}
-          roughness={0.32}
-        />
-      </mesh>
+      <group ref={physicsBallVisualRef} visible={false}>
+        <mesh castShadow receiveShadow>
+          <sphereGeometry args={[BALL.radius, 14, 12]} />
+          <meshStandardMaterial
+            ref={ballMatRef}
+            map={surfaceMap}
+            color="#c8d8ec"
+            emissive="#5ec8ff"
+            emissiveIntensity={0.22}
+            metalness={0.52}
+            roughness={0.32}
+          />
+        </mesh>
+        <Billboard renderOrder={2000}>
+          <mesh position={[0, 0, BALL.radius * 1.04]}>
+            <planeGeometry args={[BALL.radius * 1.15, BALL.radius * 1.15]} />
+            <meshBasicMaterial
+              map={physicsLabelMap}
+              transparent
+              depthTest={false}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </Billboard>
+      </group>
     </RigidBody>
     </>
   );

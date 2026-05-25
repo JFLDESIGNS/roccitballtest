@@ -33,8 +33,8 @@ const CHEER_FADE_SEC = 1.5;
 const PANIC_HOLD_SEC = 3;
 const PANIC_FADE_SEC = 1;
 /** Rocket / glass stand reactions — home cheer + away panic */
-const FAN_GLASS_CHEER_BASE = 0.99;
-const FAN_GLASS_PANIC_BASE = 3.42;
+const FAN_GLASS_CHEER_BASE = 2.97;
+const FAN_GLASS_PANIC_BASE = 10.26;
 const FAN_GLASS_CHEER_HOLD_SEC = 3;
 const FAN_GLASS_CHEER_FADE_SEC = 1;
 const GOAL_CHEER_VOLUME = 0.5;
@@ -45,7 +45,7 @@ const SAMPLE_START_OFFSET_MAX_SEC = 48;
 /** Hard cap on goal cheer / generic crowd WebAudio gain */
 const CROWD_PEAK_GAIN_CAP = 0.16;
 /** Higher cap for fan-glass hits so distance falloff can actually get loud up close */
-const FAN_GLASS_PEAK_GAIN_CAP = 1.5;
+const FAN_GLASS_PEAK_GAIN_CAP = 4.5;
 /** Glass hits allow distance multiplier above 1.0 (same radius curve, louder overall) */
 const FAN_GLASS_VOLUME_MUL_MAX = 3;
 const GLASS_AUDIO_COOLDOWN_MS = 500;
@@ -145,10 +145,10 @@ export function crowdVolumeByDistanceM(distM: number): number {
  */
 export function fanGlassVolumeByDistanceFt(distFt: number): number {
   if (distFt <= 14) return 1;
-  if (distFt <= 32) return 1 + ((0.42 - 1) * (distFt - 14)) / 18;
-  if (distFt <= 58) return 0.42 + ((0.12 - 0.42) * (distFt - 32)) / 26;
-  if (distFt <= 100) return 0.12 + ((0.03 - 0.12) * (distFt - 58)) / 42;
-  return 0.03;
+  if (distFt <= 32) return 1 + ((0.72 - 1) * (distFt - 14)) / 18;
+  if (distFt <= 58) return 0.72 + ((0.32 - 0.72) * (distFt - 32)) / 26;
+  if (distFt <= 100) return 0.32 + ((0.12 - 0.32) * (distFt - 58)) / 42;
+  return 0.12;
 }
 
 export function fanGlassVolumeByDistanceM(distM: number): number {

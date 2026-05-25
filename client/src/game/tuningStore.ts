@@ -138,7 +138,7 @@ const defaults: TuningValues = {
   shotVolume: 0.33,
   chingVolume: 0.4,
   goal1Volume: 0.55,
-  fanGlassCrowdVolume: 0.3,
+  fanGlassCrowdVolume: 0.65,
   botPressure: 0.25,
   bouncyRocketsEnabled: false,
   trampolineStrength: 3.5,
@@ -276,7 +276,7 @@ export const tuningStore = {
   setChingVolume: (v: number) => patch({ chingVolume: v }),
   setGoal1Volume: (v: number) => patch({ goal1Volume: v }),
   setFanGlassCrowdVolume: (v: number) =>
-    patch({ fanGlassCrowdVolume: Math.max(0, Math.min(1, v)) }),
+    patch({ fanGlassCrowdVolume: Math.max(0, Math.min(1.5, v)) }),
   setBotPressure: (v: number) =>
     patch({ botPressure: Math.max(0.25, Math.min(2, v)) }),
   setBouncyRocketsEnabled: (v: boolean) => patch({ bouncyRocketsEnabled: v }),

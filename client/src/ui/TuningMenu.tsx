@@ -244,7 +244,7 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
           />
           <SliderRow
             label="Display follow"
-            hint="How fast the visible ball catches the filtered path. Press 2 to show real physics ball."
+            hint="How fast the visible ball catches the filtered path. Press 2 to show physics ball (yellow P)."
             value={tune.looseVisualPosSmooth}
             min={4}
             max={120}
@@ -646,13 +646,13 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             label="Fan glass crowd (cheer / panic)"
             value={tune.fanGlassCrowdVolume}
             min={0}
-            max={1}
+            max={1.5}
             step={0.05}
             onChange={tuningStore.setFanGlassCrowdVolume}
             format={(v) => `${Math.round(v * 100)}%`}
           />
           <p className="tuning-sub">
-            Home cheer and away scare when rockets hit stand glass (saved in browser).
+            Home cheer and away panic when rockets hit stand glass (default 65%, up to 150%).
           </p>
           <SliderRow
             label="Hit reward ching"

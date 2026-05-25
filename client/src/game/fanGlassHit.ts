@@ -125,7 +125,7 @@ export function triggerFanGlassHit(bayKey: string): void {
   );
   const panel = panels.find((p) => p.bayKey === bayKey);
   const localTeam = gameStore.getState().localTeam;
-  const volumeMul = panel ? crowdVolumeForPanel(panel) : 0.15;
+  const volumeMul = panel ? crowdVolumeForPanel(panel) : 0.35;
   if (panel && panel.homeTeam === localTeam) {
     playFanGlassCheer(volumeMul);
   } else {
