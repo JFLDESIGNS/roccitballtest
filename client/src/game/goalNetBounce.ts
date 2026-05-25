@@ -1,6 +1,9 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import { GOAL_RINGS } from '../shared/Constants';
+import type { BotCombatState } from './botCombat';
+import { applyGoalEjectKnockback } from './goalCharacterEject';
 import { tickGoalRimCharacterBounce } from './goalRingBounce';
+import type { KnockStunKind } from './rocketKnockStun';
 import type { Team } from '../shared/Types';
 import {
   ARENA_GOALS,
@@ -72,50 +75,21 @@ export function findGoalNetContact(
   return null;
 }
 
-function goalNetCharacterHopSpeed(gravity: number): number {
-  const h = GOAL_RINGS.netCharacterHopFt * 0.3048;
-  const g = Math.abs(gravity);
-  return Math.sqrt(2 * g * h);
-}
-
-/** Launch out of the goal mouth into the court (not toward ball drop / center). */
-function goalNetLaunchOutward(
-  contact: GoalNetContact,
-  bodyVx: number,
-  bodyVz: number,
-): { vx: number; vz: number } {
-  const speed = GOAL_RINGS.netOutwardSpeed;
-  let vx = contact.outwardX * speed;
-  let vz = contact.towardCenterZ;
-
-  const outwardMomentum = bodyVx * contact.outwardX;
-  if (outwardMomentum > 1.5) {
-    vx = outwardMomentum * 0.55 + vx * 0.65;
-  }
-
-  const tangential = bodyVz * 0.45;
-  vz = vz * 0.7 + tangential;
-
-  const len = Math.hypot(vx, vz);
-  if (len > 0.01) {
-    const scale = Math.min(speed * 1.15, len);
-    vx = (vx / len) * scale;
-    vz = (vz / len) * scale;
-  }
-
-  return { vx, vz };
-}
-
 export function applyGoalNetLaunchToCharacter(
   body: RapierRigidBody,
   contact: GoalNetContact,
-  gravity: number,
+  kind: KnockStunKind,
+  combat?: BotCombatState,
 ): void {
-  const v = body.linvel();
-  const { vx, vz } = goalNetLaunchOutward(contact, v.x, v.z);
-  const hop = goalNetCharacterHopSpeed(gravity);
-  const vy = Math.max(v.y * 0.35, 0) + hop;
-  body.setLinvel({ x: vx, y: vy, z: vz }, true);
+  const tr = body.translation();
+  applyGoalEjectKnockback(
+    body,
+    contact.outwardX,
+    tr.z,
+    contact.towardCenterZ,
+    kind,
+    combat,
+  );
 }
 
 export function tickGoalNetCharacterBounce(
@@ -124,9 +98,10 @@ export function tickGoalNetCharacterBounce(
   y: number,
   z: number,
   entityRadius: number,
-  gravity: number,
   cooldownSec: { current: number },
   dt: number,
+  kind: KnockStunKind,
+  combat?: BotCombatState,
 ): boolean {
   cooldownSec.current = Math.max(0, cooldownSec.current - dt);
   if (cooldownSec.current > 0) return false;
@@ -134,22 +109,24 @@ export function tickGoalNetCharacterBounce(
   const net = findGoalNetContact(x, y, z, entityRadius);
   if (!net) return false;
 
-  applyGoalNetLaunchToCharacter(body, net, gravity);
+  applyGoalNetLaunchToCharacter(body, net, kind, combat);
   cooldownSec.current = GOAL_RINGS.netBounceCooldownSec;
   return true;
 }
 
-/** Net mouth first, then rim ring trampoline */
+/** Net mouth first, then rim ring eject */
 export function tickGoalEntryCharacterBounce(
   body: RapierRigidBody,
   x: number,
   y: number,
   z: number,
   entityRadius: number,
-  gravity: number,
+  _gravity: number,
   netCooldownSec: { current: number },
   rimCooldownSec: { current: number },
   dt: number,
+  kind: KnockStunKind = 'player',
+  combat?: BotCombatState,
 ): boolean {
   if (
     tickGoalNetCharacterBounce(
@@ -158,9 +135,10 @@ export function tickGoalEntryCharacterBounce(
       y,
       z,
       entityRadius,
-      gravity,
       netCooldownSec,
       dt,
+      kind,
+      combat,
     )
   ) {
     return true;
@@ -171,8 +149,9 @@ export function tickGoalEntryCharacterBounce(
     y,
     z,
     entityRadius,
-    gravity,
     rimCooldownSec,
     dt,
+    kind,
+    combat,
   );
 }

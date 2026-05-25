@@ -21,6 +21,7 @@ import { setFanGlassListenerPosition } from './fanGlassHit';
 import { inputManager } from './InputManager';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
+import { RocketTrailSmoke } from './RocketTrailSmoke';
 import {
   goalScoreRuntime,
   registerGoalScoreBotProvider,
@@ -37,13 +38,16 @@ import {
   playRocketExplosion,
   playRocketFire,
   resumeAudio,
-  stopMatchAudio,
   warmAudio,
 } from './audio';
 import {
   RocketExplosionSprites,
   type RocketExplosionSpritesHandle,
 } from './RocketExplosionSprites';
+import { FanGlassCrackFx } from './FanGlassCrackFx';
+import { PillarShakeSmoke } from './PillarShakeSmoke';
+import { triggerArenaPillarShake } from './visualShake';
+import { GameplayCollisionDebug } from './GameplayCollisionDebug';
 import {
   RocketWallImpactFx,
   type RocketWallImpactFxHandle,
@@ -255,7 +259,6 @@ function Scene({
 
     if (inputManager.isEscape()) {
       document.exitPointerLock();
-      stopMatchAudio();
       onExit();
     }
 
@@ -361,6 +364,9 @@ function Scene({
       );
     }
     splashFxRef.current?.spawn(hit.x, hit.y, hit.z, hit.radius);
+    if (hit.scorchKind === 'pillar' && hit.scorchPillarCx != null && hit.scorchPillarCz != null) {
+      triggerArenaPillarShake(hit.scorchPillarCx, hit.scorchPillarCz);
+    }
     if (
       hit.scorchNx !== undefined &&
       hit.scorchNy !== undefined &&
@@ -519,6 +525,9 @@ function Scene({
         team={localTeam}
       />
       <RocketExplosionSprites poolRef={splashFxRef} />
+      <FanGlassCrackFx />
+      <PillarShakeSmoke />
+      <GameplayCollisionDebug />
       <RocketWallImpactFx poolRef={wallImpactFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
@@ -534,6 +543,7 @@ function Scene({
         }}
         onRecoverBall={() => gameStore.clearBallHolder()}
       />
+      <RocketTrailSmoke />
       <Rockets
         rocketsRef={rocketsRef}
         onExplosion={handleExplosion}
@@ -646,7 +656,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = gfx.exposure;
           if (gfx.shadows) {
-            gl.shadowMap.type = THREE.PCFSoftShadowMap;
+            gl.shadowMap.type = THREE.PCFShadowMap;
           }
         }}
       >

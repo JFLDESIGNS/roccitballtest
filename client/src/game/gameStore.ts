@@ -54,8 +54,14 @@ type GameStoreState = {
   botEnergies: Record<BotId, number>;
   /** Rapier collider wireframes — off by default, G to toggle */
   showColliderDebug: boolean;
+  /** Goal zone debug meshes (scoring / shoot / net-finish cylinders) */
+  showGoalZoneDebug: boolean;
   /** Show real physics ball mesh (hides proxy) — 2 to toggle */
   showPhysicsBall: boolean;
+  /** Smooth display model for local player — 4 to toggle; off = locked to physics */
+  playerVisualProxy: boolean;
+  /** Increments on local jump — drives hat pop animation */
+  playerHatPopSeq: number;
   /** Debug: show "helping" badge until this timestamp (performance.now) */
   ballBoundaryHelpUntil: number;
   /** Kill-feed style callout (performance.now ms when it expires) */
@@ -68,6 +74,8 @@ type GameStoreState = {
   combatGraceUntilMs: number;
   /** Rocket knock tumble — no movement input until this time */
   playerKnockStunUntilMs: number;
+  /** Goal eject — WASD blocked; mouse look still works */
+  playerGoalEjectMoveLockUntilMs: number;
   /** Increments on each new match — resets timers in MatchLoop */
   matchGeneration: number;
   /** Local-player totals for the end-game stats screen */
@@ -126,13 +134,17 @@ let state: GameStoreState = {
   botsEnabled: loadBotsEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
   showColliderDebug: false,
+  showGoalZoneDebug: false,
   showPhysicsBall: false,
+  playerVisualProxy: true,
+  playerHatPopSeq: 0,
   ballBoundaryHelpUntil: 0,
   announcement: null,
   ballCombo: 0,
   ballComboExpiresAt: 0,
   combatGraceUntilMs: 0,
   playerKnockStunUntilMs: 0,
+  playerGoalEjectMoveLockUntilMs: 0,
   matchGeneration: 0,
   matchStats: { ...EMPTY_MATCH_STATS },
   holdImmunityUntilMs: 0,
@@ -189,6 +201,7 @@ export const gameStore = {
       ballCombo: 0,
       ballComboExpiresAt: 0,
       playerKnockStunUntilMs: 0,
+      playerGoalEjectMoveLockUntilMs: 0,
       matchGeneration: state.matchGeneration + 1,
       matchStats: { ...EMPTY_MATCH_STATS },
       holdImmunityUntilMs: 0,
@@ -205,6 +218,10 @@ export const gameStore = {
   clearPlayerKnockStun: () => {
     if (state.playerKnockStunUntilMs === 0) return;
     state = { ...state, playerKnockStunUntilMs: 0 };
+    notify();
+  },
+  armPlayerGoalEjectMoveLock: (untilMs: number) => {
+    state = { ...state, playerGoalEjectMoveLockUntilMs: untilMs };
     notify();
   },
   /** Flash top-left debug badge when ball boundary assist runs */
@@ -227,8 +244,30 @@ export const gameStore = {
     state = { ...state, showColliderDebug: !state.showColliderDebug };
     notify();
   },
+  setShowGoalZoneDebug: (show: boolean) => {
+    state = { ...state, showGoalZoneDebug: show };
+    notify();
+  },
+  setShowPhysicsBall: (show: boolean) => {
+    if (state.showPhysicsBall === show) return;
+    state = { ...state, showPhysicsBall: show };
+    notify();
+  },
   toggleShowPhysicsBall: () => {
     state = { ...state, showPhysicsBall: !state.showPhysicsBall };
+    notify();
+  },
+  setPlayerVisualProxy: (enabled: boolean) => {
+    if (state.playerVisualProxy === enabled) return;
+    state = { ...state, playerVisualProxy: enabled };
+    notify();
+  },
+  togglePlayerVisualProxy: () => {
+    state = { ...state, playerVisualProxy: !state.playerVisualProxy };
+    notify();
+  },
+  bumpPlayerHatPop: () => {
+    state = { ...state, playerHatPopSeq: state.playerHatPopSeq + 1 };
     notify();
   },
   setEnergy: (energy: number, flash = false) => {

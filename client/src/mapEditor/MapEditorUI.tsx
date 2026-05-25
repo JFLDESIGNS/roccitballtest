@@ -115,6 +115,23 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
           Select individual parts (off = move groups)
         </label>
 
+        <label className="map-editor-checkbox">
+          <input
+            type="checkbox"
+            checked={editor.showMoveGrid}
+            onChange={(e) => mapEditorStore.setShowMoveGrid(e.target.checked)}
+          />
+          Show move grid (4 m cells)
+        </label>
+        <label className="map-editor-checkbox">
+          <input
+            type="checkbox"
+            checked={editor.snapToMoveGrid}
+            onChange={(e) => mapEditorStore.setSnapToMoveGrid(e.target.checked)}
+          />
+          Snap moves to grid
+        </label>
+
         <section>
           <h3>Primitives</h3>
           <BtnRow>

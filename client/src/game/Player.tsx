@@ -34,9 +34,15 @@ import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse } from './ballPhysics';
 import { clampToHex } from './arenaHex';
 import { getTeamSpawn } from './goals';
-import { getCameraBasis, updateThirdPersonCamera } from './CameraController';
+import {
+  getCameraBasis,
+  pointOnCrosshairAimRay,
+  updateThirdPersonCamera,
+} from './CameraController';
 import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
+import { PlayerJumpHat } from './PlayerJumpHat';
+import { PlayerVisualProxy } from './PlayerVisualProxy';
 import {
   alignCharacterVisualUpright,
   clearKnockVisualTumble,
@@ -54,7 +60,7 @@ import {
   CHARACTER_MESH_RENDER_ORDER,
   GroundJerseyDecal,
 } from './JerseyDecal';
-import { DroneThrusterFlames } from './DroneThrusterFlames';
+import { PlayerDroneThrusters } from './BotDroneVisual';
 import { LocalHeldBallVisual } from './LocalHeldBallVisual';
 import { PlayerMotionRibbons } from './PlayerMotionRibbons';
 import {
@@ -89,6 +95,7 @@ import {
 } from './superRelease';
 import {
   blendPlayerKnockStunMovement,
+  isPlayerGoalEjectMoveLocked,
   isPlayerKnockStunActive,
   tickPlayerKnockStun,
 } from './rocketKnockStun';
@@ -102,7 +109,11 @@ import {
   playerFeetY,
   probePlayerGround,
 } from './playerGroundProbe';
-import { tryPlayerPads, isPlayerOverTrampolineDeck } from './arenaPadPhysics';
+import {
+  tryPlayerPads,
+  isPlayerInTrampolineZone,
+  isPlayerOverTrampolineDeck,
+} from './arenaPadPhysics';
 import { getJerseyNumber } from './playerRoster';
 import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
@@ -120,6 +131,28 @@ function speedCameraFactor(
   const span = Math.max(0.01, sprintSpeed - walkSpeed);
   const raw = THREE.MathUtils.clamp((moveSpeed - walkSpeed) / span, 0, 1);
   return raw * raw * (3 - 2 * raw);
+}
+
+const _moveVelXZ = new THREE.Vector3();
+
+/** Camera-relative wish velocity — strafe (A/D) faster than forward/back */
+function cameraMoveTargetXZ(
+  out: THREE.Vector3,
+  forward: THREE.Vector3,
+  right: THREE.Vector3,
+  move: { x: number; y: number },
+  speed: number,
+): void {
+  const strafeSpd = speed * MOVEMENT.strafeSpeedScale;
+  out.set(0, 0, 0)
+    .addScaledVector(forward, move.y * speed)
+    .addScaledVector(right, -move.x * strafeSpd);
+  const h = Math.hypot(out.x, out.z);
+  if (h < 1e-6) return;
+  const pureStrafe =
+    Math.abs(move.x) > 0.01 && Math.abs(move.y) < 0.01;
+  const maxH = pureStrafe ? strafeSpd : speed;
+  if (h > maxH) out.multiplyScalar(maxH / h);
 }
 
 function smoothAsymmetric(
@@ -160,6 +193,10 @@ export function Player({
   const localTeam = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().localTeam,
+  );
+  const playerVisualProxy = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().playerVisualProxy,
   );
   const bodyRef = useRef<RapierRigidBody>(null);
   const visualRef = useRef<THREE.Group>(null);
@@ -499,11 +536,21 @@ export function Player({
       const pos = _posScratch.current.set(tr.x, tr.y, tr.z);
       const rot = rotEarly;
       const { forward, right } = getCameraBasis(rot.yaw);
-      const move = inputManager.getMoveVector();
-      const wishDir = _wishDir.current
-        .set(0, 0, 0)
-        .addScaledVector(forward, move.y)
-        .addScaledVector(right, -move.x);
+      const moveLocked = isPlayerGoalEjectMoveLocked();
+      const move = moveLocked
+        ? { x: 0, y: 0 }
+        : inputManager.getMoveVector();
+      cameraMoveTargetXZ(
+        _moveVelXZ,
+        forward,
+        right,
+        move,
+        tune.walkSpeed,
+      );
+      const wishDir = _wishDir.current.copy(_moveVelXZ);
+      if (wishDir.lengthSq() > 0) {
+        wishDir.normalize();
+      }
 
       const linvel = body.linvel();
       const feetY = playerFeetY(pos.y);
@@ -511,8 +558,8 @@ export function Player({
         feetY <= MOVEMENT.groundProbeDist + 0.35 && Math.abs(linvel.y) < 8;
 
       blendPlayerKnockStunMovement(body, velocity.current, {
-        wishX: wishDir.x,
-        wishZ: wishDir.z,
+        wishX: moveLocked ? 0 : _moveVelXZ.x,
+        wishZ: moveLocked ? 0 : _moveVelXZ.z,
         walkSpeed: tune.walkSpeed,
         grounded: groundedStun,
         dt,
@@ -598,8 +645,12 @@ export function Player({
 
     const linvel = body.linvel();
     const moveSpeed = Math.hypot(linvel.x, linvel.z);
-    const moveEarly = inputManager.getMoveVector();
+    const goalEjectMoveLocked = isPlayerGoalEjectMoveLocked();
+    const moveEarly = goalEjectMoveLocked
+      ? { x: 0, y: 0 }
+      : inputManager.getMoveVector();
     const sprintGlowTarget =
+      !goalEjectMoveLocked &&
       inputManager.isSprint() &&
       energy.current > 0 &&
       (moveEarly.x !== 0 || moveEarly.y !== 0)
@@ -683,7 +734,8 @@ export function Player({
 
     const padFloorY = sampleTrampolineFloorY(pos.x, pos.z);
     const feetY = playerFeetY(pos.y);
-    const overTrampDeck = isPlayerOverTrampolineDeck(pos.x, pos.z, feetY);
+    const inTrampZone = isPlayerInTrampolineZone(pos.x, pos.z, feetY);
+    const overTrampDeck = inTrampZone || isPlayerOverTrampolineDeck(pos.x, pos.z, feetY);
     let padGap = MOVEMENT.groundProbeDist + 1;
     if (padFloorY !== null) {
       padGap = feetY - padFloorY;
@@ -707,18 +759,18 @@ export function Player({
       coyoteTime.current = Math.max(0, coyoteTime.current - dt);
     }
 
-    const move = inputManager.getMoveVector();
-    const sprintInput = inputManager.isSprint();
+    const move = goalEjectMoveLocked
+      ? { x: 0, y: 0 }
+      : inputManager.getMoveVector();
+    const sprintInput = !goalEjectMoveLocked && inputManager.isSprint();
     const canSprint = energy.current > 0;
     const sprinting =
       sprintInput && canSprint && (move.x !== 0 || move.y !== 0);
     const speed = sprinting ? tune.sprintSpeed : tune.walkSpeed;
     const accel = grounded.current ? MOVEMENT.groundAccel : MOVEMENT.groundAccel * 0.65;
 
-    const wishDir = _wishDir.current
-      .set(0, 0, 0)
-      .addScaledVector(forward, move.y)
-      .addScaledVector(right, -move.x);
+    cameraMoveTargetXZ(_moveVelXZ, forward, right, move, speed);
+    const wishDir = _wishDir.current.copy(_moveVelXZ);
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize();
       lastWishDir.current.copy(wishDir);
@@ -731,8 +783,8 @@ export function Player({
       velocity.current.z = _dashDir.current.z * dashSpd;
     } else {
       const control = grounded.current ? 1 : MOVEMENT.airControl;
-      const targetVelX = wishDir.x * speed * control;
-      const targetVelZ = wishDir.z * speed * control;
+      const targetVelX = _moveVelXZ.x * control;
+      const targetVelZ = _moveVelXZ.z * control;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
         targetVelX,
@@ -758,6 +810,7 @@ export function Player({
     let vy = linvel.y;
 
     if (
+      !goalEjectMoveLocked &&
       dashCooldown.current <= 0 &&
       inputManager.consumeDashBoost()
     ) {
@@ -787,8 +840,9 @@ export function Player({
       );
     }
 
-    if (jumpsLeft.current > 0 && inputManager.consumeJump()) {
+    if (!goalEjectMoveLocked && jumpsLeft.current > 0 && inputManager.consumeJump()) {
       const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
+      gameStore.bumpPlayerHatPop();
       playJump(jumpIndex);
       vy = tuningStore.getJumpImpulse(jumpIndex);
       jumpsLeft.current -= 1;
@@ -825,7 +879,7 @@ export function Player({
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = 0;
       jumpAirGrace.current = 0;
-    } else if (padFloorY !== null && !overTrampDeck) {
+    } else if (padFloorY !== null && !inTrampZone) {
       const currentFeet = playerFeetY(pos.y);
       const gap = currentFeet - padFloorY;
       if (gap > 0.04 && gap <= MOVEMENT.groundProbeDist + 0.35 && vy <= 0.6) {
@@ -1237,9 +1291,13 @@ export function Player({
       }
       if (lookDir.lengthSq() < 1e-6) return false;
 
-      _rocketOrigin.current
-        .copy(chestPos.current)
-        .addScaledVector(lookDir, ROCKET.rocketSpawnAhead);
+      pointOnCrosshairAimRay(
+        camera.position,
+        lookDir,
+        chestPos.current,
+        ROCKET.rocketSpawnAhead,
+        _rocketOrigin.current,
+      );
       const lv = body.linvel();
       const rocket = createRocket(
         {
@@ -1415,10 +1473,34 @@ export function Player({
   const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
   const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
 
+  const characterMesh = (
+    <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
+      <PlayerAvatar rotationY={0} team={localTeam} />
+      <PlayerJumpHat />
+    </group>
+  );
+
+  const playerThrusters = (
+    <PlayerDroneThrusters team={localTeam} throttleRef={thrusterThrottle} />
+  );
+
   return (
     <>
       <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
       <PlayerMotionRibbons bodyRef={bodyRef} />
+      {playerVisualProxy ? (
+        <PlayerVisualProxy
+          bodyRef={bodyRef}
+          capCenterY={capCenterY}
+          visualRef={visualRef}
+          tiltRef={tiltRef}
+          bobRef={bobRef}
+          groundedRef={grounded}
+          thrusters={playerThrusters}
+        >
+          {characterMesh}
+        </PlayerVisualProxy>
+      ) : null}
       <RigidBody
         ref={bodyRef}
         position={[spawnPos.x, spawnPos.y, spawnPos.z]}
@@ -1437,19 +1519,16 @@ export function Player({
           friction={0.55}
           collisionGroups={PLAYER_LOOSE_COLLISION}
         />
-        <group ref={visualRef} position={[0, capCenterY, 0]}>
-          <group ref={tiltRef}>
-            <group ref={bobRef}>
-              <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
-                <PlayerAvatar rotationY={0} team={localTeam} />
-                <DroneThrusterFlames
-                  team={localTeam}
-                  throttleRef={thrusterThrottle}
-                />
+        {!playerVisualProxy ? (
+          <group ref={visualRef} position={[0, capCenterY, 0]}>
+            <group ref={tiltRef}>
+              <group ref={bobRef}>
+                {characterMesh}
+                {playerThrusters}
               </group>
             </group>
           </group>
-        </group>
+        ) : null}
       </RigidBody>
       <GroundJerseyDecal
         bodyRef={bodyRef}

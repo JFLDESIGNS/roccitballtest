@@ -59,6 +59,19 @@ export function TeamOrb({ team, combat }: TeamOrbProps) {
     [ring],
   );
 
+  const damageHalfMat = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#050608',
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+      }),
+    [],
+  );
+
   useFrame(() => {
     if (!combat) {
       setHidden(false);
@@ -99,15 +112,11 @@ export function TeamOrb({ team, combat }: TeamOrbProps) {
           <mesh material={mat} renderOrder={CHARACTER_INDICATOR_RENDER_ORDER + 1}>
             <circleGeometry args={[0.22, 16]} />
           </mesh>
-          <mesh position={[0.21, 0, 0.01]}>
-            <planeGeometry args={[0.9, 0.62]} />
-            <meshBasicMaterial
-              color="#050608"
-              transparent
-              opacity={0.96}
-              depthWrite={false}
-              toneMapped={false}
-            />
+          <mesh
+            material={damageHalfMat}
+            renderOrder={CHARACTER_INDICATOR_RENDER_ORDER + 2}
+          >
+            <circleGeometry args={[0.22, 24, -Math.PI / 2, Math.PI]} />
           </mesh>
         </group>
       </group>

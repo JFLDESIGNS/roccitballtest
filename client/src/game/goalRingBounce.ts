@@ -1,6 +1,9 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BALL, GOAL_RINGS, MOVEMENT } from '../shared/Constants';
+import type { BotCombatState } from './botCombat';
+import { applyGoalEjectKnockback } from './goalCharacterEject';
+import type { KnockStunKind } from './rocketKnockStun';
 import {
   ARENA_GOALS,
   ballToGoalRingLocal,
@@ -138,22 +141,15 @@ export function goalRimLaunchSpeeds(gravity: number): { vx: number; vy: number }
   return { vx, vy };
 }
 
-/** Trampoline-style launch away from the goal wall (player / bot). */
+/** Rocket-style launch away from the goal wall (player / bot). */
 export function applyGoalRimLaunchToCharacter(
   body: RapierRigidBody,
   contact: GoalRimContact,
-  gravity: number,
+  kind: KnockStunKind,
+  combat?: BotCombatState,
 ): void {
-  const { vx, vy } = goalRimLaunchSpeeds(gravity);
-  const v = body.linvel();
-  body.setLinvel(
-    {
-      x: contact.outwardX * vx,
-      y: Math.max(vy, v.y * 0.15 + vy * 0.35),
-      z: v.z * 0.35,
-    },
-    true,
-  );
+  const tr = body.translation();
+  applyGoalEjectKnockback(body, contact.outwardX, tr.z, undefined, kind, combat);
 }
 
 export const PLAYER_RIM_PROBE_RADIUS = MOVEMENT.capsuleRadius;
@@ -165,9 +161,10 @@ export function tickGoalRimCharacterBounce(
   y: number,
   z: number,
   entityRadius: number,
-  gravity: number,
   cooldownSec: { current: number },
   dt: number,
+  kind: KnockStunKind,
+  combat?: BotCombatState,
 ): boolean {
   cooldownSec.current = Math.max(0, cooldownSec.current - dt);
   if (cooldownSec.current > 0) return false;
@@ -175,12 +172,7 @@ export function tickGoalRimCharacterBounce(
   const rim = findGoalRimHit(x, y, z, entityRadius);
   if (!rim) return false;
 
-  applyGoalRimLaunchToCharacter(body, rim, gravity);
-  const tr = body.translation();
-  body.setTranslation(
-    { x: tr.x + rim.outwardX * 0.55, y: tr.y, z: tr.z },
-    true,
-  );
+  applyGoalRimLaunchToCharacter(body, rim, kind, combat);
   cooldownSec.current = GOAL_RINGS.rimBounceCooldownSec;
   return true;
 }

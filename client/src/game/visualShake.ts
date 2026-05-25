@@ -1,5 +1,9 @@
+import { burstPillarCornerSmoke } from './pillarSmokePuffs';
+
 const SHAKE_MS = 500;
 const MAX_TILT_DEG = 1.35;
+const PILLAR_SHAKE_MS = 680;
+const PILLAR_MAX_TILT_DEG = 2.65;
 
 type ShakeEntry = { until: number; intensity: number };
 
@@ -57,15 +61,41 @@ export function billboardShakeKey(x: number, y: number, z: number): string {
 }
 
 export function triggerArenaPillarShake(x: number, z: number): void {
-  triggerVisualShake(pillarShakeKey(x, z), 0.72);
+  triggerVisualShake(pillarShakeKey(x, z), 1, PILLAR_SHAKE_MS);
+  burstPillarCornerSmoke(x, z);
 }
 
 export function getArenaPillarShake(x: number, z: number): {
   tiltX: number;
   tiltZ: number;
 } {
-  const { tiltX, tiltZ } = getVisualShake(pillarShakeKey(x, z), x + z);
-  return { tiltX, tiltZ };
+  const key = pillarShakeKey(x, z);
+  const entry = shakes.get(key);
+  if (!entry) return { tiltX: 0, tiltZ: 0 };
+
+  const now = performance.now();
+  const remaining = entry.until - now;
+  if (remaining <= 0) {
+    shakes.delete(key);
+    return { tiltX: 0, tiltZ: 0 };
+  }
+
+  const seed = x + z;
+  const u = 1 - remaining / PILLAR_SHAKE_MS;
+  const envelope = Math.sin(u * Math.PI);
+  const wobble =
+    Math.sin(u * Math.PI * 3.5 + seed * 0.17) +
+    Math.sin(u * Math.PI * 5.8 + seed * 0.41) * 0.38;
+  const wobble2 =
+    Math.cos(u * Math.PI * 2.85 + seed * 0.23) +
+    Math.cos(u * Math.PI * 4.2 + seed * 0.31) * 0.32;
+  const maxRad =
+    ((PILLAR_MAX_TILT_DEG * entry.intensity) * Math.PI) / 180;
+
+  return {
+    tiltX: wobble * envelope * maxRad,
+    tiltZ: wobble2 * envelope * maxRad * 0.92,
+  };
 }
 
 export function triggerOctagonShake(x: number, z: number): void {

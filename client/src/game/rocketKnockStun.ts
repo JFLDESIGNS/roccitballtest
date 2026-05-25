@@ -1,7 +1,7 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { snapRigidBodyUpright } from './characterVisual';
-import { BOT, ROCKET } from '../shared/Constants';
+import { BOT, GOAL_RINGS, ROCKET } from '../shared/Constants';
 import type { BotCombatState } from './botCombat';
 import { gameStore } from './gameStore';
 
@@ -103,6 +103,34 @@ export function armPlayerRocketKnockStun(): void {
   const until = performance.now() + ROCKET.knockStunSec * 1000;
   const prev = gameStore.getState().playerKnockStunUntilMs;
   gameStore.armPlayerKnockStun(Math.max(until, prev));
+}
+
+export function armPlayerGoalEjectMoveLock(): void {
+  const until =
+    performance.now() + GOAL_RINGS.characterEjectMoveLockSec * 1000;
+  const prev = gameStore.getState().playerGoalEjectMoveLockUntilMs;
+  gameStore.armPlayerGoalEjectMoveLock(Math.max(until, prev));
+}
+
+export function isPlayerGoalEjectMoveLocked(): boolean {
+  const until = gameStore.getState().playerGoalEjectMoveLockUntilMs;
+  return until > 0 && performance.now() < until;
+}
+
+export function armBotGoalEjectMoveLock(combat: BotCombatState): void {
+  const until =
+    performance.now() + GOAL_RINGS.characterEjectMoveLockSec * 1000;
+  combat.goalEjectMoveLockUntilMs = Math.max(
+    until,
+    combat.goalEjectMoveLockUntilMs,
+  );
+}
+
+export function isBotGoalEjectMoveLocked(combat: BotCombatState): boolean {
+  return (
+    combat.goalEjectMoveLockUntilMs > 0 &&
+    performance.now() < combat.goalEjectMoveLockUntilMs
+  );
 }
 
 export type PlayerKnockStunMoveInput = {

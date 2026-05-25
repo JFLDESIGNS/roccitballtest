@@ -148,20 +148,14 @@ export function pickKickoffContestGroundTarget(
   return out.set(BALL_SPAWN.x + laneX, feetY, BALL_SPAWN.z + laneZ);
 }
 
-/** Lane target blended toward the elevated spawn point when close horizontally */
+/** Lane target on the floor — vertical reach is jump / double-jump only */
 export function pickKickoffContestMoveTarget(
   botId: BotId,
   feetY: number,
-  aim: THREE.Vector3,
+  _aim: THREE.Vector3,
   out = _lane,
 ): THREE.Vector3 {
-  pickKickoffContestGroundTarget(botId, feetY, out);
-  const horiz = Math.hypot(out.x - aim.x, out.z - aim.z);
-  const blend = THREE.MathUtils.clamp(1 - horiz / BOT.kickoffContestReachHorizM, 0, 1);
-  if (blend > 0) {
-    out.y = THREE.MathUtils.lerp(feetY, aim.y - 1.6, blend * 0.4);
-  }
-  return out;
+  return pickKickoffContestGroundTarget(botId, feetY, out);
 }
 
 export function kickoffContestHorizDistToAim(
@@ -182,7 +176,10 @@ export function kickoffContestShouldJump(
 ): boolean {
   if (!grounded || jumpsLeft <= 0) return false;
   if (horizDist > BOT.kickoffContestReachHorizM) return false;
-  return chestY < aimY - 1.2;
+  if (chestY < aimY - 0.9) return true;
+  return (
+    horizDist <= BOT.kickoffContestArriveRadius && chestY < aimY - 0.35
+  );
 }
 
 export function kickoffContestShouldDoubleJump(
@@ -190,7 +187,15 @@ export function kickoffContestShouldDoubleJump(
   aimY: number,
   horizDist: number,
 ): boolean {
-  return horizDist < BOT.kickoffContestReachHorizM * 0.85 && chestY < aimY - 3.5;
+  if (horizDist > BOT.kickoffContestReachHorizM * 0.9) return false;
+  if (chestY < aimY - 2.2) return true;
+  return (
+    horizDist <= BOT.kickoffContestArriveRadius * 1.1 && chestY < aimY - 1.2
+  );
+}
+
+export function kickoffContestWantsDoubleJump(): boolean {
+  return Math.random() < BOT.kickoffContestDoubleJumpChance;
 }
 
 export function kickoffContestSprintSpeed(): number {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARENA, BALL, BOT } from '../shared/Constants';
+import { ARENA, BALL, BEAM, BOT } from '../shared/Constants';
 import type { BallHolderId, BotId } from './gameStore';
 import { getBotPressureScalars } from './botTuning';
 import { isInsideShootZone } from './botShootZone';
@@ -617,28 +617,28 @@ function pickFieldMode(input: BotThinkInput): BotFieldMode {
   if (!isEnemy) {
     if (ballHolder === 'local') {
       if (
-        distBall <= attract * 1.45 &&
+        distBall <= attract * 1.85 &&
         inBeamRange &&
         !beamDenied &&
         allyCanBeam
       ) {
         return 'attractBall';
       }
-      if (distBall <= engage * 2.4) return 'runToBall';
+      if (distBall <= engage * 2.6) return 'runToBall';
       return 'allySupport';
     }
     if (!ballHolder) {
       if (
         !input.giveShootZoneSpace &&
         !input.waitForTeammateShot &&
-        distBall <= attract * 2.15 &&
+        distBall <= attract * 2.6 &&
         inBeamRange &&
         !beamDenied &&
         allyCanBeam
       ) {
         return 'attractBall';
       }
-      if (distBall <= engage * 2.2) return 'runToBall';
+      if (distBall <= engage * 2.8) return 'runToBall';
       return 'runToBall';
     }
   }
@@ -697,8 +697,19 @@ export function updateHoldPhase(
   setupEnterSec: number,
   inShootZone = false,
   _farAction: BotFarHoldAction | null = null,
+  inNetFinishZone = false,
 ): BotHoldPhase {
   if (phase === 'shoot') return 'shoot';
+
+  if (inNetFinishZone) {
+    if (phase === 'advance') return 'setup';
+    if (phase === 'setup') {
+      const setupAge = Math.max(0, holdSec - setupEnterSec);
+      if (setupJumped && setupAge >= BOT.holdShootAfterJumpSec) return 'shoot';
+      if (setupAge >= BOT.netFinishMinHoldSec) return 'shoot';
+    }
+    return phase;
+  }
 
   if (phase === 'advance') {
     if (inShootZone) return 'setup';
@@ -710,6 +721,7 @@ export function updateHoldPhase(
 
   if (phase === 'setup') {
     const setupAge = Math.max(0, holdSec - setupEnterSec);
+    if (holdSec >= BOT.dunkTryMaxSec) return 'shoot';
     if (inShootZone && setupAge >= BOT.quickShotMinHoldSec) return 'shoot';
     if (setupJumped && setupAge >= BOT.holdShootAfterJumpSec) return 'shoot';
     if (setupAge >= BOT.holdSetupMaxSec) return 'shoot';
@@ -796,9 +808,11 @@ export function pickLookTarget(
     return out.copy(input.playerChest);
   }
   if (mode === 'allySupport') return out.copy(input.ballPos);
-  if (mode === 'allyReceive') return out.lerpVectors(input.ballPos, input.goal, 0.35);
-  if (mode === 'allyDunk') return out.copy(input.goal);
-  if (mode === 'attractBall') return out.copy(input.ballPos);
+  if (mode === 'allyReceive') return out.lerpVectors(input.ballPos, input.goal, 0.2);
+  if (mode === 'allyDunk') return out.copy(input.ballPos);
+  if (mode === 'attractBall' || mode === 'runToBall') {
+    return out.copy(input.ballPos);
+  }
   if (mode === 'teamOffense') return out.copy(input.goal);
   if (mode === 'teamDefense') return getOwnGoalAnchor(input.team, out);
   if (mode === 'teamCenter') return pickFieldCenterTarget(input.id, moveTarget.y, out);
@@ -847,7 +861,26 @@ export function applyBotSeparation(
 }
 
 export function modeWantsBeam(mode: BotMode): boolean {
-  return mode === 'attractBall';
+  return mode === 'attractBall' || mode === 'runToBall';
+}
+
+export function botChasingLooseBall(mode: BotMode): boolean {
+  return (
+    mode === 'attractBall' ||
+    mode === 'runToBall' ||
+    mode === 'allyReceive'
+  );
+}
+
+export function isBotCloseToLooseBall(distBall: number): boolean {
+  return distBall <= BOT.botBallCloseEngageM;
+}
+
+/** Max chest-to-ball distance to apply beam pull for this mode */
+export function modeBeamMaxDist(mode: BotMode): number {
+  if (mode === 'attractBall') return ballAttractDistance();
+  if (mode === 'runToBall') return BEAM.range;
+  return 0;
 }
 
 export function modeSprint(mode: BotMode): boolean {
@@ -1063,7 +1096,9 @@ export function pickBotHoldCarryFocus(
 export function pickBotHoldReleasePlan(
   hasTeammate: boolean,
   afterAllyDunkCatch = false,
+  inNetFinishZone = false,
 ): BotHoldReleasePlan {
+  if (inNetFinishZone) return 'shoot';
   if (!hasTeammate) {
     return Math.random() < 0.5 ? 'shoot' : 'carry';
   }
@@ -1084,9 +1119,11 @@ export function ensureHoldReleasePlan(
   hasTeammate: boolean,
   plan: BotHoldReleasePlan | null,
   afterAllyDunkCatch = false,
+  inNetFinishZone = false,
 ): BotHoldReleasePlan | null {
+  if (inNetFinishZone) return 'shoot';
   if (holdSec < BOT.holdCarryMinSec) return null;
-  return plan ?? pickBotHoldReleasePlan(hasTeammate, afterAllyDunkCatch);
+  return plan ?? pickBotHoldReleasePlan(hasTeammate, afterAllyDunkCatch, false);
 }
 
 /**
@@ -1099,7 +1136,13 @@ export function resolveTimedBotHoldRelease(
   inShootZone: boolean,
   releasePlan: BotHoldReleasePlan | null,
   distGoal = Infinity,
+  inNetFinishZone = false,
 ): HoldReleaseKind | null {
+  if (inNetFinishZone) {
+    if (holdSec < BOT.netFinishMinHoldSec) return null;
+    return 'shoot';
+  }
+
   const nearGoal =
     inShootZone || distGoal <= BOT.goalQuickShotDist;
   const minHold = nearGoal ? BOT.releaseMinHoldSec : BOT.holdCarryMinSec;

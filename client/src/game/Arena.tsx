@@ -36,6 +36,7 @@ import { RocccitLogoStamp } from './RocccitLogoStamp';
 import { BackWallEscapeZones } from './BackWallEscapeZones';
 import { GoalNetBackstop } from './GoalNetBackstop';
 import { ArenaInteractables } from './ArenaInteractables';
+import { GoalZoneDebugVisuals } from './GoalZoneDebugVisuals';
 import './arenaConcreteTexture';
 import { applyPlanarTileUVs } from './arenaConcreteTexture';
 import {
@@ -77,7 +78,7 @@ function PerimeterWall({
         restitution={BALL.restitution}
         collisionGroups={interactionGroups(2, [0, 1, 2])}
       />
-      <mesh castShadow receiveShadow material={arenaWallMaterial}>
+      <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
         <boxGeometry args={[length, wallHeight, wallThickness]} />
       </mesh>
     </RigidBody>
@@ -203,14 +204,14 @@ function GoalRingBackplate({
           />
           <mesh
             geometry={torusGeo}
-            castShadow
+            castShadow={false}
             receiveShadow
             material={goalBackRingMaterial}
             renderOrder={0}
           />
           <mesh
             geometry={capGeo}
-            castShadow
+            castShadow={false}
             receiveShadow
             material={capMat}
             position={[capArenaNudge, 0, 0]}
@@ -296,7 +297,7 @@ function GoalRing({
                   toneMapped={false}
                 />
               </mesh>
-              <mesh geometry={torusGeo} castShadow renderOrder={3}>
+              <mesh geometry={torusGeo} castShadow={false} renderOrder={3}>
                 <meshStandardMaterial
                   color={color}
                   emissive={color}
@@ -515,6 +516,7 @@ export function Arena({
         />
       ))}
       <BallDrop />
+      <GoalZoneDebugVisuals />
       <BackWallEscapeZones />
       <ArenaInteractables />
 

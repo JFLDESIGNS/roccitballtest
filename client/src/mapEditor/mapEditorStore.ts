@@ -21,6 +21,7 @@ import {
   persistActiveMapId,
   saveCustomMap,
 } from './mapEditorStorage';
+import { snapPositionToMoveGrid } from './editorMoveGrid';
 import { ensureDocumentGroups } from './stadiumLayout';
 
 type EditorState = {
@@ -31,7 +32,18 @@ type EditorState = {
   editingMapId: string | null;
   /** When false (default), clicking a grouped object selects its parent group. */
   selectIndividual: boolean;
+  showMoveGrid: boolean;
+  snapToMoveGrid: boolean;
 };
+
+function maybeSnapPosition(
+  position: [number, number, number],
+): [number, number, number] {
+  if (state.transformMode !== 'translate' || !state.snapToMoveGrid) {
+    return position;
+  }
+  return snapPositionToMoveGrid(position);
+}
 
 const listeners = new Set<() => void>();
 let suppressPointerMissUntil = 0;
@@ -84,6 +96,8 @@ let state: EditorState = {
   dirty: false,
   editingMapId: null,
   selectIndividual: false,
+  showMoveGrid: true,
+  snapToMoveGrid: true,
 };
 
 function patch(partial: Partial<EditorState>): void {
@@ -214,11 +228,12 @@ export const mapEditorStore = {
     rotation: [number, number, number],
     scale: [number, number, number],
   ) => {
+    const snapped = maybeSnapPosition(position);
     patch({
       document: {
         ...state.document,
         objects: state.document.objects.map((o) =>
-          o.id === id ? { ...o, position, rotation, scale } : o,
+          o.id === id ? { ...o, position: snapped, rotation, scale } : o,
         ),
       },
       dirty: true,
@@ -231,11 +246,12 @@ export const mapEditorStore = {
     rotation: [number, number, number],
     scale: [number, number, number],
   ) => {
+    const snapped = maybeSnapPosition(position);
     patch({
       document: {
         ...state.document,
         groups: state.document.groups.map((g) =>
-          g.id === id ? { ...g, position, rotation, scale } : g,
+          g.id === id ? { ...g, position: snapped, rotation, scale } : g,
         ),
       },
       dirty: true,
@@ -247,16 +263,20 @@ export const mapEditorStore = {
     position: [number, number, number],
     rotation: [number, number, number],
   ) => {
+    const snapped = maybeSnapPosition(position);
     patch({
       document: {
         ...state.document,
         lights: state.document.lights.map((l) =>
-          l.id === id ? { ...l, position, rotation } : l,
+          l.id === id ? { ...l, position: snapped, rotation } : l,
         ),
       },
       dirty: true,
     });
   },
+
+  setShowMoveGrid: (v: boolean) => patch({ showMoveGrid: v }),
+  setSnapToMoveGrid: (v: boolean) => patch({ snapToMoveGrid: v }),
 
   setObjectTexture: (id: string, textureId: MapTextureId) => {
     mapEditorStore.updateObject(id, { textureId });

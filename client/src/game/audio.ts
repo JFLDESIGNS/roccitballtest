@@ -1,5 +1,6 @@
 /** Web Audio — procedural fallbacks + user sample clips */
 
+import { getMenuMusicVolume, setMenuMusicVolume } from './menuAudioSettings';
 import { tuningStore } from './tuningStore';
 import emptyClipUrl from '../assets/sounds/emptyclip.wav';
 import shotUrl from '../assets/sounds/shot.flac';
@@ -9,6 +10,7 @@ import ambientUrl from '../assets/sounds/ambient.wav';
 import cheerUrl from '../assets/sounds/cheering.wav';
 import panicUrl from '../assets/sounds/panic.wav';
 import goal1Url from '../assets/sounds/goal1.WAV';
+import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
 
 let ctx: AudioContext | null = null;
 
@@ -26,15 +28,21 @@ let lastBallShotAt = 0;
 const BALL_SHOT_DEBOUNCE_MS = 120;
 const SHOT_SAMPLE_BASE = 0.44;
 const CHING_SAMPLE_BASE = 0.92;
-const AMBIENT_BASE = 0.1;
+/** Menu + in-match loops (Rocket Dope Tron) — off until re-enabled */
+export const BACKGROUND_MUSIC_ENABLED = false;
+
+/** Menu / title screen — full relative level before master slider */
+const BG_MUSIC_MENU_BASE = (0.5 / 3) * 1.25 * 1.25 * 1.3;
+/** In-match / pregame loop — half of prior in-game level */
+const BG_MUSIC_GAME_BASE = 0.2 * 1.3 * 0.5;
 const CHEER_BASE = 0.46;
 const CHEER_HOLD_SEC = 4;
 const CHEER_FADE_SEC = 1.5;
 const PANIC_HOLD_SEC = 3;
 const PANIC_FADE_SEC = 1;
-/** Rocket / glass stand reactions — home cheer + away panic */
-const FAN_GLASS_CHEER_BASE = 2.97;
-const FAN_GLASS_PANIC_BASE = 10.26;
+/** Rocket / glass stand reactions — home cheer + away panic (50% of prior level) */
+const FAN_GLASS_CHEER_BASE = 2.97 * 0.5;
+const FAN_GLASS_PANIC_BASE = 10.26 * 0.5;
 const FAN_GLASS_CHEER_HOLD_SEC = 3;
 const FAN_GLASS_CHEER_FADE_SEC = 1;
 const GOAL_CHEER_VOLUME = 0.5;
@@ -58,9 +66,26 @@ type LoopingTrack = {
   gain: GainNode;
 };
 
+/** Long crowd clips — retain pre-master peak for live master slider updates */
+type TimedCrowdTrack = {
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  localPeak: number;
+  peakGainCap: number;
+};
+
+const BEAM_LOCAL_GAIN = 0.028;
+
 let ambientTrack: LoopingTrack | null = null;
-let cheerTrack: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
-let panicTrack: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
+let bgMusicTrack: LoopingTrack | null = null;
+let bgMusicMode: 'menu' | 'game' | null = null;
+/** Bumps when a new start is requested or music stops — stale async loads bail out */
+let bgMusicStartGen = 0;
+/** In-flight loop start (avoids double `source.start` before `bgMusicTrack` is set) */
+let bgMusicLoadingMode: 'menu' | 'game' | null = null;
+let cheerTrack: TimedCrowdTrack | null = null;
+let panicTrack: TimedCrowdTrack | null = null;
+let masterVolumeListenerBound = false;
 
 const sampleBuffers = new Map<string, AudioBuffer | null>();
 const sampleLoads = new Map<string, Promise<AudioBuffer | null>>();
@@ -105,17 +130,23 @@ function preloadSamples(): void {
   void loadSample(cheerUrl);
   void loadSample(panicUrl);
   void loadSample(goal1Url);
+  void loadSample(rocketDopeTronUrl);
 }
 
 const FT = 0.3048;
 
-/** Explosion loudness vs listener distance (feet). */
+/** Explosion loudness vs listener distance (feet) — ~2×, extra lift on distant hits. */
 export function explosionVolumeByDistanceFt(distFt: number): number {
-  if (distFt <= 10) return 1;
-  if (distFt <= 20) return 1 + ((0.8 - 1) * (distFt - 10)) / 10;
-  if (distFt <= 25) return 0.8 + ((0.6 - 0.8) * (distFt - 20)) / 5;
-  if (distFt <= 40) return 0.6 + ((0.2 - 0.6) * (distFt - 25)) / 15;
-  return 0.2;
+  let near: number;
+  if (distFt <= 10) near = 1;
+  else if (distFt <= 20) near = 1 + ((0.8 - 1) * (distFt - 10)) / 10;
+  else if (distFt <= 25) near = 0.8 + ((0.6 - 0.8) * (distFt - 20)) / 5;
+  else if (distFt <= 40) near = 0.6 + ((0.2 - 0.6) * (distFt - 25)) / 15;
+  else near = 0.2;
+
+  const farLift =
+    distFt > 18 ? 1 + Math.min(0.85, (distFt - 18) / 28) : 1;
+  return Math.min(2.25, near * 2 * farLift);
 }
 
 export function explosionVolumeByDistanceM(
@@ -192,7 +223,184 @@ function playSample(
 export function resumeAudio(): void {
   getCtx();
   preloadSamples();
-  startAmbientLoop();
+  bindMasterVolumeListener();
+}
+
+function stopBgMusic(): void {
+  bgMusicStartGen += 1;
+  bgMusicLoadingMode = null;
+
+  const track = bgMusicTrack;
+  bgMusicTrack = null;
+  bgMusicMode = null;
+  if (!track) return;
+
+  const ac = getCtx();
+  if (!ac) return;
+  const { source, gain } = track;
+  const t = ac.currentTime;
+  gain.gain.cancelScheduledValues(t);
+  gain.gain.setValueAtTime(gain.gain.value, t);
+  gain.gain.linearRampToValueAtTime(0.001, t + 0.12);
+  try {
+    source.stop(t + 0.14);
+  } catch {
+    /* already stopped */
+  }
+}
+
+function isBgMusicActive(mode: 'menu' | 'game'): boolean {
+  return bgMusicMode === mode && bgMusicTrack !== null;
+}
+
+function menuBgMusicGain(): number {
+  return sfxGain(BG_MUSIC_MENU_BASE * getMenuMusicVolume());
+}
+
+function gameBgMusicGain(): number {
+  return sfxGain(BG_MUSIC_GAME_BASE);
+}
+
+function timedCrowdPeak(localPeak: number, peakGainCap: number): number {
+  return Math.min(sfxGain(localPeak), peakGainCap);
+}
+
+/** Re-apply master slider to anything still playing */
+function applyActiveAudioMasterVolume(): void {
+  const ac = getCtx();
+  if (!ac) return;
+  const t = ac.currentTime;
+
+  if (bgMusicTrack) {
+    bgMusicTrack.gain.gain.cancelScheduledValues(t);
+    const gain =
+      bgMusicMode === 'menu' ? menuBgMusicGain() : gameBgMusicGain();
+    bgMusicTrack.gain.gain.setValueAtTime(gain, t);
+  }
+
+  if (beamSound) {
+    const peak = sfxGain(BEAM_LOCAL_GAIN);
+    beamSound.gain.gain.cancelScheduledValues(t);
+    beamSound.gain.gain.setValueAtTime(peak, t);
+  }
+
+  for (const track of [cheerTrack, panicTrack]) {
+    if (!track) continue;
+    const peak = timedCrowdPeak(track.localPeak, track.peakGainCap);
+    track.gain.gain.cancelScheduledValues(t);
+    track.gain.gain.setValueAtTime(
+      Math.min(track.gain.gain.value, peak) || peak,
+      t,
+    );
+  }
+}
+
+function bindMasterVolumeListener(): void {
+  if (masterVolumeListenerBound) return;
+  masterVolumeListenerBound = true;
+  let prev = tuningStore.getState().masterVolume;
+  tuningStore.subscribe(() => {
+    const next = tuningStore.getState().masterVolume;
+    if (next === prev) return;
+    prev = next;
+    applyActiveAudioMasterVolume();
+  });
+}
+
+function applyMenuBgMusicGain(): void {
+  if (bgMusicMode !== 'menu' || !bgMusicTrack) return;
+  bgMusicTrack.gain.gain.value = menuBgMusicGain();
+}
+
+function startBgMusicLoop(mode: 'menu' | 'game'): void {
+  const ac = getCtx();
+  if (!ac) return;
+
+  if (isBgMusicActive(mode)) {
+    if (mode === 'menu') applyMenuBgMusicGain();
+    else if (bgMusicTrack) bgMusicTrack.gain.gain.value = gameBgMusicGain();
+    return;
+  }
+  if (bgMusicLoadingMode === mode) return;
+
+  stopBgMusic();
+  bgMusicLoadingMode = mode;
+  const startGen = bgMusicStartGen;
+
+  void loadSample(rocketDopeTronUrl).then((buffer) => {
+    if (startGen !== bgMusicStartGen) return;
+
+    const live = getCtx();
+    if (!buffer || !live) {
+      if (bgMusicLoadingMode === mode) bgMusicLoadingMode = null;
+      return;
+    }
+
+    if (isBgMusicActive(mode)) {
+      bgMusicLoadingMode = null;
+      return;
+    }
+
+    const source = live.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const gain = live.createGain();
+    gain.gain.value = mode === 'menu' ? menuBgMusicGain() : gameBgMusicGain();
+
+    source.connect(gain);
+    gain.connect(live.destination);
+    source.start(0);
+
+    bgMusicTrack = { source, gain };
+    bgMusicMode = mode;
+    bgMusicLoadingMode = null;
+  });
+}
+
+/** Stop menu or match background loop (e.g. leaving menu for arena) */
+export function stopBackgroundMusic(): void {
+  stopBgMusic();
+}
+
+/** Title / main menu — loop from start */
+export function startMenuBackgroundMusic(): void {
+  if (!BACKGROUND_MUSIC_ENABLED) {
+    stopBgMusic();
+    return;
+  }
+  if (isBgMusicActive('menu') || bgMusicLoadingMode === 'menu') {
+    applyMenuBgMusicGain();
+    return;
+  }
+  startBgMusicLoop('menu');
+}
+
+/** Menu slider — updates live gain when title music is playing */
+export function setMenuBackgroundMusicVolume(volume: number): void {
+  setMenuMusicVolume(volume);
+  applyMenuBgMusicGain();
+}
+
+/** Match gameplay — stop, restart from beginning, loop at ~20% */
+export function restartGameplayBackgroundMusic(): void {
+  if (!BACKGROUND_MUSIC_ENABLED) {
+    stopBgMusic();
+    return;
+  }
+  if (isBgMusicActive('game') || bgMusicLoadingMode === 'game') {
+    if (bgMusicTrack && bgMusicMode === 'game') {
+      bgMusicTrack.gain.gain.value = gameBgMusicGain();
+    }
+    return;
+  }
+  startBgMusicLoop('game');
+}
+
+/** Leaving a match back to menu */
+export function returnToMenuAudio(): void {
+  stopMatchAudio();
+  if (BACKGROUND_MUSIC_ENABLED) startMenuBackgroundMusic();
 }
 
 function stopAmbientLoop(): void {
@@ -208,29 +416,6 @@ function stopAmbientLoop(): void {
   ambientTrack = null;
 }
 
-function startAmbientLoop(): void {
-  const ac = getCtx();
-  if (!ac || ambientTrack) return;
-
-  void loadSample(ambientUrl).then((buffer) => {
-    const live = getCtx();
-    if (!buffer || !live || ambientTrack) return;
-
-    const source = live.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-
-    const gain = live.createGain();
-    gain.gain.value = sfxGain(AMBIENT_BASE);
-
-    source.connect(gain);
-    gain.connect(live.destination);
-    source.start();
-
-    ambientTrack = { source, gain };
-  });
-}
-
 function randomSampleStartOffset(buffer: AudioBuffer, playSec: number): number {
   const min = SAMPLE_START_OFFSET_MIN_SEC;
   const playable = buffer.duration - playSec - 0.12;
@@ -241,12 +426,12 @@ function randomSampleStartOffset(buffer: AudioBuffer, playSec: number): number {
 
 function playTimedSample(
   url: string,
-  peak: number,
+  localPeak: number,
   holdSec: number,
   fadeSec: number,
   randomStart: boolean,
-  assignTrack: (track: { source: AudioBufferSourceNode; gain: GainNode } | null) => void,
-  getTrack: () => { source: AudioBufferSourceNode; gain: GainNode } | null,
+  assignTrack: (track: TimedCrowdTrack | null) => void,
+  getTrack: () => TimedCrowdTrack | null,
   volumeMul = 1,
   peakGainCap = CROWD_PEAK_GAIN_CAP,
   volumeMulMax = 1,
@@ -254,10 +439,9 @@ function playTimedSample(
   const ac = getCtx();
   if (!ac) return;
 
-  const scaledPeak = Math.min(
-    peak * Math.max(0, Math.min(volumeMulMax, volumeMul)),
-    peakGainCap,
-  );
+  const localScaled =
+    localPeak * Math.max(0, Math.min(volumeMulMax, volumeMul));
+  const scaledPeak = timedCrowdPeak(localScaled, peakGainCap);
   if (scaledPeak < 0.0005) return;
 
   const prev = getTrack();
@@ -298,7 +482,12 @@ function playTimedSample(
     source.start(t0, startOffset);
     source.stop(fadeEnd + 0.05);
 
-    const track = { source, gain };
+    const track: TimedCrowdTrack = {
+      source,
+      gain,
+      localPeak: localScaled,
+      peakGainCap,
+    };
     assignTrack(track);
     source.onended = () => {
       if (getTrack()?.source === source) assignTrack(null);
@@ -331,7 +520,7 @@ function playCheerSample(
 ): void {
   playTimedSample(
     cheerUrl,
-    sfxGain(CHEER_BASE),
+    CHEER_BASE,
     holdSec,
     fadeSec,
     randomStart,
@@ -373,7 +562,7 @@ export function playFanGlassPanic(volumeMul = 1): void {
   if (crowd < 0.001) return;
   playTimedSample(
     panicUrl,
-    sfxGain(FAN_GLASS_PANIC_BASE * crowd),
+    FAN_GLASS_PANIC_BASE * crowd,
     PANIC_HOLD_SEC,
     PANIC_FADE_SEC,
     true,
@@ -396,7 +585,7 @@ export function playFanGlassCheer(volumeMul = 1): void {
   if (crowd < 0.001) return;
   playTimedSample(
     cheerUrl,
-    sfxGain(FAN_GLASS_CHEER_BASE * crowd),
+    FAN_GLASS_CHEER_BASE * crowd,
     FAN_GLASS_CHEER_HOLD_SEC,
     FAN_GLASS_CHEER_FADE_SEC,
     true,
@@ -666,7 +855,7 @@ export function setBeamAttractActive(active: boolean) {
     lfo.connect(lfoGain);
     lfoGain.connect(osc.frequency);
 
-    const peak = sfxGain(0.028);
+    const peak = sfxGain(BEAM_LOCAL_GAIN);
     gain.gain.setValueAtTime(0, ac.currentTime);
     gain.gain.linearRampToValueAtTime(peak, ac.currentTime + 0.06);
 
@@ -719,4 +908,7 @@ export function stopMatchAudio(): void {
   stopCheer();
   stopPanic();
   stopAmbientLoop();
+  stopBgMusic();
 }
+
+bindMasterVolumeListener();

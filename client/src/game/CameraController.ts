@@ -9,6 +9,7 @@ const _desired = new THREE.Vector3();
 const _lookTarget = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _fromPivot = new THREE.Vector3();
+const _toRef = new THREE.Vector3();
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -48,7 +49,23 @@ function clampCameraFloor(pos: THREE.Vector3, pivotY: number) {
 }
 
 /**
- * Third-person camera sits behind the aim ray so crosshair, camera, and shots align.
+ * World point on the crosshair aim ray (camera → lookDir) near `depthRef` (e.g. chest).
+ * Keeps rocket spawn on the same line as the HUD reticle.
+ */
+export function pointOnCrosshairAimRay(
+  cameraPos: THREE.Vector3,
+  aimDir: THREE.Vector3,
+  depthRef: THREE.Vector3,
+  extraAlong: number,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  _toRef.subVectors(depthRef, cameraPos);
+  const along = Math.max(0.8, _toRef.dot(aimDir));
+  return out.copy(cameraPos).addScaledVector(aimDir, along + extraAlong);
+}
+
+/**
+ * Third-person camera — forward matches lookDir so the HUD center reticle is true aim.
  */
 export function updateThirdPersonCamera(
   camera: THREE.Camera,
@@ -98,7 +115,7 @@ export function updateThirdPersonCamera(
 
   clampCameraFloor(camera.position, pivot.y);
 
-  _lookTarget.copy(pivot).addScaledVector(_lookDir, CAMERA.lookAhead);
+  _lookTarget.copy(_desired).addScaledVector(_lookDir, CAMERA.lookAhead);
 
   const valid =
     Number.isFinite(camera.position.x) &&

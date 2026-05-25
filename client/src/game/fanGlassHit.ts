@@ -6,7 +6,11 @@ import {
   playFanGlassCheer,
   playFanGlassPanic,
 } from './audio';
+import { spawnFanGlassCrack } from './fanGlassCrackPool';
 import { gameStore } from './gameStore';
+
+/** Tight bounds for rockets/ball — was 0.85 m and caused mid-air hits */
+const FAN_GLASS_QUERY_PAD_M = 0.05;
 
 export type FanGlassPanel = {
   bayKey: string;
@@ -14,6 +18,10 @@ export type FanGlassPanel = {
   box: THREE.Box3;
   courtFaceCenter: THREE.Vector3;
   outwardNormal: THREE.Vector3;
+  tangent: THREE.Vector3;
+  bitangent: THREE.Vector3;
+  halfW: number;
+  halfH: number;
 };
 
 const panels: FanGlassPanel[] = [];
@@ -26,6 +34,12 @@ const glassMeshes = new Map<
 const _hit = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _clamped = new THREE.Vector3();
+const _segDir = new THREE.Vector3();
+const _planeDelta = new THREE.Vector3();
+const _tangent = new THREE.Vector3();
+const _bitangent = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _local = new THREE.Vector3();
 
 const _listener = new THREE.Vector3(0, 2, 0);
 const _panelCenter = new THREE.Vector3();
@@ -50,6 +64,21 @@ export function fanBayKey(edgeIndex: number): string {
   return `fan-bay-${edgeIndex}`;
 }
 
+function glassSurfaceBasis(
+  normal: THREE.Vector3,
+  tangent: THREE.Vector3,
+  bitangent: THREE.Vector3,
+): void {
+  if (Math.abs(normal.y) > 0.85) {
+    tangent.set(1, 0, 0);
+  } else {
+    tangent.crossVectors(_up, normal);
+    if (tangent.lengthSq() < 1e-6) tangent.set(1, 0, 0);
+    tangent.normalize();
+  }
+  bitangent.crossVectors(normal, tangent).normalize();
+}
+
 function storeGlassPanel(
   bayKey: string,
   homeTeam: Team,
@@ -57,12 +86,40 @@ function storeGlassPanel(
   courtFaceCenter: THREE.Vector3,
   outwardNormal: THREE.Vector3,
 ): void {
+  const n = outwardNormal.clone().normalize();
+  glassSurfaceBasis(n, _tangent, _bitangent);
+  const tight = box.clone().expandByScalar(FAN_GLASS_QUERY_PAD_M);
+  const center = tight.getCenter(new THREE.Vector3());
+  let halfW = 0.5;
+  let halfH = 0.5;
+  const corners = [
+    new THREE.Vector3(tight.min.x, tight.min.y, tight.min.z),
+    new THREE.Vector3(tight.max.x, tight.min.y, tight.min.z),
+    new THREE.Vector3(tight.min.x, tight.max.y, tight.min.z),
+    new THREE.Vector3(tight.max.x, tight.max.y, tight.min.z),
+    new THREE.Vector3(tight.min.x, tight.min.y, tight.max.z),
+    new THREE.Vector3(tight.max.x, tight.min.y, tight.max.z),
+    new THREE.Vector3(tight.min.x, tight.max.y, tight.max.z),
+    new THREE.Vector3(tight.max.x, tight.max.y, tight.max.z),
+  ];
+  for (const c of corners) {
+    _local.subVectors(c, center);
+    const u = Math.abs(_local.dot(_tangent));
+    const v = Math.abs(_local.dot(_bitangent));
+    if (u > halfW) halfW = u;
+    if (v > halfH) halfH = v;
+  }
+
   const entry: FanGlassPanel = {
     bayKey,
     homeTeam,
-    box: box.clone().expandByScalar(0.85),
+    box: tight,
     courtFaceCenter: courtFaceCenter.clone(),
-    outwardNormal: outwardNormal.clone(),
+    outwardNormal: n,
+    tangent: _tangent.clone(),
+    bitangent: _bitangent.clone(),
+    halfW,
+    halfH,
   };
   const i = panels.findIndex((p) => p.bayKey === bayKey);
   if (i >= 0) panels[i] = entry;
@@ -103,27 +160,107 @@ export function trySegmentHitsFanGlass(
   from: THREE.Vector3,
   to: THREE.Vector3,
 ): FanGlassPanel | null {
+  const detailed = trySegmentHitsFanGlassWithPoint(from, to);
+  return detailed?.panel ?? null;
+}
+
+/** Impact point on the court-facing glass plane */
+export function fanGlassImpactPoint(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  panel: FanGlassPanel,
+): THREE.Vector3 {
+  const n = panel.outwardNormal;
+  const c = panel.courtFaceCenter;
+  _segDir.subVectors(to, from);
+  const segLen = _segDir.length();
+  if (segLen > 1e-6) {
+    const invLen = 1 / segLen;
+    _segDir.multiplyScalar(invLen);
+    const denom = n.dot(_segDir);
+    if (Math.abs(denom) > 1e-8) {
+      const t = _planeDelta.subVectors(c, from).dot(n) / denom;
+      if (t >= 0 && t <= segLen) {
+        _hit.copy(from).addScaledVector(_segDir, t);
+        return _hit.clone();
+      }
+    }
+  }
+
+  const steps = 24;
+  for (let i = 0; i <= steps; i++) {
+    _hit.lerpVectors(from, to, i / steps);
+    if (panel.box.containsPoint(_hit)) return _hit.clone();
+  }
+
+  _hit.lerpVectors(from, to, 0.5);
+  panel.box.clampPoint(_hit, _clamped);
+  return _clamped.clone();
+}
+
+function pointOnGlassPanel(panel: FanGlassPanel, world: THREE.Vector3): boolean {
+  _local.subVectors(world, panel.courtFaceCenter);
+  const u = Math.abs(_local.dot(panel.tangent));
+  const v = Math.abs(_local.dot(panel.bitangent));
+  return u <= panel.halfW && v <= panel.halfH;
+}
+
+/** Segment vs court-facing glass plane, then bounds check on the panel */
+function segmentHitsGlassPlane(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  panel: FanGlassPanel,
+): THREE.Vector3 | null {
+  const n = panel.outwardNormal;
+  const c = panel.courtFaceCenter;
+  _segDir.subVectors(to, from);
+  const segLen = _segDir.length();
+  if (segLen < 1e-8) return null;
+  _segDir.multiplyScalar(1 / segLen);
+  const denom = n.dot(_segDir);
+  if (Math.abs(denom) < 1e-8) return null;
+  const t = _planeDelta.subVectors(c, from).dot(n) / denom;
+  if (t < 0 || t > segLen) return null;
+  _hit.copy(from).addScaledVector(_segDir, t);
+  return pointOnGlassPanel(panel, _hit) ? _hit : null;
+}
+
+export function trySegmentHitsFanGlassWithPoint(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+): { panel: FanGlassPanel; point: THREE.Vector3 } | null {
   if (from.distanceToSquared(to) < 1e-8) return null;
 
   for (const panel of panels) {
-    const box = panel.box;
-    if (box.containsPoint(from) || box.containsPoint(to)) return panel;
-
-    const steps = 18;
-    for (let i = 0; i <= steps; i++) {
-      _hit.lerpVectors(from, to, i / steps);
-      if (box.containsPoint(_hit)) return panel;
+    const planeHit = segmentHitsGlassPlane(from, to, panel);
+    if (planeHit) {
+      return { panel, point: planeHit.clone() };
     }
   }
   return null;
 }
 
-export function triggerFanGlassHit(bayKey: string): void {
+function spawnCrackOnPanel(panel: FanGlassPanel, point: THREE.Vector3): void {
+  spawnFanGlassCrack(
+    point.x,
+    point.y,
+    point.z,
+    panel.outwardNormal.x,
+    panel.outwardNormal.y,
+    panel.outwardNormal.z,
+  );
+}
+
+export function triggerFanGlassHit(
+  bayKey: string,
+  hitPoint?: THREE.Vector3,
+): void {
   bayGlassCelebrateUntilMs.set(
     bayKey,
     performance.now() + ARENA_PADS.fanGlassCelebrateMs,
   );
   const panel = panels.find((p) => p.bayKey === bayKey);
+  if (panel && hitPoint) spawnCrackOnPanel(panel, hitPoint);
   const localTeam = gameStore.getState().localTeam;
   const volumeMul = panel ? crowdVolumeForPanel(panel) : 0.35;
   if (panel && panel.homeTeam === localTeam) {
@@ -138,21 +275,22 @@ function tryPointNearFanGlass(p: THREE.Vector3, maxDist: number): boolean {
   let closestDist = maxDist + 1;
 
   for (const panel of panels) {
-    const box = panel.box;
-    if (box.containsPoint(p)) {
-      triggerFanGlassHit(panel.bayKey);
-      return true;
-    }
-    box.clampPoint(p, _clamped);
-    const d = _clamped.distanceTo(p);
-    if (d <= maxDist && d < closestDist) {
+    const n = panel.outwardNormal;
+    const planeDist = Math.abs(_planeDelta.subVectors(p, panel.courtFaceCenter).dot(n));
+    if (planeDist > maxDist) continue;
+    if (!pointOnGlassPanel(panel, p)) continue;
+    _clamped
+      .copy(p)
+      .addScaledVector(n, -_planeDelta.subVectors(p, panel.courtFaceCenter).dot(n));
+    const d = p.distanceTo(_clamped);
+    if (d < closestDist) {
       closestDist = d;
       closest = panel;
     }
   }
 
   if (closest) {
-    triggerFanGlassHit(closest.bayKey);
+    triggerFanGlassHit(closest.bayKey, _clamped.clone());
     return true;
   }
   return false;
@@ -163,9 +301,9 @@ export function tryTriggerFanGlassFromWallImpact(
   from: THREE.Vector3,
   to: THREE.Vector3,
 ): void {
-  const segmentHit = trySegmentHitsFanGlass(from, to);
+  const segmentHit = trySegmentHitsFanGlassWithPoint(from, to);
   if (segmentHit) {
-    triggerFanGlassHit(segmentHit.bayKey);
+    triggerFanGlassHit(segmentHit.panel.bayKey, segmentHit.point);
     return;
   }
 

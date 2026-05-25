@@ -17,6 +17,7 @@ import { MapLightNode, MapObjectMesh } from './MapObjectMesh';
 import { mapEditorStore } from './mapEditorStore';
 import type { MapGroup, MapLight, MapObject, TransformMode } from './mapEditorTypes';
 import { getHiddenStadiumPieces } from './stadiumLayout';
+import { EditorMoveGrid } from './editorMoveGrid';
 import { EditorBaseArena, StadiumGroupPickMesh, StadiumGroupVisual } from './StadiumGroupLayer';
 
 const EditorBackdrop = memo(function EditorBackdrop({
@@ -99,7 +100,13 @@ function TransformGizmo({
   }, [lockOrbit, target]);
 
   return (
-    <TransformControls ref={tcRef} object={target} mode={mode} onMouseUp={onSync} />
+    <TransformControls
+      ref={tcRef}
+      object={target}
+      mode={mode}
+      onObjectChange={onSync}
+      onMouseUp={onSync}
+    />
   );
 }
 
@@ -136,6 +143,10 @@ function EditableGroup({
     if (!g) return;
     const t = vec3FromObject(g);
     mapEditorStore.syncGroupTransform(group.id, t.position, t.rotation, t.scale);
+    const updated = mapEditorStore
+      .getState()
+      .document.groups.find((gr) => gr.id === group.id);
+    if (updated) g.position.set(...updated.position);
   };
 
   const isStadium = Boolean(group.stadiumKey);
@@ -233,6 +244,10 @@ function EditableGroupMember({
     if (!g) return;
     const t = vec3FromObject(g);
     mapEditorStore.syncObjectTransform(object.id, t.position, t.rotation, t.scale);
+    const updated = mapEditorStore
+      .getState()
+      .document.objects.find((o) => o.id === object.id);
+    if (updated) g.position.set(...updated.position);
   };
 
   return (
@@ -289,6 +304,10 @@ function EditableObject({
     if (!g) return;
     const t = vec3FromObject(g);
     mapEditorStore.syncObjectTransform(object.id, t.position, t.rotation, t.scale);
+    const updated = mapEditorStore
+      .getState()
+      .document.objects.find((o) => o.id === object.id);
+    if (updated) g.position.set(...updated.position);
   };
 
   return (
@@ -338,6 +357,10 @@ function EditableLight({
       [g.position.x, g.position.y, g.position.z],
       [g.rotation.x, g.rotation.y, g.rotation.z],
     );
+    const updated = mapEditorStore
+      .getState()
+      .document.lights.find((l) => l.id === light.id);
+    if (updated) g.position.set(...updated.position);
   };
 
   return (
@@ -473,6 +496,7 @@ function EditorSceneContent() {
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}
       />
+      <EditorMoveGrid visible={editor.showMoveGrid} />
       <EditorPlacedContent />
       <EditorControls orbitRef={orbitRef} />
     </EditorOrbitContext.Provider>

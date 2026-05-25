@@ -179,7 +179,7 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
           continue;
         }
 
-        const emberAge = Math.max(0, now - slot.emberSpawnAt - e * 0.04);
+        const emberAge = Math.max(0, now - slot.emberSpawnAt - e * 0.02);
         const emberLife =
           1 - THREE.MathUtils.clamp(emberAge / (fadeDur * 0.72), 0, 1);
         if (emberLife <= 0.02) {
@@ -194,7 +194,7 @@ export function RocketWallImpactFx({ poolRef }: RocketWallImpactFxProps) {
           .addScaledVector(data.vel, emberAge * 0.35);
         ember.position.copy(_worldEmber);
         const pulse = 0.75 + Math.sin(t * 16 + data.phase) * 0.25;
-        const s = (0.07 + emberLife * 0.11) * pulse;
+        const s = (0.045 + emberLife * 0.065) * pulse;
         ember.scale.setScalar(s);
         emberMat.opacity = emberLife * emberLife * 0.9;
         ember.visible = true;

@@ -28,7 +28,7 @@ import { stepBallPhysics } from './ballRuntime';
 import {
   refreshFanGlassBoxes,
   triggerFanGlassHit,
-  trySegmentHitsFanGlass,
+  trySegmentHitsFanGlassWithPoint,
 } from './fanGlassHit';
 import {
   armBallDropCollisionGrace,
@@ -42,7 +42,12 @@ import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
 import { BallMotionRibbons } from './BallMotionRibbons';
+import {
+  applyEightBallAuraGlow,
+  setEightBallAuraAlpha,
+} from './eightBallAuraMaterial';
 import { LooseBallVisual } from './LooseBallVisual';
+import { getPremium8Ball } from './premiumBall';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
@@ -105,7 +110,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const bodyRef = useRef<RapierRigidBody>(null);
   const physicsBallVisualRef = useRef<THREE.Group>(null);
   const ballMatRef = useRef<THREE.MeshStandardMaterial>(null);
-  const looseVisualRef = useRef<THREE.Mesh>(null);
+  const looseVisualRef = useRef<THREE.Group>(null);
   const looseVisualMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const showPhysicsBall = useSyncExternalStore(
     gameStore.subscribe,
@@ -288,8 +293,8 @@ const hasPrevBallPos = useRef(false);
       }
       _ballTo.current.set(t.x, t.y, t.z);
       refreshFanGlassBoxes();
-      const glass = trySegmentHitsFanGlass(from, _ballTo.current);
-      if (glass) triggerFanGlassHit(glass.bayKey);
+      const glass = trySegmentHitsFanGlassWithPoint(from, _ballTo.current);
+      if (glass) triggerFanGlassHit(glass.panel.bayKey, glass.point);
     }
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;
@@ -325,6 +330,7 @@ const hasPrevBallPos = useRef(false);
         };
         applyAlpha(ballMatRef.current);
         applyAlpha(looseVisualMatRef.current);
+        setEightBallAuraAlpha(looseVisualRef.current, alpha);
       }
       return;
     }
@@ -337,6 +343,7 @@ const hasPrevBallPos = useRef(false);
       looseVisualMatRef.current.transparent = false;
       looseVisualMatRef.current.opacity = 1;
     }
+    setEightBallAuraAlpha(looseVisualRef.current, 1);
 
     if (physicsBallVisualRef.current) {
       physicsBallVisualRef.current.scale.setScalar(1);
@@ -374,12 +381,14 @@ const hasPrevBallPos = useRef(false);
     const localTeam = gameStore.getState().localTeam;
     const mat = ballMatRef.current;
     const looseMat = looseVisualMatRef.current;
+    const premiumLoose =
+      getPremium8Ball() && looseVisualRef.current !== null;
     const holderChanged = holderId !== lastHolderId.current;
     lastHolderId.current = holderId;
 
     glowTick.current += 1;
     if (
-      (mat || looseMat) &&
+      (mat || looseMat || premiumLoose) &&
       (holderChanged ||
         isHeld ||
         !held ||
@@ -414,6 +423,23 @@ const hasPrevBallPos = useRef(false);
       };
       applyGlow(mat);
       applyGlow(looseMat);
+
+      if (premiumLoose && looseVisualRef.current) {
+        const ht = isHeld ? holderGlowTeam(holderId, localTeam) : null;
+        applyEightBallAuraGlow(looseVisualRef.current, {
+          held: isHeld,
+          holderTeam: ht,
+          immunity: holdImmunityActive,
+          pulse:
+            isHeld && holdImmunityActive
+              ? 1.18 + Math.sin(t * 7) * 0.24
+              : isHeld
+                ? 0.78 + Math.sin(t * 5) * 0.18
+                : 0.62,
+          beamContested: !isHeld && getBeamBallGlow().contested,
+          beamColor: getBeamBallGlow().color,
+        });
+      }
     }
   });
 

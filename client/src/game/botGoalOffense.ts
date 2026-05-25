@@ -73,6 +73,14 @@ export function pickBotGoalOffenseMoveTarget(
 }
 
 /** Roll once per setup phase — dunk in shoot zone ~60%, jam when very close */
+/** Inside the tight net cylinder — jam or shoot, never idle carry */
+export function rollNetFinishShotStyle(): BotShotStyle {
+  const r = Math.random();
+  if (r < BOT.netFinishJamChance) return 'jam';
+  if (r < BOT.netFinishJamChance + BOT.netFinishDunkChance) return 'dunk';
+  return 'normal';
+}
+
 export function rollBotShotStyle(
   inShootZone: boolean,
   distGoal: number,
@@ -111,14 +119,15 @@ export function isFriendlyHolderNearGoal(
   return dx * dx + dz * dz <= BOT.allyDunkPrepDist * BOT.allyDunkPrepDist;
 }
 
-/** Spot under the bottom ring — extra standoff so bots do not hug the back wall */
+const FT = 0.3048;
+
+/** Spot in front of the bottom ring — alley-oop post (~20 ft from the mouth) */
 export function pickAllyDunkSpot(
   team: Team,
   selfPos: THREE.Vector3,
   out = _scratch,
 ): THREE.Vector3 {
-  const inset =
-    BOT.allyDunkSpotInset + BOT.allyDunkWallStandoffFt * 0.3048;
+  const inset = BOT.allyDunkPostStandoffFt * FT;
   return pickBotRingApproachTarget(team, 'large', selfPos.y, out, inset);
 }
 

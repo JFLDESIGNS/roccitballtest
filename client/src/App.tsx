@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { restartGameplayBackgroundMusic, returnToMenuAudio } from './game/audio';
+import { MATCH } from './shared/Constants';
 import { GameCanvas } from './game/GameCanvas';
 import { GamePointerCapture } from './game/GamePointerCapture';
 import { HUD } from './game/HUD';
@@ -13,6 +15,22 @@ type AppMode = 'menu' | 'game' | 'editor';
 
 function App() {
   const [mode, setMode] = useState<AppMode>('menu');
+  const lastPregameMusicMatch = useRef(-1);
+
+  useEffect(() => {
+    const unsub = gameStore.subscribe(() => {
+      if (mode !== 'game') return;
+      const { phase, matchGeneration, loadCountdown } = gameStore.getState();
+      if (phase !== 'loading') return;
+      if (loadCountdown !== MATCH.mapLoadSec) return;
+      if (matchGeneration === lastPregameMusicMatch.current) return;
+      lastPregameMusicMatch.current = matchGeneration;
+      restartGameplayBackgroundMusic();
+    });
+    return () => {
+      unsub();
+    };
+  }, [mode]);
 
   const startGame = () => {
     gameStore.startMatch();
@@ -26,6 +44,7 @@ function App() {
   const exitGame = () => {
     document.exitPointerLock();
     gameStore.setPhase('menu');
+    returnToMenuAudio();
     setMode('menu');
   };
 

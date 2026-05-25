@@ -14,8 +14,12 @@ const trampolines = getBounceTrampolinePads();
 let ballPadUntil = 0;
 let playerPadUntil = 0;
 
+function stoneCylinderR(pad: FloorPad): number {
+  return pad.radius * 1.2;
+}
+
 function inCylinderXZ(x: number, z: number, pad: FloorPad): boolean {
-  return Math.hypot(x - pad.x, z - pad.z) <= pad.radius * 1.18;
+  return Math.hypot(x - pad.x, z - pad.z) <= stoneCylinderR(pad);
 }
 
 function onTrampolineDeck(x: number, z: number, pad: FloorPad): boolean {
@@ -26,7 +30,21 @@ function deckSurfaceY(pad: FloorPad): number {
   return pad.platformTopY + ARENA_PADS.bouncePadHeightM;
 }
 
-/** Cyan deck launch zone — feet/body intersecting deck volume (never stand on it). */
+/** Pedestal + cyan deck column — player should never treat this as walkable ground */
+export function isPlayerInTrampolineZone(
+  x: number,
+  z: number,
+  feetY: number,
+): boolean {
+  for (const pad of trampolines) {
+    if (!inCylinderXZ(x, z, pad)) continue;
+    const deckY = deckSurfaceY(pad);
+    if (feetY <= deckY + 1.45 && feetY >= pad.platformTopY - 0.45) return true;
+  }
+  return false;
+}
+
+/** Cyan deck launch zone — feet intersecting deck volume */
 export function isPlayerOverTrampolineDeck(
   x: number,
   z: number,
@@ -89,20 +107,23 @@ export function tryPlayerPads(
   const launchVy = playerPadLaunchVy(gravity, strengthMult);
 
   for (const trampoline of trampolines) {
-    if (!onTrampolineDeck(t.x, t.z, trampoline)) continue;
+    if (!inCylinderXZ(t.x, t.z, trampoline)) continue;
 
     const deckY = deckSurfaceY(trampoline);
-    const feetGap = contact.feetY - deckY;
-  /** Deck is visual-only — player falls through quickly; keep a wide catch window. */
-    if (feetGap > 1.35 || feetGap < -0.85) continue;
-    if (contact.vy > launchVy * 0.88 && feetGap > 0.12) continue;
+    const stoneY = trampoline.platformTopY;
+    const feetY = contact.feetY;
+    if (feetY > deckY + 1.45 || feetY < stoneY - 0.45) continue;
+    if (contact.vy > launchVy * 0.92 && feetY > deckY + 0.08) continue;
 
     velocity.y = launchVy;
     body.setLinvel(
       { x: velocity.x, y: launchVy, z: velocity.z },
       true,
     );
-    playerPadUntil = now + Math.max(ARENA_PADS.padCooldownMs, 300);
+    const tr = body.translation();
+    const liftY = Math.max(tr.y, deckY + 0.12 + (tr.y - feetY));
+    body.setTranslation({ x: tr.x, y: liftY, z: tr.z }, true);
+    playerPadUntil = now + Math.max(ARENA_PADS.padCooldownMs, 220);
     return true;
   }
 

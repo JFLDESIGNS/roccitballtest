@@ -1,5 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { resumeAudio } from '../game/audio';
+import {
+  resumeAudio,
+  setMenuBackgroundMusicVolume,
+  startMenuBackgroundMusic,
+  stopBackgroundMusic,
+} from '../game/audio';
+import { getMenuMusicVolume } from '../game/menuAudioSettings';
 import { gameStore } from '../game/gameStore';
 import {
   clampJersey,
@@ -9,10 +15,16 @@ import {
   getLocalProfile,
   setLocalProfile,
 } from '../game/playerRoster';
-import { getRocccitLogoUrl } from '../game/roccitLogo';
+import { MenuLogoTilt } from './MenuLogoTilt';
 import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
 import { mapEditorStore, mapRegistryStore } from '../mapEditor/mapEditorStore';
+import {
+  getPremium8Ball,
+  resetPremium8Ball,
+  subscribePremium8Ball,
+} from '../game/premiumBall';
 import { HowToPlayContent } from './howToPlayContent';
+import { PremiumBallPurchaseModal } from './PremiumBallPurchaseModal';
 import '../mapEditor/mapEditor.css';
 
 const PROFILE_NAME_KEY = 'rocketball-player-name';
@@ -44,6 +56,14 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const [playerName, setPlayerName] = useState(saved.name);
   const [jerseyNumber, setJerseyNumber] = useState(saved.number);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [menuMusicVolume, setMenuMusicVolumeState] = useState(
+    () => getMenuMusicVolume(),
+  );
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const premium8Ball = useSyncExternalStore(
+    subscribePremium8Ball,
+    getPremium8Ball,
+  );
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
@@ -61,6 +81,12 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     setLocalProfile(playerName, jerseyNumber);
   }, [playerName, jerseyNumber]);
 
+  useEffect(() => {
+    resetPremium8Ball();
+    resumeAudio();
+    startMenuBackgroundMusic();
+  }, []);
+
   const commitProfile = () => {
     const profile = getLocalProfile();
     try {
@@ -75,6 +101,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     commitProfile();
     setLocalProfile(playerName, jerseyNumber);
     resumeAudio();
+    stopBackgroundMusic();
     onPlay();
   };
 
@@ -103,21 +130,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           </>
         ) : (
           <>
-            <img
-              className="main-menu-logo"
-              src={getRocccitLogoUrl()}
-              alt="Rocccit Ball"
-            />
-            <ul className="feature-list">
-              <li>Third-person movement &amp; rockets</li>
-              <li>Magnetic beam &amp; energy system</li>
-              <li>Red rings (left) · Blue rings (right) — score on the other side</li>
-              {botsEnabled ? (
-                <li>2 red bots + 1 blue teammate</li>
-              ) : (
-                <li>Solo practice — bots off</li>
-              )}
-            </ul>
+            <MenuLogoTilt />
 
             <div className="menu-profile">
               <label className="menu-field">
@@ -158,6 +171,27 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
               <span>Enable practice bots</span>
             </label>
 
+            <label className="menu-field menu-field--range">
+              <span>
+                Menu music
+                <em className="menu-range-val">
+                  {Math.round(menuMusicVolume * 100)}%
+                </em>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(menuMusicVolume * 100)}
+                onChange={(e) => {
+                  const v = Number(e.target.value) / 100;
+                  setMenuMusicVolumeState(v);
+                  setMenuBackgroundMusicVolume(v);
+                }}
+              />
+            </label>
+
             <label className="menu-map-picker">
               <span>Arena map</span>
               <select
@@ -172,6 +206,34 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                 ))}
               </select>
             </label>
+
+            <div className="premium-ball-offer">
+              {premium8Ball ? (
+                <p className="premium-ball-equipped">
+                  Premium 8-Ball equipped
+                </p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn-premium-ball"
+                    onClick={() => setShowPremiumModal(true)}
+                  >
+                    <span className="premium-ball-btn-icons" aria-hidden>
+                      <span className="premium-ball-icon">🎁</span>
+                      <span className="premium-ball-icon">💵</span>
+                    </span>
+                    Buy Premium Ball
+                  </button>
+                  <ul className="premium-ball-stats">
+                    <li>+30 extra power on ball</li>
+                    <li>+18% magnetic grip strength</li>
+                    <li>Pro-grade billiards resin finish</li>
+                    <li>VIP chalk pocket (cosmetic)</li>
+                  </ul>
+                </>
+              )}
+            </div>
 
             <div className="main-menu-actions">
               <button type="button" className="btn-primary" onClick={enterArena}>
@@ -191,6 +253,11 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           </>
         )}
       </div>
+      {showPremiumModal && (
+        <PremiumBallPurchaseModal
+          onClose={() => setShowPremiumModal(false)}
+        />
+      )}
     </div>
   );
 }

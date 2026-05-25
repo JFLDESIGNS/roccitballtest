@@ -14,7 +14,7 @@ import {
 import { arenaBlackMetalMaterial, arenaPillarMaterial, goalBackRingMaterial } from '../game/arenaMaterials';
 
 const PILLAR_BAND_HEIGHT = 0.55;
-const PILLAR_BAND_RADIUS_SCALE = 1.05;
+const PILLAR_BAND_RADIUS_SCALE = 1.05 * 0.94;
 const PILLAR_LIGHT_INSET = 2.4;
 const PILLAR_LIGHT_SIZE = 0.58;
 const PILLAR_LIGHT_DEPTH = 0.14;

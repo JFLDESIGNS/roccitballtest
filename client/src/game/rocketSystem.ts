@@ -21,7 +21,7 @@ import { clampToHex, hexBoundaryNormal, isInsideHex } from './arenaHex';
 import {
   refreshFanGlassBoxes,
   triggerFanGlassHit,
-  trySegmentHitsFanGlass,
+  trySegmentHitsFanGlassWithPoint,
   tryTriggerFanGlassFromWallImpact,
 } from './fanGlassHit';
 import { triggerArenaPillarShake, triggerOctagonShake } from './visualShake';
@@ -322,14 +322,16 @@ function pushExplosionEvent(
   arenaRadius: number,
   arenaHeight: number,
   withScorch: boolean,
+  impact?: THREE.Vector3,
 ) {
+  const hit = impact ?? pos;
   const event: RocketExplosionEvent = {
-    x: pos.x,
-    y: Math.max(pos.y, 0.5),
-    z: pos.z,
+    x: hit.x,
+    y: Math.max(hit.y, 0.5),
+    z: hit.z,
   };
   if (withScorch) {
-    const scorch = resolveScorchSurface(prev, pos, arenaRadius, arenaHeight);
+    const scorch = resolveScorchSurface(prev, hit, arenaRadius, arenaHeight);
     if (scorch) {
       event.scorchNx = scorch.nx;
       event.scorchNy = scorch.ny;
@@ -553,9 +555,9 @@ export function updateRockets(
         ? ROCKET.minTravelBeforeExplosiveDetonate
         : 1.1;
 
-    const glassHit = trySegmentHitsFanGlass(_stepPrev, pos);
+    const glassHit = trySegmentHitsFanGlassWithPoint(_stepPrev, pos);
     if (glassHit) {
-      triggerFanGlassHit(glassHit.bayKey);
+      triggerFanGlassHit(glassHit.panel.bayKey, glassHit.point);
       if (r.explosive) {
         pushExplosionEvent(
           explosions,
@@ -564,6 +566,7 @@ export function updateRockets(
           arenaRadius,
           arenaHalf.h,
           true,
+          glassHit.point,
         );
         continue;
       }

@@ -19,6 +19,8 @@ export type BotCombatState = {
   ragdollUntilMs: number;
   /** Brief rocket knock tumble — not full ragdoll */
   knockStunUntilMs: number;
+  /** Goal eject — no bot locomotion (momentum only) */
+  goalEjectMoveLockUntilMs: number;
 };
 
 export function createBotCombatState(): BotCombatState {
@@ -29,6 +31,7 @@ export function createBotCombatState(): BotCombatState {
     isRagdoll: false,
     ragdollUntilMs: 0,
     knockStunUntilMs: 0,
+    goalEjectMoveLockUntilMs: 0,
   };
 }
 
@@ -114,6 +117,7 @@ export function respawnBotFromRagdoll(
   bot.combat.lastRegisteredHitMs = 0;
   bot.combat.ragdollUntilMs = 0;
   bot.combat.knockStunUntilMs = 0;
+  bot.combat.goalEjectMoveLockUntilMs = 0;
   bot.holdingBall = false;
 
   body.setTranslation(

@@ -5,8 +5,10 @@ import * as THREE from 'three';
 import { ARENA, ARENA_PADS, BALL } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 import type { WallMount } from './arenaPadLayout';
-import { arenaWallMaterial } from './arenaMaterials';
+import { arenaBlackMetalMaterial, arenaWallMaterial } from './arenaMaterials';
 import { getFanCelebrationState } from './fanCelebration';
+import { FanBayPhotoFlashes } from './FanBayPhotoFlashes';
+import { FanGlassReflections } from './FanGlassReflections';
 import {
   fanBayHomeTeam,
   fanBayKey,
@@ -314,6 +316,132 @@ function pickSignSeatIndices(
   return picks;
 }
 
+function useFanTrimMaterial() {
+  return useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: '#050608',
+        roughness: 0.95,
+        metalness: 0.03,
+      }),
+    [],
+  );
+}
+
+/** Four box bars + corner blocks — picture-frame trim on the wall cutout */
+function FanCutoutWallFrame({
+  bayW,
+  bayH,
+  bayY,
+  wallOpeningZ,
+}: {
+  bayW: number;
+  bayH: number;
+  bayY: number;
+  wallOpeningZ: number;
+}) {
+  const fw = ARENA_PADS.fanCutoutFrameWidthM;
+  const fd = ARENA_PADS.fanCutoutFrameDepthM;
+  const hw = bayW * 0.5;
+  const hh = bayH * 0.5;
+  /** Court-side outer wall face (+Z wall-local) */
+  const courtWallFaceZ = wallOpeningZ + ARENA.wallThickness - 0.03;
+  const z = courtWallFaceZ + fd * 0.5;
+  const outerW = bayW + fw * 2;
+  const outerH = bayH + fw * 2;
+
+  const trimMat = arenaBlackMetalMaterial;
+
+  return (
+    <group renderOrder={6}>
+      <mesh
+        position={[0, bayY + hh + fw * 0.5, z]}
+        material={trimMat}
+        castShadow={false}
+        receiveShadow={false}
+      >
+        <boxGeometry args={[outerW, fw, fd]} />
+      </mesh>
+      <mesh
+        position={[0, bayY - hh - fw * 0.5, z]}
+        material={trimMat}
+        castShadow={false}
+        receiveShadow={false}
+      >
+        <boxGeometry args={[outerW, fw, fd]} />
+      </mesh>
+      <mesh
+        position={[-hw - fw * 0.5, bayY, z]}
+        material={trimMat}
+        castShadow={false}
+        receiveShadow={false}
+      >
+        <boxGeometry args={[fw, outerH, fd]} />
+      </mesh>
+      <mesh
+        position={[hw + fw * 0.5, bayY, z]}
+        material={trimMat}
+        castShadow={false}
+        receiveShadow={false}
+      >
+        <boxGeometry args={[fw, outerH, fd]} />
+      </mesh>
+      {([
+        [-hw - fw * 0.5, bayY + hh + fw * 0.5],
+        [hw + fw * 0.5, bayY + hh + fw * 0.5],
+        [-hw - fw * 0.5, bayY - hh - fw * 0.5],
+        [hw + fw * 0.5, bayY - hh - fw * 0.5],
+      ] as const).map(([cx, cy], i) => (
+        <mesh
+          key={`cutout-corner-${i}`}
+          position={[cx, cy, z]}
+          material={trimMat}
+          castShadow={false}
+          receiveShadow={false}
+        >
+          <boxGeometry args={[fw, fw, fd]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** Black frame bars on court face of fan glass (player viewing area) */
+const GLASS_FRAME_THICK_IN = 6;
+
+function FanGlassPanelFrame({
+  panelW,
+  panelH,
+  glassThick,
+}: {
+  panelW: number;
+  panelH: number;
+  glassThick: number;
+}) {
+  const mat = useFanTrimMaterial();
+  const t = (GLASS_FRAME_THICK_IN * FT) / 12;
+  const z = glassThick * 0.5 + t * 0.5;
+  const hw = panelW * 0.5;
+  const hh = panelH * 0.5;
+
+  return (
+    <group position={[0, 0, z]} renderOrder={5}>
+      <mesh position={[0, hh + t * 0.5, 0]} material={mat} castShadow={false}>
+        <boxGeometry args={[panelW + t * 2, t, t]} />
+      </mesh>
+      <mesh position={[0, -hh - t * 0.5, 0]} material={mat} castShadow={false}>
+        <boxGeometry args={[panelW + t * 2, t, t]} />
+      </mesh>
+      <mesh position={[-hw - t * 0.5, 0, 0]} material={mat} castShadow={false}>
+        <boxGeometry args={[t, panelH, t]} />
+      </mesh>
+      <mesh position={[hw + t * 0.5, 0, 0]} material={mat} castShadow={false}>
+        <boxGeometry args={[t, panelH, t]} />
+      </mesh>
+    </group>
+  );
+}
+
 function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
   const rootRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -345,19 +473,13 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
 
   const glassMat = useMemo(
     () =>
-      new THREE.MeshPhysicalMaterial({
-        color: '#030405',
+      new THREE.MeshBasicMaterial({
+        color: '#0a1018',
         transparent: true,
-        opacity: ARENA_PADS.fanFacadeGlassOpacity,
-        transmission: ARENA_PADS.fanFacadeGlassTransmission,
-        thickness: 0.14,
-        roughness: 0.12,
-        metalness: 0.2,
-        reflectivity: 1,
-        ior: 1.5,
-        envMapIntensity: 0.65,
-        side: THREE.DoubleSide,
+        opacity: Math.min(0.42, ARENA_PADS.fanFacadeGlassOpacity * 1.35),
         depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
       }),
     [],
   );
@@ -559,16 +681,16 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
       <mesh
         position={[-bayW * 0.5 + sideInset, bayY, recessCenterZ]}
         material={arenaWallMaterial}
-        castShadow
-        receiveShadow
+        castShadow={false}
+        receiveShadow={false}
       >
         <boxGeometry args={[sideInset * 2, bayH, bayD]} />
       </mesh>
       <mesh
         position={[bayW * 0.5 - sideInset, bayY, recessCenterZ]}
         material={arenaWallMaterial}
-        castShadow
-        receiveShadow
+        castShadow={false}
+        receiveShadow={false}
       >
         <boxGeometry args={[sideInset * 2, bayH, bayD]} />
       </mesh>
@@ -586,16 +708,16 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
       <mesh
         position={[0, bayY, backZ]}
         material={arenaWallMaterial}
-        castShadow
-        receiveShadow
+        castShadow={false}
+        receiveShadow={false}
       >
         <boxGeometry args={[bayW, bayH * 1.06, 0.28]} />
       </mesh>
       <mesh
         position={[0, bayY + bayH * 0.5 - 0.14, recessCenterZ]}
         material={arenaWallMaterial}
-        castShadow
-        receiveShadow
+        castShadow={false}
+        receiveShadow={false}
       >
         <boxGeometry args={[bayW * 0.98, 0.28, bayD * 0.96]} />
       </mesh>
@@ -620,6 +742,13 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         renderOrder={1}
       />
 
+      <FanBayPhotoFlashes
+        bayKey={bayKey}
+        seats={seats}
+        sphereR={sphereR}
+        maxFanX={maxFanX}
+      />
+
       {signAnchors.map((sign) => {
         const seat = seats[sign.seatIndex];
         if (!seat) return null;
@@ -638,7 +767,7 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         );
       })}
 
-      {/* Glass physics — thicker than visual so fast balls don't tunnel / double-hit */}
+      {/* Glass physics — flush on court face, not floating in front of the window */}
       <RigidBody type="fixed" colliders={false}>
         <CuboidCollider
           args={[
@@ -646,77 +775,148 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
             (bayH * 0.992) / 2,
             ARENA_PADS.fanGlassColliderDepthM / 2,
           ]}
-          position={[0, bayY, glassZ]}
+          position={[
+            0,
+            bayY,
+            glassCourtFaceZ - ARENA_PADS.fanGlassColliderDepthM / 2,
+          ]}
           friction={0.22}
           restitution={FAN_GLASS_RESTITUTION}
           collisionGroups={WALL_COLLISION}
         />
       </RigidBody>
-      <mesh
-        ref={(mesh) => {
-          if (mesh) registerFanGlassMesh(bayKey, homeTeam, mesh);
-        }}
-        position={[0, bayY, glassZ]}
-        material={glassMat}
-        renderOrder={3}
-      >
-        <boxGeometry
-          args={[
-            bayW * 0.992,
-            bayH * 0.992,
-            ARENA_PADS.fanFacadeGlassThicknessM,
-          ]}
+      <group position={[0, bayY, glassZ]}>
+        <mesh
+          ref={(mesh) => {
+            if (mesh) registerFanGlassMesh(bayKey, homeTeam, mesh);
+          }}
+          material={glassMat}
+          renderOrder={3}
+        >
+          <boxGeometry
+            args={[
+              bayW * 0.992,
+              bayH * 0.992,
+              ARENA_PADS.fanFacadeGlassThicknessM,
+            ]}
+          />
+        </mesh>
+        <FanGlassReflections
+          panelW={bayW * 0.992}
+          panelH={bayH * 0.992}
         />
-      </mesh>
+        <FanGlassPanelFrame
+          panelW={bayW * 0.992}
+          panelH={bayH * 0.992}
+          glassThick={glassThick}
+        />
+      </group>
 
-      <FanBoothExteriorTrim
+      <FanCutoutWallFrame
         bayW={bayW}
         bayH={bayH}
         bayY={bayY}
+        wallOpeningZ={wallOpeningZ}
+      />
+
+      <FanBoothBlackTrim
+        bayW={bayW}
+        bayH={bayH}
+        bayY={bayY}
+        bayD={bayD}
+        lipZ={lipZ}
+        sideInset={sideInset}
         courtFaceZ={glassCourtFaceZ}
       />
     </group>
   );
 }
 
-/** Black rectangular trim on court-facing side of crowd booth glass */
-function FanBoothExteriorTrim({
+/** Black trim around crowd booth — wall cutout frame + glass + recess */
+function FanBoothBlackTrim({
   bayW,
   bayH,
   bayY,
+  bayD,
+  lipZ,
+  sideInset,
   courtFaceZ,
 }: {
   bayW: number;
   bayH: number;
   bayY: number;
+  bayD: number;
+  lipZ: number;
+  sideInset: number;
   courtFaceZ: number;
 }) {
   const fw = ARENA_PADS.fanExteriorFrameWidthM;
   const fd = ARENA_PADS.fanExteriorFrameDepthM;
-  const trimZ = courtFaceZ + fd * 0.55;
-  const mat = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: '#050608',
-        roughness: 0.95,
-        metalness: 0.03,
-      }),
-    [],
-  );
+  const mat = useFanTrimMaterial();
+  const glassTrimZ = courtFaceZ + fd * 0.55;
+  const openingTrimZ = lipZ + fd * 0.62;
+  const sideWallX = bayW * 0.5 - sideInset;
 
   return (
     <group renderOrder={4}>
-      <mesh position={[0, bayY + bayH * 0.5 + fw * 0.5, trimZ]} material={mat} castShadow>
-        <boxGeometry args={[bayW + fw * 2, fw, fd]} />
+      {/* Court-facing glass frame */}
+      <mesh position={[0, bayY + bayH * 0.5 + fw * 0.5, glassTrimZ]} material={mat} castShadow={false}>
+        <boxGeometry args={[bayW + fw * 2.2, fw, fd]} />
       </mesh>
-      <mesh position={[0, bayY - bayH * 0.5 - fw * 0.5, trimZ]} material={mat} castShadow>
-        <boxGeometry args={[bayW + fw * 2, fw, fd]} />
+      <mesh position={[0, bayY - bayH * 0.5 - fw * 0.5, glassTrimZ]} material={mat} castShadow={false}>
+        <boxGeometry args={[bayW + fw * 2.2, fw, fd]} />
       </mesh>
-      <mesh position={[-bayW * 0.5 - fw * 0.5, bayY, trimZ]} material={mat} castShadow>
-        <boxGeometry args={[fw, bayH, fd]} />
+      <mesh position={[-bayW * 0.5 - fw * 0.5, bayY, glassTrimZ]} material={mat} castShadow={false}>
+        <boxGeometry args={[fw, bayH + fw, fd]} />
       </mesh>
-      <mesh position={[bayW * 0.5 + fw * 0.5, bayY, trimZ]} material={mat} castShadow>
-        <boxGeometry args={[fw, bayH, fd]} />
+      <mesh position={[bayW * 0.5 + fw * 0.5, bayY, glassTrimZ]} material={mat} castShadow={false}>
+        <boxGeometry args={[fw, bayH + fw, fd]} />
+      </mesh>
+
+      {/* Recess opening perimeter (wall cut) */}
+      <mesh position={[0, bayY + bayH * 0.5 + fw * 0.5, openingTrimZ]} material={mat}>
+        <boxGeometry args={[bayW + fw * 2.4, fw, fd * 1.05]} />
+      </mesh>
+      <mesh position={[0, bayY - bayH * 0.5 - fw * 0.5, openingTrimZ]} material={mat}>
+        <boxGeometry args={[bayW + fw * 2.4, fw, fd * 1.05]} />
+      </mesh>
+      <mesh position={[-bayW * 0.5 - fw * 0.5, bayY, openingTrimZ]} material={mat}>
+        <boxGeometry args={[fw, bayH + fw, fd * 1.05]} />
+      </mesh>
+      <mesh position={[bayW * 0.5 + fw * 0.5, bayY, openingTrimZ]} material={mat}>
+        <boxGeometry args={[fw, bayH + fw, fd * 1.05]} />
+      </mesh>
+
+      {/* Side wall leading edges */}
+      <mesh
+        position={[-sideWallX, bayY + bayH * 0.5 - fw * 0.25, lipZ - bayD * 0.42]}
+        material={mat}
+      >
+        <boxGeometry args={[fw * 0.85, fw, bayD * 0.88]} />
+      </mesh>
+      <mesh
+        position={[sideWallX, bayY + bayH * 0.5 - fw * 0.25, lipZ - bayD * 0.42]}
+        material={mat}
+      >
+        <boxGeometry args={[fw * 0.85, fw, bayD * 0.88]} />
+      </mesh>
+      <mesh position={[-sideWallX, bayY, lipZ - bayD * 0.42]} material={mat}>
+        <boxGeometry args={[fw * 0.85, bayH, bayD * 0.88]} />
+      </mesh>
+      <mesh position={[sideWallX, bayY, lipZ - bayD * 0.42]} material={mat}>
+        <boxGeometry args={[fw * 0.85, bayH, bayD * 0.88]} />
+      </mesh>
+      <mesh
+        position={[-sideWallX, bayY - bayH * 0.5 + fw * 0.25, lipZ - bayD * 0.42]}
+        material={mat}
+      >
+        <boxGeometry args={[fw * 0.85, fw, bayD * 0.88]} />
+      </mesh>
+      <mesh
+        position={[sideWallX, bayY - bayH * 0.5 + fw * 0.25, lipZ - bayD * 0.42]}
+        material={mat}
+      >
+        <boxGeometry args={[fw * 0.85, fw, bayD * 0.88]} />
       </mesh>
     </group>
   );
@@ -746,7 +946,7 @@ function FanOpeningWallFill({
         restitution={BALL.restitution}
         collisionGroups={WALL_COLLISION}
       />
-      <mesh castShadow receiveShadow material={arenaWallMaterial}>
+      <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
         <boxGeometry args={[bayW, height, ARENA.wallThickness]} />
       </mesh>
     </RigidBody>
@@ -801,7 +1001,7 @@ export function SplitPerimeterWallWithFans({
             restitution={BALL.restitution}
             collisionGroups={WALL_COLLISION}
           />
-          <mesh castShadow receiveShadow material={arenaWallMaterial}>
+          <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
             <boxGeometry args={[wingLen, ARENA.wallHeight, ARENA.wallThickness]} />
           </mesh>
         </RigidBody>

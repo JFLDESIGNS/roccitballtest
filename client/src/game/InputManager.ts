@@ -163,6 +163,11 @@ class InputManager {
           gameStore.toggleShowPhysicsBall(),
         );
       }
+      if (e.code === 'Digit4') {
+        import('./gameStore').then(({ gameStore }) =>
+          gameStore.togglePlayerVisualProxy(),
+        );
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         this.jumpQueued = true;

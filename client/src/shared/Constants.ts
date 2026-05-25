@@ -81,8 +81,10 @@ export const ARENA_PADS = {
   /** Move trampoline pads toward center, away from corner pillars (m) */
   trampolinePillarClearanceM: 8,
   padCooldownMs: 0,
-  billboardWidthM: 28.6,
-  billboardHeightM: 13.65,
+  /** Wall logo boards — ~60% of prior enlarged size */
+  billboardVisualScale: 1.05,
+  billboardWidthM: 30.03,
+  billboardHeightM: 14.34,
   billboardWallInsetM: 1.1,
   /** Push billboard face off the wall mesh to avoid z-fighting */
   billboardFaceOffsetM: 2.2,
@@ -123,8 +125,8 @@ export const ARENA_PADS = {
   /** Physics collider depth for fan glass (visual stays thin) */
   fanGlassColliderDepthM: 0.18,
   /** Fan glass — higher = darker, fans harder to see */
-  fanFacadeGlassOpacity: 0.84,
-  fanFacadeGlassTransmission: 0.06,
+  fanFacadeGlassOpacity: 0.28,
+  fanFacadeGlassTransmission: 0,
   /** Push glass court face toward opening (+Z wall-local) */
   fanFacadeGlassForwardM: 0.58,
   /** Front-row fans sit this far behind glass back face (m) */
@@ -132,11 +134,26 @@ export const ARENA_PADS = {
   /** Black trim frame on court-facing side of fan booth glass (m) */
   fanExteriorFrameWidthM: 0.4,
   fanExteriorFrameDepthM: 0.16,
+  /** 3D box trim around wall fan cutout — court-facing perimeter frame (m) */
+  fanCutoutFrameWidthM: 0.62,
+  fanCutoutFrameDepthM: 0.32,
   /** Side-to-side sway amplitude (m) */
   fanSwayAmpM: 0.11,
   fanSwaySpeed: 1.35,
   /** Rectangular crowd signs per fan bay */
   fanSignCount: 8,
+  /** Paparazzi diamond flash in front of a fan (local units × sphere radius) */
+  fanPhotoDiamondScale: 0.11,
+  fanPhotoFlashDurationSec: 0.16,
+  fanPhotoGoalFlashDurationSec: 0.12,
+  /** Random idle snap between flashes (per bay) */
+  fanPhotoIdleMinSec: 2.8,
+  fanPhotoIdleMaxSec: 7.5,
+  fanPhotoIdleChance: 0.55,
+  /** Goal frenzy — initial burst + sustained snaps */
+  fanPhotoGoalBurstCount: 28,
+  fanPhotoGoalBurstPerTick: 10,
+  fanPhotoGoalBurstIntervalSec: 0.045,
   /** Home-team share of crowd color per bay (remainder green + away) */
   fanHomeTeamColorPct: 90,
   /** Crowd frenzy after rocket/ball hits this bay's glass (ms) */
@@ -181,11 +198,11 @@ export const BOT = {
   enemyBeamPullScale: 0.88,
   /** Seconds a bot must hold beam attract before socketing the ball */
   beamCaptureLatchSec: 0.75,
-  /** Teammate bot: only beam when ball is on/near the floor (not mid-air shots) */
-  allyBeamMaxHeightAboveFloor: 3.8,
-  allyBeamLowMaxHeight: 1.6,
-  allyBeamMaxVerticalSpeed: 7.5,
-  allyBeamMaxSpeedForBeam: 34,
+  /** Teammate bot: beam loose balls — relaxed so ally can contest bounces like enemies */
+  allyBeamMaxHeightAboveFloor: 9,
+  allyBeamLowMaxHeight: 2.8,
+  allyBeamMaxVerticalSpeed: 14,
+  allyBeamMaxSpeedForBeam: 46,
   /** Ally bot (bot-2) dribble / pass bias toward the local player */
   allyPassToPlayerChance: 0.82,
   allyCarryToPlayerChance: 0.62,
@@ -203,6 +220,8 @@ export const BOT = {
   holdReleasePassChance: 0.28,
   /** After alley-oop catch at rim — prefer jam/shoot over passing back */
   allyDunkHoldPassChance: 0.14,
+  /** Max seconds to attempt a dunk/jam hold before forcing a shot */
+  dunkTryMaxSec: 3,
   /** Absolute max seconds holding (forces shoot if still carrying) */
   holdMaxCarrySec: 8,
   shootMinHoldSec: 0.14,
@@ -251,6 +270,24 @@ export const BOT = {
   rocketPitchOffsetDeg: 14,
   /** Offensive cylinder at enemy net (~120 ft diameter × 1.5) */
   shootZoneRadiusM: ((120 * 0.3048) / 2) * 1.5,
+  /** Finish cylinder at the bottom ring — must shoot/jam, never idle carry (ft radius) */
+  netFinishZoneRadiusFt: 37.5,
+  /** Nudge cylinder center toward the court from the scoring center (ft) */
+  netFinishZoneCourtOffsetFt: 6,
+  /** Min hold before release inside finish cylinder */
+  netFinishMinHoldSec: 0.08,
+  /** Finish zone shot rolls — jam preferred */
+  netFinishJamChance: 0.65,
+  netFinishDunkChance: 0.15,
+  /** Debug mesh — bot must shoot/jam cylinder at bottom ring */
+  netFinishZoneVisualOpacity: 0.32,
+  netFinishZoneEdgeOpacity: 0.85,
+  /** Debug mesh — per-ring scoring sensor cylinders */
+  goalScoringVolumeVisualOpacity: 0.22,
+  goalScoringVolumeEdgeOpacity: 0.65,
+  /** Ally post / give-space — max seconds standing still before a wander nudge */
+  botPostMaxStillSec: 1,
+  botPostIdleWanderRadiusM: 2.4,
   modeRunPlayerDist: 38,
   /** Max seconds chasing the player (runToPlayer / moveAndShoot) without them holding */
   followPlayerBurstSec: 5,
@@ -297,9 +334,16 @@ export const BOT = {
   dunkJumpForceScale: 1.14,
   /** Teammate without ball — post under rim for alley-oop */
   allyDunkPrepDist: 28,
+  /** Stop this many feet in front of the bottom ring (alley-oop post) */
+  allyDunkPostStandoffFt: 20,
+  /** @deprecated — use allyDunkPostStandoffFt */
   allyDunkSpotInset: 5.5,
   /** Extra keep-out from goal back wall for alley-oop posts (feet) */
   allyDunkWallStandoffFt: 10,
+  /** Close enough to the post spot to wait for a lob (m) */
+  allyDunkPostArriveM: 2.8,
+  /** No lob received — leave the post after this many seconds */
+  allyDunkPassWaitSec: 5,
   /** Jump scale when catching a lob at the rim */
   allyDunkCatchJumpScale: 1.28,
   allyDunkPreJumpChance: 0.42,
@@ -308,7 +352,9 @@ export const BOT = {
   kickoffAllyOopChance: 0.3,
   kickoffAllyOopDurationSec: 15,
   /** At the rim — abandon alley-oop if no pass to this bot within this window */
-  kickoffAllyOopPassWaitSec: 7,
+  kickoffAllyOopPassWaitSec: 5,
+  /** Stop this far from the alley-oop post point (m) */
+  kickoffAllyOopArriveDist: 2.8,
   /** After abort — sprint here before normal bot brain resumes */
   kickoffAllyOopReturnArriveDist: 5.5,
   /** Countdown + flap hold — sprint under the drop and jump for the ball */
@@ -319,10 +365,10 @@ export const BOT = {
   kickoffContestJumpChance: 0.55,
   kickoffContestDoubleJumpChance: 0.85,
   kickoffContestArriveRadius: 6.5,
-  /** In-air boost toward the drop while contesting */
-  kickoffContestClimbAccel: 14,
   kickoffAllyOopSpotRadius: 9,
-  kickoffAllyOopJumpChance: 0.35,
+  kickoffAllyOopJumpChance: 0.52,
+  /** Alley-oop post — hop cadence while watching the ball */
+  kickoffAllyOopJumpIntervalSec: 0.4,
   /** Teammate in shoot zone with ball — only this often beam-steal (else give space) */
   allyShootZoneMagnetChance: 0.3,
   /** After a teammate's goal shot, wait before beaming the ball */
@@ -398,11 +444,21 @@ export const BOT = {
   ballApproachOffsetFt: 1.75,
   /** Stop driving once this close to the approach point (m) */
   ballApproachArriveM: 0.95,
+  /** Chest-to-ball — must beam grab or roll a close rocket (m) */
+  botBallCloseEngageM: 5.5,
+  /** When close on a loose ball — roll to rocket at ball instead of only beaming */
+  botBallCloseShootChance: 0.05,
+  /** Seconds between close-ball shoot rolls (one dice roll per interval) */
+  botBallCloseShootRollCooldownSec: 5,
+  /** Min gap between any bot rocket launch (sec) */
+  botRocketFireCooldownSec: 1,
+  /** Faster beam latch when already in close engage range */
+  botCloseGrabBeamLatchSec: 0.32,
   /** Energy drain while a bot carries the ball (drops at 0 like the player) */
   holdBallEnergyDrain: 10,
   /** Only rocket / harass local player when this close and they hold the ball */
   playerRocketCloseDist: 20,
-  botRocketCooldownSec: 0.85,
+  botRocketCooldownSec: 1,
   botRocketIntervalSec: 1.05,
   /** Extra knockback when bot rockets hit the local player */
   botRocketOnPlayerForceScale: 1.25,
@@ -561,6 +617,8 @@ export const AIM = {
 export const MOVEMENT = {
   walkSpeed: 9.5,
   sprintSpeed: 14,
+  /** A/D strafe vs W/S — pure sideways uses walk/sprint × this */
+  strafeSpeedScale: 1.38,
   jumpForce: 18,
   doubleJumpForce: 14,
   tripleJumpForce: 11,
@@ -569,6 +627,9 @@ export const MOVEMENT = {
   airControl: 0.95,
   jumpMomentumBoost: 1.12,
   groundAccel: 22,
+  /** Local player mesh follow — higher = snappier, lower = smoother */
+  playerVisualPosSmooth: 24,
+  playerVisualAirPosSmooth: 30,
   capsuleHeight: 1.8,
   capsuleRadius: 0.35,
   /** Max gap (m) between feet and surface to count as grounded */
@@ -809,7 +870,7 @@ export const ROCKET = {
   /** Active frames before empty cells at end of sheet */
   explosionSpriteFrames: 22,
   /** World-size multiplier vs blast radius (~⅓ of original 1.55) */
-  explosionSpriteSize: 0.52,
+  explosionSpriteSize: 0.26,
   /** HDR-style emissive boost (toneMapped off) */
   explosionSpriteBrightness: 3.2,
   /** Nudge sprite toward camera (× size) — reduces floor/wall clipping when turning */
@@ -817,7 +878,7 @@ export const ROCKET = {
   /** Delay after blast before black scorch appears (before embers) */
   wallScorchSpawnDelaySec: 0.52,
   /** Delay after blast before embers appear (near end of explosion sprite) */
-  wallScorchEmberSpawnDelaySec: 0.78,
+  wallScorchEmberSpawnDelaySec: 0.42,
   /** How long the black scorch stays at full strength before fading */
   wallScorchHoldSec: 5.4,
   /** Black radial scorch fade-out duration after hold */
@@ -946,6 +1007,18 @@ export const GOAL_RINGS = {
   netBounceHeightFt: 38,
   /** Player/bot net eject — small hop (feet); main push is outward from goal */
   netCharacterHopFt: 2.5,
+  /** Rocket-style goal eject for player (same scale as ROCKET.playerForce) */
+  characterEjectForce: 24,
+  /** Bot eject uses BOT.rocketKnockForce × this */
+  characterEjectBotForceScale: 0.88,
+  /** Upward bias in knock direction before flatten (slight hop) */
+  characterEjectUpBias: 0.12,
+  /** Optional pull toward center Z when not in net contact (normalized dir component) */
+  characterEjectCenterZ: 0.28,
+  /** Multiplier on rocket-style goal eject impulse */
+  characterEjectForceMultiplier: 5,
+  /** No WASD / bot drive — mouse look still works */
+  characterEjectMoveLockSec: 1,
   /** Horizontal shove toward midfield + ball drop (m/s) */
   netOutwardSpeed: 26,
   /** Pull toward center Z (m/s) */
@@ -1016,18 +1089,25 @@ export const RENDER = {
   dprMax: 1.35,
   antialias: true,
   enableShadows: true,
-  shadowMapSize: 1536,
-  shadowCameraSpan: 78,
-  shadowCameraFar: 150,
-  /** PCF soft shadow blur (directional) */
-  shadowRadius: 5,
+  /** Lower res + PCF (not soft) — shadows are low priority */
+  shadowMapSize: 1024,
+  shadowCameraSpan: 72,
+  shadowCameraFar: 130,
+  /** PCF kernel radius (keep low for perf) */
+  shadowRadius: 1.5,
   beamTubeSegments: 56,
   beamTubeRadial: 6,
   beamTraceLayers: 6,
   hexFloorTileStep: 10,
   ballPolkaTextureSize: 512,
-  /** Trail / bounce ribbon width scale */
-  rocketTrailRadius: 0.22,
+  /** Trail / bounce ribbon width scale (m) */
+  rocketTrailRadius: 0.52,
+  /** Perpendicular wiggle — fraction of trail half-width */
+  rocketTrailWiggleScale: 0.26,
+  /** Live trail noise animation speed */
+  rocketTrailWiggleSpeed: 6.2,
+  /** Additive ribbon halo width multiplier */
+  rocketTrailGlowWidthScale: 1.42,
   /** Projectile sphere at rocket tip */
   rocketHeadRadius: 0.26,
   /** Tight additive glow halo around rocket tip — visual only */

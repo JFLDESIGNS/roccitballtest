@@ -131,7 +131,7 @@ function BottomDropSlice({
           <mesh
             geometry={slice.geometry}
             material={mat}
-            castShadow
+            castShadow={false}
             receiveShadow
           />
         </RigidBody>

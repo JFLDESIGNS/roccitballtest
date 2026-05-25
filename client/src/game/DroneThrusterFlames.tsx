@@ -4,19 +4,45 @@ import * as THREE from 'three';
 import { MOVEMENT } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 
+const FT = 0.3048;
+const INCH = FT / 12;
+
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
 const FOOT_Y = -capCenterY;
 
-/** Rear thrusters (arena forward = local −Z, exhaust points +Z / down) */
-const THRUSTER_LOCAL: [number, number, number][] = [
-  [-0.4, FOOT_Y + 0.1, 0.34],
-  [0.4, FOOT_Y + 0.1, 0.34],
-];
+/** Rear thrusters — drone forward = local −Z (positive Z is aft) */
+const THRUSTER_UP_IN = 10;
+const THRUSTER_FORWARD_IN = 3;
 
-/** Cone tip aims aft (+Z) with slight downward tilt */
-const FLAME_ROTATION: [number, number, number] = [-Math.PI / 2 - 0.12, Math.PI, 0];
-const FLAME_OFFSET: [number, number, number] = [0, -0.06, 0.22];
+function thrusterPositions(offsetUpIn = 0, offsetBackIn = 0): [number, number, number][] {
+  const y = FOOT_Y + 0.1 + (THRUSTER_UP_IN + offsetUpIn) * INCH;
+  const z = 0.28 - THRUSTER_FORWARD_IN * INCH + offsetBackIn * INCH;
+  return [
+    [-0.4, y, z],
+    [0.4, y, z],
+  ];
+}
+
+const CONE_SIZE_MULT = 1.3 * 1.15;
+const CONE_H = 0.4 * CONE_SIZE_MULT;
+const CONE_R = 0.13 * CONE_SIZE_MULT;
+const DEFAULT_FLAME_FORWARD_PITCH_DEG = 20;
+const BOT_FLAME_FORWARD_PITCH_DEG = -42;
+const PLAYER_FLAME_FORWARD_PITCH_DEG = -42;
+
+function flameRotation(pitchDeg: number): [number, number, number] {
+  const pitch = (pitchDeg * Math.PI) / 180;
+  return [Math.PI - 0.14 + pitch, 0, 0];
+}
+
+/** Bot / alignment preview nozzle offsets (inches) */
+export const BOT_THRUSTER_OFFSET_UP_IN = 4;
+export const BOT_THRUSTER_OFFSET_BACK_IN = 8;
+/** Flame cone scale for bots — pivots at nozzle (y = 0) so the disc stays put */
+export const BOT_THRUSTER_SIZE_SCALE = 1.5;
+
+export { BOT_FLAME_FORWARD_PITCH_DEG, PLAYER_FLAME_FORWARD_PITCH_DEG };
 
 const TEAM_FLAME: Record<
   Team,
@@ -30,28 +56,49 @@ type DroneThrusterFlamesProps = {
   team: Team;
   /** 0 = idle, 1 = full sprint — scales glow and rear lights */
   throttleRef?: React.RefObject<number>;
+  /** Extra lift on bot thrusters (inches) */
+  offsetUpIn?: number;
+  /** Shift aft along +Z (inches) — “back” on the drone */
+  offsetBackIn?: number;
+  /** Pitch cone toward drone forward (−Z), degrees */
+  forwardPitchDeg?: number;
+  /** Scales flame from nozzle; base/disc stays at attach point (y = 0) */
+  sizeScale?: number;
 };
 
 /** Glowing flame cones at drone foot thrusters */
 export function DroneThrusterFlames({
   team,
   throttleRef,
+  offsetUpIn = 0,
+  offsetBackIn = 0,
+  forwardPitchDeg = DEFAULT_FLAME_FORWARD_PITCH_DEG,
+  sizeScale = 1,
 }: DroneThrusterFlamesProps) {
   const colors = TEAM_FLAME[team];
   const pulseRefs = useRef<THREE.Mesh[]>([]);
   const lightRefs = useRef<THREE.PointLight[]>([]);
-
-  const coneGeo = useMemo(
-    () => new THREE.ConeGeometry(0.14, 0.42, 8, 1, true),
-    [],
+  const positions = useMemo(
+    () => thrusterPositions(offsetUpIn, offsetBackIn),
+    [offsetUpIn, offsetBackIn],
   );
+  const flameRot = useMemo(
+    () => flameRotation(forwardPitchDeg),
+    [forwardPitchDeg],
+  );
+
+  const coneGeo = useMemo(() => {
+    const geo = new THREE.ConeGeometry(CONE_R, CONE_H, 8, 1, true);
+    geo.translate(0, CONE_H / 2, 0);
+    return geo;
+  }, []);
 
   const mat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: colors.core,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.48,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -65,7 +112,7 @@ export function DroneThrusterFlames({
       new THREE.MeshBasicMaterial({
         color: colors.glow,
         transparent: true,
-        opacity: 0.38,
+        opacity: 0.18,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -77,19 +124,19 @@ export function DroneThrusterFlames({
   useFrame(({ clock }) => {
     const throttle = THREE.MathUtils.clamp(throttleRef?.current ?? 0, 0, 1);
     const t = clock.elapsedTime;
-    const pulse = 0.82 + Math.sin(t * 14) * 0.18;
-    const glowPulse = 0.28 + Math.sin(t * 11) * 0.1;
-    mat.opacity = pulse * (1 + throttle * 0.55);
-    glowMat.opacity = glowPulse * (1 + throttle * 0.65);
+    const pulse = 0.82 + Math.sin(t * 14) * 0.12;
+    const glowPulse = 0.22 + Math.sin(t * 11) * 0.07;
+    mat.opacity = pulse * 0.52 * (1 + throttle * 0.42);
+    glowMat.opacity = glowPulse * 0.48 * (1 + throttle * 0.5);
     for (let i = 0; i < pulseRefs.current.length; i++) {
       const m = pulseRefs.current[i];
       if (m) {
         const s =
           0.92 + Math.sin(t * 18 + i * 1.7) * 0.12 + throttle * 0.22;
-        m.scale.setScalar(s);
+        m.scale.setScalar(s * sizeScale);
       }
     }
-    const lightIntensity = 16 + throttle * 28;
+    const lightIntensity = 8 + throttle * 14;
     const lightReach = 5.5 + throttle * 2.5;
     for (let i = 0; i < lightRefs.current.length; i++) {
       const light = lightRefs.current[i];
@@ -102,14 +149,13 @@ export function DroneThrusterFlames({
 
   return (
     <group>
-      {THRUSTER_LOCAL.map((pos, i) => (
+      {positions.map((pos, i) => (
         <group key={`thruster-${i}`} position={pos}>
           <mesh
             geometry={coneGeo}
             material={glowMat}
-            rotation={FLAME_ROTATION}
-            position={FLAME_OFFSET}
-            scale={[1.55, 1.15, 1.55]}
+            rotation={flameRot}
+            scale={[1.5 * sizeScale, sizeScale, 1.5 * sizeScale]}
             renderOrder={104}
           />
           <mesh
@@ -118,8 +164,7 @@ export function DroneThrusterFlames({
             }}
             geometry={coneGeo}
             material={mat}
-            rotation={FLAME_ROTATION}
-            position={FLAME_OFFSET}
+            rotation={flameRot}
             renderOrder={105}
           />
           <pointLight
@@ -127,10 +172,10 @@ export function DroneThrusterFlames({
               if (el) lightRefs.current[i] = el;
             }}
             color={colors.light}
-            intensity={16}
+            intensity={8}
             distance={5.5}
             decay={2}
-            position={[0, -0.04, 0.14]}
+            position={[0, 0, 0.06]}
           />
         </group>
       ))}

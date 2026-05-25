@@ -3,6 +3,8 @@ import { useRef, useSyncExternalStore } from 'react';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BALL } from '../shared/Constants';
+import { EightBallVisual } from './EightBallVisual';
+import { getPremium8Ball, subscribePremium8Ball } from './premiumBall';
 import {
   getHeldBallReleaseBlend,
   heldBallVisualBridge,
@@ -16,7 +18,7 @@ type LooseBallVisualProps = {
   hidden: boolean;
   surfaceMap: THREE.Texture;
   matRef?: React.RefObject<THREE.MeshStandardMaterial | null>;
-  meshRef?: React.RefObject<THREE.Mesh | null>;
+  meshRef?: React.RefObject<THREE.Group | null>;
 };
 
 const _targetPos = new THREE.Vector3();
@@ -40,8 +42,12 @@ export function LooseBallVisual({
   matRef,
   meshRef: meshRefProp,
 }: LooseBallVisualProps) {
-  const internalMeshRef = useRef<THREE.Mesh>(null);
-  const meshRef = meshRefProp ?? internalMeshRef;
+  const internalGroupRef = useRef<THREE.Group>(null);
+  const meshRef = meshRefProp ?? internalGroupRef;
+  const premium8Ball = useSyncExternalStore(
+    subscribePremium8Ball,
+    getPremium8Ball,
+  );
   const displayReadyRef = useRef(false);
   const wasLocalHeldHiddenRef = useRef(true);
 
@@ -153,17 +159,23 @@ export function LooseBallVisual({
   }, -1);
 
   return (
-    <mesh ref={meshRef} visible={false} frustumCulled={false} castShadow receiveShadow>
-      <sphereGeometry args={[BALL.radius, 16, 14]} />
-      <meshStandardMaterial
-        ref={matRef}
-        map={surfaceMap}
-        color="#c8d8ec"
-        emissive="#5ec8ff"
-        emissiveIntensity={0.22}
-        metalness={0.52}
-        roughness={0.32}
-      />
-    </mesh>
+    <group ref={meshRef} visible={false} frustumCulled={false}>
+      {premium8Ball ? (
+        <EightBallVisual />
+      ) : (
+        <mesh castShadow receiveShadow>
+          <sphereGeometry args={[BALL.radius, 16, 14]} />
+          <meshStandardMaterial
+            ref={matRef}
+            map={surfaceMap}
+            color="#c8d8ec"
+            emissive="#5ec8ff"
+            emissiveIntensity={0.22}
+            metalness={0.52}
+            roughness={0.32}
+          />
+        </mesh>
+      )}
+    </group>
   );
 }

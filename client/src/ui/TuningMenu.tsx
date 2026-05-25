@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { gameStore } from '../game/gameStore';
 import {
   tuningStore,
   TUNING_TABS,
@@ -103,10 +104,35 @@ function SelectRow<T extends string>({
 }
 
 function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tuningStore.getState> }) {
+  const showGoalZones = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().showGoalZoneDebug,
+  );
+  const playerVisualProxy = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().playerVisualProxy,
+  );
+  const showPhysicsBall = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().showPhysicsBall,
+  );
+
   switch (tab) {
     case 'player':
       return (
         <>
+          <ToggleRow
+            label="Smooth player model (proxy)"
+            hint="On = silky follow visual. Off = model locked to physics capsule. Press 4 in-game."
+            checked={playerVisualProxy}
+            onChange={gameStore.setPlayerVisualProxy}
+          />
+          <ToggleRow
+            label="Show physics ball"
+            hint="Shows the real ball mesh instead of the loose proxy. Press 2 in-game."
+            checked={showPhysicsBall}
+            onChange={(v) => gameStore.setShowPhysicsBall(v)}
+          />
           <ToggleRow
             label="WW dash (double-tap W)"
             hint="Off by default. Forward burst when you double-tap W."
@@ -590,6 +616,12 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
     case 'arena':
       return (
         <>
+          <ToggleRow
+            label="Show goal zone volumes"
+            hint="Scoring sensors, shoot zone, and net-finish cylinders (debug only)."
+            checked={showGoalZones}
+            onChange={gameStore.setShowGoalZoneDebug}
+          />
           <SliderRow
             label="Trampoline strength"
             value={tune.trampolineStrength}
@@ -618,6 +650,10 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setMasterVolume}
             format={(v) => `${Math.round(v * 100)}%`}
           />
+          <p className="tuning-sub">
+            Scales all game audio — match music, jumps, fan-glass crowd, shots,
+            impacts, beam, and goal stings (per-sound sliders multiply on top).
+          </p>
           <SliderRow
             label="Shot / launch volume"
             value={tune.shotVolume}

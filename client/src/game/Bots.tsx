@@ -73,8 +73,11 @@ import {
   tickBotRagdoll,
   type BotCombatState,
 } from './botCombat';
-import { tickBotKnockStun } from './rocketKnockStun';
-import { DroneThrusterFlames } from './DroneThrusterFlames';
+import {
+  isBotGoalEjectMoveLocked,
+  tickBotKnockStun,
+} from './rocketKnockStun';
+import { BotDroneThrusters } from './BotDroneVisual';
 import { VelocityPathRibbon } from './VelocityPathRibbon';
 import {
   alignCharacterVisualUpright,
@@ -98,6 +101,9 @@ import {
   modeSprint,
   canAllyBeamLooseBall,
   modeWantsBeam,
+  modeBeamMaxDist,
+  botChasingLooseBall,
+  isBotCloseToLooseBall,
   gatePlayerChaseMode,
   isPlayerChaseMode,
   isBallGrabMode,
@@ -151,7 +157,12 @@ import {
   shouldWaitForTeammateShot,
   type BotTeamReleaseKind,
 } from './botTeamRelease';
-import { isInsideShootZone } from './botShootZone';
+import {
+  applyBotIdleWanderNudge,
+  botModeUsesIdleWander,
+  createBotIdleWanderState,
+} from './botIdleWander';
+import { isInsideNetFinishZone, isInsideShootZone } from './botShootZone';
 import {
   getKickoffBallAimPoint,
   beginKickoffAllyOopReturnHome,
@@ -168,6 +179,7 @@ import {
   kickoffContestShouldDoubleJump,
   kickoffContestShouldJump,
   kickoffContestSprintSpeed,
+  kickoffContestWantsDoubleJump,
   pickKickoffContestMoveTarget,
   tickKickoffState,
 } from './botKickoff';
@@ -184,6 +196,7 @@ import {
   pickBotGoalOffenseMoveTarget,
   pickBotStyledLaunchTarget,
   rollBotShotStyle,
+  rollNetFinishShotStyle,
   type BotShotStyle,
 } from './botGoalOffense';
 import { gameStore, type BallHolderId } from './gameStore';
@@ -580,7 +593,12 @@ function botFireRocket(
   lookDir: THREE.Vector3,
   onRocketFired: (rocket: ActiveRocket) => void,
   explosive = true,
-) {
+  rocketCooldownUntil?: React.MutableRefObject<number>,
+): boolean {
+  const now = performance.now();
+  if (rocketCooldownUntil && now < rocketCooldownUntil.current) {
+    return false;
+  }
   _launchSpawn.copy(chest).addScaledVector(lookDir, 1.2);
   const lv = body.linvel();
   onRocketFired(
@@ -593,6 +611,11 @@ function botFireRocket(
       BOT.rocketSpeedScale,
     ),
   );
+  if (rocketCooldownUntil) {
+    rocketCooldownUntil.current =
+      now + BOT.botRocketFireCooldownSec * 1000;
+  }
+  return true;
 }
 
 function executeBotHoldRelease(
@@ -684,6 +707,7 @@ function getNearestOtherBotPosition(
   bot: BotRuntime,
   allBots: BotRuntime[],
   out: THREE.Vector3,
+  sameTeamOnly = false,
 ): THREE.Vector3 | null {
   const self = bot.bodyRef.current;
   if (!self) return null;
@@ -692,6 +716,7 @@ function getNearestOtherBotPosition(
   let found = false;
   for (const other of allBots) {
     if (other.id === bot.id) continue;
+    if (sameTeamOnly && other.team !== bot.team) continue;
     const body = other.bodyRef.current;
     if (!body) continue;
     const t = body.translation();
@@ -839,10 +864,17 @@ function BotAvatar({
   const setupEnterSec = useRef(0);
   const modeRef = useRef<BotMode>('runToBall');
   const allyDunkCatchHold = useRef(false);
+  const allyDunkPostWaitSince = useRef(0);
   const groundJumpTimer = useRef(staggerTimer(bot.id, BOT.groundJumpIntervalSec));
   const kickoffContestJumpTimer = useRef(
     staggerTimer(bot.id, BOT.kickoffContestJumpIntervalSec),
   );
+  const kickoffOopJumpTimer = useRef(
+    staggerTimer(bot.id, BOT.kickoffAllyOopJumpIntervalSec),
+  );
+  const postIdleWander = useRef(createBotIdleWanderState(0, 0));
+  const rocketFireCooldownUntil = useRef(0);
+  const ballCloseShootRollCooldown = useRef(0);
   const passCooldown = useRef(0);
   const holdFarAction = useRef<BotFarHoldAction | null>(null);
   const holdFarActionTimer = useRef(0);
@@ -1086,6 +1118,50 @@ function BotAvatar({
     knockStunWasActive.current = false;
 
     const tune = tuningStore.getState();
+    if (isBotGoalEjectMoveLocked(bot.combat)) {
+      airGrace.current = Math.max(0, airGrace.current - dt);
+      const t = body.translation();
+      _pos.set(t.x, t.y, t.z);
+      _chest.set(t.x, t.y + BEAM.chestHeight, t.z);
+      const linvel = body.linvel();
+      let vy = linvel.y + tune.gravity * dt;
+      if (
+        tickGoalEntryCharacterBounce(
+          body,
+          _pos.x,
+          _pos.y + BEAM.chestHeight * 0.35,
+          _pos.z,
+          PLAYER_RIM_PROBE_RADIUS,
+          tune.gravity,
+          goalNetCooldown,
+          goalRimCooldown,
+          dt,
+          'bot',
+          bot.combat,
+        )
+      ) {
+        vy = body.linvel().y;
+        airGrace.current = Math.max(airGrace.current, 0.2);
+      }
+      body.setLinvel({ x: linvel.x, y: vy, z: linvel.z }, true);
+      softenHexBoundaryVelocity(_pos, velocity.current);
+      velocity.current.set(body.linvel().x, vy, body.linvel().z);
+      alignCharacterVisualUpright(
+        body,
+        {
+          visual: visualRef.current,
+          tilt: tiltRef.current,
+          bob: bobRef.current,
+          pitchSmooth,
+          bobPhase,
+        },
+        yaw.current,
+        knockTumble.current,
+        pitch.current,
+      );
+      return;
+    }
+
     const botScalars = getBotPressureScalars();
     airGrace.current = Math.max(0, airGrace.current - dt);
     const t = body.translation();
@@ -1191,16 +1267,9 @@ function BotAvatar({
         holderChestOop !== null && holderOop !== null && holderOop !== bot.id;
       const playerPassToRim =
         holderOop === 'local' && teammateHasBall;
-      const distGoalOop = getDistToBottomRingMouth(
-        _chest.x,
-        _chest.y,
-        _chest.z,
-        bot.team,
-      );
-      const atRim =
-        distGoalOop <= BOT.allyDunkPrepDist && distSpot < BOT.kickoffAllyOopSpotRadius;
+      const atOopPost = distSpot <= BOT.kickoffAllyOopArriveDist;
 
-      if (atRim) {
+      if (atOopPost) {
         noteKickoffAllyOopAtRim(bot.id, nowSecKick);
       }
       if (kickoffAllyOopPassWaitExceeded(bot.id, nowSecKick)) {
@@ -1208,8 +1277,19 @@ function BotAvatar({
         return;
       }
 
+      if (atOopPost) {
+        applyBotIdleWanderNudge(
+          postIdleWander.current,
+          _pos.x,
+          _pos.z,
+          feetY,
+          _moveTarget,
+          dt,
+        );
+      }
+
       const oopSpeed =
-        (atRim && teammateHasBall ? BOT.walkSpeed : BOT.sprintSpeed) *
+        (atOopPost && teammateHasBall ? BOT.walkSpeed * 0.85 : BOT.sprintSpeed) *
         tune.botWalkSpeedScale;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
@@ -1222,26 +1302,57 @@ function BotAvatar({
         BOT.groundAccel * dt,
       );
 
-      getKickoffBallAimPoint(_kickoffAim);
-      if (teammateHasBall && holderChestOop) {
-        _kickoffAim.set(holderChestOop.x, holderChestOop.y + 1.2, holderChestOop.z);
+      const ballOopBody = ballBodyRef.current;
+      if (ballOopBody) {
+        const bt = ballOopBody.translation();
+        _kickoffAim.set(bt.x, bt.y, bt.z);
+      } else {
+        getKickoffBallAimPoint(_kickoffAim);
       }
-      smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt);
+      if (teammateHasBall && holderChestOop) {
+        _kickoffAim.lerp(holderChestOop, 0.35);
+        _kickoffAim.y = holderChestOop.y + 1.2;
+      }
+      smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt, BOT.aimSmoothing * 1.1);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
 
+      const oopJumpState: BotJumpState = {
+        grounded,
+        jumpsLeft,
+        airGrace,
+        velocity,
+        groundJumpTimer: kickoffOopJumpTimer,
+        doubleJumpDelay,
+        doubleJumpPending,
+      };
+      const ballHigh = _kickoffAim.y > _chest.y + 1.5;
       let vyOop = linvelOop.y;
+      const oopHopVy = tickBotJumpCycle(
+        dt,
+        body,
+        feetY,
+        linvelOop,
+        tune,
+        BOT.kickoffAllyOopJumpIntervalSec,
+        oopJumpState,
+        atOopPost || distSpot < 4,
+        atOopPost ? BOT.kickoffAllyOopJumpChance : BOT.kickoffAllyOopJumpChance * 0.45,
+      );
+      if (oopHopVy !== null) vyOop = oopHopVy;
+
       if (
         grounded.current &&
         jumpsLeft.current > 0 &&
-        teammateHasBall &&
-        atRim &&
+        atOopPost &&
         (playerPassToRim ||
-          Math.random() < BOT.allyDunkPreJumpChance * dt * 3.2 ||
-          Math.random() < BOT.kickoffAllyOopJumpChance)
+          ballHigh ||
+          Math.random() < BOT.allyDunkPreJumpChance * dt * 2.5)
       ) {
         const jumpScale = playerPassToRim
           ? BOT.allyDunkCatchJumpScale
-          : BOT.dunkJumpForceScale;
+          : ballHigh
+            ? BOT.dunkJumpForceScale * 1.05
+            : BOT.dunkJumpForceScale;
         vyOop = botApplyJump(
           body,
           feetY,
@@ -1252,37 +1363,27 @@ function BotAvatar({
           grounded,
           jumpsLeft,
         );
-        doubleJumpPending.current = jumpsLeft.current > 0;
+        doubleJumpPending.current =
+          jumpsLeft.current > 0 &&
+          (playerPassToRim || ballHigh || Math.random() < 0.7);
         if (doubleJumpPending.current) {
-          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.55;
+          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.5;
         }
-      } else if (
-        grounded.current &&
-        jumpsLeft.current > 0 &&
-        !atRim &&
-        distSpot < 3 &&
-        Math.random() < 0.08 * dt * 3
-      ) {
-        vyOop = botApplyJump(
-          body,
-          feetY,
-          tune.jumpForce * 0.9,
-          linvelOop,
-          velocity,
-          airGrace,
-          grounded,
-          jumpsLeft,
-        );
       }
 
-      if (doubleJumpPending.current && airGrace.current > 0.12) {
+      if (doubleJumpPending.current && airGrace.current > 0.1) {
         doubleJumpDelay.current -= dt;
-        if (doubleJumpDelay.current <= 0 && jumpsLeft.current > 0) {
+        if (
+          doubleJumpDelay.current <= 0 &&
+          jumpsLeft.current > 0 &&
+          (_kickoffAim.y > _chest.y + 1.2 || playerPassToRim)
+        ) {
           doubleJumpPending.current = false;
           vyOop = botApplyJump(
             body,
             feetY,
-            tuningStore.getDoubleJumpForce(),
+            tuningStore.getDoubleJumpForce() *
+              (playerPassToRim ? BOT.allyDunkCatchJumpScale : 1),
             linvelOop,
             velocity,
             airGrace,
@@ -1388,11 +1489,7 @@ function BotAvatar({
       beamPullActive.current = false;
       getKickoffBallAimPoint(_kickoffAim);
       pickKickoffContestMoveTarget(bot.id, feetY, _kickoffAim, _moveTarget);
-      _wish.set(
-        _moveTarget.x - _pos.x,
-        _moveTarget.y - _pos.y,
-        _moveTarget.z - _pos.z,
-      );
+      _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
       const distDrop = _wish.length();
       if (distDrop > 0.05) _wish.normalize();
 
@@ -1426,12 +1523,31 @@ function BotAvatar({
         _chest.z,
         _kickoffAim,
       );
-      const gapToBall = _kickoffAim.y - _chest.y;
-
       let vyKick = linvelKick.y;
-      kickoffContestJumpTimer.current -= dt;
+      const contestJumpState: BotJumpState = {
+        grounded,
+        jumpsLeft,
+        airGrace,
+        velocity,
+        groundJumpTimer: kickoffContestJumpTimer,
+        doubleJumpDelay,
+        doubleJumpPending,
+      };
+      const contestMoving = distDrop > 0.35 || horizToAim > 2.5;
+      const hopVy = tickBotJumpCycle(
+        dt,
+        body,
+        feetY,
+        linvelKick,
+        tune,
+        BOT.kickoffContestJumpIntervalSec,
+        contestJumpState,
+        contestMoving,
+        BOT.kickoffContestJumpChance,
+      );
+      if (hopVy !== null) vyKick = hopVy;
+
       if (
-        kickoffContestJumpTimer.current <= 0 &&
         kickoffContestShouldJump(
           _chest.y,
           _kickoffAim.y,
@@ -1440,8 +1556,6 @@ function BotAvatar({
           jumpsLeft.current,
         )
       ) {
-        kickoffContestJumpTimer.current =
-          BOT.kickoffContestJumpIntervalSec * (0.75 + Math.random() * 0.4);
         vyKick = botApplyJump(
           body,
           feetY,
@@ -1452,13 +1566,12 @@ function BotAvatar({
           grounded,
           jumpsLeft,
         );
-        doubleJumpPending.current = kickoffContestShouldDoubleJump(
-          _chest.y,
-          _kickoffAim.y,
-          horizToAim,
-        );
-        if (doubleJumpPending.current) {
-          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.32;
+        if (
+          kickoffContestShouldDoubleJump(_chest.y, _kickoffAim.y, horizToAim) &&
+          kickoffContestWantsDoubleJump()
+        ) {
+          doubleJumpPending.current = true;
+          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.28;
         }
       }
 
@@ -1483,15 +1596,6 @@ function BotAvatar({
         }
       } else if (grounded.current && airGrace.current <= 0.06) {
         doubleJumpPending.current = false;
-      }
-
-      if (
-        !grounded.current &&
-        horizToAim < BOT.kickoffContestReachHorizM &&
-        gapToBall > 2.5 &&
-        vyKick < 6
-      ) {
-        vyKick += BOT.kickoffContestClimbAccel * dt;
       }
 
       vyKick += tune.gravity * dt;
@@ -1539,7 +1643,12 @@ function BotAvatar({
 
     const ballState = gs.ballState;
 
-    const otherBotPos = getNearestOtherBotPosition(bot, allBots, _otherBotPos);
+    const otherBotPos = getNearestOtherBotPosition(
+      bot,
+      allBots,
+      _otherBotPos,
+      !isEnemyBot,
+    );
     const linvel = body.linvel();
     updateBotGrounded(
       _pos.y,
@@ -1610,8 +1719,14 @@ function BotAvatar({
       }
 
       const inShootZone = isInsideShootZone(_pos.x, _pos.z, bot.team);
+      const inNetFinish = isInsideNetFinishZone(
+        _chest.x,
+        _chest.y,
+        _chest.z,
+        bot.team,
+      );
       const nearGoal =
-        inShootZone || distGoal <= BOT.goalQuickShotDist;
+        inShootZone || inNetFinish || distGoal <= BOT.goalQuickShotDist;
 
       const prevHoldPhase = holdPhase.current;
       holdPhase.current = updateHoldPhase(
@@ -1621,12 +1736,19 @@ function BotAvatar({
         setupJumped.current,
         setupEnterSec.current,
         inShootZone,
+        null,
+        inNetFinish,
       );
       if (holdPhase.current === 'setup' && prevHoldPhase === 'advance') {
         setupEnterSec.current = holdTimer.current;
         setupJumped.current = false;
         setupDoubleJumped.current = false;
-        shotStyle.current = rollBotShotStyle(inShootZone, distGoal);
+        shotStyle.current = inNetFinish
+          ? rollNetFinishShotStyle()
+          : rollBotShotStyle(inShootZone, distGoal);
+      }
+      if (inNetFinish && shotStyle.current === 'normal' && holdTimer.current < 0.2) {
+        shotStyle.current = rollNetFinishShotStyle();
       }
 
       if (modeRef.current === 'allyDunk') {
@@ -1638,6 +1760,7 @@ function BotAvatar({
         hasTeammate,
         holdReleasePlan.current,
         allyDunkCatchHold.current,
+        inNetFinish,
       );
 
       let releaseKind = resolveTimedBotHoldRelease(
@@ -1646,20 +1769,42 @@ function BotAvatar({
         inShootZone,
         holdReleasePlan.current,
         distGoal,
+        inNetFinish,
       );
+      const dunkTryExpired =
+        shotStyle.current === 'dunk' &&
+        holdTimer.current >= BOT.dunkTryMaxSec;
+      if (dunkTryExpired && !releaseKind) {
+        releaseKind = 'shoot';
+      }
       if (holdPhase.current === 'shoot') {
-        releaseKind =
-          distGoal > BOT.farHoldLoftMinDist &&
-          Math.random() < BOT.farHoldLoftShotChance
+        releaseKind = inNetFinish
+          ? 'shoot'
+          : distGoal > BOT.farHoldLoftMinDist &&
+              Math.random() < BOT.farHoldLoftShotChance
             ? 'loft'
             : 'shoot';
       }
       if (
+        inNetFinish &&
         releaseKind &&
         shotStyle.current === 'dunk' &&
         !setupJumped.current
       ) {
+        shotStyle.current = 'jam';
+      }
+      if (
+        releaseKind &&
+        shotStyle.current === 'dunk' &&
+        !setupJumped.current &&
+        !dunkTryExpired &&
+        !inNetFinish
+      ) {
         releaseKind = null;
+      }
+      if (dunkTryExpired && releaseKind === 'shoot') {
+        shotStyle.current =
+          distGoal <= BOT.goalJamMaxDist ? 'jam' : 'normal';
       }
 
       if (releaseKind) {
@@ -1760,7 +1905,7 @@ function BotAvatar({
       const mode = pickBotMode(think);
       modeRef.current = mode;
       pickMoveTarget(mode, think, _moveTarget);
-      if (nearGoal || inShootZone) {
+      if (nearGoal || inShootZone || inNetFinish) {
         pickBotGoalOffenseMoveTarget(
           bot.team,
           shotStyle.current,
@@ -1773,6 +1918,7 @@ function BotAvatar({
       clampMoveTargetFromBackWall(_moveTarget, bot.team);
       const dribbleToTeammate =
         !nearGoal &&
+        !inNetFinish &&
         (mode === 'carryToGoal' || mode === 'setupShot') &&
         holdCarryFocus.current === 'teammate' &&
         teammateChest;
@@ -1782,7 +1928,11 @@ function BotAvatar({
         clampMoveTargetFromBackWall(_moveTarget, bot.team);
       }
       carryLookState.current.preferTeammateLook =
-        !nearGoal && holdCarryFocus.current === 'teammate';
+        !nearGoal && !inNetFinish && holdCarryFocus.current === 'teammate';
+      if (inNetFinish) {
+        holdCarryFocus.current = 'goal';
+        holdReleasePlan.current = 'shoot';
+      }
       updateCarryLook(
         carryLookState.current,
         mode as 'carryToGoal' | 'setupShot' | 'shootGoal',
@@ -1934,6 +2084,8 @@ function BotAvatar({
           goalNetCooldown,
           goalRimCooldown,
           dt,
+          'bot',
+          bot.combat,
         )
       ) {
         velocity.current.set(body.linvel().x, body.linvel().y, body.linvel().z);
@@ -2091,6 +2243,26 @@ function BotAvatar({
     if (mode === 'allyDunk' && !teamAllyDunkPoster) {
       mode = holderNearGoal ? 'allyReceive' : 'allySupport';
     }
+    if (mode === 'allyDunk' && !iHold && !holder) {
+      const distPost = Math.hypot(
+        _moveTarget.x - _pos.x,
+        _moveTarget.z - _pos.z,
+      );
+      if (distPost <= BOT.allyDunkPostArriveM) {
+        if (allyDunkPostWaitSince.current <= 0) {
+          allyDunkPostWaitSince.current = nowSec;
+        } else if (
+          nowSec - allyDunkPostWaitSince.current >= BOT.allyDunkPassWaitSec
+        ) {
+          mode = 'allyReceive';
+          allyDunkPostWaitSince.current = 0;
+        }
+      } else {
+        allyDunkPostWaitSince.current = 0;
+      }
+    } else {
+      allyDunkPostWaitSince.current = 0;
+    }
     if (
       isEnemyBot &&
       !retaliating &&
@@ -2131,6 +2303,16 @@ function BotAvatar({
         );
       }
     }
+    if (botModeUsesIdleWander(mode, giveShootZoneSpace)) {
+      applyBotIdleWanderNudge(
+        postIdleWander.current,
+        _pos.x,
+        _pos.z,
+        feetY,
+        _moveTarget,
+        dt,
+      );
+    }
     if (retaliating) {
       applyBotRetaliationAim(
         _chest,
@@ -2165,7 +2347,15 @@ function BotAvatar({
       ) {
         snapBotRetaliationAim(yaw, pitch, _chest, _lookTarget);
         writeLookDirection(yaw.current, pitch.current, _lookDir);
-        botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired, true);
+        botFireRocket(
+          bot.id,
+          body,
+          _chest,
+          _lookDir,
+          onRocketFired,
+          true,
+          rocketFireCooldownUntil,
+        );
       }
 
       if (!isBotRetaliationActive(bot.retaliation, nowSec)) {
@@ -2206,7 +2396,15 @@ function BotAvatar({
         );
         smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing);
         writeBotRocketLook(yaw, pitch, _lookDir);
-        botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired);
+        botFireRocket(
+          bot.id,
+          body,
+          _chest,
+          _lookDir,
+          onRocketFired,
+          true,
+          rocketFireCooldownUntil,
+        );
       }
     }
 
@@ -2236,7 +2434,15 @@ function BotAvatar({
           );
           smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing);
           writeBotRocketLook(yaw, pitch, _lookDir);
-          botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired, false);
+          botFireRocket(
+            bot.id,
+            body,
+            _chest,
+            _lookDir,
+            onRocketFired,
+            false,
+            rocketFireCooldownUntil,
+          );
           firedFollowRocket = true;
         } else if (
           followRocketTimer.current <= 0 &&
@@ -2253,7 +2459,15 @@ function BotAvatar({
           );
           smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing);
           writeBotRocketLook(yaw, pitch, _lookDir);
-          botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired, true);
+          botFireRocket(
+          bot.id,
+          body,
+          _chest,
+          _lookDir,
+          onRocketFired,
+          true,
+          rocketFireCooldownUntil,
+        );
           firedFollowRocket = true;
         }
 
@@ -2276,15 +2490,29 @@ function BotAvatar({
       pickAllySaveBallTarget(_ballPos, _ballVel, _shootTarget);
       smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing);
       writeBotRocketLook(yaw, pitch, _lookDir);
-      botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired);
+      botFireRocket(
+        bot.id,
+        body,
+        _chest,
+        _lookDir,
+        onRocketFired,
+        true,
+        rocketFireCooldownUntil,
+      );
     }
 
     projectileTimer.current -= dt;
     const allySupport = !isEnemyBot && holder === 'local';
+    const allyContestingLooseBall =
+      !isEnemyBot &&
+      !holder &&
+      !iHold &&
+      distBall < BEAM.range * 1.15;
     if (
       !isEnemyBot &&
       projectileTimer.current <= 0 &&
       !allySupport &&
+      !allyContestingLooseBall &&
       !iHold
     ) {
       projectileTimer.current = BOT.periodicProjectileIntervalSec;
@@ -2308,14 +2536,62 @@ function BotAvatar({
         }
         smoothAimToward(yaw, pitch, _chest, _shootTarget, dt);
         writeBotRocketLook(yaw, pitch, _lookDir);
-        botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired);
+        botFireRocket(
+          bot.id,
+          body,
+          _chest,
+          _lookDir,
+          onRocketFired,
+          true,
+          rocketFireCooldownUntil,
+        );
+      }
+    }
+
+    const closeLooseBall =
+      !!ball &&
+      holder === null &&
+      !iHold &&
+      botChasingLooseBall(mode) &&
+      isBotCloseToLooseBall(distBall);
+
+    let closeGrabShot = false;
+    ballCloseShootRollCooldown.current = Math.max(
+      0,
+      ballCloseShootRollCooldown.current - dt,
+    );
+    if (
+      closeLooseBall &&
+      ballCloseShootRollCooldown.current <= 0
+    ) {
+      ballCloseShootRollCooldown.current =
+        BOT.botBallCloseShootRollCooldownSec;
+      if (Math.random() < BOT.botBallCloseShootChance) {
+        _shootTarget.copy(_ballPos);
+        smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing);
+        writeBotRocketLook(yaw, pitch, _lookDir);
+        closeGrabShot = botFireRocket(
+          bot.id,
+          body,
+          _chest,
+          _lookDir,
+          onRocketFired,
+          true,
+          rocketFireCooldownUntil,
+        );
       }
     }
 
     _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
     if (_wish.lengthSq() > 0.01) _wish.normalize();
+    if (closeLooseBall) {
+      _wish.set(_ballPos.x - _pos.x, 0, _ballPos.z - _pos.z);
+      if (_wish.lengthSq() > 0.01) _wish.normalize();
+    }
     if (
-      (mode === 'attractBall' || mode === 'runToBall') &&
+      (mode === 'attractBall' ||
+        mode === 'runToBall' ||
+        mode === 'allyDunk') &&
       !holder &&
       !iHold
     ) {
@@ -2323,9 +2599,14 @@ function BotAvatar({
         _moveTarget.x - _pos.x,
         _moveTarget.z - _pos.z,
       );
+      const arriveM =
+        mode === 'allyDunk'
+          ? BOT.allyDunkPostArriveM
+          : BOT.ballApproachArriveM;
       if (
-        mode === 'attractBall' &&
-        distApproach < BOT.ballApproachArriveM
+        (mode === 'attractBall' || mode === 'allyDunk') &&
+        distApproach < arriveM &&
+        !closeLooseBall
       ) {
         _wish.set(0, 0, 0);
       }
@@ -2498,6 +2779,8 @@ function BotAvatar({
         goalNetCooldown,
         goalRimCooldown,
         dt,
+        'bot',
+        bot.combat,
       )
     ) {
       velocity.current.set(body.linvel().x, body.linvel().y, body.linvel().z);
@@ -2514,15 +2797,26 @@ function BotAvatar({
       isEnemyBot ||
       canAllyBeamLooseBall(holder, _ballPos, _ballVel);
 
+    const forceCloseGrab =
+      closeLooseBall &&
+      !closeGrabShot &&
+      !waitForTeammateShot &&
+      !giveShootZoneSpace &&
+      allyBeamOk &&
+      !beamLocked &&
+      !ballGrabLocked &&
+      !regrabLocked &&
+      !denyHere &&
+      energy.current > ENERGY.minBeam;
+
     const beaming =
       !!ball &&
       holder === null &&
       !waitForTeammateShot &&
       !giveShootZoneSpace &&
       allyBeamOk &&
-      modeWantsBeam(mode) &&
-      distBall < BEAM.range &&
-      distBall <= BALL.radius * BOT.ballAttractBallRadii &&
+      (forceCloseGrab ||
+        (modeWantsBeam(mode) && distBall <= modeBeamMaxDist(mode))) &&
       !beamLocked &&
       !ballGrabLocked &&
       !regrabLocked &&
@@ -2557,8 +2851,14 @@ function BotAvatar({
           recordBeamPull(bot.team, pull.pullWeight);
         }
         botBeamCaptureT.current += dt;
+        const beamLatchSec = closeLooseBall
+          ? Math.min(
+              tune.botBeamCaptureLatchSec,
+              BOT.botCloseGrabBeamLatchSec,
+            )
+          : tune.botBeamCaptureLatchSec;
         if (
-          botBeamCaptureT.current >= tune.botBeamCaptureLatchSec &&
+          botBeamCaptureT.current >= beamLatchSec &&
           canCaptureWithContest(
             bot.team,
             pull.analysis,
@@ -2676,9 +2976,9 @@ function BotAvatar({
             <group ref={bobRef}>
               <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
                 <PlayerAvatar rotationY={0} team={bot.team} />
-                <DroneThrusterFlames team={bot.team} />
                 <TeamOrb team={bot.team} combat={bot.combat} />
               </group>
+              <BotDroneThrusters team={bot.team} />
             </group>
           </group>
         </group>

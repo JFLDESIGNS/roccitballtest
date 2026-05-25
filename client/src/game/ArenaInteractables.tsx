@@ -23,7 +23,7 @@ const BILLBOARD_RESTITUTION = BALL.restitution * 0.45;
 function BillboardPanel({ mount }: { mount: WallMount }) {
   const w = ARENA_PADS.billboardWidthM;
   const h = ARENA_PADS.billboardHeightM;
-  const logoSize = Math.min(w, h) * 0.72;
+  const logoSize = Math.min(w, h) * 0.8;
   const frameDepth = 0.14;
   const screenW = w * 0.94;
   const screenH = h * 0.94;
@@ -127,7 +127,7 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
 
   return (
     <group position={[pad.x, 0, pad.z]}>
-      <mesh position={[0, stemCenterY, 0]} receiveShadow castShadow>
+      <mesh position={[0, stemCenterY, 0]} receiveShadow castShadow={false}>
         <cylinderGeometry args={[stemTopR, stemBotR, stemH, 8]} />
         <meshStandardMaterial
           color="#2a3a52"
@@ -141,7 +141,13 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
         rotation={[-Math.PI / 2, 0, 0]}
       >
         <ringGeometry args={[r * 0.82, stemTopR * 0.88, 32]} />
-        <meshBasicMaterial color="#dde8ff" toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial
+          color="#6a7a8a"
+          transparent
+          opacity={0.35}
+          toneMapped={false}
+          side={THREE.DoubleSide}
+        />
       </mesh>
       <RigidBody
         type="fixed"
@@ -157,14 +163,14 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
       </RigidBody>
-      <mesh position={[0, stoneTopY + deckH * 0.5, 0]} castShadow receiveShadow>
+      <mesh position={[0, stoneTopY + deckH * 0.5, 0]} castShadow={false} receiveShadow>
         <cylinderGeometry args={[r, r, deckH, 32]} />
         <meshStandardMaterial
-          color="#55eeff"
-          emissive="#22bbff"
-          emissiveIntensity={1.15}
-          metalness={0.12}
-          roughness={0.35}
+          color="#3d6d7a"
+          emissive="#1a4a58"
+          emissiveIntensity={0.32}
+          metalness={0.1}
+          roughness={0.55}
         />
       </mesh>
       <mesh
