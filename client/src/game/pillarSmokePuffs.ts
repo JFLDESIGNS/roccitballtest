@@ -1,5 +1,5 @@
 import { ARENA } from '../shared/Constants';
-import { ARENA_PILLAR, pillarSurfaceRadiusAtY } from './arenaPillars';
+import { ARENA_PILLAR, pillarSurfaceRadiusAtY } from './arenaPillarConfig';
 
 export type PillarSmokeSphere = {
   x: number;

@@ -597,6 +597,24 @@ body,
   z-index: 10;
 }
 
+.debug-freelook-hint {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 50;
+  max-width: min(420px, 92vw);
+  padding: 8px 14px;
+  background: rgba(12, 18, 28, 0.88);
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  border-radius: 4px;
+  color: #b8e8ff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
 .ball-boundary-help {
   position: fixed;
   top: 12px;
@@ -1009,6 +1027,78 @@ body,
   object-fit: contain;
   filter: drop-shadow(0 0 42px rgba(130, 190, 255, 0.75))
     drop-shadow(0 0 80px rgba(70, 130, 255, 0.45));
+}
+
+.arena-load {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  background: #06101c;
+  overflow: hidden;
+}
+
+.arena-load-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 38%,
+    rgba(70, 120, 220, 0.22) 0%,
+    rgba(12, 24, 48, 0.45) 50%,
+    rgba(4, 10, 20, 0.94) 78%
+  );
+  pointer-events: none;
+}
+
+.arena-load-body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 2.5rem;
+  box-sizing: border-box;
+}
+
+.arena-load-logo {
+  width: min(72vw, 380px);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 42px rgba(130, 190, 255, 0.75))
+    drop-shadow(0 0 80px rgba(70, 130, 255, 0.45));
+}
+
+.arena-load-bar-wrap {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.arena-load-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3a7bd5, #6ec6ff);
+  box-shadow: 0 0 12px rgba(110, 198, 255, 0.55);
+  transition: width 0.15s ease-out;
+}
+
+.arena-load-status {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #b8d4f0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hud-countdown {

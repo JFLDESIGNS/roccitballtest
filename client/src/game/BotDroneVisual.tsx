@@ -58,14 +58,17 @@ export function BotDroneThrusters({
 export function PlayerDroneThrusters({
   team,
   throttleRef,
+  jumpBoostRef,
 }: {
   team: Team;
   throttleRef?: RefObject<number>;
+  jumpBoostRef?: RefObject<number>;
 }) {
   return (
     <DroneThrusterFlames
       team={team}
       throttleRef={throttleRef}
+      jumpBoostRef={jumpBoostRef}
       offsetUpIn={BOT_THRUSTER_OFFSET_UP_IN}
       offsetBackIn={BOT_THRUSTER_OFFSET_BACK_IN}
       forwardPitchDeg={PLAYER_FLAME_FORWARD_PITCH_DEG}

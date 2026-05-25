@@ -121,6 +121,7 @@ import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
+const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -198,6 +199,10 @@ export function Player({
     gameStore.subscribe,
     () => gameStore.getState().playerVisualProxy,
   );
+  const debugFreelook = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().debugFreelook,
+  );
   const bodyRef = useRef<RapierRigidBody>(null);
   const visualRef = useRef<THREE.Group>(null);
   const tiltRef = useRef<THREE.Group>(null);
@@ -209,6 +214,7 @@ export function Player({
   const knockStunWasActive = useRef(false);
   const camSpeedExtra = useRef(0);
   const thrusterThrottle = useRef(0);
+  const thrusterJumpBoost = useRef(0);
   const { camera } = useThree();
   const { world } = useRapier();
   const velocity = useRef(new THREE.Vector3());
@@ -364,6 +370,7 @@ export function Player({
     const ball = ballBodyRef.current;
     if (!body) return;
     const gs = gameStore.getState();
+    if (gs.debugFreelook) return;
     if (gs.phase !== 'playing' && gs.phase !== 'countdown') {
       return;
     }
@@ -428,9 +435,33 @@ export function Player({
     }
   });
 
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const col = body.collider(0);
+    if (!col) return;
+    if (debugFreelook) {
+      col.setCollisionGroups(PLAYER_DEBUG_NOCLIP);
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    } else {
+      const carrying =
+        holdingBall.current || gameStore.getState().ballHolderId === 'local';
+      col.setCollisionGroups(
+        carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+      );
+    }
+  }, [debugFreelook]);
+
   useFrame((_, dt) => {
     const body = bodyRef.current;
     if (!body) return;
+
+    if (debugFreelook) {
+      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
 
     const carryingBall =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
@@ -465,6 +496,7 @@ export function Player({
       cameraSnapped.current = false;
       camSpeedExtra.current = 0;
       thrusterThrottle.current = 0;
+      thrusterJumpBoost.current = 0;
       clearKnockVisualTumble(knockTumble.current);
       pitchSmooth.current = 0;
     }
@@ -675,6 +707,9 @@ export function Player({
       16,
       24,
     );
+    if (thrusterJumpBoost.current > 0) {
+      thrusterJumpBoost.current = Math.max(0, thrusterJumpBoost.current - dt / 0.38);
+    }
 
     const locked = inputManager.isPointerLocked();
     if (!locked) cameraSnapped.current = false;
@@ -843,6 +878,7 @@ export function Player({
     if (!goalEjectMoveLocked && jumpsLeft.current > 0 && inputManager.consumeJump()) {
       const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
       gameStore.bumpPlayerHatPop();
+      thrusterJumpBoost.current = 1;
       playJump(jumpIndex);
       vy = tuningStore.getJumpImpulse(jumpIndex);
       jumpsLeft.current -= 1;
@@ -862,7 +898,7 @@ export function Player({
         true,
       );
     }
-    vy += tune.gravity * dt;
+    vy = tuningStore.integrateGravity(vy, dt);
 
     velocity.current.y = vy;
     const feetNow = playerFeetY(pos.y);
@@ -1481,11 +1517,15 @@ export function Player({
   );
 
   const playerThrusters = (
-    <PlayerDroneThrusters team={localTeam} throttleRef={thrusterThrottle} />
+    <PlayerDroneThrusters
+      team={localTeam}
+      throttleRef={thrusterThrottle}
+      jumpBoostRef={thrusterJumpBoost}
+    />
   );
 
   return (
-    <>
+    <group visible={!debugFreelook}>
       <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
       <PlayerMotionRibbons bodyRef={bodyRef} />
       {playerVisualProxy ? (
@@ -1535,6 +1575,6 @@ export function Player({
         jerseyNumber={getJerseyNumber('local')}
         fillColor="#b8f4ff"
       />
-    </>
+    </group>
   );
 }

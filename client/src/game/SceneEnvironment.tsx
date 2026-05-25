@@ -1,7 +1,8 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
+import { getArenaEnvMap } from './arenaEnvMap';
 import { graphicsStore } from './graphicsStore';
 
 /** Applies fog, exposure, and tone mapping from graphics settings */
@@ -11,13 +12,26 @@ export function SceneEnvironment() {
     graphicsStore.getState,
   );
   const { gl, scene } = useThree();
+  const pmremRef = useRef<THREE.PMREMGenerator | null>(null);
 
   const brightness = gfx.arenaBrightness ?? 1.35;
 
   useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    pmrem.compileCubemapShader();
+    scene.environment = pmrem.fromCubemap(getArenaEnvMap()).texture;
+    pmremRef.current = pmrem;
+    return () => {
+      scene.environment = null;
+      pmrem.dispose();
+      pmremRef.current = null;
+    };
+  }, [gl, scene]);
+
+  useEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    const sky = new THREE.Color('#4a5f78').lerp(
-      new THREE.Color('#8aa4c8'),
+    const sky = new THREE.Color('#5eb8f4').lerp(
+      new THREE.Color('#8fd4ff'),
       Math.min(1, (brightness - 0.4) / 1.6),
     );
     gl.toneMappingExposure = gfx.exposure * brightness;

@@ -173,6 +173,16 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             step={0.5}
             onChange={tuningStore.setGravity}
           />
+          <SliderRow
+            label="Fall speed"
+            hint="Only affects downward motion — jump height and pads stay the same. 2× = heavier drop."
+            value={tune.fallGravityMult}
+            min={1}
+            max={4}
+            step={0.1}
+            onChange={tuningStore.setFallGravityMult}
+            format={(v) => `${v.toFixed(1)}×`}
+          />
         </>
       );
     case 'rockets':
@@ -616,6 +626,22 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
     case 'arena':
       return (
         <>
+          <ToggleRow
+            label="Arena grass"
+            hint="Instanced grass on the hex floor. Off = brown floor only (better FPS)."
+            checked={tune.turfGrassEnabled}
+            onChange={tuningStore.setTurfGrassEnabled}
+          />
+          <SliderRow
+            label="Grass scale"
+            hint="Density and blade height on the arena floor. 1.0 = very dense default; lower = sparse/shorter, higher = thicker carpet (capped for performance)."
+            value={tune.turfGrassScale}
+            min={0.25}
+            max={3}
+            step={0.05}
+            onChange={tuningStore.setTurfGrassScale}
+            format={(v) => `${v.toFixed(2)}×`}
+          />
           <ToggleRow
             label="Show goal zone volumes"
             hint="Scoring sensors, shoot zone, and net-finish cylinders (debug only)."

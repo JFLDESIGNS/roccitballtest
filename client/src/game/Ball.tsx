@@ -257,6 +257,7 @@ const hasPrevBallPos = useRef(false);
   useAfterPhysicsStep(() => {
     const body = bodyRef.current;
     if (!body) return;
+    if (gameStore.getState().debugFreelook) return;
     if (isGoalBallSuckActive()) return;
     if (gameStore.getState().ballFrozen) {
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);

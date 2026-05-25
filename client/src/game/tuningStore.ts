@@ -1,13 +1,16 @@
 import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId, type ReleaseSystemId } from '../shared/Constants';
+import { integrateFallGravity } from './movementGravity';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v18';
+const STORAGE_KEY = 'rocketball-tuning-v21';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;
   sprintSpeed: number;
   rocketSpeed: number;
   gravity: number;
+  /** Extra pull when vy ≤ 0 (1 = default; 2 = fall twice as fast) */
+  fallGravityMult: number;
   ballKnockStrength: number;
   carryMomentumToShot: number;
   baseLaunchForce: number;
@@ -88,6 +91,10 @@ export type TuningValues = {
   looseVisualMaxLagM: number;
   /** Extra follow strength multiplier cap at high ball speed */
   looseVisualSpeedBoostMax: number;
+  /** Arena grass density + blade height (0.25 = sparse/short, 3 = dense/tall) */
+  turfGrassScale: number;
+  /** Instanced grass blades on the hex floor */
+  turfGrassEnabled: boolean;
 };
 
 type TuningState = TuningValues & {
@@ -120,6 +127,7 @@ const defaults: TuningValues = {
   sprintSpeed: MOVEMENT.sprintSpeed,
   rocketSpeed: ROCKET.speed,
   gravity: MOVEMENT.gravity,
+  fallGravityMult: 2,
   ballKnockStrength: 1,
   carryMomentumToShot: 1.05,
   baseLaunchForce: 0.6,
@@ -173,6 +181,8 @@ const defaults: TuningValues = {
   looseVisualRotSmooth: BALL.looseVisualRotSmooth,
   looseVisualMaxLagM: BALL.looseVisualMaxLagM,
   looseVisualSpeedBoostMax: 12,
+  turfGrassScale: 1,
+  turfGrassEnabled: true,
 };
 
 const listeners = new Set<() => void>();
@@ -213,6 +223,9 @@ function mergeStored(base: TuningValues): TuningValues {
   }
   if (merged.releaseSystem !== 'classic' && merged.releaseSystem !== 'superrelease') {
     merged.releaseSystem = 'superrelease';
+  }
+  if (typeof merged.turfGrassEnabled !== 'boolean') {
+    merged.turfGrassEnabled = defaults.turfGrassEnabled;
   }
   return merged;
 }
@@ -257,6 +270,13 @@ export const tuningStore = {
     patch({ walkSpeed: v, sprintSpeed: v * SPRINT_RATIO }),
   setRocketSpeed: (v: number) => patch({ rocketSpeed: v }),
   setGravity: (v: number) => patch({ gravity: v }),
+  setFallGravityMult: (v: number) =>
+    patch({ fallGravityMult: Math.max(1, Math.min(4, v)) }),
+  /** Player / bot vertical integration — ascent uses gravity only, descent uses × fallGravityMult */
+  integrateGravity: (vy: number, dt: number) => {
+    const { gravity, fallGravityMult } = state;
+    return integrateFallGravity(vy, gravity, dt, fallGravityMult);
+  },
   setBallKnockStrength: (v: number) => patch({ ballKnockStrength: v }),
   setCarryMomentumToShot: (v: number) => patch({ carryMomentumToShot: v }),
   setBaseLaunchForce: (v: number) => patch({ baseLaunchForce: v }),
@@ -329,6 +349,9 @@ export const tuningStore = {
     patch({ looseVisualMaxLagM: Math.max(0.05, Math.min(2, v)) }),
   setLooseVisualSpeedBoostMax: (v: number) =>
     patch({ looseVisualSpeedBoostMax: Math.max(0, Math.min(32, v)) }),
+  setTurfGrassScale: (v: number) =>
+    patch({ turfGrassScale: Math.max(0.25, Math.min(3, v)) }),
+  setTurfGrassEnabled: (v: boolean) => patch({ turfGrassEnabled: v }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ARENA, ARENA_PADS } from '../shared/Constants';
 import { getArenaCornerPillarLayouts } from './arenaPillars';
-import { hexVertices } from './arenaHex';
+import { hexVertices, isMidMapWallCorner } from './arenaHex';
 import { goalEndFaceX } from './goals';
 
 export type WallMount = {
@@ -116,15 +116,40 @@ function goalFlankPillarPositions(team: 'red' | 'blue'): { x: number; z: number 
   ];
 }
 
-/**
- * Bounce trampolines beside each goal — two per end (+z / −z of the rings).
- */
-export function getBounceTrampolinePads(): FloorPad[] {
-  const sizeScale = ARENA_PADS.bouncePadSizeScale;
-  const r =
+function trampolinePadRadius(): number {
+  return (
     ARENA_PADS.bouncePadRadiusM *
     ARENA_PADS.bouncePadWidthScale *
-    sizeScale;
+    ARENA_PADS.bouncePadSizeScale
+  );
+}
+
+/** Top / bottom mid-wall pillars — pad on field side, offset from pillar toward center */
+function midWallTrampolinePads(
+  r: number,
+  topY: number,
+): FloorPad[] {
+  const pillars = getArenaCornerPillarLayouts().filter((p) =>
+    isMidMapWallCorner(p.x),
+  );
+  const inset = ARENA_PADS.midWallPadCenterInsetM;
+
+  return pillars.map((p) => {
+    const towardCenterZ = -Math.sign(p.z || 1);
+    return {
+      x: p.x,
+      z: p.z + towardCenterZ * inset,
+      radius: r,
+      platformTopY: topY,
+    };
+  });
+}
+
+/**
+ * Bounce trampolines at goal corners (4) + mid-wall pillars (2) = 6 total.
+ */
+export function getBounceTrampolinePads(): FloorPad[] {
+  const r = trampolinePadRadius();
   const topY = platformBaseY() + ARENA_PADS.trampolineDeckRaiseM;
   const inset = ARENA_PADS.trampolinePillarClearanceM;
 
@@ -139,6 +164,7 @@ export function getBounceTrampolinePads(): FloorPad[] {
       });
     }
   }
+  pads.push(...midWallTrampolinePads(r, topY));
   return pads;
 }
 

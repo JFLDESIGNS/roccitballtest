@@ -1,14 +1,17 @@
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, RigidBody, interactionGroups } from '@react-three/rapier';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, type ComponentProps } from 'react';
 import * as THREE from 'three';
 import { ARENA, ARENA_PADS, BALL } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 import type { WallMount } from './arenaPadLayout';
 import { arenaBlackMetalMaterial, arenaWallMaterial } from './arenaMaterials';
+import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
+import { WallTopTrim, WALL_TOP_TRIM_HEIGHT } from './arenaWallTrim';
 import { getFanCelebrationState } from './fanCelebration';
 import { FanBayPhotoFlashes } from './FanBayPhotoFlashes';
 import { FanGlassReflections } from './FanGlassReflections';
+import { createFanGlassMaterial } from './fanGlassMaterial';
 import {
   fanBayHomeTeam,
   fanBayKey,
@@ -18,6 +21,27 @@ import {
 } from './fanGlassHit';
 
 const FT = 0.3048;
+
+function MeterTiledWallMesh({
+  size,
+  ...meshProps
+}: {
+  size: [number, number, number];
+} & ComponentProps<'mesh'>) {
+  const geo = useMemo(
+    () => createMeterTiledBoxGeometry(size[0], size[1], size[2]),
+    [size[0], size[1], size[2]],
+  );
+  return (
+    <mesh
+      geometry={geo}
+      material={arenaWallMaterial}
+      castShadow={false}
+      receiveShadow={false}
+      {...meshProps}
+    />
+  );
+}
 const FAN_COLOR_RED = 0;
 const FAN_COLOR_BLUE = 1;
 const FAN_COLOR_GREEN = 2;
@@ -166,11 +190,14 @@ function fanJumpTraits(row: number, col: number, seat: number) {
   };
 }
 
+type SeatMotion = 'normal' | 'sluggish' | 'frozen';
+
 type SeatSlot = {
   x: number;
   y: number;
   z: number;
   color: number;
+  motion: SeatMotion;
   jumpPhase: number;
   jumpSpeed: number;
   hopPortion: number;
@@ -181,10 +208,47 @@ type SeatSlot = {
   swaySpeed: number;
 };
 
+const SLUGGISH_PER_BAY = 5;
+/** Stadium-wide statues — one per selected wall section (edge) */
+const STADIUM_FROZEN_EDGES = [0, 2, 4, 6] as const;
+
+function assignSeatMotions(slots: SeatSlot[], edgeIndex: number): void {
+  const sluggishPicks = new Set<number>();
+  let h = edgeIndex * 997 + slots.length * 13;
+  while (sluggishPicks.size < Math.min(SLUGGISH_PER_BAY, slots.length)) {
+    h = (h * 1103515245 + 12345) | 0;
+    sluggishPicks.add(Math.abs(h) % slots.length);
+  }
+
+  let frozenIndex = -1;
+  if (
+    (STADIUM_FROZEN_EDGES as readonly number[]).includes(edgeIndex) &&
+    slots.length > 0
+  ) {
+    frozenIndex = Math.abs((edgeIndex * 7919 + 17) % slots.length);
+  }
+
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]!;
+    if (i === frozenIndex) {
+      slot.motion = 'frozen';
+      slot.color = FAN_COLOR_GREEN;
+      continue;
+    }
+    if (sluggishPicks.has(i)) {
+      slot.motion = 'sluggish';
+      if ((i + edgeIndex) % 4 === 0) slot.color = FAN_COLOR_GREEN;
+      continue;
+    }
+    slot.motion = 'normal';
+  }
+}
+
 type FanBayProps = {
   mount: WallMount;
   bayKey: string;
   homeTeam: Team;
+  edgeIndex: number;
 };
 
 type FanCrowdSignProps = {
@@ -224,6 +288,7 @@ function FanCrowdSign({
   useFrame(({ clock }, delta) => {
     const group = groupRef.current;
     if (!group) return;
+    if (seat.motion === 'frozen') return;
     const t = clock.elapsedTime;
     const glassCrazy = isFanBayGlassCelebrating(bayKey);
     const celebration = getFanCelebrationState(t);
@@ -231,24 +296,29 @@ function FanCrowdSign({
       celebration.active &&
       celebration.team !== null &&
       fanMatchesScoringTeam(seat.color, celebration.team);
+    const sluggish = seat.motion === 'sluggish';
     const motion = fanCelebrateMotion(
       ARENA_PADS.fanBounceSpeed * seat.jumpSpeed,
       ARENA_PADS.fanBounceAmpM * seat.ampScale,
       seat.hopPortion,
-      glassCrazy,
-      scoringCheer,
+      glassCrazy && !sluggish,
+      scoringCheer && !sluggish,
     );
 
     const phase = (seat.jumpPhase + t * seat.phaseDrift * 0.11) % 1;
-    const bounce = fanJumpOffset(
-      t,
-      phase,
-      motion.speed,
-      motion.amp,
-      motion.hopPortion,
-    );
+    const bounce = sluggish
+      ? 0
+      : fanJumpOffset(
+          t,
+          phase,
+          motion.speed,
+          motion.amp,
+          motion.hopPortion,
+        );
+    const swayMul = sluggish ? 0.1 : 1;
     const swayX =
       ARENA_PADS.fanSwayAmpM *
+      swayMul *
       Math.sin(
         t * ARENA_PADS.fanSwaySpeed * seat.swaySpeed +
           seat.swayPhase * Math.PI * 2,
@@ -307,11 +377,17 @@ function pickSignSeatIndices(
 ): number[] {
   const rowSlots = [1, 2, 3, 4, 5, 6, 7].filter((r) => r < displayRows);
   const colSlots = [1, 3, 4, 6, 7, 8, 9].filter((c) => c < cols);
+  const used = new Set<number>();
   const picks: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const r = rowSlots[i % rowSlots.length]!;
-    const c = colSlots[(i * 2 + 1) % colSlots.length]!;
-    picks.push(r * cols + c);
+  let guard = 0;
+  while (picks.length < count && guard < count * 24) {
+    guard++;
+    const r = rowSlots[Math.floor(Math.random() * rowSlots.length)]!;
+    const c = colSlots[Math.floor(Math.random() * colSlots.length)]!;
+    const idx = r * cols + c;
+    if (used.has(idx)) continue;
+    used.add(idx);
+    picks.push(idx);
   }
   return picks;
 }
@@ -442,7 +518,7 @@ function FanGlassPanelFrame({
   );
 }
 
-function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
+function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
   const rootRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -471,18 +547,7 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
   const backZ = lipZ - bayD + 0.12;
   const sideInset = 0.14;
 
-  const glassMat = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: '#0a1018',
-        transparent: true,
-        opacity: Math.min(0.42, ARENA_PADS.fanFacadeGlassOpacity * 1.35),
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-      }),
-    [],
-  );
+  const glassMat = useMemo(() => createFanGlassMaterial(), []);
 
   const { seats, rowBenches } = useMemo(() => {
     const slots: SeatSlot[] = [];
@@ -521,13 +586,30 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
           y: seatY,
           z: rowZ + ((c % 3) - 1) * 0.06,
           color: fanColorIndex(r, c, r * cols + c, homeTeam),
+          motion: 'normal',
           ...jump,
         });
       }
     }
 
+    assignSeatMotions(slots, edgeIndex);
+
     return { seats: slots, rowBenches: benches };
-  }, [bayW, bayH, bayY, lipZ, bayD, glassBackZ, cols, rows, sphereR, benchH, recessCenterZ, homeTeam]);
+  }, [
+    bayW,
+    bayH,
+    bayY,
+    lipZ,
+    bayD,
+    glassBackZ,
+    cols,
+    rows,
+    sphereR,
+    benchH,
+    recessCenterZ,
+    homeTeam,
+    edgeIndex,
+  ]);
 
   const sphereGeo = useMemo(
     () => new THREE.SphereGeometry(sphereR, 20, 16),
@@ -619,6 +701,17 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
 
     for (let i = 0; i < seats.length; i++) {
       const o = seats[i]!;
+
+      if (o.motion === 'frozen') {
+        dummy.position.set(o.x, o.y + o.yJitter, o.z);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        inst.setMatrixAt(i, dummy.matrix);
+        inst.setColorAt(i, fanColors[o.color]!);
+        continue;
+      }
+
+      const sluggish = o.motion === 'sluggish';
       const scoringCheer =
         celebration.active &&
         celebration.team !== null &&
@@ -627,27 +720,32 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         baseSpeed * o.jumpSpeed,
         baseAmp * o.ampScale,
         o.hopPortion,
-        glassCrazy,
-        scoringCheer,
+        glassCrazy && !sluggish,
+        scoringCheer && !sluggish,
       );
 
       const phase =
         (o.jumpPhase + t * o.phaseDrift * 0.11) % 1;
-      const bounce = fanJumpOffset(
-        t,
-        phase,
-        motion.speed,
-        motion.amp,
-        motion.hopPortion,
-      );
+      const bounce = sluggish
+        ? 0
+        : fanJumpOffset(
+            t,
+            phase,
+            motion.speed * (sluggish ? 0.35 : 1),
+            motion.amp * (sluggish ? 0.14 : 1),
+            sluggish ? 0.05 : motion.hopPortion,
+          );
+      const swayMul = sluggish ? 0.1 : 1;
       const swayX =
         swayAmp *
+        swayMul *
         Math.sin(
           t * swayBase * o.swaySpeed + o.swayPhase * Math.PI * 2,
         );
-      const diag = motion.crazy
-        ? fanCelebrateDiagOffset(t, i, o.swaySpeed, o.swayPhase)
-        : { dx: 0, dz: 0 };
+      const diag =
+        motion.crazy && !sluggish
+          ? fanCelebrateDiagOffset(t, i, o.swaySpeed, o.swayPhase)
+          : { dx: 0, dz: 0 };
       const fanX = Math.max(
         -maxFanXLocal,
         Math.min(maxFanXLocal, o.x + swayX + diag.dx),
@@ -678,22 +776,14 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         />
       </RigidBody>
 
-      <mesh
+      <MeterTiledWallMesh
         position={[-bayW * 0.5 + sideInset, bayY, recessCenterZ]}
-        material={arenaWallMaterial}
-        castShadow={false}
-        receiveShadow={false}
-      >
-        <boxGeometry args={[sideInset * 2, bayH, bayD]} />
-      </mesh>
-      <mesh
+        size={[sideInset * 2, bayH, bayD]}
+      />
+      <MeterTiledWallMesh
         position={[bayW * 0.5 - sideInset, bayY, recessCenterZ]}
-        material={arenaWallMaterial}
-        castShadow={false}
-        receiveShadow={false}
-      >
-        <boxGeometry args={[sideInset * 2, bayH, bayD]} />
-      </mesh>
+        size={[sideInset * 2, bayH, bayD]}
+      />
       <mesh position={[0, bayY - bayH * 0.5 + 0.1, recessCenterZ]} material={recessMat}>
         <boxGeometry args={[bayW, 0.2, bayD]} />
       </mesh>
@@ -705,22 +795,14 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
       >
         <boxGeometry args={[bayW * 0.98, bayH * 1.08, 0.34]} />
       </mesh>
-      <mesh
+      <MeterTiledWallMesh
         position={[0, bayY, backZ]}
-        material={arenaWallMaterial}
-        castShadow={false}
-        receiveShadow={false}
-      >
-        <boxGeometry args={[bayW, bayH * 1.06, 0.28]} />
-      </mesh>
-      <mesh
+        size={[bayW, bayH * 1.06, 0.28]}
+      />
+      <MeterTiledWallMesh
         position={[0, bayY + bayH * 0.5 - 0.14, recessCenterZ]}
-        material={arenaWallMaterial}
-        castShadow={false}
-        receiveShadow={false}
-      >
-        <boxGeometry args={[bayW * 0.98, 0.28, bayD * 0.96]} />
-      </mesh>
+        size={[bayW * 0.98, 0.28, bayD * 0.96]}
+      />
 
       {rowBenches.map((bench, i) => (
         <mesh
@@ -749,12 +831,12 @@ function FanBay({ mount, bayKey, homeTeam }: FanBayProps) {
         maxFanX={maxFanX}
       />
 
-      {signAnchors.map((sign) => {
+      {signAnchors.map((sign, signIdx) => {
         const seat = seats[sign.seatIndex];
         if (!seat) return null;
         return (
           <FanCrowdSign
-            key={`fan-sign-${sign.seatIndex}`}
+            key={`fan-sign-${bayKey}-${sign.seatIndex}-${signIdx}`}
             seat={seat}
             seatIndex={sign.seatIndex}
             color={sign.color}
@@ -926,13 +1008,19 @@ function FanOpeningWallFill({
   bayW,
   height,
   centerYLocal,
+  topTrim = false,
 }: {
   bayW: number;
   height: number;
   centerYLocal: number;
+  topTrim?: boolean;
 }) {
   const h = height / 2;
   const t = ARENA.wallThickness / 2;
+  const wallGeo = useMemo(
+    () => createMeterTiledBoxGeometry(bayW, height, ARENA.wallThickness),
+    [bayW, height],
+  );
 
   return (
     <RigidBody
@@ -946,9 +1034,18 @@ function FanOpeningWallFill({
         restitution={BALL.restitution}
         collisionGroups={WALL_COLLISION}
       />
-      <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
-        <boxGeometry args={[bayW, height, ARENA.wallThickness]} />
-      </mesh>
+      <mesh
+        castShadow={false}
+        receiveShadow
+        material={arenaWallMaterial}
+        geometry={wallGeo}
+      />
+      {topTrim && (
+        <WallTopTrim
+          length={bayW}
+          centerY={height / 2 + WALL_TOP_TRIM_HEIGHT / 2}
+        />
+      )}
     </RigidBody>
   );
 }
@@ -985,6 +1082,15 @@ export function SplitPerimeterWallWithFans({
   const lintelCenterLocal = fanTop + lintelH * 0.5 - wallMidY;
 
   const wingOffset = bayW / 2 + wingLen / 2;
+  const wingGeo = useMemo(
+    () =>
+      createMeterTiledBoxGeometry(
+        wingLen,
+        ARENA.wallHeight,
+        ARENA.wallThickness,
+      ),
+    [wingLen],
+  );
 
   return (
     <group position={[x, y, z]} rotation={[0, yaw, 0]}>
@@ -1001,9 +1107,13 @@ export function SplitPerimeterWallWithFans({
             restitution={BALL.restitution}
             collisionGroups={WALL_COLLISION}
           />
-          <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
-            <boxGeometry args={[wingLen, ARENA.wallHeight, ARENA.wallThickness]} />
-          </mesh>
+          <mesh
+            castShadow={false}
+            receiveShadow
+            material={arenaWallMaterial}
+            geometry={wingGeo}
+          />
+          <WallTopTrim length={wingLen} />
         </RigidBody>
       ))}
 
@@ -1019,12 +1129,14 @@ export function SplitPerimeterWallWithFans({
           bayW={bayW}
           height={lintelH}
           centerYLocal={lintelCenterLocal}
+          topTrim
         />
       )}
 
       <FanBay
         bayKey={fanBayKey(edgeIndex)}
         homeTeam={fanBayHomeTeam(edgeIndex)}
+        edgeIndex={edgeIndex}
         mount={{
           x: 0,
           y: fanMountY,

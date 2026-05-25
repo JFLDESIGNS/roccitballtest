@@ -21,13 +21,25 @@ export function spawnRocketSmokeStreak(
 
   _tip.set(x, y, z);
   if (!lastTipByRocket.has(rocketId)) {
-    lastTipByRocket.set(rocketId, new THREE.Vector3(x, y, z));
+    const seed = new THREE.Vector3(x, y, z);
+    lastTipByRocket.set(rocketId, seed);
+    const back = Math.max(0.12, Math.hypot(_vx, _vy, _vz) * 0.03);
+    const inv = back > 1e-5 ? 1 / Math.hypot(_vx, _vy, _vz) : 0;
+    spawnRocketTrailSmokeAlongSegment(
+      x - _vx * inv * back,
+      y - _vy * inv * back,
+      z - _vz * inv * back,
+      x,
+      y,
+      z,
+      explosive,
+    );
     return;
   }
   const last = lastTipByRocket.get(rocketId)!;
 
   const dist = last.distanceTo(_tip);
-  if (dist < 0.14) return;
+  if (dist < 0.035) return;
 
   spawnRocketTrailSmokeAlongSegment(
     last.x,

@@ -1,9 +1,13 @@
 import { useMemo } from 'react';
 import { useSyncExternalStore } from 'react';
+import * as THREE from 'three';
 import { ARENA, RENDER } from '../shared/Constants';
 import { graphicsStore } from './graphicsStore';
 
 const span = RENDER.shadowCameraSpan;
+/** Sun directly above arena center */
+const SUN_POSITION: [number, number, number] = [0, 86, 0];
+const SUN_TARGET_Y = ARENA.platformTopHeight + 0.5;
 
 function SunLight({
   shadows,
@@ -15,17 +19,19 @@ function SunLight({
   if (!shadows) {
     return (
       <directionalLight
-        position={[38, 62, 24]}
+        position={SUN_POSITION}
         intensity={intensity}
-        color="#fff6e8"
-      />
+        color="#fff0d4"
+      >
+        <object3D attach="target" position={[0, SUN_TARGET_Y, 0]} />
+      </directionalLight>
     );
   }
   return (
     <directionalLight
-      position={[38, 62, 24]}
+      position={SUN_POSITION}
       intensity={intensity}
-      color="#fff6e8"
+      color="#fff0d4"
       castShadow
       shadow-mapSize={[RENDER.shadowMapSize, RENDER.shadowMapSize]}
       shadow-camera-left={-span}
@@ -37,7 +43,9 @@ function SunLight({
       shadow-bias={-0.00022}
       shadow-normalBias={0.012}
       shadow-radius={RENDER.shadowRadius}
-    />
+    >
+      <object3D attach="target" position={[0, SUN_TARGET_Y, 0]} />
+    </directionalLight>
   );
 }
 
@@ -48,25 +56,21 @@ type CourtLightSpec = {
   distance: number;
 };
 
-/** Real point lights over the court — no shadow maps */
+/** Soft fill around the court — kept low so sun shadows read clearly */
 function ArenaCourtFillLights({ brightness }: { brightness: number }) {
   const lights = useMemo((): CourtLightSpec[] => {
     const cornerR = ARENA.hexRadius * 0.5;
     const courtY = ARENA.platformTopHeight + 8.5;
     const midY = ARENA.platformTopHeight + 14;
-    const highY = ARENA.platformTopHeight + 20;
     return [
-      { pos: [cornerR, courtY, cornerR], color: '#dce8ff', intensity: 52, distance: 92 },
-      { pos: [-cornerR, courtY, cornerR], color: '#dce8ff', intensity: 52, distance: 92 },
-      { pos: [cornerR, courtY, -cornerR], color: '#dce8ff', intensity: 52, distance: 92 },
-      { pos: [-cornerR, courtY, -cornerR], color: '#dce8ff', intensity: 52, distance: 92 },
-      { pos: [0, highY, 0], color: '#fff0d8', intensity: 78, distance: 118 },
-      { pos: [0, midY, 34], color: '#c8ddff', intensity: 44, distance: 78 },
-      { pos: [0, midY, -34], color: '#c8ddff', intensity: 44, distance: 78 },
-      { pos: [44, midY, 0], color: '#f0dcc8', intensity: 40, distance: 74 },
-      { pos: [-44, midY, 0], color: '#f0dcc8', intensity: 40, distance: 74 },
-      { pos: [0, courtY + 2, 52], color: '#ffe8c8', intensity: 36, distance: 68 },
-      { pos: [0, courtY + 2, -52], color: '#ffe8c8', intensity: 36, distance: 68 },
+      { pos: [cornerR, courtY, cornerR], color: '#c8d8f0', intensity: 38, distance: 88 },
+      { pos: [-cornerR, courtY, cornerR], color: '#c8d8f0', intensity: 38, distance: 88 },
+      { pos: [cornerR, courtY, -cornerR], color: '#c8d8f0', intensity: 38, distance: 88 },
+      { pos: [-cornerR, courtY, -cornerR], color: '#c8d8f0', intensity: 38, distance: 88 },
+      { pos: [0, midY, 34], color: '#a8c0e0', intensity: 28, distance: 72 },
+      { pos: [0, midY, -34], color: '#a8c0e0', intensity: 28, distance: 72 },
+      { pos: [44, midY, 0], color: '#b8cce8', intensity: 26, distance: 70 },
+      { pos: [-44, midY, 0], color: '#b8cce8', intensity: 26, distance: 70 },
     ];
   }, []);
 
@@ -95,46 +99,26 @@ export function ArenaLighting() {
 
   return (
     <>
-      <hemisphereLight args={['#d4e4f8', '#6e808e', 1.12 * b]} />
-      <ambientLight intensity={0.52 * b} color="#eef2fa" />
-      <SunLight shadows={gfx.shadows} intensity={1.75 * b} />
-      <directionalLight
-        position={[-32, 26, -26]}
-        intensity={0.38 * b}
-        color="#9eb8d8"
+      <hemisphereLight
+        args={['#fff6e8', '#4a5c72', 0.92 * b]}
+        position={[0, 40, 0]}
       />
+      <ambientLight intensity={0.34 * b} color="#b8c8dc" />
+      <SunLight shadows={gfx.shadows} intensity={2.05 * b} />
       <directionalLight
-        position={[14, 30, 46]}
-        intensity={0.52 * b}
-        color="#e4eeff"
+        position={[18, 28, -22]}
+        intensity={0.22 * b}
+        color="#88a8c8"
       />
       <directionalLight
-        position={[-22, 18, -44]}
-        intensity={0.34 * b}
-        color="#ffd4a8"
-      />
-      <pointLight
-        position={[0, 18, 0]}
-        color="#ffcc88"
-        intensity={76 * b}
-        distance={112}
-        decay={2}
-      />
-      <pointLight
-        position={[40, 12, -30]}
-        color="#ffe0a8"
-        intensity={48 * b}
-        distance={86}
-        decay={2}
-      />
-      <pointLight
-        position={[-38, 10, 28]}
-        color="#f0b888"
-        intensity={42 * b}
-        distance={80}
-        decay={2}
+        position={[-24, 20, 30]}
+        intensity={0.18 * b}
+        color="#7a9ab8"
       />
       <ArenaCourtFillLights brightness={b} />
     </>
   );
 }
+
+/** World position of the main sun (lens flare / debug) */
+export const ARENA_SUN_POSITION = new THREE.Vector3(...SUN_POSITION);

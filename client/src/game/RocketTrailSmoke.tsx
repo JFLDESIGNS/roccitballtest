@@ -15,16 +15,16 @@ export function RocketTrailSmoke() {
   const mat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#8a9098',
+        color: '#d8d4cc',
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.52,
         depthWrite: false,
         depthTest: true,
         toneMapped: true,
       }),
     [],
   );
-  const geo = useMemo(() => new THREE.SphereGeometry(1, 4, 3), []);
+  const geo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
@@ -47,10 +47,10 @@ export function RocketTrailSmoke() {
       if (lifeT < 0.06) continue;
 
       const fade = lifeT * lifeT;
-      const s = p.size * (0.35 + fade * 0.55);
+      const s = p.size * (0.55 + fade * 0.75);
       dummy.position.set(p.x, p.y, p.z);
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.setScalar(s);
+      dummy.scale.set(s * 1.08, s * 0.92, s * 1.08);
       dummy.updateMatrix();
       inst.setMatrixAt(n, dummy.matrix);
       n++;
@@ -66,7 +66,7 @@ export function RocketTrailSmoke() {
     <instancedMesh
       ref={meshRef}
       args={[geo, mat, MAX_ROCKET_TRAIL_PUFFS]}
-      frustumCulled
+      frustumCulled={false}
       renderOrder={9}
     />
   );

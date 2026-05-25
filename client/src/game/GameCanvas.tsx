@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useSyncExternalStore } from 'react';
 import { BALL, BEAM, BOT, MATCH, RENDER, ROCKET } from '../shared/Constants';
 import { ArenaAtmosphere } from './ArenaAtmosphere';
+import { ArenaSky } from './ArenaSky';
 import { graphicsStore } from './graphicsStore';
 import { SceneEnvironment } from './SceneEnvironment';
 import { ScenePostFX } from './ScenePostFX';
@@ -19,6 +20,7 @@ import { BeamVisual } from './BeamVisual';
 import { gameStore } from './gameStore';
 import { setFanGlassListenerPosition } from './fanGlassHit';
 import { inputManager } from './InputManager';
+import { DebugFreelook } from './DebugFreelook';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
 import { RocketTrailSmoke } from './RocketTrailSmoke';
@@ -68,8 +70,7 @@ import {
   type BotRuntime,
 } from './Bots';
 import { FallRecoveryMonitor } from './FallRecoveryMonitor';
-import { MatchIntroTimer } from './MatchIntroTimer';
-import { MapLoadTimer } from './MapLoadTimer';
+import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
 import {
   announceBotDestroyed,
@@ -88,6 +89,8 @@ function MatchLoop({
   const countdownTimer = useRef(0);
   const countdownEntered = useRef(false);
   const countdownParked = useRef(false);
+  const arenaSettleTimer = useRef(0);
+  const arenaSettleEntered = useRef(false);
   const postScoreKickoffPending = useRef(false);
   const matchGeneration = useSyncExternalStore(
     gameStore.subscribe,
@@ -99,6 +102,8 @@ function MatchLoop({
     countdownTimer.current = 0;
     countdownEntered.current = false;
     countdownParked.current = false;
+    arenaSettleTimer.current = 0;
+    arenaSettleEntered.current = false;
     postScoreKickoffPending.current = false;
   }, [matchGeneration]);
 
@@ -107,14 +112,38 @@ function MatchLoop({
   }, [botsRef]);
 
   useFrame((_, dt) => {
-    tickGoalScoreRuntime(dt);
     const state = gameStore.getState();
+    if (state.debugFreelook) return;
+
+    tickGoalScoreRuntime(dt);
 
     if (state.phase === 'intro' || state.phase === 'loading') {
       return;
     }
 
     if (state.phase === 'playing') {
+      if (state.arenaSettleCountdown > 0) {
+        if (!arenaSettleEntered.current) {
+          arenaSettleEntered.current = true;
+          arenaSettleTimer.current = state.arenaSettleCountdown;
+          ballRef.current?.parkAtDrop();
+        }
+        arenaSettleTimer.current -= dt;
+        const settleDisplay = Math.ceil(arenaSettleTimer.current);
+        if (
+          settleDisplay > 0 &&
+          state.arenaSettleCountdown !== settleDisplay
+        ) {
+          gameStore.setArenaSettleCountdown(settleDisplay);
+        }
+        if (arenaSettleTimer.current <= 0) {
+          arenaSettleEntered.current = false;
+          gameStore.setArenaSettleCountdown(0);
+          gameStore.setCountdown(MATCH.startCountdownSec);
+        }
+        return;
+      }
+
       if (
         state.score.red >= MATCH.scoreLimit ||
         state.score.blue >= MATCH.scoreLimit
@@ -428,6 +457,7 @@ function Scene({
     if (player) {
       const chest = playerChestRef.current;
       const fromBot = hit.rocketVx !== undefined;
+      const playerTr = player.translation();
       const { damage, rocketJump } = applyExplosionToPlayer(
         player,
         chest.x,
@@ -441,6 +471,8 @@ function Scene({
         hit.rocketVx,
         hit.rocketVy,
         hit.rocketVz,
+        playerFeetY(playerTr.y),
+        hit.fromOwnerId,
       );
       if (rocketJump && !fromBot) {
         playerRocketBoostRef.current?.();
@@ -517,6 +549,7 @@ function Scene({
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
       />
+      <DebugFreelook />
       <BeamVisual
         pullActive={pullActive}
         chestPosition={() => playerChestRef.current}
@@ -606,8 +639,6 @@ function Scene({
         ballVel={ballVel}
       />
       <MatchLoop ballRef={ballRef} botsRef={botsRef} />
-      <MatchIntroTimer />
-      <MapLoadTimer />
     </>
   );
 }
@@ -619,6 +650,10 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     gameStore.subscribe,
     () => gameStore.getState().showColliderDebug,
   );
+  const debugFreelook = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().debugFreelook,
+  );
   const rocketsRef = useRef<ActiveRocket[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -629,6 +664,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
 
   const handleClick = () => {
     if (tuningStore.getState().showMenu) return;
+    if (gameStore.getState().debugFreelook) return;
     const canvas = wrapRef.current?.querySelector('canvas');
     if (!canvas || document.pointerLockElement === canvas) return;
     resumeAudio();
@@ -652,7 +688,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         onCreated={({ gl }) => {
           gl.domElement.tabIndex = 0;
           gl.domElement.style.outline = 'none';
-          gl.setClearColor('#5a7090', 1);
+          gl.setClearColor('#6ec0f5', 1);
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = gfx.exposure;
           if (gfx.shadows) {
@@ -661,12 +697,13 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
+        <ArenaSky />
         <ArenaLighting />
         <ArenaAtmosphere rocketsRef={rocketsRef} />
         <Suspense fallback={null}>
           <Physics
             gravity={[0, tune.gravity, 0]}
-            timeStep={1 / 60}
+            timeStep={debugFreelook ? 0 : 1 / 60}
             debug={showColliderDebug}
           >
             <Scene onExit={onExit} rocketsRef={rocketsRef} />

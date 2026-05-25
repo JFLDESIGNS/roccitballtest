@@ -10,6 +10,7 @@ import {
 } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import type { ActorId } from './playerRoster';
+import { gameStore } from './gameStore';
 import {
   rocketAge,
   rocketTravelDist,
@@ -17,43 +18,27 @@ import {
   segmentBallSurfaceImpact,
   updateRockets,
   type ActiveRocket,
-  type RocketTrailSegment,
 } from './rocketSystem';
 import {
   releaseRocketSmokeTrail,
   spawnRocketSmokeStreak,
 } from './rocketSmokeStreak';
-import { trailCameraFade } from './trailCameraFade';
+import { spawnRocketTrailSmokeAlongSegment } from './rocketTrailSmokePuffs';
 
 const MAX_BOOMS = 8;
-const TRAIL_R = RENDER.rocketTrailRadius;
-const TRAIL_MIN_LEN = 0.35;
 const HEAD_R = RENDER.rocketHeadRadius;
 const HEAD_GLOW_R = RENDER.rocketHeadGlowRadius;
-const FROZEN_TRAIL_LIFE = 1.55;
-const MAX_FROZEN_TRAILS = 36;
-const RIBBON_HISTORY_MAX = 12;
-const RIBBON_MIN_STEP = 0.14;
+const TRAIL_HISTORY_MAX = 280;
+const TRAIL_MIN_STEP = 0.04;
 
 type RocketVisual = {
+  root: THREE.Group;
   head: THREE.Mesh;
   emissiveGlow: THREE.Mesh;
   fire: THREE.Group;
-  /** Thick vector ribbon (ball-style) */
-  pathMesh: THREE.Mesh;
-  pathMesh2: THREE.Mesh | null;
-  pathMeshGlow: THREE.Mesh | null;
-  pathRibbon: THREE.Line;
   history: THREE.Vector3[];
   rocketId: string | null;
-};
-
-type FrozenTrail = {
-  mesh: THREE.Mesh;
-  life: number;
-  baseOpacity: number;
-  from: THREE.Vector3;
-  to: THREE.Vector3;
+  lastExplosive: boolean;
 };
 
 type RocketMaterials = {
@@ -63,16 +48,6 @@ type RocketMaterials = {
   emissiveGlowExplosive: THREE.MeshBasicMaterial;
   fireBouncer: THREE.MeshBasicMaterial;
   fireExplosive: THREE.MeshBasicMaterial;
-  trailBouncer: THREE.MeshBasicMaterial;
-  trailExplosive: THREE.MeshBasicMaterial;
-  ribbonBouncer: THREE.MeshBasicMaterial;
-  ribbonExplosive: THREE.MeshBasicMaterial;
-  pathRibbonBouncer: THREE.LineBasicMaterial;
-  pathRibbonExplosive: THREE.LineBasicMaterial;
-  pathMeshBouncer: THREE.MeshBasicMaterial;
-  pathMeshExplosive: THREE.MeshBasicMaterial;
-  pathMeshGlowBouncer: THREE.MeshBasicMaterial;
-  pathMeshGlowExplosive: THREE.MeshBasicMaterial;
 };
 
 type RocketsProps = {
@@ -136,92 +111,6 @@ function makeRocketMaterials(): RocketMaterials {
       side: THREE.DoubleSide,
       toneMapped: false,
     }),
-    trailBouncer: new THREE.MeshBasicMaterial({
-      color: '#ccb8a0',
-      transparent: true,
-      opacity: 0.72,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    trailExplosive: new THREE.MeshBasicMaterial({
-      color: '#dd9970',
-      transparent: true,
-      opacity: 0.78,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    ribbonBouncer: new THREE.MeshBasicMaterial({
-      color: '#ff8833',
-      transparent: true,
-      opacity: 0.5,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-    ribbonExplosive: new THREE.MeshBasicMaterial({
-      color: '#ffaa44',
-      transparent: true,
-      opacity: 0.55,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-    pathRibbonBouncer: new THREE.LineBasicMaterial({
-      color: '#ff7722',
-      transparent: true,
-      opacity: 0.88,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    pathRibbonExplosive: new THREE.LineBasicMaterial({
-      color: '#ffaa33',
-      transparent: true,
-      opacity: 0.92,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      toneMapped: false,
-    }),
-    pathMeshBouncer: new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-    pathMeshExplosive: new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-    pathMeshGlowBouncer: new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.48,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-    pathMeshGlowExplosive: new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.55,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
   };
 }
 
@@ -239,270 +128,89 @@ function createFireGroup(
   return group;
 }
 
-function makePathMeshGeometry(maxPoints: number) {
-  const maxVerts = maxPoints * 2;
-  const positions = new Float32Array(maxVerts * 3);
-  const colors = new Float32Array(maxVerts * 3);
-  const indices: number[] = [];
-  for (let i = 0; i < maxPoints - 1; i++) {
-    const a = i * 2;
-    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.setIndex(indices);
-  return geo;
-}
-
-function createPathRibbon(
-  mat: THREE.LineBasicMaterial,
-): { line: THREE.Line; history: THREE.Vector3[] } {
-  const positions = new Float32Array(RIBBON_HISTORY_MAX * 3);
-  const colors = new Float32Array(RIBBON_HISTORY_MAX * 3);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.setDrawRange(0, 0);
-  const line = new THREE.Line(
-    geo,
-    mat,
-  );
-  line.frustumCulled = false;
-  return { line, history: [] };
-}
-
 function createRocketVisual(
-  group: THREE.Group,
+  arenaGroup: THREE.Group,
   mats: RocketMaterials,
   headGeo: THREE.SphereGeometry,
   glowGeo: THREE.SphereGeometry,
   firePlaneGeo: THREE.PlaneGeometry,
-  pathMeshGeo: THREE.BufferGeometry,
 ): RocketVisual {
+  const root = new THREE.Group();
+  root.frustumCulled = false;
+  arenaGroup.add(root);
+
   const emissiveGlow = new THREE.Mesh(glowGeo, mats.emissiveGlowBouncer);
   emissiveGlow.frustumCulled = false;
-  emissiveGlow.renderOrder = 11;
+  emissiveGlow.renderOrder = 12;
+
   const fire = createFireGroup(mats.fireBouncer, firePlaneGeo);
   fire.frustumCulled = false;
+
   const head = new THREE.Mesh(headGeo, mats.headBouncer);
   head.frustumCulled = false;
-  head.renderOrder = 12;
-  const path = createPathRibbon(mats.pathRibbonBouncer);
-  const pathMesh = new THREE.Mesh(pathMeshGeo, mats.pathMeshBouncer);
-  pathMesh.frustumCulled = false;
-  pathMesh.renderOrder = 9;
-  const pathMesh2 = new THREE.Mesh(pathMeshGeo.clone(), mats.pathMeshBouncer);
-  pathMesh2.frustumCulled = false;
-  pathMesh2.renderOrder = 9;
-  pathMesh2.rotation.z = Math.PI / 2;
-  const pathMeshGlow = new THREE.Mesh(pathMeshGeo.clone(), mats.pathMeshGlowBouncer);
-  pathMeshGlow.frustumCulled = false;
-  pathMeshGlow.renderOrder = 8;
-  group.add(pathMeshGlow);
-  group.add(pathMesh);
-  group.add(pathMesh2);
-  group.add(emissiveGlow);
-  group.add(fire);
-  group.add(path.line);
-  group.add(head);
+  head.renderOrder = 13;
+
+  root.add(emissiveGlow);
+  root.add(fire);
+  root.add(head);
+
+  root.visible = false;
+
   return {
+    root,
     head,
     emissiveGlow,
     fire,
-    pathMesh,
-    pathMesh2,
-    pathMeshGlow,
-    pathRibbon: path.line,
-    history: path.history,
+    history: [],
     rocketId: null,
+    lastExplosive: false,
   };
 }
 
 const _dir = new THREE.Vector3();
-const _mid = new THREE.Vector3();
-const _yAxis = new THREE.Vector3(0, 1, 0);
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _camPos = new THREE.Vector3();
-const _ribbonColor = new THREE.Color();
+const _sample = new THREE.Vector3();
 
-function ribbonMat(
-  mats: RocketMaterials,
-  explosive: boolean,
-): THREE.MeshBasicMaterial {
-  return explosive ? mats.ribbonExplosive : mats.ribbonBouncer;
-}
-
-/** Flat ribbon along a bounce segment — fades via frozen pool */
-function placeBounceRibbon(
-  mesh: THREE.Mesh,
-  mat: THREE.MeshBasicMaterial,
-  from: THREE.Vector3,
-  to: THREE.Vector3,
-) {
-  const len = from.distanceTo(to);
-  if (len < TRAIL_MIN_LEN) {
-    mesh.visible = false;
+function appendPathPoint(history: THREE.Vector3[], tip: THREE.Vector3) {
+  const last = history[history.length - 1];
+  if (last && last.distanceToSquared(tip) < TRAIL_MIN_STEP * TRAIL_MIN_STEP) {
     return;
   }
-  _dir.subVectors(to, from).normalize();
-  _mid.lerpVectors(from, to, 0.5);
-  mesh.visible = true;
-  mesh.material = mat;
-  mesh.position.copy(_mid);
-  mesh.quaternion.setFromUnitVectors(_yAxis, _dir);
-  const ribbonW = TRAIL_R * 3.5;
-  mesh.scale.set(ribbonW, len, TRAIL_R * 0.38);
-  const wobble = Math.sin(from.x * 9.2 + from.z * 6.1 + len * 2.4) * 0.12;
-  mesh.rotateZ(wobble);
-}
-
-function pushPathHistory(history: THREE.Vector3[], tip: THREE.Vector3) {
-  const last = history[history.length - 1];
-  if (last && last.distanceToSquared(tip) < RIBBON_MIN_STEP * RIBBON_MIN_STEP) return;
   history.push(tip.clone());
-  while (history.length > RIBBON_HISTORY_MAX) {
+  while (history.length > TRAIL_HISTORY_MAX) {
     history.shift();
   }
 }
 
-const _worldUp = new THREE.Vector3(0, 1, 0);
-const _fallback = new THREE.Vector3(1, 0, 0);
-const _right = new THREE.Vector3();
-const _binormal = new THREE.Vector3();
-const PATH_MESH_HALF_W = TRAIL_R * 1.45;
-
-function updatePathMeshRibbon(
-  mesh: THREE.Mesh,
-  mesh2: THREE.Mesh | null,
-  glowMesh: THREE.Mesh | null,
+/** Fill gaps on fast rockets so smoke segments stay continuous */
+function appendPathWithVelocity(
   history: THREE.Vector3[],
-  explosive: boolean,
-  camPos: THREE.Vector3,
-  mats: RocketMaterials,
+  tip: THREE.Vector3,
 ) {
-  const n = history.length;
-  if (n < 2) {
-    mesh.visible = false;
-    if (mesh2) mesh2.visible = false;
-    if (glowMesh) glowMesh.visible = false;
+  const last = history[history.length - 1];
+  if (!last) {
+    appendPathPoint(history, tip);
     return;
   }
-  mesh.visible = true;
-  if (mesh2) mesh2.visible = true;
-  if (glowMesh) glowMesh.visible = true;
-  const mat = explosive ? mats.pathMeshExplosive : mats.pathMeshBouncer;
-  mesh.material = mat;
-  if (mesh2) mesh2.material = mat;
-  if (glowMesh) {
-    glowMesh.material = explosive
-      ? mats.pathMeshGlowExplosive
-      : mats.pathMeshGlowBouncer;
-  }
-  _ribbonColor.set(explosive ? '#ffaa44' : '#ff7722');
-
-  const writeMesh = (target: THREE.Mesh, widthScale: number, colorBoost: number) => {
-    const posAttr = target.geometry.getAttribute(
-      'position',
-    ) as THREE.BufferAttribute;
-    const colAttr = target.geometry.getAttribute('color') as THREE.BufferAttribute;
-    let vi = 0;
-    for (let i = 0; i < n; i++) {
-      const p = history[i]!;
-      if (i < n - 1) {
-        const q = history[i + 1]!;
-        _dir.subVectors(q, p);
-        const len = _dir.length();
-        if (len < 1e-5) _dir.copy(_fallback);
-        else _dir.multiplyScalar(1 / len);
-        _right.crossVectors(_dir, _worldUp);
-        if (_right.lengthSq() < 1e-6) _right.set(1, 0, 0);
-        _right.normalize();
-        _binormal.crossVectors(_dir, _right).normalize();
-      }
-      const along = n <= 1 ? 1 : i / (n - 1);
-      const fade =
-        (0.22 + 0.78 * along) * trailCameraFade(p, camPos);
-      const w = PATH_MESH_HALF_W * fade * widthScale;
-      if (i < n - 1) {
-        posAttr.setXYZ(
-          vi,
-          p.x - _right.x * w,
-          p.y - _right.y * w,
-          p.z - _right.z * w,
-        );
-        colAttr.setXYZ(
-          vi,
-          _ribbonColor.r * fade * colorBoost,
-          _ribbonColor.g * fade * colorBoost,
-          _ribbonColor.b * fade * colorBoost,
-        );
-        vi++;
-        posAttr.setXYZ(
-          vi,
-          p.x + _right.x * w,
-          p.y + _right.y * w,
-          p.z + _right.z * w,
-        );
-        colAttr.setXYZ(
-          vi,
-          _ribbonColor.r * fade * colorBoost,
-          _ribbonColor.g * fade * colorBoost,
-          _ribbonColor.b * fade * colorBoost,
-        );
-        vi++;
-      }
-    }
-    posAttr.needsUpdate = true;
-    colAttr.needsUpdate = true;
-    target.geometry.setDrawRange(0, Math.max(0, (n - 1) * 2));
-  };
-
-  writeMesh(mesh, 1, 1.15);
-  if (mesh2) mesh2.visible = false;
-  if (glowMesh) glowMesh.visible = false;
-}
-
-function updatePathLineRibbon(
-  line: THREE.Line,
-  history: THREE.Vector3[],
-  explosive: boolean,
-  mats: RocketMaterials,
-) {
-  const n = history.length;
-  if (n < 2) {
-    line.visible = false;
+  const dist = last.distanceTo(tip);
+  const step = TRAIL_MIN_STEP;
+  if (dist <= step) {
+    appendPathPoint(history, tip);
     return;
   }
-  line.visible = true;
-  line.material = explosive ? mats.pathRibbonExplosive : mats.pathRibbonBouncer;
-  const posAttr = line.geometry.getAttribute(
-    'position',
-  ) as THREE.BufferAttribute;
-  const colAttr = line.geometry.getAttribute('color') as THREE.BufferAttribute;
-  _ribbonColor.set(explosive ? '#ff9933' : '#ff6622');
-  for (let i = 0; i < n; i++) {
-    const p = history[i]!;
-    const along = n <= 1 ? 1 : i / (n - 1);
-    const fade = 0.25 + 0.75 * along;
-    posAttr.setXYZ(i, p.x, p.y, p.z);
-    colAttr.setXYZ(
-      i,
-      _ribbonColor.r * fade,
-      _ribbonColor.g * fade,
-      _ribbonColor.b * fade,
-    );
+  const steps = Math.min(12, Math.ceil(dist / step));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    _sample.lerpVectors(last, tip, t);
+    appendPathPoint(history, _sample);
   }
-  posAttr.needsUpdate = true;
-  colAttr.needsUpdate = true;
-  line.geometry.setDrawRange(0, n);
 }
 
 function updateFireBillboard(fire: THREE.Group, camera: THREE.Camera, pulse: number) {
   camera.getWorldPosition(_camPos);
   fire.lookAt(_camPos);
-  const s = 0.82 + pulse * 0.28;
-  fire.scale.setScalar(s);
+  fire.scale.setScalar(0.82 + pulse * 0.28);
 }
 
 function updateRocketVisual(
@@ -512,12 +220,10 @@ function updateRocketVisual(
   camera: THREE.Camera,
   nowMs: number,
 ) {
-  if (vis.rocketId !== r.id) {
-    vis.rocketId = r.id;
-    vis.history.length = 0;
-  }
-
   const explosive = r.explosive;
+  vis.lastExplosive = explosive;
+  vis.root.visible = true;
+
   vis.head.material = explosive ? mats.headExplosive : mats.headBouncer;
   const glowMat = explosive ? mats.emissiveGlowExplosive : mats.emissiveGlowBouncer;
   vis.emissiveGlow.material = glowMat;
@@ -526,9 +232,6 @@ function updateRocketVisual(
       child.material = explosive ? mats.fireExplosive : mats.fireBouncer;
     }
   }
-  vis.pathRibbon.material = explosive
-    ? mats.pathRibbonExplosive
-    : mats.pathRibbonBouncer;
 
   const tip = r.position;
   vis.head.visible = true;
@@ -539,8 +242,7 @@ function updateRocketVisual(
   vis.fire.position.copy(tip);
 
   const pulse = Math.sin(nowMs * 0.028) * 0.5 + 0.5;
-  const glowScale = 0.92 + pulse * 0.12;
-  vis.emissiveGlow.scale.setScalar(glowScale);
+  vis.emissiveGlow.scale.setScalar(0.92 + pulse * 0.12);
   glowMat.opacity = 0.88 + pulse * 0.12;
   updateFireBillboard(vis.fire, camera, pulse);
 
@@ -551,41 +253,41 @@ function updateRocketVisual(
     _dir.copy(r.velocity).normalize();
     vis.head.quaternion.setFromUnitVectors(_zAxis, _dir);
     vis.emissiveGlow.quaternion.copy(vis.head.quaternion);
-    const lv = r.velocity;
     spawnRocketSmokeStreak(
       vis.rocketId,
       tip.x,
       tip.y,
       tip.z,
-      lv.x,
-      lv.y,
-      lv.z,
+      r.velocity.x,
+      r.velocity.y,
+      r.velocity.z,
       explosive,
     );
   }
 
-  camera.getWorldPosition(_camPos);
-  pushPathHistory(vis.history, tip);
-  updatePathMeshRibbon(
-    vis.pathMesh,
-    vis.pathMesh2,
-    vis.pathMeshGlow,
-    vis.history,
-    explosive,
-    _camPos,
-    mats,
-  );
-  updatePathLineRibbon(vis.pathRibbon, vis.history, explosive, mats);
+  appendPathWithVelocity(vis.history, tip);
 }
 
-function hideRocketVisual(vis: RocketVisual) {
+function hideRocketVisual(vis: RocketVisual, explosive: boolean) {
+  const h = vis.history;
+  if (h.length >= 2) {
+    const tail = h[h.length - 1]!;
+    const lead = h[Math.max(0, h.length - 3)]!;
+    spawnRocketTrailSmokeAlongSegment(
+      lead.x,
+      lead.y,
+      lead.z,
+      tail.x,
+      tail.y,
+      tail.z,
+      explosive,
+    );
+  }
+  vis.root.visible = false;
   vis.head.visible = false;
   vis.emissiveGlow.visible = false;
   vis.fire.visible = false;
-  vis.pathMesh.visible = false;
-  if (vis.pathMesh2) vis.pathMesh2.visible = false;
-  if (vis.pathMeshGlow) vis.pathMeshGlow.visible = false;
-  vis.pathRibbon.visible = false;
+  vis.lastExplosive = explosive;
   vis.history.length = 0;
   releaseRocketSmokeTrail(vis.rocketId);
   vis.rocketId = null;
@@ -602,16 +304,11 @@ export function Rockets({
   ballVel,
 }: RocketsProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const visualPool = useRef<RocketVisual[]>([]);
-  const frozenTrails = useRef<FrozenTrail[]>([]);
+  const activeVisuals = useRef(new Map<string, RocketVisual>());
+  const freeVisuals = useRef<RocketVisual[]>([]);
   const mats = useRef(makeRocketMaterials());
   const headGeo = useMemo(() => new THREE.SphereGeometry(HEAD_R, 10, 8), []);
   const glowGeo = useMemo(() => new THREE.SphereGeometry(HEAD_GLOW_R, 8, 6), []);
-  const pathMeshGeo = useMemo(
-    () => makePathMeshGeometry(RIBBON_HISTORY_MAX),
-    [],
-  );
-  const ribbonGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const firePlaneGeo = useMemo(() => new THREE.PlaneGeometry(0.52, 0.72), []);
 
   const ballCenter = useRef(new THREE.Vector3());
@@ -632,33 +329,17 @@ export function Rockets({
       m.emissiveGlowExplosive.dispose();
       m.fireBouncer.dispose();
       m.fireExplosive.dispose();
-      m.trailBouncer.dispose();
-      m.trailExplosive.dispose();
-      m.ribbonBouncer.dispose();
-      m.ribbonExplosive.dispose();
-      m.pathRibbonBouncer.dispose();
-      m.pathRibbonExplosive.dispose();
-      m.pathMeshBouncer.dispose();
-      m.pathMeshExplosive.dispose();
-      m.pathMeshGlowBouncer.dispose();
-      m.pathMeshGlowExplosive.dispose();
       headGeo.dispose();
-      pathMeshGeo.dispose();
-      ribbonGeo.dispose();
       glowGeo.dispose();
       firePlaneGeo.dispose();
-      for (const vis of visualPool.current) {
-        vis.pathMesh.geometry.dispose();
-        vis.pathMesh2?.geometry.dispose();
-        vis.pathMeshGlow?.geometry.dispose();
-      }
-      for (const ft of frozenTrails.current) {
-        const mat = ft.mesh.material;
-        if (mat && !Array.isArray(mat)) mat.dispose();
-        ft.mesh.geometry.dispose();
+      for (const vis of [
+        ...freeVisuals.current,
+        ...activeVisuals.current.values(),
+      ]) {
+        vis.root.parent?.remove(vis.root);
       }
     },
-    [headGeo, pathMeshGeo, ribbonGeo, glowGeo, firePlaneGeo],
+    [headGeo, glowGeo, firePlaneGeo],
   );
 
   const pushBoom = (
@@ -723,44 +404,9 @@ export function Rockets({
     }
   };
 
-  const spawnFrozenSegment = (
-    group: THREE.Group,
-    seg: RocketTrailSegment,
-  ) => {
-    let slot = frozenTrails.current.find((f) => f.life <= 0);
-    if (!slot) {
-      if (frozenTrails.current.length >= MAX_FROZEN_TRAILS) {
-        slot = frozenTrails.current[0]!;
-        for (const f of frozenTrails.current) {
-          if (f.life < slot.life) slot = f;
-        }
-      } else {
-        const meshMat = ribbonMat(mats.current, seg.explosive).clone();
-        const mesh = new THREE.Mesh(ribbonGeo, meshMat);
-        mesh.frustumCulled = false;
-        group.add(mesh);
-        slot = {
-          mesh,
-          life: 0,
-          baseOpacity: meshMat.opacity,
-          from: new THREE.Vector3(),
-          to: new THREE.Vector3(),
-        };
-        frozenTrails.current.push(slot);
-      }
-    }
-    const prevMat = slot.mesh.material;
-    if (prevMat && !Array.isArray(prevMat)) prevMat.dispose();
-    const meshMat = ribbonMat(mats.current, seg.explosive).clone();
-    slot.mesh.material = meshMat;
-    slot.baseOpacity = meshMat.opacity;
-    placeBounceRibbon(slot.mesh, meshMat, seg.from, seg.to);
-    slot.from.copy(seg.from);
-    slot.to.copy(seg.to);
-    slot.life = FROZEN_TRAIL_LIFE;
-  };
-
   useFrame(({ camera }, dt) => {
+    if (gameStore.getState().debugFreelook) return;
+
     const rockets = rocketsRef.current;
     const group = groupRef.current;
     if (!group) return;
@@ -768,27 +414,7 @@ export function Rockets({
 
     camera.getWorldPosition(_camPos);
 
-    for (const ft of frozenTrails.current) {
-      if (ft.life <= 0) {
-        ft.mesh.visible = false;
-        continue;
-      }
-      ft.life -= dt;
-      const mat = ft.mesh.material as THREE.MeshBasicMaterial;
-      const lifeFade = Math.max(0, ft.life / FROZEN_TRAIL_LIFE);
-      _mid.lerpVectors(ft.from, ft.to, 0.5);
-      const camFade =
-        (trailCameraFade(ft.from, _camPos) + trailCameraFade(ft.to, _camPos)) *
-        0.5;
-      mat.opacity = ft.baseOpacity * lifeFade * lifeFade * camFade;
-      if (ft.life <= 0 || mat.opacity < 0.02) ft.mesh.visible = false;
-    }
-
-    if (rockets.length === 0) {
-      for (const v of visualPool.current) hideRocketVisual(v);
-    }
-
-    const { rockets: moved, explosions, trailSegments } = updateRockets(
+    const { rockets: moved, explosions } = updateRockets(
       rockets,
       dt,
       {
@@ -797,10 +423,6 @@ export function Rockets({
         h: ARENA.wallHeight,
       },
     );
-
-    for (const seg of trailSegments) {
-      spawnFrozenSegment(group, seg);
-    }
 
     const pp = playerPos();
     const bp = ballPos();
@@ -943,26 +565,32 @@ export function Rockets({
       onExplosion(boomScratch.current[i]);
     }
 
-    while (visualPool.current.length < stillFlying.length) {
-      visualPool.current.push(
-        createRocketVisual(
-          group,
-          mats.current,
-          headGeo,
-          glowGeo,
-          firePlaneGeo,
-          pathMeshGeo,
-        ),
-      );
+    const flyingIds = new Set(stillFlying.map((r) => r.id));
+    for (const [id, vis] of [...activeVisuals.current.entries()]) {
+      if (flyingIds.has(id)) continue;
+      hideRocketVisual(vis, vis.lastExplosive);
+      activeVisuals.current.delete(id);
+      freeVisuals.current.push(vis);
     }
 
-    for (let i = 0; i < visualPool.current.length; i++) {
-      const vis = visualPool.current[i];
-      if (i < stillFlying.length) {
-        updateRocketVisual(vis, stillFlying[i], mats.current, camera, nowMs);
-      } else {
-        hideRocketVisual(vis);
+    for (const r of stillFlying) {
+      let vis = activeVisuals.current.get(r.id);
+      if (!vis) {
+        vis =
+          freeVisuals.current.pop() ??
+          createRocketVisual(
+            group,
+            mats.current,
+            headGeo,
+            glowGeo,
+            firePlaneGeo,
+          );
+        vis.rocketId = r.id;
+        vis.history.length = 0;
+        appendPathPoint(vis.history, r.position);
+        activeVisuals.current.set(r.id, vis);
       }
+      updateRocketVisual(vis, r, mats.current, camera, nowMs);
     }
   });
 

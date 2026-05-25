@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
 import concreteUrl from '../assets/images/textures/concrete.png';
 
-/** World meters per texture repeat on flat arena surfaces */
-export const ARENA_CONCRETE_TILE_M = 4;
+/** World meters per one texture repeat — larger = fewer, bigger tiles */
+export const ARENA_CONCRETE_TILE_M = 8.5;
 
 let baseConcrete: THREE.Texture | null = null;
 const loadListeners = new Set<() => void>();
@@ -48,6 +48,62 @@ export function applyPlanarTileUVs(
   }
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geometry.attributes.uv.needsUpdate = true;
+}
+
+/**
+ * Box faces tiled in world meters (no stretch on long wall faces).
+ * Local box axes: X = width, Y = height, Z = depth.
+ */
+export function applyBoxMeterUVs(
+  geometry: THREE.BufferGeometry,
+  sizeX: number,
+  sizeY: number,
+  sizeZ: number,
+  tileM = ARENA_CONCRETE_TILE_M,
+): void {
+  const pos = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const norm = geometry.getAttribute('normal') as THREE.BufferAttribute;
+  const uv = new Float32Array(pos.count * 2);
+  const inv = 1 / tileM;
+  const hx = sizeX * 0.5;
+  const hy = sizeY * 0.5;
+  const hz = sizeZ * 0.5;
+
+  for (let i = 0; i < pos.count; i++) {
+    const px = pos.getX(i);
+    const py = pos.getY(i);
+    const pz = pos.getZ(i);
+    const ax = Math.abs(norm.getX(i));
+    const ay = Math.abs(norm.getY(i));
+
+    let u: number;
+    let v: number;
+    if (ax >= ay && ax >= 0.5) {
+      u = (pz + hz) * inv;
+      v = (py + hy) * inv;
+    } else if (ay >= 0.5) {
+      u = (px + hx) * inv;
+      v = (pz + hz) * inv;
+    } else {
+      u = (px + hx) * inv;
+      v = (py + hy) * inv;
+    }
+    uv[i * 2] = u;
+    uv[i * 2 + 1] = v;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.attributes.uv.needsUpdate = true;
+}
+
+export function createMeterTiledBoxGeometry(
+  width: number,
+  height: number,
+  depth: number,
+  tileM = ARENA_CONCRETE_TILE_M,
+): THREE.BoxGeometry {
+  const geo = new THREE.BoxGeometry(width, height, depth);
+  applyBoxMeterUVs(geo, width, height, depth, tileM);
+  return geo;
 }
 
 /** World-space XZ tiling for ramps / platforms (meters per repeat in UV). */

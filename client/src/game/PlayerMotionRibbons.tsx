@@ -15,38 +15,35 @@ type RibbonLayer = {
   minStep: number;
 };
 
+const OPACITY_BOOST = 1.3;
+const RIBBON_WIDTH = 0.065;
+const RIBBON_LATERAL_SPREAD = 0.38;
+
+/** Three tubular motion trails attached behind the player */
 const RIBBON_LAYERS: RibbonLayer[] = [
   {
-    opacity: 0.42,
-    back: 0.78,
+    opacity: 0.4 * OPACITY_BOOST,
+    back: 0.68,
     lateral: 0,
-    y: BEAM.chestHeight * 0.42,
+    y: BEAM.chestHeight * 0.4,
+    maxPoints: 20,
+    minStep: 0.12,
+  },
+  {
+    opacity: 0.34 * OPACITY_BOOST,
+    back: 0.64,
+    lateral: -RIBBON_LATERAL_SPREAD,
+    y: BEAM.chestHeight * 0.32,
     maxPoints: 18,
-    minStep: 0.16,
+    minStep: 0.14,
   },
   {
-    opacity: 0.36,
-    back: 0.72,
-    lateral: -0.32,
-    y: BEAM.chestHeight * 0.28,
-    maxPoints: 16,
-    minStep: 0.18,
-  },
-  {
-    opacity: 0.36,
-    back: 0.72,
-    lateral: 0.32,
-    y: BEAM.chestHeight * 0.28,
-    maxPoints: 16,
-    minStep: 0.18,
-  },
-  {
-    opacity: 0.3,
-    back: 0.58,
-    lateral: 0,
-    y: BEAM.chestHeight * 0.12,
-    maxPoints: 14,
-    minStep: 0.2,
+    opacity: 0.34 * OPACITY_BOOST,
+    back: 0.64,
+    lateral: RIBBON_LATERAL_SPREAD,
+    y: BEAM.chestHeight * 0.32,
+    maxPoints: 18,
+    minStep: 0.14,
   },
 ];
 
@@ -95,7 +92,6 @@ type PlayerMotionRibbonsProps = {
   hidden?: boolean;
 };
 
-/** Four thin white motion strings trailing behind the player drone */
 export function PlayerMotionRibbons({
   bodyRef,
   hidden,
@@ -114,6 +110,14 @@ export function PlayerMotionRibbons({
           opacity={layer.opacity}
           maxPoints={layer.maxPoints}
           minStep={layer.minStep}
+          lineWidthWorld={RIBBON_WIDTH}
+          tubeSegments={6}
+          getHorizSpeed={() => {
+            const body = bodyRef.current;
+            if (!body) return 0;
+            const lv = body.linvel();
+            return Math.hypot(lv.x, lv.z);
+          }}
           samplePosition={() => {
             const body = bodyRef.current;
             if (!body) return null;

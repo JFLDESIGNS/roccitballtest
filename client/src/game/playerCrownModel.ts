@@ -42,7 +42,9 @@ function loadTexture(
   return tex;
 }
 
-export function loadCrownMaterialMaps(): CrownMaterialMaps {
+let cachedCrownMaps: CrownMaterialMaps | null = null;
+
+function createCrownMaterialMaps(): CrownMaterialMaps {
   const map = loadTexture(CROWN_TEXTURE_URLS.albedo, THREE.SRGBColorSpace);
   const metalnessMap = loadTexture(
     CROWN_TEXTURE_URLS.metal,
@@ -70,7 +72,18 @@ export function loadCrownMaterialMaps(): CrownMaterialMaps {
   return { map, metalnessMap, normalMap, roughnessMap, material };
 }
 
+export function loadCrownMaterialMaps(): CrownMaterialMaps {
+  if (!cachedCrownMaps) cachedCrownMaps = createCrownMaterialMaps();
+  return cachedCrownMaps;
+}
+
+/** Called during app preload */
+export function preloadCrownMaterialMaps(): void {
+  if (!cachedCrownMaps) cachedCrownMaps = createCrownMaterialMaps();
+}
+
 export function disposeCrownMaterialMaps(maps: CrownMaterialMaps): void {
+  if (cachedCrownMaps === maps) cachedCrownMaps = null;
   maps.map.dispose();
   maps.metalnessMap.dispose();
   maps.normalMap.dispose();

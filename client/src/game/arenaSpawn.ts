@@ -1,5 +1,6 @@
 import { ARENA } from '../shared/Constants';
 import { hexCornerPositions, isMidMapWallCorner } from './arenaHex';
+import { isPointInOctagon } from './arenaOctagon';
 import { sampleTrampolineFloorY } from './arenaPadLayout';
 
 export type ArenaPlatformPlacement = {
@@ -36,6 +37,7 @@ export function platformSurfaceYAt(
 ): number | null {
   const dx = x - p.x;
   const dz = z - p.z;
+  if (!isPointInOctagon(dx, dz, p.slopeR)) return null;
   const d = Math.hypot(dx, dz);
   if (d > p.slopeR) return null;
   if (d <= p.topR) return ARENA.platformTopHeight;

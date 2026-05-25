@@ -2,20 +2,17 @@ import { memo, useMemo } from 'react';
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
 import { buildHexWallSegments, createHexShape } from '../game/arenaHex';
-import { applyPlanarTileUVs } from '../game/arenaConcreteTexture';
-import { arenaFloorMaterial, arenaWallMaterial } from '../game/arenaMaterials';
-import '../game/arenaConcreteTexture';
+import { arenaHexFloorMaterial, arenaWallMaterial } from '../game/arenaMaterials';
 
 /** Static arena visuals for the map editor — no Rapier / colliders. */
 export const EditorArenaBackdrop = memo(function EditorArenaBackdrop() {
   const { hexRadius, wallHeight, wallThickness } = ARENA;
 
   const floorGeo = useMemo(() => {
-    const geo = new THREE.ExtrudeGeometry(createHexShape(hexRadius), {
-      depth: 0.4,
-      bevelEnabled: false,
-    });
-    applyPlanarTileUVs(geo);
+    const geo = new THREE.ShapeGeometry(createHexShape(hexRadius));
+    geo.rotateX(-Math.PI / 2);
+    geo.scale(1, 1, -1);
+    geo.computeVertexNormals();
     return geo;
   }, [hexRadius]);
 
@@ -30,12 +27,7 @@ export const EditorArenaBackdrop = memo(function EditorArenaBackdrop() {
       <ambientLight intensity={0.42} color="#eef2fa" />
       <directionalLight position={[36, 58, 22]} intensity={1.35} color="#fff4e6" />
 
-      <mesh
-        geometry={floorGeo}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-        material={arenaFloorMaterial}
-      />
+      <mesh geometry={floorGeo} receiveShadow material={arenaHexFloorMaterial} />
 
       {wallSegments.map((w, i) => (
         <mesh

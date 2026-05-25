@@ -123,7 +123,9 @@ export function FanGlassCrackFx() {
 
     for (let i = 0; i < pool.length; i++) {
       const slot = pool[i] as FanGlassCrackSlot;
-      const { back, front, mat } = entries[i]!;
+      const entry = entries[i];
+      if (!entry) continue;
+      const { back, front, mat } = entry;
       if (!back || !front) continue;
 
       if (!slot.active) {

@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { ARENA_PADS } from '../shared/Constants';
-import { ARENA_PILLAR } from './arenaPillars';
+import { getArenaEnvMap } from './arenaEnvMap';
+import { applyArenaMetalWearShader } from './arenaMetalWear';
+import { ARENA_PILLAR } from './arenaPillarConfig';
 import {
   ARENA_CONCRETE_TILE_M,
-  arenaFloorConcreteRepeat,
   cloneArenaConcreteMap,
   onArenaConcreteReady,
 } from './arenaConcreteTexture';
+
+const arenaMetalEnv = getArenaEnvMap();
 
 function cylinderConcreteRepeat(
   radiusTop: number,
@@ -79,9 +82,9 @@ function bindConcrete(
   mat.needsUpdate = true;
 }
 
-/** Hex perimeter walls */
+/** Hex perimeter walls — grey concrete (darker than pillars) */
 export const arenaWallMaterial = new THREE.MeshStandardMaterial({
-  color: '#666c74',
+  color: '#4a5159',
   roughness: 0.9,
   metalness: 0.04,
 });
@@ -107,18 +110,21 @@ export const goalBackRingMaterial = new THREE.MeshStandardMaterial({
   metalness: 0,
 });
 
-/** Main arena floor */
+/** Legacy concrete floor (map editor fallback) */
 export const arenaFloorMaterial = new THREE.MeshStandardMaterial({
   color: '#b8bec6',
   roughness: 0.9,
   metalness: 0.04,
 });
 
-/** Hex floor tile overlays — same concrete, world-tiled */
-export const arenaFloorTileMaterial = new THREE.MeshStandardMaterial({
-  color: '#aeb6c0',
-  roughness: 0.92,
-  metalness: 0.03,
+export { arenaTurfMaterial } from './arenaTurfMaterial';
+
+/** Hex arena floor — dark brown matte dirt under instanced grass */
+export const arenaHexFloorMaterial = new THREE.MeshStandardMaterial({
+  color: '#2e2218',
+  roughness: 1,
+  metalness: 0,
+  envMapIntensity: 0,
 });
 
 /** Trampoline / pad stone ring bases */
@@ -131,19 +137,31 @@ export const arenaPadStoneMaterial = new THREE.MeshStandardMaterial({
 /** Center octagon + ramp platforms — dark brushed metal */
 export const arenaPlatformMaterial = new THREE.MeshStandardMaterial({
   map: darkDeckMetalMap,
-  color: '#4a535e',
-  metalness: 0.78,
-  roughness: 0.48,
+  color: '#6a7888',
+  metalness: 0.7,
+  roughness: 0.4,
   flatShading: true,
+  envMap: arenaMetalEnv,
+  envMapIntensity: 1.2,
+});
+applyArenaMetalWearShader(arenaPlatformMaterial, {
+  scratchStrength: 0.5,
+  wearStrength: 0.35,
 });
 
 /** Flat octagon cap on ramp platforms */
 export const arenaDeckTopMaterial = new THREE.MeshStandardMaterial({
   map: darkDeckMetalMap,
-  color: '#3a424c',
-  metalness: 0.8,
-  roughness: 0.44,
+  color: '#5a6674',
+  metalness: 0.76,
+  roughness: 0.36,
   flatShading: true,
+  envMap: arenaMetalEnv,
+  envMapIntensity: 1.3,
+});
+applyArenaMetalWearShader(arenaDeckTopMaterial, {
+  scratchStrength: 0.45,
+  wearStrength: 0.3,
 });
 
 /** Trampoline / pad pedestals — metal deck ring */
@@ -153,6 +171,12 @@ export const arenaPadMetalMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.68,
   roughness: 0.42,
   flatShading: true,
+  envMap: arenaMetalEnv,
+  envMapIntensity: 0.95,
+});
+applyArenaMetalWearShader(arenaPadMetalMaterial, {
+  scratchStrength: 1.25,
+  wearStrength: 0.9,
 });
 
 /** Ceiling — dark metal panel */
@@ -164,8 +188,6 @@ export const arenaCeilingMaterial = new THREE.MeshStandardMaterial({
 });
 
 function applyAllConcreteMaps(): void {
-  const floorRep = arenaFloorConcreteRepeat();
-  const tileRep = (RENDER_HEX_TILE_RADIUS * 2) / ARENA_CONCRETE_TILE_M;
   const pillarRep = cylinderConcreteRepeat(
     ARENA_PILLAR.radiusTop,
     ARENA_PILLAR.radiusBase,
@@ -181,14 +203,9 @@ function applyAllConcreteMaps(): void {
     ARENA_PADS.trampolineDeckRaiseM;
   const padRep = cylinderConcreteRepeat(padStemR, padStemR * 1.22, padStemH);
 
-  bindConcrete(arenaWallMaterial, 5, 2.5);
+  bindConcrete(arenaWallMaterial, 1, 1);
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
-  bindConcrete(arenaFloorMaterial, floorRep.x, floorRep.y);
-  bindConcrete(arenaFloorTileMaterial, tileRep, tileRep);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
 }
-
-/** Matches HexFloorTiles circle radius in Arena.tsx */
-const RENDER_HEX_TILE_RADIUS = 2.1;
 
 onArenaConcreteReady(applyAllConcreteMaps);

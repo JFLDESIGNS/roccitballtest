@@ -15,6 +15,8 @@ const PILLAR_LIGHT_DEPTH = 0.14;
 const PILLAR_BAND_HEIGHT = 0.55;
 /** Mid-column disc band — 6% smaller diameter than prior */
 const PILLAR_BAND_RADIUS_SCALE = 1.05 * 0.94;
+const PILLAR_CAP_HEIGHT = 1.16;
+const PILLAR_CAP_RADIUS_SCALE = 1.14;
 
 function PillarSquareLight({
   y,
@@ -107,6 +109,21 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
         >
           <cylinderGeometry
             args={[bandRadius, bandRadius, PILLAR_BAND_HEIGHT, 20]}
+          />
+        </mesh>
+        <mesh
+          position={[0, halfH + PILLAR_CAP_HEIGHT / 2, 0]}
+          castShadow={false}
+          receiveShadow={false}
+          material={arenaBlackMetalMaterial}
+        >
+          <cylinderGeometry
+            args={[
+              ARENA_PILLAR.radiusTop * PILLAR_CAP_RADIUS_SCALE,
+              ARENA_PILLAR.radiusTop * PILLAR_CAP_RADIUS_SCALE * 0.96,
+              PILLAR_CAP_HEIGHT,
+              18,
+            ]}
           />
         </mesh>
         <PillarSquareLight y={topLightY} pillarX={x} pillarZ={z} />

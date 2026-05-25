@@ -4,6 +4,8 @@ export const ARENA = {
   wallHeight: 43.7,
   /** Ceiling hex sits this far above wall tops (lower = smaller gap; negative clips into walls) */
   ceilingOverlapM: -0.2,
+  /** Roof halves slide apart on R over this many seconds */
+  roofRetractSec: 6,
   wallThickness: 1.2,
   /** Flat octagon cap on center platform */
   octagonTopRadius: 11,
@@ -65,8 +67,12 @@ export const ARENA_PADS = {
   bouncePadRadiusM: (7 * FT) / 2,
   /** Trampoline deck + pedestal width multiplier */
   bouncePadWidthScale: 4,
-  /** Visual + launch zone scale (2.25 = 1.5× previous 1.5 scale) */
-  bouncePadSizeScale: 2.25,
+  /** Visual + launch zone scale (×0.7 from prior 2.25) */
+  bouncePadSizeScale: 1.575,
+  /** Mid-wall trampolines — offset from center line along goal-side walls (m) */
+  midWallPadSideOffsetM: 12,
+  /** Mid-wall pads — distance from pillar center toward field (m); includes +15 ft clearance */
+  midWallPadCenterInsetM: 8 + 15 * FT,
   /** Shared raised platform under pads (m) */
   padPlatformHeightM: 1.4,
   /** Extra lift for all jump/boost platforms (feet) */
@@ -142,18 +148,32 @@ export const ARENA_PADS = {
   fanSwaySpeed: 1.35,
   /** Rectangular crowd signs per fan bay */
   fanSignCount: 8,
-  /** Paparazzi diamond flash in front of a fan (local units × sphere radius) */
-  fanPhotoDiamondScale: 0.11,
-  fanPhotoFlashDurationSec: 0.16,
-  fanPhotoGoalFlashDurationSec: 0.12,
-  /** Random idle snap between flashes (per bay) */
-  fanPhotoIdleMinSec: 2.8,
-  fanPhotoIdleMaxSec: 7.5,
-  fanPhotoIdleChance: 0.55,
-  /** Goal frenzy — initial burst + sustained snaps */
-  fanPhotoGoalBurstCount: 28,
-  fanPhotoGoalBurstPerTick: 10,
-  fanPhotoGoalBurstIntervalSec: 0.045,
+  /** Paparazzi flash size (local units × sphere radius) */
+  fanPhotoDiamondScale: 0.38,
+  /** Camera flash visible length (sec) */
+  fanPhotoFlashDurationSec: 0.55,
+  fanPhotoGoalFlashDurationSec: 0.48,
+  fanPhotoGlassFlashDurationSec: 0.5,
+  /** Peak opacity for additive flash diamond (0–1) */
+  fanPhotoFlashOpacity: 0.58,
+  /** Random idle snaps during normal play (per fan bay) */
+  fanPhotoIdleMinSec: 4.5,
+  fanPhotoIdleMaxSec: 9,
+  fanPhotoIdleBurstMin: 0,
+  fanPhotoIdleBurstMax: 1,
+  /** Fans eligible to be “photographers” on goals (0–1 of scoring-side color) */
+  fanPhotoGoalParticipationPct: 0.38,
+  fanPhotoGoalShotsPerShooterMin: 2,
+  fanPhotoGoalShotsPerShooterMax: 4,
+  /** How many shooters snap when fan glass is hit (per bay) */
+  fanPhotoGlassShooterCount: 5,
+  /** Each photographer takes 1–2 flashes then stops */
+  fanPhotoShotsPerShooterMin: 1,
+  fanPhotoShotsPerShooterMax: 2,
+  fanPhotoShotGapMinSec: 0.22,
+  fanPhotoShotGapMaxSec: 0.52,
+  fanPhotoGoalShotGapMinSec: 0.18,
+  fanPhotoGoalShotGapMaxSec: 0.42,
   /** Home-team share of crowd color per bay (remainder green + away) */
   fanHomeTeamColorPct: 90,
   /** Crowd frenzy after rocket/ball hits this bay's glass (ms) */
@@ -606,6 +626,12 @@ export const CAMERA = {
   speedDistanceSmoothOut: 1.55,
 } as const;
 
+/** U-key debug fly camera during a match */
+export const DEBUG_FREELOOK = {
+  flySpeed: 24,
+  sprintMult: 2.5,
+} as const;
+
 /** Aim pitch (full range for shooting) */
 export const AIM = {
   defaultPitch: 0,
@@ -911,6 +937,16 @@ export const ROCKET = {
   knockStunSteerAccel: 11,
   /** @deprecated — knock stun uses minimal lift only */
   rocketJumpUp: 2,
+  /** Self rocket straight down within downRocketBoostMaxHeightFt — launch multiplier */
+  downRocketBoostForceMult: 10,
+  /** Max feet above floor for down-rocket boost */
+  downRocketBoostMaxHeightFt: 10,
+  /** Rocket velocity must align with straight down (0–1 dot) */
+  downRocketBoostMinDownDot: 0.85,
+  /** Max horizontal offset (m) from blast to player for boost */
+  downRocketBoostMaxHorizM: 3.2,
+  /** Upward launch scale on top of playerForce × mult */
+  downRocketBoostUpScale: 1.15,
   /** Direct rocket body hit on local player */
   playerDirectKnock: 26,
   /** Velocity change applied via Rapier impulse on ball hits (× ballKnockStrength) */
@@ -933,7 +969,9 @@ export const MATCH = {
   /** Logo splash at match start before arena load countdown */
   logoIntroSec: 2,
   /** Arena load-in before first kickoff countdown */
-  mapLoadSec: 5,
+  mapLoadSec: 20,
+  /** After load screen — map visible, 5-4-3-2-1 settle before kickoff 3-2-1 */
+  arenaSettleCountdownSec: 5,
   /** Block rockets / combat SFX briefly after match load (pointer-lock click bleed) */
   combatGraceSec: 5,
   /** 3-2-1 before kickoff and after each goal */
@@ -1101,13 +1139,13 @@ export const RENDER = {
   hexFloorTileStep: 10,
   ballPolkaTextureSize: 512,
   /** Trail / bounce ribbon width scale (m) */
-  rocketTrailRadius: 0.52,
+  rocketTrailRadius: 0.58,
   /** Perpendicular wiggle — fraction of trail half-width */
   rocketTrailWiggleScale: 0.26,
   /** Live trail noise animation speed */
   rocketTrailWiggleSpeed: 6.2,
   /** Additive ribbon halo width multiplier */
-  rocketTrailGlowWidthScale: 1.42,
+  rocketTrailGlowWidthScale: 1.0,
   /** Projectile sphere at rocket tip */
   rocketHeadRadius: 0.26,
   /** Tight additive glow halo around rocket tip — visual only */

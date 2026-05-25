@@ -10,6 +10,31 @@ export function octagonVertices(radius: number): THREE.Vector2[] {
   return verts;
 }
 
+/** Point-in-polygon for flat-top octagon centered at origin (local XZ). */
+export function isPointInOctagon(
+  localX: number,
+  localZ: number,
+  radius: number,
+): boolean {
+  const verts = octagonVertices(radius);
+  let inside = false;
+  for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
+    const xi = verts[i].x;
+    const zi = verts[i].y;
+    const xj = verts[j].x;
+    const zj = verts[j].y;
+    if (zi > localZ !== zj > localZ && localX < ((xj - xi) * (localZ - zi)) / (zj - zi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Regular octagon area from circumradius */
+export function octagonArea(radius: number): number {
+  return 2 * Math.SQRT2 * radius * radius;
+}
+
 export function createOctagonShape(radius: number): THREE.Shape {
   const verts = octagonVertices(radius);
   const shape = new THREE.Shape();

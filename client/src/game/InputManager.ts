@@ -8,6 +8,7 @@ import {
   TEAM_SPAWN,
 } from '../shared/Constants';
 import type { Team } from '../shared/Types';
+import { arenaRoofStore } from './arenaRoofStore';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import { getLookDirection } from './CameraController';
@@ -39,6 +40,7 @@ class InputManager {
 
   private canApplyFallbackLook(): boolean {
     if (tuningStore.getState().showMenu) return false;
+    if (gameStore.getState().debugFreelook) return true;
     const phase = gameStore.getState().phase;
     return phase === 'playing' || phase === 'countdown';
   }
@@ -90,6 +92,20 @@ class InputManager {
 
     if (document.pointerLockElement === canvas) {
       this.applyMouseLook(e.movementX, e.movementY);
+      return;
+    }
+
+    if (gameStore.getState().debugFreelook) {
+      let dx = e.movementX;
+      let dy = e.movementY;
+      if (dx === 0 && dy === 0 && this.hasLastClient) {
+        dx = e.clientX - this.lastClientX;
+        dy = e.clientY - this.lastClientY;
+      }
+      this.lastClientX = e.clientX;
+      this.lastClientY = e.clientY;
+      this.hasLastClient = true;
+      if (dx !== 0 || dy !== 0) this.applyMouseLook(dx, dy);
       return;
     }
 
@@ -149,6 +165,13 @@ class InputManager {
       }
       if (e.code === 'KeyE') this.throwQueued = true;
       if (e.code === 'KeyF') this.spawnBallQueued = true;
+      if (e.code === 'KeyR' && !e.repeat) {
+        if (tuningStore.getState().showMenu) return;
+        const phase = gameStore.getState().phase;
+        if (phase === 'playing' || phase === 'countdown') {
+          arenaRoofStore.toggleTarget();
+        }
+      }
       if (e.code === 'KeyG') {
         import('./gameStore').then(({ gameStore }) =>
           gameStore.toggleColliderDebug(),
@@ -167,6 +190,17 @@ class InputManager {
         import('./gameStore').then(({ gameStore }) =>
           gameStore.togglePlayerVisualProxy(),
         );
+      }
+      if (e.code === 'KeyU' && !e.repeat) {
+        if (tuningStore.getState().showMenu) return;
+        const gs = gameStore.getState();
+        if (gs.debugFreelook) {
+          gameStore.toggleDebugFreelook();
+          return;
+        }
+        if (gs.phase === 'playing' || gs.phase === 'countdown') {
+          gameStore.toggleDebugFreelook();
+        }
       }
       if (e.code === 'Space') {
         e.preventDefault();
@@ -222,7 +256,13 @@ class InputManager {
     };
     const onWindowMouseMove = (e: MouseEvent) => {
       if (document.pointerLockElement === canvas) return;
-      if (!this.mouseButtons.left && !this.mouseButtons.right) return;
+      if (
+        !gameStore.getState().debugFreelook &&
+        !this.mouseButtons.left &&
+        !this.mouseButtons.right
+      ) {
+        return;
+      }
       this.handleMouseLook(e);
     };
     const onContextMenu = (e: Event) => e.preventDefault();
@@ -273,7 +313,12 @@ class InputManager {
   }
 
   private applyMouseLook(movementX: number, movementY: number) {
-    if (performance.now() < this.lookWarmupUntil) return;
+    if (
+      !gameStore.getState().debugFreelook &&
+      performance.now() < this.lookWarmupUntil
+    ) {
+      return;
+    }
 
     const cap = CAMERA.maxMouseDelta;
     const mx = THREE.MathUtils.clamp(movementX, -cap, cap);
@@ -416,6 +461,14 @@ class InputManager {
 
   isSprint(): boolean {
     return !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'];
+  }
+
+  /** Q down / E up — used in debug freelook (E throw is ignored while flying) */
+  getFlyVertical(): number {
+    let v = 0;
+    if (this.keys['KeyE']) v += 1;
+    if (this.keys['KeyQ']) v -= 1;
+    return v;
   }
 
   isBeam(): boolean {

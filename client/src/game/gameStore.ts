@@ -1,4 +1,5 @@
 import { MATCH } from '../shared/Constants';
+import { arenaRoofStore } from './arenaRoofStore';
 import { clearBotTeamRelease } from './botTeamRelease';
 import { EMPTY_MATCH_STATS, type MatchStats } from './matchStats';
 import { tuningStore } from './tuningStore';
@@ -34,6 +35,8 @@ type GameStoreState = {
   energyFlash: boolean;
   lastScorePopup: { points: number; team: Team } | null;
   countdown: number;
+  /** Post-load arena settle (5-4-3-2-1) before kickoff 3-2-1 */
+  arenaSettleCountdown: number;
   /** Map load-in timer (seconds remaining) */
   loadCountdown: number;
   ballFrozen: boolean;
@@ -52,6 +55,8 @@ type GameStoreState = {
   lastScoringTeam: Team | null;
   botsEnabled: boolean;
   botEnergies: Record<BotId, number>;
+  /** U during match — fly camera, no player collision, hidden avatar */
+  debugFreelook: boolean;
   /** Rapier collider wireframes — off by default, G to toggle */
   showColliderDebug: boolean;
   /** Goal zone debug meshes (scoring / shoot / net-finish cylinders) */
@@ -117,6 +122,7 @@ let state: GameStoreState = {
   energyFlash: false,
   lastScorePopup: null,
   countdown: 0,
+  arenaSettleCountdown: 0,
   loadCountdown: 0,
   ballFrozen: false,
   pointerLocked: false,
@@ -133,6 +139,7 @@ let state: GameStoreState = {
   lastScoringTeam: null,
   botsEnabled: loadBotsEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
+  debugFreelook: false,
   showColliderDebug: false,
   showGoalZoneDebug: false,
   showPhysicsBall: false,
@@ -183,6 +190,7 @@ export const gameStore = {
   },
   startMatch: () => {
     clearBotTeamRelease();
+    arenaRoofStore.reset();
     state = {
       ...state,
       phase: 'intro',
@@ -191,6 +199,7 @@ export const gameStore = {
       energy: 100,
       lastScorePopup: null,
       countdown: 0,
+      arenaSettleCountdown: 0,
       loadCountdown: 0,
       ballFrozen: true,
       ballHolderId: null,
@@ -205,6 +214,7 @@ export const gameStore = {
       matchGeneration: state.matchGeneration + 1,
       matchStats: { ...EMPTY_MATCH_STATS },
       holdImmunityUntilMs: 0,
+      debugFreelook: false,
     };
     notify();
   },
@@ -238,6 +248,27 @@ export const gameStore = {
   },
   setShowScoreboard: (show: boolean) => {
     state = { ...state, showScoreboard: show };
+    notify();
+  },
+  toggleDebugFreelook: () => {
+    const next = !state.debugFreelook;
+    if (next) {
+      try {
+        document.exitPointerLock();
+      } catch {
+        /* ignore */
+      }
+      state = {
+        ...state,
+        debugFreelook: true,
+        pointerLocked: false,
+      };
+    } else {
+      state = {
+        ...state,
+        debugFreelook: false,
+      };
+    }
     notify();
   },
   toggleColliderDebug: () => {
@@ -337,6 +368,10 @@ export const gameStore = {
     state = { ...state, loadCountdown: n };
     notify();
   },
+  setArenaSettleCountdown: (n: number) => {
+    state = { ...state, arenaSettleCountdown: Math.max(0, n) };
+    notify();
+  },
   beginMapLoad: () => {
     if (state.phase !== 'intro') return;
     state = {
@@ -352,7 +387,8 @@ export const gameStore = {
       ...state,
       phase: 'playing',
       loadCountdown: 0,
-      countdown: MATCH.startCountdownSec,
+      arenaSettleCountdown: MATCH.arenaSettleCountdownSec,
+      countdown: 0,
       ballFrozen: true,
     };
     notify();

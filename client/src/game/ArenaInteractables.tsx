@@ -132,7 +132,8 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
         <meshStandardMaterial
           color="#2a3a52"
           metalness={0.06}
-          roughness={0.88}
+          roughness={0.92}
+          flatShading
           map={arenaPadStoneMaterial.map}
         />
       </mesh>

@@ -3,7 +3,7 @@ import { burstPillarCornerSmoke } from './pillarSmokePuffs';
 const SHAKE_MS = 500;
 const MAX_TILT_DEG = 1.35;
 const PILLAR_SHAKE_MS = 680;
-const PILLAR_MAX_TILT_DEG = 2.65;
+const PILLAR_MAX_TILT_DEG = 1.45;
 
 type ShakeEntry = { until: number; intensity: number };
 
@@ -85,10 +85,10 @@ export function getArenaPillarShake(x: number, z: number): {
   const envelope = Math.sin(u * Math.PI);
   const wobble =
     Math.sin(u * Math.PI * 3.5 + seed * 0.17) +
-    Math.sin(u * Math.PI * 5.8 + seed * 0.41) * 0.38;
+    Math.sin(u * Math.PI * 5.8 + seed * 0.41) * 0.22;
   const wobble2 =
     Math.cos(u * Math.PI * 2.85 + seed * 0.23) +
-    Math.cos(u * Math.PI * 4.2 + seed * 0.31) * 0.32;
+    Math.cos(u * Math.PI * 4.2 + seed * 0.31) * 0.18;
   const maxRad =
     ((PILLAR_MAX_TILT_DEG * entry.intensity) * Math.PI) / 180;
 

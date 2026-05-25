@@ -50,6 +50,11 @@ export function HUD({ onMainMenu }: HUDProps) {
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
       <FpsCounter />
       <BallBoundaryHelpBadge />
+      {state.debugFreelook && (
+        <div className="debug-freelook-hint" role="status">
+          Debug fly (match paused) — U resume · WASD move · Q/E up-down · Shift fast · mouse to look
+        </div>
+      )}
       <div className="hud-top">
         <div className="hud-top-center">
           {state.announcement && performance.now() < state.announcement.expiresAt && (
@@ -125,7 +130,7 @@ export function HUD({ onMainMenu }: HUDProps) {
         </div>
       )}
 
-      {!matchOver && (
+      {!matchOver && !state.debugFreelook && (
         <HudCrosshairEnergy
           energy={state.energy}
           lowEnergy={state.energy < 25}
@@ -160,16 +165,20 @@ export function HUD({ onMainMenu }: HUDProps) {
         </div>
       )}
 
-      {state.phase === 'loading' && state.loadCountdown > 0 && (
-        <div className="hud-loading">
-          <span className="hud-loading-label">Loading arena</span>
-          <span className="hud-loading-time">{state.loadCountdown}</span>
-        </div>
-      )}
+      {state.phase === 'playing' &&
+        state.arenaSettleCountdown > 0 &&
+        !matchOver && (
+          <div className="hud-countdown hud-countdown--settle">
+            {state.arenaSettleCountdown}
+          </div>
+        )}
 
-      {state.phase === 'playing' && state.countdown > 0 && !matchOver && (
-        <div className="hud-countdown">{state.countdown}</div>
-      )}
+      {state.phase === 'playing' &&
+        state.arenaSettleCountdown === 0 &&
+        state.countdown > 0 &&
+        !matchOver && (
+          <div className="hud-countdown">{state.countdown}</div>
+        )}
 
       {state.showScoreboard && (
         <div className="hud-scoreboard">

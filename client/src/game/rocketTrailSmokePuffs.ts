@@ -9,8 +9,8 @@ export type RocketTrailSmokePuff = {
 };
 
 /** Cap live trail puffs — keeps instanced draw + tick cost bounded */
-export const MAX_ROCKET_TRAIL_PUFFS = 48;
-export const ROCKET_TRAIL_PUFF_LIFE_SEC = 0.95;
+export const MAX_ROCKET_TRAIL_PUFFS = 160;
+export const ROCKET_TRAIL_PUFF_LIFE_SEC = 1.65;
 
 const puffs: RocketTrailSmokePuff[] = Array.from(
   { length: MAX_ROCKET_TRAIL_PUFFS },
@@ -32,7 +32,26 @@ function claimPuff(): RocketTrailSmokePuff {
   return p;
 }
 
-/** One or two soft puffs per trail segment — low spawn rate */
+function spawnOnePuff(
+  x: number,
+  y: number,
+  z: number,
+  baseSize: number,
+  explosive: boolean,
+): void {
+  const jitter = 0.12;
+  const p = claimPuff();
+  p.active = true;
+  p.x = x + (Math.random() - 0.5) * jitter;
+  p.y = y + (Math.random() - 0.5) * jitter * 0.45;
+  p.z = z + (Math.random() - 0.5) * jitter;
+  p.maxLife = ROCKET_TRAIL_PUFF_LIFE_SEC * (0.85 + Math.random() * 0.3);
+  p.life = p.maxLife;
+  p.size = baseSize * (0.88 + Math.random() * 0.28);
+  if (explosive) p.size *= 1.08;
+}
+
+/** Soft grey smoke puffs along a trail segment */
 export function spawnRocketTrailSmokeAlongSegment(
   ax: number,
   ay: number,
@@ -46,33 +65,20 @@ export function spawnRocketTrailSmokeAlongSegment(
   const dy = by - ay;
   const dz = bz - az;
   const dist = Math.hypot(dx, dy, dz);
-  if (dist < 0.06) return;
+  if (dist < 0.04) return;
 
   const baseSize =
-    ((explosive ? 0.28 : 0.24) + Math.min(dist * 0.04, 0.12)) * 0.65;
-  const midX = (ax + bx) * 0.5;
-  const midY = (ay + by) * 0.5;
-  const midZ = (az + bz) * 0.5;
-  const jitter = 0.03;
-
-  const p0 = claimPuff();
-  p0.active = true;
-  p0.x = midX + (Math.random() - 0.5) * jitter;
-  p0.y = midY + (Math.random() - 0.5) * jitter * 0.5;
-  p0.z = midZ + (Math.random() - 0.5) * jitter;
-  p0.maxLife = ROCKET_TRAIL_PUFF_LIFE_SEC * (0.9 + Math.random() * 0.1);
-  p0.life = p0.maxLife;
-  p0.size = baseSize;
-
-  if (dist > 0.35) {
-    const p1 = claimPuff();
-    p1.active = true;
-    p1.x = bx + (Math.random() - 0.5) * jitter;
-    p1.y = by + (Math.random() - 0.5) * jitter * 0.5;
-    p1.z = bz + (Math.random() - 0.5) * jitter;
-    p1.maxLife = p0.maxLife;
-    p1.life = p1.maxLife;
-    p1.size = baseSize * 0.88;
+    (explosive ? 0.48 : 0.42) + Math.min(dist * 0.06, 0.14);
+  const steps = Math.max(1, Math.ceil(dist / 0.16));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    spawnOnePuff(
+      ax + dx * t,
+      ay + dy * t,
+      az + dz * t,
+      baseSize,
+      explosive,
+    );
   }
 }
 

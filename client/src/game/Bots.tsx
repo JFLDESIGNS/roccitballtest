@@ -22,6 +22,7 @@ import { tuningStore } from './tuningStore';
 import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { getArenaStandY } from './arenaSpawn';
+import { tryBotPads } from './arenaPadPhysics';
 import { isInsideHex } from './arenaHex';
 import {
   applyEscapeImpulse,
@@ -1032,6 +1033,10 @@ function BotAvatar({
       beamPullActive.current = false;
       return;
     }
+    if (gs.debugFreelook) {
+      beamPullActive.current = false;
+      return;
+    }
 
     if (bot.combat.isRagdoll) {
       beamPullActive.current = false;
@@ -1124,7 +1129,7 @@ function BotAvatar({
       _pos.set(t.x, t.y, t.z);
       _chest.set(t.x, t.y + BEAM.chestHeight, t.z);
       const linvel = body.linvel();
-      let vy = linvel.y + tune.gravity * dt;
+      let vy = tuningStore.integrateGravity(linvel.y, dt);
       if (
         tickGoalEntryCharacterBounce(
           body,
@@ -1143,7 +1148,16 @@ function BotAvatar({
         vy = body.linvel().y;
         airGrace.current = Math.max(airGrace.current, 0.2);
       }
-      body.setLinvel({ x: linvel.x, y: vy, z: linvel.z }, true);
+      velocity.current.y = vy;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
+      body.setLinvel(
+        {
+          x: velocity.current.x,
+          y: velocity.current.y,
+          z: velocity.current.z,
+        },
+        true,
+      );
       softenHexBoundaryVelocity(_pos, velocity.current);
       velocity.current.set(body.linvel().x, vy, body.linvel().z);
       alignCharacterVisualUpright(
@@ -1213,8 +1227,9 @@ function BotAvatar({
       writeLookDirection(yaw.current, pitch.current, _lookDir);
 
       let vyHome = linvelHome.y;
-      vyHome += tune.gravity * dt;
+      vyHome = tuningStore.integrateGravity(vyHome, dt);
       velocity.current.y = vyHome;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
       body.setLinvel(
         {
           x: velocity.current.x,
@@ -1393,8 +1408,9 @@ function BotAvatar({
         }
       }
 
-      vyOop += tune.gravity * dt;
+      vyOop = tuningStore.integrateGravity(vyOop, dt);
       velocity.current.y = vyOop;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
       body.setLinvel(
         {
           x: velocity.current.x,
@@ -1472,8 +1488,9 @@ function BotAvatar({
         grounded.current = false;
         airGrace.current = 0.45;
       }
-      vy += tune.gravity * dt;
+      vy = tuningStore.integrateGravity(vy, dt);
       velocity.current.y = vy;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
       body.setLinvel(
         { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
         true,
@@ -1598,8 +1615,9 @@ function BotAvatar({
         doubleJumpPending.current = false;
       }
 
-      vyKick += tune.gravity * dt;
+      vyKick = tuningStore.integrateGravity(vyKick, dt);
       velocity.current.y = vyKick;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
       body.setLinvel(
         {
           x: velocity.current.x,
@@ -2071,8 +2089,9 @@ function BotAvatar({
         }
       }
 
-      vy += tune.gravity * dt;
+      vy = tuningStore.integrateGravity(vy, dt);
       velocity.current.y = vy;
+      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
       if (
         tickGoalEntryCharacterBounce(
           body,
@@ -2766,8 +2785,9 @@ function BotAvatar({
       );
     }
 
-    vy += tune.gravity * dt;
+    vy = tuningStore.integrateGravity(vy, dt);
     velocity.current.y = vy;
+    tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
     if (
       tickGoalEntryCharacterBounce(
         body,
@@ -3003,6 +3023,7 @@ function EnemyRocketVolley({
 
   useFrame((_, dt) => {
     const gs = gameStore.getState();
+    if (gs.debugFreelook) return;
     if (!gs.botsEnabled || gs.phase !== 'playing') return;
 
     const botScalars = getBotPressureScalars();

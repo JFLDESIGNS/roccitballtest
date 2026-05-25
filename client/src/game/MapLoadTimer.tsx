@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { MATCH } from '../shared/Constants';
+import { gamePreloadStore } from './gamePreloadStore';
 import { gameStore } from './gameStore';
 
 /** Wall-clock arena load — not tied to rAF (tab background won't freeze the timer). */
@@ -24,7 +25,7 @@ export function MapLoadTimer() {
       if (state.loadCountdown !== display) {
         gameStore.setLoadCountdown(display);
       }
-      if (remainingMs <= 0) {
+      if (remainingMs <= 0 && gamePreloadStore.isReady()) {
         gameStore.finishMapLoad();
       }
     };

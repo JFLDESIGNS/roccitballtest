@@ -11,6 +11,7 @@ import cheerUrl from '../assets/sounds/cheering.wav';
 import panicUrl from '../assets/sounds/panic.wav';
 import goal1Url from '../assets/sounds/goal1.WAV';
 import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
+import jumpSoundUrl from '../assets/sounds/jumpsound.mp3';
 
 let ctx: AudioContext | null = null;
 
@@ -28,6 +29,7 @@ let lastBallShotAt = 0;
 const BALL_SHOT_DEBOUNCE_MS = 120;
 const SHOT_SAMPLE_BASE = 0.44;
 const CHING_SAMPLE_BASE = 0.92;
+const JUMP_SAMPLE_BASE = 0.62;
 /** Menu + in-match loops (Rocket Dope Tron) — off until re-enabled */
 export const BACKGROUND_MUSIC_ENABLED = false;
 
@@ -121,32 +123,50 @@ function loadSample(url: string): Promise<AudioBuffer | null> {
   return promise;
 }
 
+const GAME_AUDIO_PRELOAD_URLS = [
+  emptyClipUrl,
+  shotUrl,
+  explosionUrl,
+  chingUrl,
+  ambientUrl,
+  cheerUrl,
+  panicUrl,
+  goal1Url,
+  rocketDopeTronUrl,
+  jumpSoundUrl,
+] as const;
+
 function preloadSamples(): void {
-  void loadSample(emptyClipUrl);
-  void loadSample(shotUrl);
-  void loadSample(explosionUrl);
-  void loadSample(chingUrl);
-  void loadSample(ambientUrl);
-  void loadSample(cheerUrl);
-  void loadSample(panicUrl);
-  void loadSample(goal1Url);
-  void loadSample(rocketDopeTronUrl);
+  for (const url of GAME_AUDIO_PRELOAD_URLS) {
+    void loadSample(url);
+  }
+}
+
+/** Decode gameplay samples one at a time so the menu stays responsive */
+export async function preloadGameAudioSamples(
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  const total = GAME_AUDIO_PRELOAD_URLS.length;
+  for (let i = 0; i < total; i++) {
+    await loadSample(GAME_AUDIO_PRELOAD_URLS[i]!);
+    onProgress?.(i + 1, total);
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  }
 }
 
 const FT = 0.3048;
 
-/** Explosion loudness vs listener distance (feet) — ~2×, extra lift on distant hits. */
+/** Rocket explosion SFX — full level within ~25 ft, quiet tail by ~130 ft. */
 export function explosionVolumeByDistanceFt(distFt: number): number {
-  let near: number;
-  if (distFt <= 10) near = 1;
-  else if (distFt <= 20) near = 1 + ((0.8 - 1) * (distFt - 10)) / 10;
-  else if (distFt <= 25) near = 0.8 + ((0.6 - 0.8) * (distFt - 20)) / 5;
-  else if (distFt <= 40) near = 0.6 + ((0.2 - 0.6) * (distFt - 25)) / 15;
-  else near = 0.2;
-
-  const farLift =
-    distFt > 18 ? 1 + Math.min(0.85, (distFt - 18) / 28) : 1;
-  return Math.min(2.25, near * 2 * farLift);
+  const maxVol = 1;
+  const minVol = 0.06;
+  const fullDistFt = 25;
+  const silentDistFt = 130;
+  if (distFt <= fullDistFt) return maxVol;
+  if (distFt >= silentDistFt) return minVol;
+  const t = (distFt - fullDistFt) / (silentDistFt - fullDistFt);
+  const eased = t * t;
+  return maxVol + (minVol - maxVol) * eased;
 }
 
 export function explosionVolumeByDistanceM(
@@ -727,7 +747,7 @@ function playNoiseBurst(
 /** Magazine empty or max rockets in flight */
 export function playRocketEmpty() {
   if (!getCtx()) return;
-  playSample(emptyClipUrl, 0.95);
+  playSample(emptyClipUrl, 0.48);
 }
 
 function playShotSample(): void {
@@ -751,7 +771,7 @@ export function playRocketExplosion(
 ) {
   if (!getCtx()) return;
 
-  const scale = Math.min(1.15, 0.82 + radius / 18);
+  const scale = Math.min(1.05, 0.7 + radius / 22);
   let distMul = 1;
   if (explosionPos && listenerPos) {
     const dist = Math.hypot(
@@ -760,8 +780,10 @@ export function playRocketExplosion(
       explosionPos.z - listenerPos.z,
     );
     distMul = explosionVolumeByDistanceM(dist);
+  } else {
+    distMul = 0.35;
   }
-  playSample(explosionUrl, 0.72 * scale * distMul, true);
+  playSample(explosionUrl, 0.38 * scale * distMul, true);
 }
 
 /** WW forward dash */
@@ -775,17 +797,9 @@ export function playDash() {
 /** Player jump — 0 ground, 1 double, 2 triple */
 export function playJump(jumpIndex: number) {
   if (!getCtx()) return;
-
-  if (jumpIndex >= 2) {
-    playTone(360, 0.06, 'sine', 0.034, 620);
-    playTone(640, 0.08, 'triangle', 0.024, 920, 0.025);
-  } else if (jumpIndex >= 1) {
-    playTone(280, 0.07, 'sine', 0.038, 520);
-    playTone(520, 0.1, 'triangle', 0.028, 780, 0.03);
-  } else {
-    playTone(180, 0.09, 'sine', 0.042, 340);
-    playTone(95, 0.12, 'triangle', 0.022, 70, 0.04);
-  }
+  const rate =
+    jumpIndex >= 2 ? 1.14 : jumpIndex >= 1 ? 1.07 : 1;
+  playSample(jumpSoundUrl, JUMP_SAMPLE_BASE, false, rate);
 }
 
 /** Ball surface impact — louder when collision speed is higher */

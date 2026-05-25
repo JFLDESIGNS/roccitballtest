@@ -12,8 +12,7 @@ import { graphicsStore } from './graphicsStore';
 import { LensDistortion } from './sceneLensDistortion';
 import { tuningStore } from './tuningStore';
 
-/** Matches main sun in ArenaLighting */
-const SUN_LENS_POSITION = new THREE.Vector3(38, 62, 24);
+import { ARENA_SUN_POSITION } from './ArenaLighting';
 
 export function ScenePostFX() {
   const gfx = useSyncExternalStore(
@@ -94,7 +93,7 @@ export function ScenePostFX() {
       <LensFlare
         key="lensflare"
         enabled
-        lensPosition={SUN_LENS_POSITION}
+        lensPosition={ARENA_SUN_POSITION}
         opacity={0.9}
         glareSize={0.16}
         flareSize={0.011}

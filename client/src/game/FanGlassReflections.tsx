@@ -6,12 +6,16 @@ const _worldCam = new THREE.Vector3();
 const _localCam = new THREE.Vector3();
 const _clipNormal = new THREE.Vector3(0, 0, 1);
 
-/** Shared tilt for both streaks in a booth section */
-const BAR_TILT_RAD = (20 * Math.PI) / 180;
+/** Shared tilt for both streaks — nearly vertical, 9° from upright */
+const BAR_TILT_RAD = (9 * Math.PI) / 180;
+/** Fixed spacing between the two bars (move as one pair) */
+const BAR_PAIR_GAP_MULT = 0.11;
+/** Gap from the pair center to the solo bar (not touching the pair) */
+const BAR_SOLO_GAP_MULT = 0.2;
 /** Tall enough that rotated ends fade out inside the glass rect */
 const STREAK_HEIGHT_MULT = 5.5;
 
-function createStreakMaterial(): THREE.MeshBasicMaterial {
+function createStreakMaterial(opacityMul = 1): THREE.MeshBasicMaterial {
   const canvas = document.createElement('canvas');
   canvas.width = 32;
   canvas.height = 256;
@@ -38,7 +42,7 @@ function createStreakMaterial(): THREE.MeshBasicMaterial {
     map,
     color: 0xffffff,
     transparent: true,
-    opacity: 0.05,
+    opacity: 0.05 * opacityMul,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
@@ -56,19 +60,23 @@ export function FanGlassReflections({ panelW, panelH }: FanGlassReflectionsProps
   const groupRef = useRef<THREE.Group>(null);
   const shineA = useRef<THREE.Mesh>(null);
   const shineB = useRef<THREE.Mesh>(null);
+  const shineC = useRef<THREE.Mesh>(null);
   const smoothOffset = useRef(new THREE.Vector2());
-  const streakMat = useMemo(() => createStreakMaterial(), []);
+  const streakMat = useMemo(() => createStreakMaterial(0.88), []);
+  const soloStreakMat = useMemo(() => createStreakMaterial(0.42), []);
 
   const barRotation: [number, number, number] = [0, 0, BAR_TILT_RAD];
   const barH = panelH * STREAK_HEIGHT_MULT;
   const barW1 = panelW * 0.14;
   const barW2 = panelW * 0.18;
+  const barW3 = panelW * 0.11;
 
   useFrame(({ camera, clock }) => {
     const root = groupRef.current;
     const a = shineA.current;
     const b = shineB.current;
-    if (!root || !a || !b) return;
+    const c = shineC.current;
+    if (!root || !a || !b || !c) return;
 
     camera.getWorldPosition(_worldCam);
     root.worldToLocal(_localCam.copy(_worldCam));
@@ -76,9 +84,11 @@ export function FanGlassReflections({ panelW, panelH }: FanGlassReflectionsProps
     const camLen = _localCam.length();
     const headOn = camLen > 1e-4 ? Math.abs(_localCam.dot(_clipNormal)) / camLen : 1;
     const grazing = 1 - headOn;
-    const viewOpacity = THREE.MathUtils.lerp(0.32, 0.04, grazing ** 1.25);
+    const viewOpacity = THREE.MathUtils.lerp(0.28, 0.035, grazing ** 1.25);
     const breathe = 0.94 + 0.06 * Math.sin(clock.elapsedTime * 0.55);
-    streakMat.opacity = viewOpacity * breathe * 0.09;
+    const baseOp = viewOpacity * breathe * 0.085;
+    streakMat.opacity = baseOp;
+    soloStreakMat.opacity = baseOp * 0.48;
 
     const swayX = Math.sin(clock.elapsedTime * 0.35) * panelW * 0.014;
     const swayY = Math.sin(clock.elapsedTime * 0.28 + 0.9) * panelH * 0.006;
@@ -105,25 +115,23 @@ export function FanGlassReflections({ panelW, panelH }: FanGlassReflectionsProps
     );
     const ox = smoothOffset.current.x;
     const oy = smoothOffset.current.y;
+    const halfGap = panelW * BAR_PAIR_GAP_MULT * 0.5;
+    const soloOffset =
+      halfGap + panelW * BAR_SOLO_GAP_MULT + panelW * 0.09;
 
-    a.position.set(
-      panelW * 0.2 + ox * 0.78,
-      oy * 0.52,
-      0.012 + ox * 0.006,
-    );
-    b.position.set(
-      -panelW * 0.17 - ox * 0.62,
-      oy * 0.46,
-      0.014 - ox * 0.005,
-    );
+    a.position.set(ox - halfGap, oy, 0.012);
+    b.position.set(ox + halfGap, oy, 0.012);
+    c.position.set(ox + soloOffset, oy + panelH * 0.02, 0.009);
   });
 
   useEffect(
     () => () => {
       streakMat.map?.dispose();
       streakMat.dispose();
+      soloStreakMat.map?.dispose();
+      soloStreakMat.dispose();
     },
-    [streakMat],
+    [streakMat, soloStreakMat],
   );
 
   return (
@@ -143,6 +151,14 @@ export function FanGlassReflections({ panelW, panelH }: FanGlassReflectionsProps
         frustumCulled={false}
       >
         <planeGeometry args={[barW2, barH]} />
+      </mesh>
+      <mesh
+        ref={shineC}
+        material={soloStreakMat}
+        rotation={barRotation}
+        frustumCulled={false}
+      >
+        <planeGeometry args={[barW3, barH * 0.92]} />
       </mesh>
     </group>
   );

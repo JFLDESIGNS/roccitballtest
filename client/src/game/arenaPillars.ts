@@ -1,24 +1,13 @@
 import * as THREE from 'three';
-import { ARENA, BALL, ROCKET } from '../shared/Constants';
+import { ARENA, ROCKET } from '../shared/Constants';
 import { hexVertices } from './arenaHex';
 import type { ActiveRocket } from './rocketSystem';
-import { triggerArenaPillarShake } from './visualShake';
+import {
+  ARENA_PILLAR,
+  pillarSurfaceRadiusAtY,
+} from './arenaPillarConfig';
 
-const PILLAR_THICKNESS_SCALE = 3;
-
-export const ARENA_PILLAR = {
-  height: ARENA.wallHeight,
-  radiusTop: 2.35 * PILLAR_THICKNESS_SCALE,
-  radiusBase: 2.95 * PILLAR_THICKNESS_SCALE,
-  /** Collider uses the wider base radius */
-  colliderRadius: 2.95 * PILLAR_THICKNESS_SCALE,
-  hexInset: 1.8,
-  ringMajor: 3.35 * PILLAR_THICKNESS_SCALE,
-  ringTube: 0.18 * PILLAR_THICKNESS_SCALE,
-  ringGlowScale: 1.22,
-  floorY: ARENA.floorY,
-  bounceRestitution: BALL.restitution,
-} as const;
+export { ARENA_PILLAR, pillarSurfaceRadiusAtY };
 
 export type ArenaPillarLayout = {
   x: number;
@@ -101,20 +90,6 @@ export function findArenaPillarSegmentHit(
     }
   }
   return null;
-}
-
-/** Visual pillar radius at world Y (matches tapered cylinder mesh). */
-export function pillarSurfaceRadiusAtY(y: number): number {
-  const t = THREE.MathUtils.clamp(
-    (y - ARENA_PILLAR.floorY) / Math.max(ARENA_PILLAR.height, 0.001),
-    0,
-    1,
-  );
-  return THREE.MathUtils.lerp(
-    ARENA_PILLAR.radiusBase,
-    ARENA_PILLAR.radiusTop,
-    t,
-  );
 }
 
 export function rotateXZNormal(nx: number, nz: number, angleRad: number) {
@@ -223,7 +198,9 @@ export function tryArenaPillarRocketBounce(
       continue;
     }
 
-    triggerArenaPillarShake(p.x, p.z);
+    void import('./visualShake').then(({ triggerArenaPillarShake }) => {
+      triggerArenaPillarShake(p.x, p.z);
+    });
 
     pushOutOfPillarXZ(pos, p.x, p.z, hitR + 0.08);
 

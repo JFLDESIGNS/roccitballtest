@@ -8,6 +8,7 @@ import { isFanBayGlassCelebrating } from './fanGlassHit';
 
 const FT = 0.3048;
 const MAX_FLASHES = 72;
+const _lookAt = new THREE.Vector3();
 
 type SeatLike = {
   x: number;
@@ -29,6 +30,15 @@ type PhotoFlash = {
   seatIndex: number;
   born: number;
   duration: number;
+};
+
+type PhotoShooter = {
+  seatIndex: number;
+  shotsLeft: number;
+  nextShotAt: number;
+  flashDuration: number;
+  gapMin: number;
+  gapMax: number;
 };
 
 type FanBayPhotoFlashesProps = {
@@ -62,9 +72,31 @@ function fanJumpOffset(
   return amp * Math.sin(u * Math.PI);
 }
 
-function pickRandomSeatIndex(seats: readonly SeatLike[], filter?: (s: SeatLike) => boolean): number {
+function randInt(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function randFloat(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+function shuffleIndices(indices: number[]): number[] {
+  const out = [...indices];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i]!;
+    out[i] = out[j]!;
+    out[j] = tmp;
+  }
+  return out;
+}
+
+function pickRandomSeatIndex(
+  seats: readonly SeatLike[],
+  filter?: (s: SeatLike) => boolean,
+): number {
   if (seats.length === 0) return -1;
-  const tries = Math.min(12, seats.length);
+  const tries = Math.min(16, seats.length);
   for (let i = 0; i < tries; i++) {
     const idx = Math.floor(Math.random() * seats.length);
     const seat = seats[idx]!;
@@ -74,6 +106,47 @@ function pickRandomSeatIndex(seats: readonly SeatLike[], filter?: (s: SeatLike) 
     if (!filter || filter(seats[i]!)) return i;
   }
   return -1;
+}
+
+function buildShootersFromIndices(
+  seatIndices: number[],
+  flashDuration: number,
+  nowSec: number,
+  shotsMin: number = ARENA_PADS.fanPhotoShotsPerShooterMin,
+  shotsMax: number = ARENA_PADS.fanPhotoShotsPerShooterMax,
+  gapMin: number = ARENA_PADS.fanPhotoShotGapMinSec,
+  gapMax: number = ARENA_PADS.fanPhotoShotGapMaxSec,
+): PhotoShooter[] {
+  const shooters: PhotoShooter[] = [];
+  for (const seatIndex of seatIndices) {
+    const shots = randInt(shotsMin, shotsMax);
+    shooters.push({
+      seatIndex,
+      shotsLeft: shots,
+      nextShotAt: nowSec + randFloat(0.02, 0.28),
+      flashDuration,
+      gapMin,
+      gapMax,
+    });
+  }
+  return shooters;
+}
+
+function buildGoalPhotographerSeats(seats: readonly SeatLike[], team: Team): number[] {
+  const scoring: number[] = [];
+  for (let i = 0; i < seats.length; i++) {
+    if (fanMatchesScoringTeam(seats[i]!.color, team)) scoring.push(i);
+  }
+  if (scoring.length === 0) return [];
+  const share = ARENA_PADS.fanPhotoGoalParticipationPct;
+  const count = Math.max(2, Math.round(scoring.length * share));
+  return shuffleIndices(scoring).slice(0, Math.min(count, scoring.length));
+}
+
+function buildGlassPhotographerSeats(seats: readonly SeatLike[]): number[] {
+  const all = seats.map((_, i) => i);
+  const count = Math.min(ARENA_PADS.fanPhotoGlassShooterCount, all.length);
+  return shuffleIndices(all).slice(0, count);
 }
 
 function claimFlash(pool: PhotoFlash[]): PhotoFlash | null {
@@ -86,7 +159,31 @@ function claimFlash(pool: PhotoFlash[]): PhotoFlash | null {
   return oldest;
 }
 
-/** Brief emissive diamond — idle paparazzi pops + goal frenzy on scoring fans */
+/** Visible flash — quick rise, brief hold, soft fall */
+function flashBrightness(elapsed: number, duration: number): number {
+  const u = Math.min(1, Math.max(0, elapsed / duration));
+  if (u < 0.14) return u / 0.14;
+  if (u > 0.78) return Math.max(0, (1 - u) / 0.22);
+  return 1;
+}
+
+function tickShooters(
+  shooters: PhotoShooter[],
+  nowSec: number,
+  spawnFlash: (seatIndex: number, duration: number) => void,
+): void {
+  for (const shooter of shooters) {
+    if (shooter.shotsLeft <= 0) continue;
+    if (nowSec < shooter.nextShotAt) continue;
+    spawnFlash(shooter.seatIndex, shooter.flashDuration);
+    shooter.shotsLeft -= 1;
+    if (shooter.shotsLeft > 0) {
+      shooter.nextShotAt = nowSec + randFloat(shooter.gapMin, shooter.gapMax);
+    }
+  }
+}
+
+/** Bright camera-style flash — sparse idle snaps + limited goal/glass photographers */
 export function FanBayPhotoFlashes({
   bayKey,
   seats,
@@ -110,22 +207,22 @@ export function FanBayPhotoFlashes({
     ARENA_PADS.fanPhotoIdleMinSec +
       Math.random() * (ARENA_PADS.fanPhotoIdleMaxSec - ARENA_PADS.fanPhotoIdleMinSec),
   );
-  const goalBurstCooldownRef = useRef(0);
   const wasGoalActiveRef = useRef(false);
+  const goalShootersRef = useRef<PhotoShooter[]>([]);
+  const wasGlassActiveRef = useRef(false);
+  const glassShootersRef = useRef<PhotoShooter[]>([]);
 
   const geo = useMemo(() => new THREE.OctahedronGeometry(1, 0), []);
   const mat = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
-        color: '#f4fbff',
-        emissive: '#dff6ff',
-        emissiveIntensity: 2.8,
-        metalness: 0.15,
-        roughness: 0.22,
+      new THREE.MeshBasicMaterial({
+        color: '#ffffff',
         transparent: true,
-        opacity: 1,
+        opacity: ARENA_PADS.fanPhotoFlashOpacity,
         depthWrite: false,
+        depthTest: true,
         toneMapped: false,
+        blending: THREE.AdditiveBlending,
       }),
     [],
   );
@@ -134,6 +231,7 @@ export function FanBayPhotoFlashes({
     const mesh = meshRef.current;
     if (!mesh) return;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (mesh.instanceColor) mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
     mesh.count = 0;
   }, []);
 
@@ -147,7 +245,18 @@ export function FanBayPhotoFlashes({
     slot.duration = flashDuration;
   };
 
-  useFrame(({ clock }, dt) => {
+  const spawnIdleSnap = () => {
+    if (ARENA_PADS.fanPhotoIdleBurstMax <= 0) return;
+    const n = randInt(
+      ARENA_PADS.fanPhotoIdleBurstMin,
+      ARENA_PADS.fanPhotoIdleBurstMax,
+    );
+    for (let i = 0; i < n; i++) {
+      spawnFlash(pickRandomSeatIndex(seats));
+    }
+  };
+
+  useFrame(({ clock, camera }, dt) => {
     const t = clock.elapsedTime;
     const now = performance.now() / 1000;
     const celebration = getFanCelebrationState(t);
@@ -158,38 +267,46 @@ export function FanBayPhotoFlashes({
       seats.some((s) => fanMatchesScoringTeam(s.color, celebration.team!));
 
     idleTimerRef.current -= dt;
-    if (idleTimerRef.current <= 0 && !scoringCheer) {
+    if (idleTimerRef.current <= 0 && !scoringCheer && !glassCrazy) {
       idleTimerRef.current =
         ARENA_PADS.fanPhotoIdleMinSec +
         Math.random() * (ARENA_PADS.fanPhotoIdleMaxSec - ARENA_PADS.fanPhotoIdleMinSec);
-      if (Math.random() < ARENA_PADS.fanPhotoIdleChance) {
-        spawnFlash(pickRandomSeatIndex(seats));
-      }
+      spawnIdleSnap();
     }
 
     if (scoringCheer && celebration.team) {
-      const team = celebration.team;
-      const filter = (s: SeatLike) => fanMatchesScoringTeam(s.color, team);
       if (!wasGoalActiveRef.current) {
-        for (let i = 0; i < ARENA_PADS.fanPhotoGoalBurstCount; i++) {
-          spawnFlash(pickRandomSeatIndex(seats, filter), ARENA_PADS.fanPhotoGoalFlashDurationSec);
-        }
-      }
-      goalBurstCooldownRef.current -= dt;
-      if (goalBurstCooldownRef.current <= 0) {
-        goalBurstCooldownRef.current = ARENA_PADS.fanPhotoGoalBurstIntervalSec;
-        const burst = Math.floor(
-          ARENA_PADS.fanPhotoGoalBurstPerTick *
-            (0.85 + Math.random() * 0.3),
+        const seatsForGoal = buildGoalPhotographerSeats(seats, celebration.team);
+        goalShootersRef.current = buildShootersFromIndices(
+          seatsForGoal,
+          ARENA_PADS.fanPhotoGoalFlashDurationSec,
+          now,
+          ARENA_PADS.fanPhotoGoalShotsPerShooterMin,
+          ARENA_PADS.fanPhotoGoalShotsPerShooterMax,
+          ARENA_PADS.fanPhotoGoalShotGapMinSec,
+          ARENA_PADS.fanPhotoGoalShotGapMaxSec,
         );
-        for (let i = 0; i < burst; i++) {
-          spawnFlash(pickRandomSeatIndex(seats, filter), ARENA_PADS.fanPhotoGoalFlashDurationSec);
-        }
       }
+      tickShooters(goalShootersRef.current, now, spawnFlash);
     } else {
-      goalBurstCooldownRef.current = 0;
+      goalShootersRef.current = [];
     }
     wasGoalActiveRef.current = scoringCheer;
+
+    if (glassCrazy) {
+      if (!wasGlassActiveRef.current) {
+        const glassSeats = buildGlassPhotographerSeats(seats);
+        glassShootersRef.current = buildShootersFromIndices(
+          glassSeats,
+          ARENA_PADS.fanPhotoGlassFlashDurationSec,
+          now,
+        );
+      }
+      tickShooters(glassShootersRef.current, now, spawnFlash);
+    } else {
+      glassShootersRef.current = [];
+    }
+    wasGlassActiveRef.current = glassCrazy;
 
     const inst = meshRef.current;
     if (!inst) return;
@@ -216,10 +333,8 @@ export function FanBayPhotoFlashes({
         continue;
       }
 
-      const lifeT = 1 - elapsed / flash.duration;
-      const pop = Math.sin(Math.min(1, elapsed / (flash.duration * 0.22)) * Math.PI);
-      const fade = lifeT * lifeT * pop;
-      if (fade < 0.02) continue;
+      const fade = flashBrightness(elapsed, flash.duration);
+      if (fade < 0.04) continue;
 
       const scoringFan =
         celebration.active &&
@@ -242,26 +357,32 @@ export function FanBayPhotoFlashes({
         Math.sin(t * swayBase * seat.swaySpeed + seat.swayPhase * Math.PI * 2);
       const fanX = Math.max(-maxFanX, Math.min(maxFanX, seat.x + swayX));
 
-      dummy.position.set(
+      _lookAt.set(
         fanX,
-        seat.y + seat.yJitter + bounce + holdY + sphereR * 0.42,
-        seat.z + holdZ + sphereR * 0.08,
+        seat.y + seat.yJitter + bounce + holdY + sphereR * 0.5,
+        seat.z + holdZ + sphereR * 0.22,
       );
-      dummy.rotation.set(0.38, t * 2.4 + flash.seatIndex * 0.17, 0.38);
-      const s = diamondScale * (0.55 + fade * 0.95);
-      dummy.scale.set(s, s * 1.35, s);
+      dummy.position.copy(_lookAt);
+      dummy.lookAt(camera.position);
+      const s = diamondScale * (0.7 + fade * 0.95);
+      dummy.scale.set(s, s * 1.2, s);
       dummy.updateMatrix();
       inst.setMatrixAt(n, dummy.matrix);
 
-      const bright = fade * (scoringFan ? 1.15 : 0.92);
-      flashColor.setRGB(0.72 * bright, 0.9 * bright, bright);
+      const bright = fade * (scoringFan || glassCrazy ? 2.1 : 1.55);
+      flashColor.setRGB(bright, bright, bright * 1.02);
       inst.setColorAt(n, flashColor);
       n++;
     }
 
-    inst.count = n;
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    if (inst.count !== n) {
+      inst.count = n;
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    } else if (n > 0) {
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    }
   });
 
   return (
@@ -269,7 +390,7 @@ export function FanBayPhotoFlashes({
       ref={meshRef}
       args={[geo, mat, MAX_FLASHES]}
       frustumCulled={false}
-      renderOrder={12}
+      renderOrder={20}
     />
   );
 }

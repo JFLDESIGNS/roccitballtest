@@ -5,7 +5,6 @@ import { tuningStore } from './tuningStore';
 import {
   bounceLaunchSpeedY,
   getBounceTrampolinePads,
-  sampleTrampolineFloorY,
   type FloorPad,
 } from './arenaPadLayout';
 
@@ -13,71 +12,25 @@ const trampolines = getBounceTrampolinePads();
 
 let ballPadUntil = 0;
 let playerPadUntil = 0;
+let botPadUntil = 0;
 
-function stoneCylinderR(pad: FloorPad): number {
-  return pad.radius * 1.2;
-}
-
-function inCylinderXZ(x: number, z: number, pad: FloorPad): boolean {
-  return Math.hypot(x - pad.x, z - pad.z) <= stoneCylinderR(pad);
-}
-
-function onTrampolineDeck(x: number, z: number, pad: FloorPad): boolean {
-  return Math.hypot(x - pad.x, z - pad.z) <= pad.radius;
-}
+const PAD_XZ_SCALE = 1.08;
+const PAD_MAX_ABOVE_DECK_M = 4.5;
 
 function deckSurfaceY(pad: FloorPad): number {
   return pad.platformTopY + ARENA_PADS.bouncePadHeightM;
 }
 
-/** Pedestal + cyan deck column — player should never treat this as walkable ground */
-export function isPlayerInTrampolineZone(
-  x: number,
-  z: number,
-  feetY: number,
-): boolean {
+function findLaunchPad(x: number, z: number): FloorPad | null {
   for (const pad of trampolines) {
-    if (!inCylinderXZ(x, z, pad)) continue;
-    const deckY = deckSurfaceY(pad);
-    if (feetY <= deckY + 1.45 && feetY >= pad.platformTopY - 0.45) return true;
-  }
-  return false;
-}
-
-/** Cyan deck launch zone — feet intersecting deck volume */
-export function isPlayerOverTrampolineDeck(
-  x: number,
-  z: number,
-  feetY: number,
-): boolean {
-  for (const pad of trampolines) {
-    if (!onTrampolineDeck(x, z, pad)) continue;
-    const deckY = deckSurfaceY(pad);
-    if (feetY <= deckY + 1.35 && feetY >= deckY - 0.85) return true;
-  }
-  return false;
-}
-
-function tryBallPads(body: RapierRigidBody, launchVy: number): boolean {
-  const t = body.translation();
-  const surface = sampleTrampolineFloorY(t.x, t.z);
-  const maxY = surface ?? 0;
-  if (t.y > maxY + 4) return false;
-
-  for (const trampoline of trampolines) {
-    if (inCylinderXZ(t.x, t.z, trampoline)) {
-      const v = body.linvel();
-      body.setLinvel(
-        { x: v.x, y: Math.max(v.y, 0) + launchVy, z: v.z },
-        true,
-      );
-      return true;
+    if (Math.hypot(x - pad.x, z - pad.z) <= pad.radius * PAD_XZ_SCALE) {
+      return pad;
     }
   }
-  return false;
+  return null;
 }
 
-function playerPadLaunchVy(gravity: number, strengthMult: number): number {
+function playerLaunchVy(gravity: number, strengthMult: number): number {
   const h =
     ARENA_PADS.bounceLaunchHeightFt *
     0.3048 *
@@ -90,9 +43,65 @@ function playerPadLaunchVy(gravity: number, strengthMult: number): number {
   );
 }
 
-/**
- * Player trampoline — launch on cyan deck overlap (no deck collider; wide vertical band).
- */
+function applyLaunch(
+  body: RapierRigidBody,
+  velocity: THREE.Vector3 | null,
+  launchVy: number,
+): void {
+  const v = body.linvel();
+  const vy = Math.max(launchVy, v.y);
+  body.setLinvel({ x: v.x, y: vy, z: v.z }, true);
+  if (velocity) {
+    velocity.x = v.x;
+    velocity.y = vy;
+    velocity.z = v.z;
+  }
+  const t = body.translation();
+  const pad = findLaunchPad(t.x, t.z);
+  if (pad) {
+    const deckY = deckSurfaceY(pad);
+    const liftY = Math.max(t.y, deckY + 0.15);
+    body.setTranslation({ x: t.x, y: liftY, z: t.z }, true);
+  }
+}
+
+function bodyOnPad(body: RapierRigidBody, feetY?: number): FloorPad | null {
+  const t = body.translation();
+  const pad = findLaunchPad(t.x, t.z);
+  if (!pad) return null;
+  const deckY = deckSurfaceY(pad);
+  const refY = feetY ?? t.y;
+  if (refY > deckY + PAD_MAX_ABOVE_DECK_M && t.y > deckY + PAD_MAX_ABOVE_DECK_M) {
+    return null;
+  }
+  if (t.y < pad.platformTopY - 2.5) return null;
+  return pad;
+}
+
+/** Pedestal + deck column — player should not treat as normal walkable ground */
+export function isPlayerInTrampolineZone(
+  x: number,
+  z: number,
+  feetY: number,
+): boolean {
+  const pad = findLaunchPad(x, z);
+  if (!pad) return false;
+  const deckY = deckSurfaceY(pad);
+  return feetY <= deckY + PAD_MAX_ABOVE_DECK_M && feetY >= pad.platformTopY - 0.8;
+}
+
+/** Cyan deck launch zone */
+export function isPlayerOverTrampolineDeck(
+  x: number,
+  z: number,
+  feetY: number,
+): boolean {
+  const pad = findLaunchPad(x, z);
+  if (!pad) return false;
+  const deckY = deckSurfaceY(pad);
+  return feetY <= deckY + 1.8 && feetY >= deckY - 1.2;
+}
+
 export function tryPlayerPads(
   body: RapierRigidBody,
   velocity: THREE.Vector3,
@@ -103,41 +112,43 @@ export function tryPlayerPads(
   const now = performance.now();
   if (now < playerPadUntil) return false;
 
-  const t = body.translation();
-  const launchVy = playerPadLaunchVy(gravity, strengthMult);
+  const pad = bodyOnPad(body, contact.feetY);
+  if (!pad) return false;
 
-  for (const trampoline of trampolines) {
-    if (!inCylinderXZ(t.x, t.z, trampoline)) continue;
+  const launchVy = playerLaunchVy(gravity, strengthMult);
+  applyLaunch(body, velocity, launchVy);
+  playerPadUntil = now + 220;
+  return true;
+}
 
-    const deckY = deckSurfaceY(trampoline);
-    const stoneY = trampoline.platformTopY;
-    const feetY = contact.feetY;
-    if (feetY > deckY + 1.45 || feetY < stoneY - 0.45) continue;
-    if (contact.vy > launchVy * 0.92 && feetY > deckY + 0.08) continue;
+/** Bots — same XZ pad test as player/ball */
+export function tryBotPads(
+  body: RapierRigidBody,
+  velocity: THREE.Vector3,
+  gravity: number,
+  strengthMult: number,
+): boolean {
+  const now = performance.now();
+  if (now < botPadUntil) return false;
 
-    velocity.y = launchVy;
-    body.setLinvel(
-      { x: velocity.x, y: launchVy, z: velocity.z },
-      true,
-    );
-    const tr = body.translation();
-    const liftY = Math.max(tr.y, deckY + 0.12 + (tr.y - feetY));
-    body.setTranslation({ x: tr.x, y: liftY, z: tr.z }, true);
-    playerPadUntil = now + Math.max(ARENA_PADS.padCooldownMs, 220);
-    return true;
-  }
+  const pad = bodyOnPad(body);
+  if (!pad) return false;
 
-  return false;
+  const launchVy = bounceLaunchSpeedY(gravity, strengthMult);
+  applyLaunch(body, velocity, launchVy);
+  botPadUntil = now + 200;
+  return true;
 }
 
 export function tickArenaPads(ballBody: RapierRigidBody | null): void {
   const now = performance.now();
+  if (!ballBody || now < ballPadUntil) return;
+
+  const pad = bodyOnPad(ballBody);
+  if (!pad) return;
+
   const tune = tuningStore.getState();
   const launchVy = bounceLaunchSpeedY(tune.gravity, tune.trampolineStrength);
-
-  if (ballBody && now >= ballPadUntil) {
-    if (tryBallPads(ballBody, launchVy)) {
-      ballPadUntil = now + 280;
-    }
-  }
+  applyLaunch(ballBody, null, launchVy);
+  ballPadUntil = now + 200;
 }

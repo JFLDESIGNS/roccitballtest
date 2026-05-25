@@ -9,6 +9,10 @@ import {
   armBotRocketKnockStun,
   armPlayerRocketKnockStun,
 } from './rocketKnockStun';
+import {
+  applyDownwardSelfRocketBoost,
+  isDownwardSelfRocketBoost,
+} from './rocketDownBoost';
 import type { BotCombatState } from './botCombat';
 import {
   ballRocketKnockDirection,
@@ -273,11 +277,37 @@ export function applyExplosionToPlayer(
   rocketVx?: number,
   rocketVy?: number,
   rocketVz?: number,
+  feetY?: number,
+  fromOwnerId?: string,
 ): { damage: number; rocketJump: boolean } {
   const dist = Math.hypot(px - ex, py - ey, pz - ez);
   if (dist >= radius) return { damage: 0, rocketJump: false };
 
   const falloff = Math.max(ROCKET.ballSplashMinFalloff, 1 - dist / radius);
+
+  if (
+    feetY !== undefined &&
+    isDownwardSelfRocketBoost(
+      py,
+      ex,
+      ey,
+      ez,
+      px,
+      pz,
+      feetY,
+      fromOwnerId,
+      rocketVx,
+      rocketVy,
+      rocketVz,
+    )
+  ) {
+    applyDownwardSelfRocketBoost(player, falloff);
+    return {
+      damage: splashDamageFactor(dist) * 0.35,
+      rocketJump: true,
+    };
+  }
+
   const knock = ROCKET.playerForce * falloff * forceScale;
 
   const dir = knockDirection(px, py, pz, ex, ey, ez, rocketVx, rocketVy, rocketVz);

@@ -1,7 +1,7 @@
 import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups, RigidBody } from '@react-three/rapier';
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ARENA, BALL, RENDER } from '../shared/Constants';
+import { ARENA, BALL } from '../shared/Constants';
 import {
   ARENA_GOALS,
   goalBackCapArenaNudgeM,
@@ -23,13 +23,14 @@ import {
   buildHexWallSegments,
   createHexShape,
   hexCornerPositions,
-  hexVertices,
   isGoalHexEdge,
   isMidMapWallCorner,
 } from './arenaHex';
 import { SplitPerimeterWallWithFans } from './ArenaBillboardFans';
 import { ArenaCornerPillars } from './ArenaCornerPillars';
 import { ArenaCeilingStrip } from './ArenaCeilingStrip';
+import { ArenaRetractableRoof } from './ArenaRetractableRoof';
+import { WallTopTrim } from './arenaWallTrim';
 import { BallDrop } from './BallDrop';
 import { OctagonPlatform } from './OctagonPlatform';
 import { RocccitLogoStamp } from './RocccitLogoStamp';
@@ -37,13 +38,11 @@ import { BackWallEscapeZones } from './BackWallEscapeZones';
 import { GoalNetBackstop } from './GoalNetBackstop';
 import { ArenaInteractables } from './ArenaInteractables';
 import { GoalZoneDebugVisuals } from './GoalZoneDebugVisuals';
-import './arenaConcreteTexture';
-import { applyPlanarTileUVs } from './arenaConcreteTexture';
+import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
+import { ArenaTurfBlades } from './arenaTurfBlades';
 import {
   goalBackRingMaterial,
-  arenaCeilingMaterial,
-  arenaFloorMaterial,
-  arenaFloorTileMaterial,
+  arenaHexFloorMaterial,
   arenaWallMaterial,
 } from './arenaMaterials';
 
@@ -64,6 +63,10 @@ function PerimeterWall({
 }) {
   const h = wallHeight / 2;
   const t = wallThickness / 2;
+  const wallGeo = useMemo(
+    () => createMeterTiledBoxGeometry(length, wallHeight, wallThickness),
+    [length],
+  );
 
   return (
     <RigidBody
@@ -78,9 +81,13 @@ function PerimeterWall({
         restitution={BALL.restitution}
         collisionGroups={interactionGroups(2, [0, 1, 2])}
       />
-      <mesh castShadow={false} receiveShadow material={arenaWallMaterial}>
-        <boxGeometry args={[length, wallHeight, wallThickness]} />
-      </mesh>
+      <mesh
+        castShadow={false}
+        receiveShadow
+        material={arenaWallMaterial}
+        geometry={wallGeo}
+      />
+      <WallTopTrim length={length} thickness={wallThickness} />
     </RigidBody>
   );
 }
@@ -389,68 +396,6 @@ function TeamHalfFloorTint() {
   );
 }
 
-function HexFloorTiles() {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const geo = useMemo(() => {
-    const g = new THREE.CircleGeometry(2.1, 6);
-    applyPlanarTileUVs(g);
-    return g;
-  }, []);
-  const tileData = useMemo(() => {
-    const step = RENDER.hexFloorTileStep;
-    const limit = hexRadius - 4;
-    const verts = hexVertices(hexRadius - 1);
-    const items: { x: number; z: number; even: boolean }[] = [];
-    for (let x = -limit; x <= limit; x += step) {
-      for (let z = -limit; z <= limit; z += step) {
-        if (!isPointInHex(x, z, verts)) continue;
-        const even = (Math.round(x / step) + Math.round(z / step)) % 2 === 0;
-        items.push({ x, z, even });
-      }
-    }
-    return items;
-  }, []);
-
-  useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const dummy = new THREE.Object3D();
-    for (let i = 0; i < tileData.length; i++) {
-      const t = tileData[i];
-      dummy.position.set(t.x, 0.03, t.z);
-      dummy.rotation.set(-Math.PI / 2, 0, 0);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [tileData]);
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geo, arenaFloorTileMaterial, tileData.length]}
-      frustumCulled
-    />
-  );
-}
-
-function isPointInHex(x: number, z: number, verts: THREE.Vector2[]): boolean {
-  let inside = false;
-  for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-    const xi = verts[i].x;
-    const zi = verts[i].y;
-    const xj = verts[j].x;
-    const zj = verts[j].y;
-    if (
-      zi > z !== zj > z &&
-      x < ((xj - xi) * (z - zi)) / (zj - zi) + xi
-    ) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
 export function Arena({
   hiddenGoalIds = [],
   hiddenPillarIndices = [],
@@ -460,11 +405,10 @@ export function Arena({
 } = {}) {
   const floorShape = useMemo(() => createHexShape(hexRadius), []);
   const floorGeo = useMemo(() => {
-    const geo = new THREE.ExtrudeGeometry(floorShape, {
-      depth: 0.2,
-      bevelEnabled: false,
-    });
-    applyPlanarTileUVs(geo);
+    const geo = new THREE.ShapeGeometry(floorShape);
+    geo.rotateX(-Math.PI / 2);
+    geo.scale(1, 1, -1);
+    geo.computeVertexNormals();
     return geo;
   }, [floorShape]);
   const wallSegments = useMemo(
@@ -485,16 +429,12 @@ export function Arena({
           restitution={BALL.restitution}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-        <mesh
-          geometry={floorGeo}
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-          material={arenaFloorMaterial}
-        />
+        <mesh geometry={floorGeo} receiveShadow material={arenaHexFloorMaterial} />
       </RigidBody>
 
+      <ArenaTurfBlades />
+
       <TeamHalfFloorTint />
-      <HexFloorTiles />
 
       <OctagonPlatform />
       <group
@@ -545,18 +485,7 @@ export function Arena({
 
       <ArenaCornerPillars hiddenIndices={hiddenPillarIndices} />
 
-      {/* Ceiling collider — stop ball / player flying out the top */}
-      <RigidBody type="fixed" colliders={false} position={[0, wallHeight + ARENA.ceilingOverlapM + 0.12, 0]}>
-        <CuboidCollider
-          args={[hexRadius, 0.25, hexRadius]}
-          collisionGroups={interactionGroups(2, [0, 1, 2])}
-        />
-      </RigidBody>
-      <mesh position={[0, wallHeight + ARENA.ceilingOverlapM, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <shapeGeometry args={[floorShape]} />
-        <primitive object={arenaCeilingMaterial} attach="material" />
-      </mesh>
-
+      <ArenaRetractableRoof />
       <ArenaCeilingStrip />
 
       <GoalWallAccentLights />
