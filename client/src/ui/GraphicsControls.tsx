@@ -42,14 +42,76 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
         onChange={graphicsStore.setAo}
       />
       {gfx.ao !== false ? (
-        <GfxSlider
-          label="AO strength"
-          value={gfx.aoIntensity ?? 1.15}
-          min={0}
-          max={2.5}
-          step={0.05}
-          onChange={graphicsStore.setAoIntensity}
-        />
+        <>
+          <GfxSlider
+            label="AO strength"
+            value={gfx.aoIntensity ?? 1.15}
+            min={0}
+            max={2.5}
+            step={0.05}
+            onChange={graphicsStore.setAoIntensity}
+          />
+          <GfxSlider
+            label="AO size (radius)"
+            value={gfx.aoRadius ?? 10}
+            min={2}
+            max={40}
+            step={0.5}
+            onChange={graphicsStore.setAoRadius}
+            format={(v) => `${v.toFixed(1)} m`}
+          />
+          <GfxSlider
+            label="AO distance falloff"
+            value={gfx.aoDistanceFalloff ?? 0.8}
+            min={0}
+            max={1.5}
+            step={0.05}
+            onChange={graphicsStore.setAoDistanceFalloff}
+          />
+          <GfxSlider
+            label="AO samples"
+            value={gfx.aoSamples ?? 8}
+            min={2}
+            max={24}
+            step={1}
+            onChange={graphicsStore.setAoSamples}
+            format={(v) => String(Math.round(v))}
+          />
+          <GfxSlider
+            label="AO denoise radius"
+            value={gfx.aoDenoiseRadius ?? 8}
+            min={2}
+            max={20}
+            step={1}
+            onChange={graphicsStore.setAoDenoiseRadius}
+            format={(v) => String(Math.round(v))}
+          />
+          <GfxSlider
+            label="AO denoise samples"
+            value={gfx.aoDenoiseSamples ?? 3}
+            min={1}
+            max={12}
+            step={1}
+            onChange={graphicsStore.setAoDenoiseSamples}
+            format={(v) => String(Math.round(v))}
+          />
+          <GfxSelect
+            label="AO quality"
+            value={gfx.aoQuality ?? 'performance'}
+            options={[
+              { id: 'performance' as const, label: 'Performance' },
+              { id: 'low' as const, label: 'Low' },
+              { id: 'medium' as const, label: 'Medium' },
+              { id: 'high' as const, label: 'High' },
+            ]}
+            onChange={graphicsStore.setAoQuality}
+          />
+          <GfxToggle
+            label="AO half resolution (faster)"
+            checked={gfx.aoHalfRes ?? true}
+            onChange={graphicsStore.setAoHalfRes}
+          />
+        </>
       ) : null}
       <GfxToggle
         label="Arena fog"

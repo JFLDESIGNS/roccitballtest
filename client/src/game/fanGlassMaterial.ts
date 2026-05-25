@@ -19,7 +19,7 @@ export function createFanGlassMaterial(): THREE.MeshBasicMaterial {
     color: '#010204',
     transparent: true,
     opacity: baseOpacity,
-    depthWrite: true,
+    depthWrite: false,
     depthTest: true,
     side: THREE.DoubleSide,
     toneMapped: true,

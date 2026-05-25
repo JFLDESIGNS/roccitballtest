@@ -7,6 +7,7 @@ import {
   getBounceTrampolinePads,
   type FloorPad,
 } from './arenaPadLayout';
+import { triggerJumpPadGlow } from './jumpPadGlow';
 
 const trampolines = getBounceTrampolinePads();
 
@@ -59,6 +60,7 @@ function applyLaunch(
   const t = body.translation();
   const pad = findLaunchPad(t.x, t.z);
   if (pad) {
+    triggerJumpPadGlow(pad);
     const deckY = deckSurfaceY(pad);
     const liftY = Math.max(t.y, deckY + 0.15);
     body.setTranslation({ x: t.x, y: liftY, z: t.z }, true);

@@ -51,15 +51,15 @@ export function ScenePostFX() {
   if (gfx.ao) {
     effects.push(
       <N8AO
-        key="n8ao"
-        halfRes
-        quality="performance"
-        aoRadius={10}
+        key={`n8ao-${gfx.aoQuality}-${gfx.aoRadius}-${gfx.aoHalfRes}`}
+        halfRes={gfx.aoHalfRes}
+        quality={gfx.aoQuality}
+        aoRadius={gfx.aoRadius}
         intensity={gfx.aoIntensity * 0.82}
-        aoSamples={8}
-        denoiseSamples={3}
-        denoiseRadius={8}
-        distanceFalloff={0.8}
+        aoSamples={gfx.aoSamples}
+        denoiseSamples={gfx.aoDenoiseSamples}
+        denoiseRadius={gfx.aoDenoiseRadius}
+        distanceFalloff={gfx.aoDistanceFalloff}
       />,
     );
   }

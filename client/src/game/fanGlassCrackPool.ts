@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 export const FAN_GLASS_CRACK_POOL_SIZE = 48;
 /** Peak opacity when viewing the glass head-on */
-export const FAN_GLASS_CRACK_BASE_OPACITY = 0.2;
+export const FAN_GLASS_CRACK_BASE_OPACITY = 0.38;
 /** ~1.5× prior average crack size */
 export const FAN_GLASS_CRACK_BASE_SIZE_M = 7.65;
 export const FAN_GLASS_CRACK_SURFACE_LIFT_M = 0.012;

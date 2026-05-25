@@ -3,7 +3,15 @@ import {
   type ShadowMapTypeId,
 } from './shadowMapType';
 
-const STORAGE_KEY = 'rocketball-graphics-v20';
+export type AoQualityId = 'performance' | 'low' | 'medium' | 'high';
+
+const AO_QUALITIES: AoQualityId[] = ['performance', 'low', 'medium', 'high'];
+
+function isAoQualityId(v: string): v is AoQualityId {
+  return (AO_QUALITIES as string[]).includes(v);
+}
+
+const STORAGE_KEY = 'rocketball-graphics-v21';
 
 function normalizeHexColor(raw: string | undefined, fallback: string): string {
   if (!raw || !/^#[0-9a-fA-F]{6}$/.test(raw)) return fallback;
@@ -49,6 +57,26 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
       raw.shadowMapType && isShadowMapTypeId(raw.shadowMapType)
         ? raw.shadowMapType
         : defaults.shadowMapType,
+    aoRadius: Math.max(1, Math.min(80, raw.aoRadius ?? defaults.aoRadius)),
+    aoDistanceFalloff: Math.max(
+      0,
+      Math.min(2, raw.aoDistanceFalloff ?? defaults.aoDistanceFalloff),
+    ),
+    aoSamples: Math.round(
+      Math.max(2, Math.min(32, raw.aoSamples ?? defaults.aoSamples)),
+    ),
+    aoDenoiseSamples: Math.round(
+      Math.max(1, Math.min(16, raw.aoDenoiseSamples ?? defaults.aoDenoiseSamples)),
+    ),
+    aoDenoiseRadius: Math.max(
+      1,
+      Math.min(24, raw.aoDenoiseRadius ?? defaults.aoDenoiseRadius),
+    ),
+    aoHalfRes: raw.aoHalfRes ?? defaults.aoHalfRes,
+    aoQuality:
+      raw.aoQuality && isAoQualityId(raw.aoQuality)
+        ? raw.aoQuality
+        : defaults.aoQuality,
   };
 }
 
@@ -59,6 +87,13 @@ export type GraphicsSettings = {
   bloomIntensity: number;
   ao: boolean;
   aoIntensity: number;
+  aoRadius: number;
+  aoDistanceFalloff: number;
+  aoSamples: number;
+  aoDenoiseSamples: number;
+  aoDenoiseRadius: number;
+  aoHalfRes: boolean;
+  aoQuality: AoQualityId;
   /** Scene + ambient multiplier (1 = legacy, ~1.35 = brighter default) */
   arenaBrightness: number;
   exposure: number;
@@ -100,6 +135,13 @@ const defaults: GraphicsSettings = {
   bloomIntensity: 0.42,
   ao: true,
   aoIntensity: 1.05,
+  aoRadius: 10,
+  aoDistanceFalloff: 0.8,
+  aoSamples: 8,
+  aoDenoiseSamples: 3,
+  aoDenoiseRadius: 8,
+  aoHalfRes: true,
+  aoQuality: 'performance',
   arenaBrightness: 1,
   exposure: 1,
   fog: true,
@@ -174,6 +216,18 @@ export const graphicsStore = {
   setAo: (v: boolean) => patch({ ao: v }),
   setAoIntensity: (v: number) =>
     patch({ aoIntensity: Math.max(0, Math.min(3, v)) }),
+  setAoRadius: (v: number) =>
+    patch({ aoRadius: Math.max(1, Math.min(80, v)) }),
+  setAoDistanceFalloff: (v: number) =>
+    patch({ aoDistanceFalloff: Math.max(0, Math.min(2, v)) }),
+  setAoSamples: (v: number) =>
+    patch({ aoSamples: Math.round(Math.max(2, Math.min(32, v))) }),
+  setAoDenoiseSamples: (v: number) =>
+    patch({ aoDenoiseSamples: Math.round(Math.max(1, Math.min(16, v))) }),
+  setAoDenoiseRadius: (v: number) =>
+    patch({ aoDenoiseRadius: Math.max(1, Math.min(24, v)) }),
+  setAoHalfRes: (v: boolean) => patch({ aoHalfRes: v }),
+  setAoQuality: (v: AoQualityId) => patch({ aoQuality: v }),
   setArenaBrightness: (v: number) =>
     patch({ arenaBrightness: Math.max(0.4, Math.min(2.5, v)) }),
   setExposure: (v: number) =>

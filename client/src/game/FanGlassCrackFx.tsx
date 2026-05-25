@@ -14,6 +14,7 @@ import {
   createFanGlassCrackMaterial,
   type FanGlassCrackShaderMaterial,
 } from './fanGlassCrackShader';
+import { FAN_BOOTH_RENDER_ORDER } from './renderOrderConstants';
 import { orientToSurfaceNormal } from './wallImpactFxPool';
 
 const CRACK_GEO = new THREE.PlaneGeometry(1, 1);
@@ -76,15 +77,19 @@ export function FanGlassCrackFx() {
     const entries: CrackMeshes[] = [];
     for (let i = 0; i < pool.length; i++) {
       const mat = createFanGlassCrackMaterial(crackTex);
+      mat.depthWrite = false;
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = -2;
+      mat.polygonOffsetUnits = -2;
       const back = new THREE.Mesh(CRACK_GEO, backMat);
       const front = new THREE.Mesh(CRACK_GEO, mat);
       for (const mesh of [back, front]) {
         mesh.visible = false;
         mesh.frustumCulled = false;
-        mesh.renderOrder = 6;
+        mesh.renderOrder = FAN_BOOTH_RENDER_ORDER + 2;
         group.add(mesh);
       }
-      front.renderOrder = 7;
+      front.renderOrder = FAN_BOOTH_RENDER_ORDER + 3;
       entries.push({ back, front, mat });
     }
     crackMeshesRef.current = entries;
@@ -155,7 +160,7 @@ export function FanGlassCrackFx() {
       const headOn = Math.max(0, _view.dot(_normal));
       const viewMul = headOn ** 1.1;
       const alpha = FAN_GLASS_CRACK_BASE_OPACITY * viewMul * life;
-      const visible = alpha > 0.012;
+      const visible = alpha > 0.008;
 
       _pos.addScaledVector(_normal, lift);
 
@@ -169,7 +174,7 @@ export function FanGlassCrackFx() {
 
       back.visible = visible;
       front.visible = visible;
-      backMat.opacity = 0.12 * life * viewMul;
+      backMat.opacity = 0.18 * life * viewMul;
 
       const u = mat.uniforms;
       u.uOpacity.value = alpha;

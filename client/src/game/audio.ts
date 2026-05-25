@@ -194,12 +194,16 @@ export function crowdVolumeByDistanceM(distM: number): number {
 /**
  * Fan-glass cheer/panic — louder when the listener is near the hit stand.
  */
+const FAN_GLASS_CROWD_DISTANCE_VOL = 0.5;
+
 export function fanGlassVolumeByDistanceFt(distFt: number): number {
-  if (distFt <= 14) return 1;
-  if (distFt <= 32) return 1 + ((0.72 - 1) * (distFt - 14)) / 18;
-  if (distFt <= 58) return 0.72 + ((0.32 - 0.72) * (distFt - 32)) / 26;
-  if (distFt <= 100) return 0.32 + ((0.12 - 0.32) * (distFt - 58)) / 42;
-  return 0.12;
+  let v: number;
+  if (distFt <= 14) v = 1;
+  else if (distFt <= 32) v = 1 + ((0.72 - 1) * (distFt - 14)) / 18;
+  else if (distFt <= 58) v = 0.72 + ((0.32 - 0.72) * (distFt - 32)) / 26;
+  else if (distFt <= 100) v = 0.32 + ((0.12 - 0.32) * (distFt - 58)) / 42;
+  else v = 0.12;
+  return v * FAN_GLASS_CROWD_DISTANCE_VOL;
 }
 
 export function fanGlassVolumeByDistanceM(distM: number): number {

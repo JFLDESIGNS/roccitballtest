@@ -15,6 +15,7 @@ import {
   arenaPadStoneMaterial,
   arenaJumpPadTopMaterial,
 } from './arenaMaterials';
+import { jumpPadEmissiveIntensity } from './jumpPadGlow';
 import { billboardShakeKey, getVisualShake } from './visualShake';
 
 const BILLBOARD_FRAME = '#08090c';
@@ -115,6 +116,14 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
 }
 
 function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
+  const deckMat = useMemo(
+    () => arenaJumpPadTopMaterial.clone(),
+    [],
+  );
+  useFrame(() => {
+    deckMat.emissiveIntensity = jumpPadEmissiveIntensity(pad);
+  });
+
   const deckH = ARENA_PADS.bouncePadHeightM;
   const r = pad.radius;
   const stoneTopY = pad.platformTopY;
@@ -155,7 +164,7 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
         position={[0, stoneTopY + deckH * 0.5, 0]}
         castShadow
         receiveShadow
-        material={arenaJumpPadTopMaterial}
+        material={deckMat}
       >
         <cylinderGeometry args={[r, r, deckH, 32]} />
       </mesh>

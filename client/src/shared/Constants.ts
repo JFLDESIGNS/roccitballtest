@@ -216,6 +216,8 @@ export const BOT = {
   allyBeamPullScale: 0.62,
   /** Red/blue enemy bots — beam pull on loose balls */
   enemyBeamPullScale: 0.52,
+  /** Extra multiplier on bot beam pull only (player unchanged) */
+  beamPullStrengthMult: 0.5,
   /** Seconds a bot must hold beam attract before socketing the ball */
   beamCaptureLatchSec: 0.75,
   /** Teammate bot: beam loose balls — relaxed so ally can contest bounces like enemies */
@@ -406,6 +408,14 @@ export const BOT = {
   backWallKeepOutHalfWidthZ: 48,
   backWallEscapeVisualOpacity: 0.1,
   backWallEscapeCooldownSec: 0.35,
+  /** Small floor pit under enemy bottom ring — depth from end wall into court (m) */
+  goalBottomPitDepthFromWallM: 5.5 * 0.3048,
+  /** Max height above floor for pit volume (m) */
+  goalBottomPitMaxHeightM: 3.8,
+  /** Extra Y under bottom ring center included in pit (m) */
+  goalBottomPitBelowRingM: 0.6,
+  /** Half-width along Z — tight under one goal column (m) */
+  goalBottomPitHalfSpanZM: 7.5,
   /** Pass / loft arc — keeps lobs out of the floor */
   passLoftYOffset: 5.5,
   passLoftPerMeter: 0.16,

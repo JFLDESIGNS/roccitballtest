@@ -3,6 +3,7 @@ import { BOT } from '../shared/Constants';
 import { ARENA_GOALS, goalEndFaceX } from './goals';
 import type { GoalSize, Team } from '../shared/Types';
 import { getEnemyGoalTarget, pickBotGoalLaunchTarget } from './botGoals';
+import { clampMoveTargetFromGoalBottomPit } from './botGoalBottomPit';
 import { getShootZoneCenter, isInsideShootZone } from './botShootZone';
 import type { BotHoldPhase } from './botBrain';
 
@@ -40,11 +41,9 @@ export function pickBotRingApproachTarget(
     enemyRing(team, 'large') ??
     ARENA_GOALS[0];
   const toward = towardCourtX(team);
-  return out.set(
-    ring.center.x + toward * insetM,
-    selfY,
-    ring.center.z,
-  );
+  out.set(ring.center.x + toward * insetM, selfY, ring.center.z);
+  clampMoveTargetFromGoalBottomPit(out, team);
+  return out;
 }
 
 /** Where to run while attacking — bottom ring or mid ring for second jump */
@@ -69,7 +68,9 @@ export function pickBotGoalOffenseMoveTarget(
       BOT.goalDunkMidApproachInset,
     );
   }
-  return pickBotRingApproachTarget(team, 'large', selfPos.y, out);
+  pickBotRingApproachTarget(team, 'large', selfPos.y, out);
+  clampMoveTargetFromGoalBottomPit(out, team);
+  return out;
 }
 
 /** Roll once per setup phase — dunk in shoot zone ~60%, jam when very close */

@@ -25,6 +25,10 @@ import { getArenaStandY } from './arenaSpawn';
 import { tryBotPads } from './arenaPadPhysics';
 import { isInsideHex } from './arenaHex';
 import {
+  clampMoveTargetFromGoalBottomPit,
+  tickBotGoalBottomPitKeepOut,
+} from './botGoalBottomPit';
+import {
   applyEscapeImpulse,
   clampMoveTargetFromBackWall,
   createBotStuckState,
@@ -424,6 +428,7 @@ function applyBotMovementEscape(
   attackingTeam: Team | null = null,
 ): boolean {
   tickBotBackWallKeepOut(pos, wish, attackingTeam);
+  tickBotGoalBottomPitKeepOut(pos, wish, attackingTeam);
   const backWish = tickBotBackWallEscape(pos, wish, dt, attackingTeam);
   if (backWish) {
     wish.copy(backWish);
@@ -1258,6 +1263,7 @@ function BotAvatar({
       pickAllyDunkSpot(bot.team, _pos, _moveTarget);
       clampAllyDunkMoveTarget(_moveTarget, bot.team);
       clampMoveTargetFromBackWall(_moveTarget, bot.team);
+      clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
       _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
       const distSpot = _wish.length();
       if (distSpot > 0.05) _wish.normalize();
@@ -1936,6 +1942,7 @@ function BotAvatar({
         );
       }
       clampMoveTargetFromBackWall(_moveTarget, bot.team);
+      clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
       const dribbleToTeammate =
         !nearGoal &&
         !inNetFinish &&
@@ -1946,6 +1953,7 @@ function BotAvatar({
         _moveTarget.copy(teammateChest);
         _moveTarget.y = Math.max(_moveTarget.y, _goal.y);
         clampMoveTargetFromBackWall(_moveTarget, bot.team);
+      clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
       }
       carryLookState.current.preferTeammateLook =
         !nearGoal && !inNetFinish && holdCarryFocus.current === 'teammate';
@@ -2310,6 +2318,7 @@ function BotAvatar({
       clampAllyDunkMoveTarget(_moveTarget, bot.team);
     }
     clampMoveTargetFromBackWall(_moveTarget, bot.team);
+    clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
     if (giveShootZoneSpace && shootZoneMagnetState.current.shooterId) {
       const shooter = zonePositions.find(
         (p) => p.id === shootZoneMagnetState.current.shooterId,
@@ -2861,7 +2870,9 @@ function BotAvatar({
             ? scalars.enemyBeamPullScale
             : bot.id === 'bot-2'
               ? scalars.allyBeamPullScale
-              : scalars.beamPullScale) * tune.pullStrength;
+              : scalars.beamPullScale) *
+          tune.pullStrength *
+          BOT.beamPullStrengthMult;
         const pull = applyBeamAttraction(
           ball,
           _ballPos,
