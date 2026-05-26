@@ -39,7 +39,7 @@ export function isMapLightGlowBlendMode(v: string): v is MapLightGlowBlendMode {
 export const MAP_LIGHT_GLOW_DEFAULT_OPACITY = 0.3;
 
 /** Default fade band beyond the glow disk edge (feet). */
-export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 40;
+export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 80;
 
 const FT_TO_M = 0.3048;
 

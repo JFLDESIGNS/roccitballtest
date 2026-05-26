@@ -99,7 +99,7 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
     mapLightGlowProximityFadeFt: Math.max(
       6,
       Math.min(
-        80,
+        160,
         raw.mapLightGlowProximityFadeFt ?? defaults.mapLightGlowProximityFadeFt,
       ),
     ),
@@ -319,7 +319,7 @@ export const graphicsStore = {
     patch({ mapLightGlowBlendMode: v }),
   setMapLightGlowProximityFadeFt: (v: number) =>
     patch({
-      mapLightGlowProximityFadeFt: Math.max(6, Math.min(80, Math.round(v))),
+      mapLightGlowProximityFadeFt: Math.max(6, Math.min(160, Math.round(v))),
     }),
   setMapLightGlowProximityDebug: (v: boolean) =>
     patch({ mapLightGlowProximityDebug: v }),

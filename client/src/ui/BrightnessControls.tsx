@@ -168,9 +168,9 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
       />
       <GfxSlider
         label="Proximity fade (ft past edge)"
-        value={gfx.mapLightGlowProximityFadeFt ?? 40}
+        value={gfx.mapLightGlowProximityFadeFt ?? 80}
         min={6}
-        max={80}
+        max={160}
         step={1}
         onChange={graphicsStore.setMapLightGlowProximityFadeFt}
         format={(v) => `${Math.round(v)} ft`}
