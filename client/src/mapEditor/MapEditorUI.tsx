@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useState, type ReactNode } from 'react';
+import { useRef, useSyncExternalStore, useState, type ReactNode } from 'react';
 import { MAP_TEXTURE_OPTIONS, type MapLightKind, type MapPrimitiveKind } from './mapEditorTypes';
 import { mapEditorStore } from './mapEditorStore';
 
@@ -43,6 +43,7 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
     () => mapEditorStore.getState(),
   );
   const [status, setStatus] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const selectedObject = editor.document.objects.find(
     (o) => o.id === editor.selectedId,
@@ -76,6 +77,44 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
       flash(`Saved “${name.trim()}”.`);
     } catch (err) {
       flash(err instanceof Error ? err.message : 'Save failed.');
+    }
+  };
+
+  const downloadJson = (filename: string, json: string) => {
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJson = () => {
+    try {
+      const doc = editor.document;
+      const pretty = JSON.stringify(doc, null, 2);
+      const safe = doc.name.replace(/[^\w\-]+/g, '_').slice(0, 40) || 'map';
+      downloadJson(`${safe}.json`, pretty);
+      flash('Exported JSON.');
+    } catch {
+      flash('Export failed.');
+    }
+  };
+
+  const handleImportJson = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      const saved = mapEditorStore.importFromJson(raw);
+      flash(`Imported “${saved.name}”.`);
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Import failed.');
+    } finally {
+      // Allow importing the same file again.
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
 
@@ -131,6 +170,34 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
           />
           Snap moves to grid
         </label>
+
+        <section>
+          <h3>Map JSON</h3>
+          <BtnRow>
+            <button type="button" className="map-editor-btn" onClick={handleExportJson}>
+              Export JSON
+            </button>
+            <button
+              type="button"
+              className="map-editor-btn"
+              onClick={() => importInputRef.current?.click()}
+            >
+              Import JSON
+            </button>
+          </BtnRow>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              void handleImportJson(e.target.files?.[0] ?? null);
+            }}
+          />
+          <p className="map-editor-muted">
+            Export downloads a `.json` you can re-import later. Imported maps become the active arena map for gameplay.
+          </p>
+        </section>
 
         <section>
           <h3>Primitives</h3>

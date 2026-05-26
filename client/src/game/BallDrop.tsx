@@ -26,6 +26,7 @@ import {
 import { BallDropSquareLights } from './BallDropSquareLights';
 import { BallDropSpotlightCones } from './BallDropSpotlightCones';
 import { triggerKickoffBallRelease } from './kickoffDrop';
+import { getBallDropShake } from './visualShake';
 
 const FRAME = '#141a28';
 const DRUM = '#0c1018';
@@ -142,6 +143,7 @@ function BottomDropSlice({
 
 /** Cube jumbotron kickoff tower with hinged bottom slices */
 export function BallDrop() {
+  const shakeRoot = useRef<THREE.Group>(null);
   const cubeHalf = ARENA.ballDropCubeSize * 0.5;
   const screenW = ARENA.ballDropScreenWidthM;
   const screenH = ARENA.ballDropScreenHeightM;
@@ -180,6 +182,11 @@ export function BallDrop() {
   const ballReleased = useRef(false);
 
   useFrame((_, dt) => {
+    const shake = getBallDropShake(9.3);
+    if (shakeRoot.current) {
+      shakeRoot.current.rotation.set(shake.tiltX, shake.tiltY, shake.tiltZ, 'XYZ');
+    }
+
     const kickoff = phase === 'playing' && countdown > 0;
 
     if (kickoff) {
@@ -240,7 +247,7 @@ export function BallDrop() {
 
   return (
     <DoorOpenRefContext.Provider value={doorOpenRef}>
-      <group position={[0, ARENA.ballDropCenterY, 0]}>
+      <group position={[0, ARENA.ballDropCenterY, 0]} ref={shakeRoot}>
         <RigidBody
           type="fixed"
           colliders={false}

@@ -20,6 +20,16 @@ type BallDropSpotlightConesProps = {
   cubeHalf: number;
 };
 
+let ballDropSpotFrenzyUntilMs = 0;
+
+/** Trigger when the ball drop spotlights get shot (3s flicker + sparks). */
+export function triggerBallDropSpotlightFrenzy(durationMs = 3000): void {
+  ballDropSpotFrenzyUntilMs = Math.max(
+    ballDropSpotFrenzyUntilMs,
+    performance.now() + durationMs,
+  );
+}
+
 function makeConeFadeMaterial(
   coneH: number,
   tint: THREE.Color,
@@ -106,6 +116,10 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
   const pointRefs = useRef<(THREE.PointLight | null)[]>([]);
   const celebrateUntil = useRef(0);
   const lastCelebId = useRef(-1);
+  const sparkPos = useRef<Float32Array>(new Float32Array(48 * 3));
+  const sparkVel = useRef<Float32Array>(new Float32Array(48 * 3));
+  const sparkLife = useRef<Float32Array>(new Float32Array(48));
+  const sparkAttrRef = useRef<THREE.BufferAttribute | null>(null);
 
   const goalCelebration = useSyncExternalStore(
     gameStore.subscribe,
@@ -167,6 +181,7 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
+    const frenzy = performance.now() < ballDropSpotFrenzyUntilMs;
 
     if (
       goalCelebration &&
@@ -204,7 +219,7 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
     glowMat.uniforms.uColor.value.copy(colorScratch.glow);
     cornerLampMat.emissive.copy(colorScratch.lamp);
 
-    const sweepRate = celebrating ? SWEEP_SCORE : SWEEP_IDLE;
+    const sweepRate = celebrating || frenzy ? SWEEP_SCORE : SWEEP_IDLE;
     const pitchBase = celebrating ? -0.48 : -0.55;
     const pitchWobble = celebrating ? 0.32 : 0.22;
 
@@ -217,6 +232,7 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       rig.rotation.set(pitch, yaw, 0, 'YXZ');
     });
 
+    const flicker = frenzy ? 0.55 + Math.abs(Math.sin(t * 48.0)) * 0.7 : 1;
     const pulse = celebrating
       ? 1.05 + Math.sin(t * 11) * 0.18
       : 0.9 + Math.sin(t * 2.4) * 0.1;
@@ -226,8 +242,8 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
     glowMat.uniforms.uStrength.value = glowStr * pulse;
     cornerLampMat.emissiveIntensity = celebrating ? 7.5 : 4.5;
 
-    const spotI = celebrating ? 1180 : 680;
-    const pointI = celebrating ? 380 : 220;
+    const spotI = (celebrating ? 1180 : 680) * (frenzy ? (0.65 + flicker) : 1);
+    const pointI = (celebrating ? 380 : 220) * (frenzy ? (0.55 + flicker) : 1);
     for (let i = 0; i < 4; i++) {
       const spot = spotRefs.current[i];
       const point = pointRefs.current[i];
@@ -240,10 +256,74 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
         point.intensity = pointI;
       }
     }
+
+    if (frenzy) {
+      for (let c = 0; c < 4; c++) {
+        if (Math.random() > 0.45) continue;
+        for (let k = 0; k < 2; k++) {
+          let slot = -1;
+          for (let i = 0; i < 48; i++) {
+            if (sparkLife.current[i] <= 0) {
+              slot = i;
+              break;
+            }
+          }
+          if (slot < 0) break;
+          const base = slot * 3;
+          sparkLife.current[slot] = 0.25 + Math.random() * 0.35;
+          const cx = corners[c][0];
+          const cy = corners[c][1];
+          const cz = corners[c][2];
+          sparkPos.current[base] = cx + (Math.random() - 0.5) * 0.9;
+          sparkPos.current[base + 1] = cy + (Math.random() - 0.5) * 0.6;
+          sparkPos.current[base + 2] = cz + (Math.random() - 0.5) * 0.9;
+          sparkVel.current[base] = (Math.random() - 0.5) * 10;
+          sparkVel.current[base + 1] = 7 + Math.random() * 10;
+          sparkVel.current[base + 2] = (Math.random() - 0.5) * 10;
+        }
+      }
+    }
+
+    let any = false;
+    for (let i = 0; i < 48; i++) {
+      const life = sparkLife.current[i];
+      if (life <= 0) continue;
+      any = true;
+      const base = i * 3;
+      sparkLife.current[i] = Math.max(0, life - 0.016);
+      sparkVel.current[base + 1] -= 0.38;
+      sparkPos.current[base] += sparkVel.current[base] * 0.016;
+      sparkPos.current[base + 1] += sparkVel.current[base + 1] * 0.016;
+      sparkPos.current[base + 2] += sparkVel.current[base + 2] * 0.016;
+    }
+    if (any && sparkAttrRef.current) {
+      sparkAttrRef.current.needsUpdate = true;
+    }
   });
 
   return (
     <group renderOrder={12}>
+      <points renderOrder={14} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute
+            ref={(a) => {
+              sparkAttrRef.current = a;
+            }}
+            attach="attributes-position"
+            args={[sparkPos.current, 3]}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          color="#bff2ff"
+          size={0.22}
+          sizeAttenuation
+          transparent
+          opacity={0.9}
+          depthWrite={false}
+          toneMapped={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </points>
       {corners.map((pos, i) => (
         <group key={`drop-cone-${i}`} position={pos}>
           <mesh

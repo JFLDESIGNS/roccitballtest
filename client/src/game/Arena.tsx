@@ -27,6 +27,7 @@ import {
 import { SplitPerimeterWallWithFans } from './ArenaBillboardFans';
 import { ArenaCornerPillars } from './ArenaCornerPillars';
 import { ArenaCeilingStrip } from './ArenaCeilingStrip';
+import { ArenaCeilingImpactWall } from './ArenaCeilingImpactWall';
 import { ArenaRetractableRoof } from './ArenaRetractableRoof';
 import { ArenaRoofLightBlocker } from './ArenaRoofLightBlocker';
 import { WallTopTrim } from './arenaWallTrim';
@@ -458,6 +459,7 @@ export function Arena({
       <ArenaRetractableRoof />
       <ArenaRoofLightBlocker />
       <ArenaCeilingStrip />
+      <ArenaCeilingImpactWall />
 
       <GoalWallAccentLights />
 

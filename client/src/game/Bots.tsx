@@ -2514,7 +2514,11 @@ function BotAvatar({
         distApproach < BOT.ballApproachArriveM &&
         !closeLooseBall
       ) {
-        _wish.set(0, 0, 0);
+        // Never fully idle — orbit slightly around the approach target so bots
+        // keep moving/jumping instead of getting flagged as stuck.
+        const t = performance.now() / 1000;
+        const phase = bot.id === 'bot-0' ? 0.3 : bot.id === 'bot-1' ? 2.2 : 4.1;
+        _wish.set(Math.sin(t * 1.1 + phase), 0, Math.cos(t * 1.1 + phase)).normalize();
       }
     }
     collectBotSepPositions(allBots, _botSepScratch);

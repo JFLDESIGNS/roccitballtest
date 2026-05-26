@@ -24,7 +24,12 @@ import {
   trySegmentHitsFanGlassWithPoint,
   tryTriggerFanGlassFromWallImpact,
 } from './fanGlassHit';
-import { triggerArenaPillarShake, triggerOctagonShake } from './visualShake';
+import {
+  triggerArenaPillarShake,
+  triggerBallDropShake,
+  triggerOctagonShake,
+} from './visualShake';
+import { triggerBallDropSpotlightFrenzy } from './BallDropSpotlightCones';
 import {
   tryTriggerBillboardImpact,
   tryTriggerOctagonImpactAt,
@@ -611,6 +616,10 @@ export function updateRockets(
     ) {
       const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
       if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
+      if (rocketSegmentHitsBallDrop(_stepPrev, pos)) {
+        triggerBallDropShake(1);
+        triggerBallDropSpotlightFrenzy(3000);
+      }
       tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
       pushExplosionEvent(
         explosions,

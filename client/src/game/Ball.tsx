@@ -37,7 +37,13 @@ import {
   syncBallLooseCollision,
   type PendingSpinBounce,
 } from './ballPhysics';
-import { playBallBounce, shouldSuppressBallBounceSound, suppressBallBounceForMs } from './audio';
+import {
+  playBallBounce,
+  playCeilingBump,
+  shouldSuppressBallBounceSound,
+  suppressBallBounceForMs,
+} from './audio';
+import { triggerCeilingWallHit } from './visualShake';
 import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
@@ -167,6 +173,11 @@ const hasPrevBallPos = useRef(false);
     let impact = Math.hypot(v.x, v.y, v.z);
     const n = payload.manifold.normal();
     impact = Math.abs(v.x * n.x + v.y * n.y + v.z * n.z);
+
+    if (n.y < -0.78) {
+      triggerCeilingWallHit();
+      playCeilingBump(impact);
+    }
 
     const otherObj = payload.other.rigidBodyObject as
       | { userData?: { hitTarget?: boolean; actorId?: ActorId } }

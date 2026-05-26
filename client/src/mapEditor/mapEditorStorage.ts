@@ -38,12 +38,43 @@ function isValidMapDocument(doc: unknown): doc is MapDocument {
   const d = doc as MapDocument;
   return (
     typeof d.id === 'string' &&
-    d.id !== DEFAULT_MAP_ID &&
     typeof d.name === 'string' &&
     Array.isArray(d.objects) &&
     Array.isArray(d.lights) &&
     (d.groups === undefined || Array.isArray(d.groups))
   );
+}
+
+export function importMapDocumentFromJson(raw: string): MapDocument {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Invalid JSON.');
+  }
+  if (!isValidMapDocument(parsed)) {
+    throw new Error('JSON does not look like a RocccitBall map document.');
+  }
+
+  const d = parsed as MapDocument;
+  const now = Date.now();
+  const id =
+    !d.id || d.id === DEFAULT_MAP_ID
+      ? `map-${now}-${Math.random().toString(36).slice(2, 8)}`
+      : d.id;
+  const name = (d.name ?? '').trim() || 'Imported Map';
+
+  const normalized: MapDocument = {
+    id,
+    name,
+    createdAt: typeof d.createdAt === 'number' ? d.createdAt : now,
+    updatedAt: now,
+    groups: (d.groups ?? []).map((g) => ({ ...g })),
+    objects: d.objects.map((o) => ({ ...o })),
+    lights: d.lights.map((l) => ({ ...l })),
+  };
+
+  return saveCustomMap(normalized);
 }
 
 export function loadActiveMapId(): string {

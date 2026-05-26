@@ -50,7 +50,7 @@ export function createHexShape(radius: number): THREE.Shape {
 
 /** Hex court floor — normals face +Y (no scale flip that hid faces from above). */
 export function createArenaHexFloorGeometry(
-  radius = ARENA.hexRadius,
+  radius: number = ARENA.hexRadius,
 ): THREE.BufferGeometry {
   const geo = new THREE.ShapeGeometry(createHexShape(radius));
   geo.rotateX(-Math.PI / 2);

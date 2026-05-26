@@ -282,6 +282,7 @@ class InputManager {
         this.throwQueued = true;
       }
       if (e.code === 'KeyF') this.spawnBallQueued = true;
+      if (e.code === 'KeyT') this.spawnBallQueued = true;
       if (e.code === 'KeyR' && !e.repeat) {
         if (tuningStore.getState().showMenu) return;
         const phase = gameStore.getState().phase;

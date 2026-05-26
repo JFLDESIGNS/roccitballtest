@@ -19,6 +19,7 @@ import {
   loadActiveMapId,
   listCustomMapSummaries,
   persistActiveMapId,
+  importMapDocumentFromJson,
   saveCustomMap,
 } from './mapEditorStorage';
 import { snapPositionToMoveGrid } from './editorMoveGrid';
@@ -443,6 +444,21 @@ export const mapEditorStore = {
       document: cloneDoc(saved),
       dirty: false,
       editingMapId: saved.id,
+    });
+    return saved;
+  },
+
+  importFromJson: (raw: string): MapDocument => {
+    const saved = importMapDocumentFromJson(raw);
+    mapRegistryStore.refresh();
+    mapRegistryStore.setActiveMapId(saved.id);
+    patch({
+      document: normalizeDocument(cloneDoc(saved)),
+      selectedId: null,
+      transformMode: 'translate',
+      dirty: false,
+      editingMapId: saved.id,
+      selectIndividual: false,
     });
     return saved;
   },

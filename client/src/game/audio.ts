@@ -787,7 +787,7 @@ export function playRocketExplosion(
   } else {
     distMul = 0.35;
   }
-  playSample(explosionUrl, 0.38 * scale * distMul, true);
+  playSample(explosionUrl, 0.52 * scale * distMul, true);
 }
 
 /** WW forward dash */
@@ -796,6 +796,18 @@ export function playDash() {
   playTone(120, 0.06, 'sine', 0.03, 200, 0.02);
   playTone(340, 0.11, 'triangle', 0.034, 480, 0.04);
   playNoiseBurst(0.05, 0.04);
+}
+
+/** Ceiling bump — small sci-fi tick */
+export function playCeilingBump(impactSpeed: number) {
+  if (!getCtx()) return;
+  const min = 1.6;
+  if (impactSpeed < min) return;
+  const t = Math.min(1, (impactSpeed - min) / 18);
+  const g = 0.02 + t * 0.03;
+  playTone(720 + t * 220, 0.06 + t * 0.02, 'triangle', g, 380, 0.0, true);
+  playTone(1400 + t * 520, 0.04 + t * 0.02, 'sine', g * 0.55, 520, 0.01, true);
+  playNoiseBurst(0.02 + t * 0.015, g * 0.35, 0.0, true);
 }
 
 /** Player jump — 0 ground, 1 double, 2 triple */

@@ -5,6 +5,7 @@ import {
   RigidBody,
   useAfterPhysicsStep,
   useRapier,
+  type CollisionEnterPayload,
   type RapierRigidBody,
 } from '@react-three/rapier';
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
@@ -72,11 +73,13 @@ import { inputManager } from './InputManager';
 import {
   playBallLaunch,
   playDash,
+  playCeilingBump,
   playJump,
   playRocketFire,
   playRocketEmpty,
   setBeamAttractActive,
 } from './audio';
+import { triggerCeilingWallHit } from './visualShake';
 import {
   averageMomentum,
   resetMomentumSamples,
@@ -1561,6 +1564,16 @@ export function Player({
         gravityScale={0}
         ccd
         userData={{ character: true, hitTarget: true, actorId: 'local' as const }}
+        onCollisionEnter={(payload: CollisionEnterPayload) => {
+          const n = payload.manifold.normal();
+          if (n.y < -0.78) {
+            const b = bodyRef.current;
+            const v = b?.linvel();
+            const impact = v ? Math.abs(v.x * n.x + v.y * n.y + v.z * n.z) : 0;
+            triggerCeilingWallHit();
+            playCeilingBump(impact);
+          }
+        }}
       >
         <CapsuleCollider
           args={[capHalfH, MOVEMENT.capsuleRadius]}

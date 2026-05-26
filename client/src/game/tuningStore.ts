@@ -252,9 +252,10 @@ export const tuningStore = {
     if (opening) {
       document.exitPointerLock();
     } else {
-      void import('./InputManager').then(({ inputManager }) =>
-        inputManager.onGameplayResume(),
-      );
+      void import('./InputManager').then(({ inputManager }) => {
+        inputManager.onGameplayResume();
+        inputManager.refreshPointerLockState();
+      });
     }
     notify();
   },

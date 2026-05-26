@@ -788,7 +788,7 @@ export function pickMoveTarget(
     case 'teamOffense':
       return pickTeamOffenseRoamTarget(input, out);
     case 'teamDefense':
-      return getOwnGoalAnchor(input.team, out).setY(input.pos.y);
+      return pickTeamDefenseRoamTarget(input, out);
     default:
       return out.copy(ballPos);
   }
@@ -825,6 +825,32 @@ function pickTeamOffenseRoamTarget(
   return out;
 }
 
+function pickTeamDefenseRoamTarget(
+  input: Pick<BotThinkInput, 'id' | 'team' | 'pos'>,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  // Defensive support shouldn't park in the net — keep them moving on their half
+  // with a short loiter pattern in front of their own goal.
+  getOwnGoalAnchor(input.team, out).setY(input.pos.y);
+
+  const towardCourt = input.team === 'red' ? 1 : -1;
+  // Pull them a bit farther toward midfield than the anchor.
+  out.x += towardCourt * 6;
+
+  const botPhase = input.id === 'bot-0' ? 0.9 : input.id === 'bot-1' ? 2.8 : 4.7;
+  const t = performance.now() / 1000;
+  const loopZ = Math.sin(t * 0.6 + botPhase) * 10 + Math.sin(t * 0.2 + botPhase) * 3.5;
+  const loopX = Math.cos(t * 0.52 + botPhase) * 4.5 + Math.sin(t * 0.27 + botPhase) * 2.2;
+  out.z += loopZ;
+  out.x += loopX;
+
+  // Keep them on their defensive half.
+  if (input.team === 'red') out.x = Math.min(-6, out.x);
+  else out.x = Math.max(6, out.x);
+
+  return out;
+}
+
 /** Look target (aim) */
 export function pickLookTarget(
   mode: BotMode,
@@ -848,7 +874,8 @@ export function pickLookTarget(
   }
   // Wait-for-pass offense: keep eyes on the ball (better for pass reads).
   if (mode === 'teamOffense') return out.copy(input.ballPos);
-  if (mode === 'teamDefense') return getOwnGoalAnchor(input.team, out);
+  // Defensive support also tracks the ball (don’t stare at your own goal).
+  if (mode === 'teamDefense') return out.copy(input.ballPos);
   if (mode === 'teamCenter') return pickFieldCenterTarget(input.id, moveTarget.y, out);
   return out.copy(moveTarget);
 }
