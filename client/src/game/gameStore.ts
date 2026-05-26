@@ -195,6 +195,7 @@ export const gameStore = {
     state = {
       ...state,
       phase: 'intro',
+      pointerLocked: false,
       score: { red: 0, blue: 0 },
       timeLeft: MATCH.durationSec,
       energy: 100,

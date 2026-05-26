@@ -33,6 +33,8 @@ class InputManager {
   private fireEdge = false;
   private fireReleaseEdge = false;
   private canvas: HTMLElement | null = null;
+  /** Dropped when the WebGL canvas remounts (play again, intro → load). */
+  private canvasListenerAbort: AbortController | null = null;
   private lookWarmupUntil = 0;
   private pointerLocked = false;
   private pointerCaptureId: number | null = null;
@@ -177,11 +179,84 @@ class InputManager {
     }
   }
 
-  bind(canvas: HTMLElement) {
-    if (this.bound) return;
-    this.bound = true;
-    this.canvas = canvas;
+  private detachCanvasListeners(): void {
+    this.canvasListenerAbort?.abort();
+    this.canvasListenerAbort = null;
+    this.releasePointerCaptureFallback();
+    this.hasLastClient = false;
+    this.canvas = null;
+  }
 
+  bind(canvas: HTMLElement) {
+    if (this.canvas === canvas) return;
+    if (this.canvas) this.detachCanvasListeners();
+
+    if (!this.bound) {
+      this.bound = true;
+      this.registerGlobalListeners();
+    }
+
+    this.canvas = canvas;
+    this.canvasListenerAbort = new AbortController();
+    const signal = this.canvasListenerAbort.signal;
+
+    const onMouseDown = (e: MouseEvent) => {
+      const activeCanvas = this.canvas;
+      if (!activeCanvas) return;
+      if (gameStore.getState().debugFreelook) {
+        if (e.button === 2) {
+          this.mouseButtons.right = true;
+          this.beginPointerCaptureFallback(e as PointerEvent);
+        }
+        return;
+      }
+      if (e.button === 0) this.setFireDown(true);
+      if (e.button === 2) this.mouseButtons.right = true;
+      if (
+        document.pointerLockElement !== activeCanvas &&
+        this.canApplyFallbackLook()
+      ) {
+        this.requestPointerLock(activeCanvas);
+        this.beginPointerCaptureFallback(e as PointerEvent);
+      }
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (gameStore.getState().debugFreelook) {
+        if (e.button === 2) {
+          this.mouseButtons.right = false;
+          this.releasePointerCaptureFallback();
+          this.hasLastClient = false;
+        }
+        return;
+      }
+      if (e.button === 0) this.setFireDown(false);
+      if (e.button === 2) this.mouseButtons.right = false;
+      if (
+        this.pointerCaptureId !== null &&
+        (e as PointerEvent).pointerId === this.pointerCaptureId
+      ) {
+        this.releasePointerCaptureFallback();
+      }
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      this.handleMouseLook(e);
+    };
+    const onContextMenu = (e: Event) => e.preventDefault();
+    const onLostPointerCapture = () => {
+      this.pointerCaptureId = null;
+      this.hasLastClient = false;
+    };
+
+    canvas.addEventListener('mousedown', onMouseDown, { signal });
+    canvas.addEventListener('mouseup', onMouseUp, { signal });
+    canvas.addEventListener('mousemove', onMouseMove, { signal });
+    canvas.addEventListener('contextmenu', onContextMenu, { signal });
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture, {
+      signal,
+    });
+  }
+
+  private registerGlobalListeners(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape' && gameStore.getState().debugFreelook) {
         import('./stadiumLightStore').then(({ stadiumLightStore }) =>
@@ -278,39 +353,6 @@ class InputManager {
         }
       }
     };
-    const onMouseDown = (e: MouseEvent) => {
-      if (gameStore.getState().debugFreelook) {
-        if (e.button === 2) {
-          this.mouseButtons.right = true;
-          this.beginPointerCaptureFallback(e as PointerEvent);
-        }
-        return;
-      }
-      if (e.button === 0) this.setFireDown(true);
-      if (e.button === 2) this.mouseButtons.right = true;
-      if (document.pointerLockElement !== canvas && this.canApplyFallbackLook()) {
-        this.requestPointerLock(canvas);
-        this.beginPointerCaptureFallback(e as PointerEvent);
-      }
-    };
-    const onMouseUp = (e: MouseEvent) => {
-      if (gameStore.getState().debugFreelook) {
-        if (e.button === 2) {
-          this.mouseButtons.right = false;
-          this.releasePointerCaptureFallback();
-          this.hasLastClient = false;
-        }
-        return;
-      }
-      if (e.button === 0) this.setFireDown(false);
-      if (e.button === 2) this.mouseButtons.right = false;
-      if (
-        this.pointerCaptureId !== null &&
-        (e as PointerEvent).pointerId === this.pointerCaptureId
-      ) {
-        this.releasePointerCaptureFallback();
-      }
-    };
     const onWindowMouseUp = (e: MouseEvent) => {
       if (e.button === 0) this.setFireDown(false);
       if (e.button === 2) this.mouseButtons.right = false;
@@ -321,11 +363,11 @@ class InputManager {
       this.releasePointerCaptureFallback();
       this.syncPointerLockState();
     };
-    const onMouseMove = (e: MouseEvent) => {
-      this.handleMouseLook(e);
-    };
     const onWindowMouseMove = (e: MouseEvent) => {
-      if (document.pointerLockElement === canvas) return;
+      const activeCanvas = this.canvas;
+      if (!activeCanvas || document.pointerLockElement === activeCanvas) {
+        return;
+      }
       if (
         !gameStore.getState().debugFreelook &&
         !this.mouseButtons.left &&
@@ -335,17 +377,12 @@ class InputManager {
       }
       this.handleMouseLook(e);
     };
-    const onContextMenu = (e: Event) => e.preventDefault();
     const onPointerLockChange = () => {
       this.syncPointerLockState();
     };
     const onPointerLockError = () => {
       this.pointerLocked = false;
       gameStore.setPointerLocked(false);
-    };
-    const onLostPointerCapture = () => {
-      this.pointerCaptureId = null;
-      this.hasLastClient = false;
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -357,15 +394,10 @@ class InputManager {
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    canvas.addEventListener('mousedown', onMouseDown);
-    canvas.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mouseup', onWindowMouseUp);
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', () => this.syncPointerLockState());
-    canvas.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mousemove', onWindowMouseMove);
-    canvas.addEventListener('contextmenu', onContextMenu);
-    canvas.addEventListener('lostpointercapture', onLostPointerCapture);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     document.addEventListener('pointerlockerror', onPointerLockError);
     document.addEventListener('visibilitychange', onVisibilityChange);

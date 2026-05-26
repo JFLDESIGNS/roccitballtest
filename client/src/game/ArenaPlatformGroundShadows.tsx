@@ -1,63 +1,38 @@
 import { useMemo } from 'react';
-import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
-import { createOctagonShape } from './arenaOctagon';
-import { getArenaPlatformGroundShadowTexture } from './arenaPlatformGroundShadow';
-import { hexCornerPositions, isMidMapWallCorner } from './arenaHex';
+import { listOctagonPlatformPlacements } from './arenaOctagonPlatforms';
+import {
+  GROUND_BLOB_SHADOW_LIFT,
+  GROUND_BLOB_SHADOW_RENDER_ORDER,
+  createBlobShadowPlaneGeometry,
+  createGroundBlobShadowMaterial,
+  getOctagonPlatformShadowTexture,
+} from './arenaGroundBlobShadow';
 
-const SHADOW_LIFT = 0.035;
+const FOOTPRINT_MUL = 1.12;
 
-type PlatformShadowPlacement = {
-  x: number;
-  z: number;
-  scale: number;
-};
-
-function listPlatformShadowPlacements(): PlatformShadowPlacement[] {
-  const corners = hexCornerPositions(ARENA.hexRadius);
-  return [
-    { x: 0, z: 0, scale: 1 },
-    ...corners.map((c) => ({
-      x: c.x,
-      z: c.z,
-      scale: isMidMapWallCorner(c.x) ? ARENA.midWallOctagonSizeScale : 1,
-    })),
-  ];
-}
-
-/** Baked octagon contact shadows where ramp panels meet the floor (N8AO is weak on flat ground). */
+/** Dark octagon contact shadows under every ramp platform. */
 export function ArenaPlatformGroundShadows() {
-  const geometry = useMemo(() => {
-    const geo = new THREE.ShapeGeometry(createOctagonShape(1));
-    geo.rotateX(-Math.PI / 2);
-    return geo;
-  }, []);
+  const geometry = useMemo(() => createBlobShadowPlaneGeometry(), []);
 
-  const material = useMemo(() => {
-    const map = getArenaPlatformGroundShadowTexture();
-    return new THREE.MeshBasicMaterial({
-      map,
-      transparent: true,
-      opacity: 0.58,
-      depthWrite: false,
-      toneMapped: true,
-    });
-  }, []);
+  const material = useMemo(
+    () => createGroundBlobShadowMaterial(getOctagonPlatformShadowTexture()),
+    [],
+  );
 
-  const placements = useMemo(() => listPlatformShadowPlacements(), []);
+  const placements = useMemo(() => listOctagonPlatformPlacements(), []);
 
   return (
-    <group>
+    <group renderOrder={GROUND_BLOB_SHADOW_RENDER_ORDER}>
       {placements.map((p, i) => {
-        const footprint = ARENA.octagonSlopeRadius * p.scale;
+        const footprint = ARENA.octagonSlopeRadius * p.sizeScale * FOOTPRINT_MUL;
         return (
           <mesh
-            key={`platform-shadow-${i}`}
+            key={`platform-shadow-${p.x}-${p.z}-${i}`}
             geometry={geometry}
             material={material}
-            position={[p.x, ARENA.floorY + SHADOW_LIFT, p.z]}
+            position={[p.x, ARENA.floorY + GROUND_BLOB_SHADOW_LIFT, p.z]}
             scale={[footprint, 1, footprint]}
-            renderOrder={3}
             frustumCulled={false}
           />
         );

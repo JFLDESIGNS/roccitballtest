@@ -1,20 +1,22 @@
 import * as THREE from 'three';
-import { spawnRocketTrailSmokePuff } from './rocketTrailSmokePuffs';
+import { spawnRocketTrailSmokeBurst } from './rocketTrailSmokePuffs';
 
 export { tickRocketTrailSmokePuffs as tickRocketSmokeStreaks } from './rocketTrailSmokePuffs';
+
+const TRAIL_MIN_STEP = 0.042;
 
 const lastTipByRocket = new Map<string, THREE.Vector3>();
 const _tip = new THREE.Vector3();
 
-/** Simple exhaust — one small puff when the rocket moves far enough */
+/** Simple exhaust — puff burst when the rocket moves far enough */
 export function spawnRocketSmokeStreak(
   rocketId: string | null,
   x: number,
   y: number,
   z: number,
-  _vx: number,
-  _vy: number,
-  _vz: number,
+  vx: number,
+  vy: number,
+  vz: number,
   explosive: boolean,
 ): void {
   if (!rocketId) return;
@@ -23,13 +25,13 @@ export function spawnRocketSmokeStreak(
   const last = lastTipByRocket.get(rocketId);
   if (!last) {
     lastTipByRocket.set(rocketId, _tip.clone());
-    spawnRocketTrailSmokePuff(x, y, z, explosive);
+    spawnRocketTrailSmokeBurst(x, y, z, explosive, vx, vy, vz);
     return;
   }
 
-  if (last.distanceTo(_tip) < 0.075) return;
+  if (last.distanceTo(_tip) < TRAIL_MIN_STEP) return;
 
-  spawnRocketTrailSmokePuff(x, y, z, explosive);
+  spawnRocketTrailSmokeBurst(x, y, z, explosive, vx, vy, vz);
   last.copy(_tip);
 }
 

@@ -84,7 +84,6 @@ function computeIntensity(
 function computeCastShadow(
   light: StadiumLightDef,
   shadowsOn: boolean,
-  roofOpen: number,
 ): boolean {
   if (!shadowsOn || !light.castShadow) return false;
   if (light.brightnessMenuKey === 'keyLight2') {
@@ -93,7 +92,6 @@ function computeCastShadow(
   if (light.brightnessMenuKey === 'keyLight3') {
     return graphicsStore.getState().keyLight3CastShadow;
   }
-  if (light.id === 'outdoor-key-1') return roofOpen > 0.08;
   return true;
 }
 
@@ -301,6 +299,7 @@ function StadiumLightNode({
   const spotRef = useRef<THREE.SpotLight>(null);
   const dirRef = useRef<THREE.DirectionalLight>(null);
   const rectRef = useRef<THREE.RectAreaLight>(null);
+  const castShadowRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (stadiumLightStore.getState().gizmoDragging) return;
@@ -340,25 +339,31 @@ function StadiumLightNode({
       gfx.stadiumStripLightIntensity ?? 5,
     );
     const col = readLightColor(light);
-    const shadow = computeCastShadow(light, gfx.shadows, roofOpen);
+    const shadow = computeCastShadow(light, gfx.shadows);
+    if (castShadowRef.current !== shadow) {
+      castShadowRef.current = shadow;
+      const point = pointRef.current;
+      if (point) point.castShadow = shadow;
+      const spot = spotRef.current;
+      if (spot) spot.castShadow = shadow;
+      const dir = dirRef.current;
+      if (dir) dir.castShadow = shadow;
+    }
 
     const point = pointRef.current;
     if (point) {
       point.intensity = intensity;
       point.color.set(col);
-      point.castShadow = shadow;
     }
     const spot = spotRef.current;
     if (spot) {
       spot.intensity = intensity;
       spot.color.set(col);
-      spot.castShadow = shadow;
     }
     const dir = dirRef.current;
     if (dir) {
       dir.intensity = intensity;
       dir.color.set(col);
-      dir.castShadow = shadow;
     }
     const rect = rectRef.current;
     if (rect) {
@@ -412,7 +417,7 @@ function StadiumLightNode({
             name={light.name}
             color={light.color}
             intensity={0}
-            castShadow={false}
+            castShadow={light.castShadow}
             {...DIR_SHADOW}
           />
         )}

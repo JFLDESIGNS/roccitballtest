@@ -46,6 +46,7 @@ export function HUD({ onMainMenu }: HUDProps) {
     inputManager.exitPointerLock();
     inputManager.flushFireInput();
     gameStore.playAgain();
+    inputManager.refreshPointerLockState();
   };
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export function HUD({ onMainMenu }: HUDProps) {
       inputManager.exitPointerLock();
       inputManager.flushFireInput();
       gameStore.playAgain();
+      inputManager.refreshPointerLockState();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);

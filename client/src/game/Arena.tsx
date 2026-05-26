@@ -22,9 +22,7 @@ import type { GoalDef, GoalSize, Team } from '../shared/Types';
 import {
   buildHexWallSegments,
   createArenaHexFloorGeometry,
-  hexCornerPositions,
   isGoalHexEdge,
-  isMidMapWallCorner,
 } from './arenaHex';
 import { SplitPerimeterWallWithFans } from './ArenaBillboardFans';
 import { ArenaCornerPillars } from './ArenaCornerPillars';
@@ -34,6 +32,8 @@ import { ArenaRoofLightBlocker } from './ArenaRoofLightBlocker';
 import { WallTopTrim } from './arenaWallTrim';
 import { BallDrop } from './BallDrop';
 import { OctagonPlatform } from './OctagonPlatform';
+import { listOctagonPlatformPlacements } from './arenaOctagonPlatforms';
+import { ArenaGoalGroundShadows } from './ArenaGoalGroundShadows';
 import { ArenaPlatformGroundShadows } from './ArenaPlatformGroundShadows';
 import { RocccitLogoStamp } from './RocccitLogoStamp';
 import { BackWallEscapeZones } from './BackWallEscapeZones';
@@ -386,7 +386,8 @@ export function Arena({
     [],
   );
   const cornerPlatforms = useMemo(
-    () => hexCornerPositions(hexRadius),
+    () =>
+      listOctagonPlatformPlacements().filter((p) => p.x !== 0 || p.z !== 0),
     [hexRadius],
   );
   return (
@@ -407,6 +408,7 @@ export function Arena({
         />
       </RigidBody>
       <ArenaPlatformGroundShadows />
+      <ArenaGoalGroundShadows />
 
       <OctagonPlatform />
       <group
@@ -420,11 +422,7 @@ export function Arena({
           key={`corner-platform-${i}`}
           x={corner.x}
           z={corner.z}
-          sizeScale={
-            isMidMapWallCorner(corner.x)
-              ? ARENA.midWallOctagonSizeScale
-              : 1
-          }
+          sizeScale={corner.sizeScale}
         />
       ))}
       <BallDrop />

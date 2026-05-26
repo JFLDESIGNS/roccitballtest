@@ -6,7 +6,13 @@ import { tuningStore } from './tuningStore';
 import { isMatchOver } from './matchEnd';
 
 function isPointerCapturePhase(phase: string): boolean {
-  return phase === 'playing' || phase === 'countdown' || phase === 'paused';
+  return (
+    phase === 'intro' ||
+    phase === 'loading' ||
+    phase === 'playing' ||
+    phase === 'countdown' ||
+    phase === 'paused'
+  );
 }
 
 function requestArenaPointerLock(): void {
@@ -65,7 +71,7 @@ export function GamePointerCapture() {
 
   const showCapture =
     isPointerCapturePhase(phase) &&
-    !matchOver &&
+    !(phase === 'paused' && matchOver) &&
     !showMenu &&
     !debugFreelook &&
     !pointerLocked;

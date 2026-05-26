@@ -84,11 +84,15 @@ function App() {
           <ArenaLoadScreen />
           <MatchIntroTimer />
           <MapLoadTimer />
-          {mountArena && <GameCanvas onExit={exitGame} />}
+          {mountArena && (
+            <>
+              <GameCanvas onExit={exitGame} />
+              <GamePointerCapture />
+            </>
+          )}
           {isArenaGameplayPhase(gamePhase) && (
             <>
               <HUD onMainMenu={exitGame} />
-              <GamePointerCapture />
               <TuningMenu />
             </>
           )}
