@@ -255,18 +255,37 @@ function TrampolineRocketWire({
   radius: number;
   platformTopY: number;
 }) {
-  const deckY = platformTopY + ARENA_PADS.bouncePadHeightM;
-  const halfH = 0.08;
-  const geometry = useMemo(
+  const deckH = ARENA_PADS.bouncePadHeightM;
+  const floorY = ARENA.floorY;
+  const stemH = platformTopY - floorY;
+  const stemTopR = radius * 1.15;
+  const stemColliderR = stemTopR * 1.05;
+  const stemCenterY = floorY + stemH * 0.5;
+  const deckCenterY = platformTopY + deckH * 0.5;
+
+  const stemGeo = useMemo(
     () =>
       new THREE.EdgesGeometry(
-        new THREE.CylinderGeometry(radius, radius, halfH * 2, 12),
+        new THREE.CylinderGeometry(stemColliderR, stemColliderR, stemH, 12),
       ),
-    [radius, halfH],
+    [stemColliderR, stemH],
   );
+  const deckGeo = useMemo(
+    () =>
+      new THREE.EdgesGeometry(
+        new THREE.CylinderGeometry(radius, radius, deckH, 12),
+      ),
+    [radius, deckH],
+  );
+
   return (
-    <group position={[x, deckY, z]}>
-      <WireLineSegments geometry={geometry} />
+    <group position={[x, 0, z]}>
+      <group position={[0, stemCenterY, 0]}>
+        <WireLineSegments geometry={stemGeo} />
+      </group>
+      <group position={[0, deckCenterY, 0]}>
+        <WireLineSegments geometry={deckGeo} />
+      </group>
     </group>
   );
 }

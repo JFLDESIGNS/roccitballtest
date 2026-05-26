@@ -200,22 +200,41 @@ export function bounceLaunchSpeedY(gravity = -11, strengthMult = 1): number {
   );
 }
 
-/** Swept segment vs cyan trampoline deck volume (rockets graze the pad, not only top-down). */
+export type BounceTrampolineSegmentHit = {
+  x: number;
+  y: number;
+  z: number;
+  onDeck: boolean;
+  padX: number;
+  padZ: number;
+  stemColliderR: number;
+  deckTopY: number;
+};
+
+/** Swept segment vs trampoline stone stem + cyan deck (rockets graze the pad, not only top-down). */
 export function segmentHitsBounceTrampoline(
   from: THREE.Vector3,
   to: THREE.Vector3,
   padRadius = 0.5,
-): { x: number; z: number; deckTopY: number } | null {
+): BounceTrampolineSegmentHit | null {
   const pads = getBounceTrampolinePads();
   const deckH = ARENA_PADS.bouncePadHeightM;
+  const floorY = ARENA.floorY;
   const samples = 12;
+  let best: { t: number; hit: BounceTrampolineSegmentHit } | null = null;
 
   for (const pad of pads) {
-    const deckBottom = pad.platformTopY;
-    const deckTop = pad.platformTopY + deckH;
-    const hitR = pad.radius + padRadius;
-    const yMin = deckBottom - 0.2;
-    const yMax = deckTop + padRadius + 0.35;
+    const stemTopR = pad.radius * 1.15;
+    const stemColliderR = stemTopR * 1.05;
+    const stoneTopY = pad.platformTopY;
+    const deckBottom = stoneTopY;
+    const deckTop = stoneTopY + deckH;
+    const deckHitR = pad.radius + padRadius;
+    const stemHitR = stemColliderR + padRadius;
+    const deckYMin = deckBottom - 0.2;
+    const deckYMax = deckTop + padRadius + 0.35;
+    const stemYMin = floorY - padRadius;
+    const stemYMax = stoneTopY + padRadius * 0.35;
 
     let lastPy = from.y;
     for (let i = 0; i <= samples; i++) {
@@ -225,16 +244,29 @@ export function segmentHitsBounceTrampoline(
       const pz = from.z + (to.z - from.z) * t;
       const d = Math.hypot(px - pad.x, pz - pad.z);
 
-      if (d <= hitR) {
-        if (py >= yMin && py <= yMax) {
-          return { x: px, z: pz, deckTopY: deckTop };
-        }
-        if (lastPy > deckTop + 0.18 && py <= deckTop + 0.55) {
-          return { x: px, z: pz, deckTopY: deckTop };
-        }
+      let onDeck = false;
+      if (d <= deckHitR) {
+        if (py >= deckYMin && py <= deckYMax) onDeck = true;
+        else if (lastPy > deckTop + 0.18 && py <= deckTop + 0.55) onDeck = true;
+      }
+
+      const onStem = !onDeck && d <= stemHitR && py >= stemYMin && py <= stemYMax;
+
+      if (onDeck || onStem) {
+        const hit: BounceTrampolineSegmentHit = {
+          x: px,
+          y: py,
+          z: pz,
+          onDeck,
+          padX: pad.x,
+          padZ: pad.z,
+          stemColliderR,
+          deckTopY: deckTop,
+        };
+        if (best === null || t < best.t) best = { t, hit };
       }
       lastPy = py;
     }
   }
-  return null;
+  return best?.hit ?? null;
 }

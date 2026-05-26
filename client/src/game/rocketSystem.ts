@@ -445,13 +445,27 @@ function tryPlatformBounce(
   const trampHit = segmentHitsBounceTrampoline(prev, pos);
   if (trampHit) {
     const rest = ROCKET.bounceRestitution;
-    pos.x = trampHit.x;
-    pos.z = trampHit.z;
-    pos.y = trampHit.deckTopY + 0.44;
-    const tune = tuningStore.getState();
-    const launchVy = bounceLaunchSpeedY(tune.gravity, tune.trampolineStrength);
-    r.velocity.y = Math.max(Math.abs(r.velocity.y) * rest, launchVy * 0.82);
-    triggerOctagonShake(pos.x, pos.z);
+    if (trampHit.onDeck) {
+      pos.x = trampHit.x;
+      pos.z = trampHit.z;
+      pos.y = trampHit.deckTopY + 0.44;
+      const tune = tuningStore.getState();
+      const launchVy = bounceLaunchSpeedY(tune.gravity, tune.trampolineStrength);
+      r.velocity.y = Math.max(Math.abs(r.velocity.y) * rest, launchVy * 0.82);
+      triggerOctagonShake(pos.x, pos.z);
+    } else {
+      const dx = trampHit.x - trampHit.padX;
+      const dz = trampHit.z - trampHit.padZ;
+      const dist = Math.hypot(dx, dz) || 1;
+      const nx = dx / dist;
+      const nz = dz / dist;
+      pos.x = trampHit.padX + nx * (trampHit.stemColliderR + 0.44);
+      pos.z = trampHit.padZ + nz * (trampHit.stemColliderR + 0.44);
+      pos.y = trampHit.y;
+      _wallNormal.set(nx, nz);
+      reflectVelocityOffWall(r.velocity, _wallNormal, rest);
+      triggerOctagonShake(pos.x, pos.z);
+    }
     const horiz = Math.hypot(r.velocity.x, r.velocity.z);
     if (horiz > 0.5) {
       r.velocity.x *= 0.9;
