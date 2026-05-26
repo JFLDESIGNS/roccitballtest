@@ -967,6 +967,9 @@ export const MATCH = {
   /** 3-2-1 before kickoff and after each goal */
   startCountdownSec: 3,
   resetCountdownSec: 3,
+  /** Match-end overlay — restart (not bound during gameplay) */
+  playAgainKeyCode: 'KeyN',
+  playAgainKeyLabel: 'N',
 } as const;
 
 /** Goal point values (bottom / middle / top ring) */

@@ -1,6 +1,9 @@
 import { MATCH } from '../shared/Constants';
 import { gameStore } from './gameStore';
 
+export const MATCH_PLAY_AGAIN_KEY = MATCH.playAgainKeyCode;
+export const MATCH_PLAY_AGAIN_KEY_LABEL = MATCH.playAgainKeyLabel;
+
 type GameStoreState = ReturnType<typeof gameStore.getState>;
 
 export function isMatchOver(state: GameStoreState): boolean {

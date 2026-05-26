@@ -19,6 +19,7 @@ import { ArenaLighting } from './ArenaLighting';
 import { Ball, type BallHandle } from './Ball';
 import { BeamVisual } from './BeamVisual';
 import { gameStore } from './gameStore';
+import { isMatchOver } from './matchEnd';
 import { setFanGlassListenerPosition } from './fanGlassHit';
 import { inputManager } from './InputManager';
 import { DebugFreelook } from './DebugFreelook';
@@ -661,6 +662,9 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     gameStore.subscribe,
     () => gameStore.getState().debugFreelook,
   );
+  const matchOver = useSyncExternalStore(gameStore.subscribe, () =>
+    isMatchOver(gameStore.getState()),
+  );
   const rocketsRef = useRef<ActiveRocket[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -670,7 +674,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
   }, []);
 
   const handleClick = () => {
-    if (tuningStore.getState().showMenu || debugFreelook) return;
+    if (matchOver || tuningStore.getState().showMenu || debugFreelook) return;
     const canvas = wrapRef.current?.querySelector('canvas');
     if (!canvas || document.pointerLockElement === canvas) return;
     resumeAudio();
@@ -682,7 +686,11 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     <div
       ref={wrapRef}
       className={
-        debugFreelook ? 'game-canvas game-canvas--debug-fly' : 'game-canvas'
+        debugFreelook
+          ? 'game-canvas game-canvas--debug-fly'
+          : matchOver
+            ? 'game-canvas game-canvas--match-end'
+            : 'game-canvas'
       }
       onClick={handleClick}
     >

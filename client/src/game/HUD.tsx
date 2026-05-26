@@ -5,7 +5,13 @@ import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
 import { inputManager } from './InputManager';
-import { isMatchOver, matchEndHeadline } from './matchEnd';
+import {
+  isMatchOver,
+  matchEndHeadline,
+  MATCH_PLAY_AGAIN_KEY,
+  MATCH_PLAY_AGAIN_KEY_LABEL,
+} from './matchEnd';
+import { shouldIgnoreGameplayKeys } from './uiFocus';
 import { matchStatRows } from './matchStats';
 import { resumeAudio, warmAudio } from './audio';
 import { StadiumLightEditorPanel } from './StadiumLightEditorPanel';
@@ -37,10 +43,26 @@ export function HUD({ onMainMenu }: HUDProps) {
   }, []);
 
   const handlePlayAgain = () => {
-    document.exitPointerLock();
+    inputManager.exitPointerLock();
     inputManager.flushFireInput();
     gameStore.playAgain();
   };
+
+  useEffect(() => {
+    if (!matchOver) return;
+    inputManager.exitPointerLock();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || e.code !== MATCH_PLAY_AGAIN_KEY) return;
+      if (shouldIgnoreGameplayKeys()) return;
+      if (!isMatchOver(gameStore.getState())) return;
+      e.preventDefault();
+      inputManager.exitPointerLock();
+      inputManager.flushFireInput();
+      gameStore.playAgain();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [matchOver]);
 
   if (state.phase === 'menu') return null;
 
@@ -225,7 +247,8 @@ export function HUD({ onMainMenu }: HUDProps) {
             </div>
             <div className="hud-match-end-actions">
               <button type="button" className="hud-match-end-btn" onClick={handlePlayAgain}>
-                Play again
+                Play again{' '}
+                <kbd className="hud-match-end-kbd">{MATCH_PLAY_AGAIN_KEY_LABEL}</kbd>
               </button>
               {onMainMenu && (
                 <button

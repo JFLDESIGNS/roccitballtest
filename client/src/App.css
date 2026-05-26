@@ -27,11 +27,13 @@ body,
   cursor: crosshair;
 }
 
-.game-canvas--debug-fly {
+.game-canvas--debug-fly,
+.game-canvas--match-end {
   cursor: default;
 }
 
-.game-canvas--debug-fly canvas {
+.game-canvas--debug-fly canvas,
+.game-canvas--match-end canvas {
   cursor: default;
 }
 
@@ -1734,6 +1736,8 @@ body,
   justify-content: center;
   background: rgba(8, 12, 22, 0.72);
   z-index: 40;
+  pointer-events: auto;
+  cursor: default;
 }
 
 .hud-match-end {
@@ -1816,6 +1820,10 @@ body,
 }
 
 .hud-match-end-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   min-width: 8.5rem;
   padding: 0.72rem 1.2rem;
   font-size: 0.95rem;
@@ -1825,6 +1833,21 @@ body,
   background: linear-gradient(180deg, #4a8cff 0%, #2d66c4 100%);
   color: #fff;
   cursor: pointer;
+}
+
+.hud-match-end-kbd {
+  display: inline-block;
+  min-width: 1.35rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.28);
+  color: #e8f0ff;
+  font-family: inherit;
 }
 
 .hud-match-end-btn:hover {
