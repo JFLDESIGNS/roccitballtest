@@ -775,12 +775,43 @@ export function pickMoveTarget(
     case 'teamCenter':
       return pickFieldCenterTarget(input.id, input.pos.y, out);
     case 'teamOffense':
-      return getEnemyGoalTarget(input.team, out).setY(input.pos.y);
+      return pickTeamOffenseRoamTarget(input, out);
     case 'teamDefense':
       return getOwnGoalAnchor(input.team, out).setY(input.pos.y);
     default:
       return out.copy(ballPos);
   }
+}
+
+function pickTeamOffenseRoamTarget(
+  input: Pick<BotThinkInput, 'id' | 'team' | 'pos'>,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  // Bots in "teamOffense" are intended to be pass options, not statues.
+  // Roam on the offensive half near the enemy goal with small loops + drift so
+  // they don't get flagged as stuck and suicide near the net.
+  getEnemyGoalTarget(input.team, out).setY(input.pos.y);
+
+  // Pull slightly off the wall toward midfield.
+  const towardCourt = input.team === 'red' ? -1 : 1;
+  out.x += towardCourt * BOT.goalRingApproachInset * 0.9;
+
+  // Deterministic phase per bot id for variety.
+  const botPhase = input.id === 'bot-0' ? 0.2 : input.id === 'bot-1' ? 2.1 : 4.3;
+  const t = performance.now() / 1000;
+
+  // Small loiter loop in front of the goal mouth (mostly along Z), with a bit
+  // of in/out motion so they turn and hop around.
+  const loopZ = Math.sin(t * 0.55 + botPhase) * 12 + Math.sin(t * 0.18 + botPhase) * 4;
+  const loopX = Math.cos(t * 0.62 + botPhase) * 6 + Math.sin(t * 0.22 + botPhase) * 2.5;
+  out.z += loopZ;
+  out.x += loopX;
+
+  // Keep them on the offensive half.
+  if (input.team === 'red') out.x = Math.max(6, out.x);
+  else out.x = Math.min(-6, out.x);
+
+  return out;
 }
 
 /** Look target (aim) */

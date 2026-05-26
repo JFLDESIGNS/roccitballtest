@@ -23,7 +23,8 @@ function goalEndShadowPlacement(team: Team): {
   const towardCourt = team === 'red' ? 1 : -1;
   return {
     position: [
-      anchor.center.x + towardCourt * 5.5,
+      // Pull the blob back toward the end wall (closer to the net).
+      anchor.center.x + towardCourt * 2.45,
       ARENA.floorY + GROUND_BLOB_SHADOW_LIFT,
       anchor.center.z,
     ],

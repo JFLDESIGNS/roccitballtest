@@ -27,11 +27,21 @@ export function createGroundBlobShadowMaterial(
   });
 }
 
-function addShadowGradientStops(g: CanvasGradient): void {
-  g.addColorStop(0, 'rgba(0, 0, 0, 0.92)');
-  g.addColorStop(0.28, 'rgba(0, 0, 0, 0.62)');
-  g.addColorStop(0.52, 'rgba(0, 0, 0, 0.32)');
-  g.addColorStop(0.74, 'rgba(0, 0, 0, 0.1)');
+function addShadowGradientStopsStrong(g: CanvasGradient): void {
+  // Stronger, more visible platform contact shadow.
+  g.addColorStop(0, 'rgba(0, 0, 0, 0.98)');
+  g.addColorStop(0.24, 'rgba(0, 0, 0, 0.72)');
+  g.addColorStop(0.5, 'rgba(0, 0, 0, 0.38)');
+  g.addColorStop(0.72, 'rgba(0, 0, 0, 0.14)');
+  g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+}
+
+function addShadowGradientStopsSoft(g: CanvasGradient): void {
+  // Softer goal blob; still fades to fully transparent at edges.
+  g.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
+  g.addColorStop(0.3, 'rgba(0, 0, 0, 0.6)');
+  g.addColorStop(0.56, 'rgba(0, 0, 0, 0.3)');
+  g.addColorStop(0.78, 'rgba(0, 0, 0, 0.1)');
   g.addColorStop(1, 'rgba(0, 0, 0, 0)');
 }
 
@@ -66,12 +76,15 @@ export function getOctagonPlatformShadowTexture(): THREE.CanvasTexture {
     }
     ctx.closePath();
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cornerR);
-    addShadowGradientStops(g);
+    addShadowGradientStopsStrong(g);
     ctx.fillStyle = g;
     ctx.fill();
   }
   octagonTex = new THREE.CanvasTexture(canvas);
   octagonTex.colorSpace = THREE.SRGBColorSpace;
+  octagonTex.generateMipmaps = false;
+  octagonTex.minFilter = THREE.LinearFilter;
+  octagonTex.magFilter = THREE.LinearFilter;
   return octagonTex;
 }
 
@@ -92,7 +105,7 @@ export function getGoalFloorShadowTexture(): THREE.CanvasTexture {
     ctx.translate(cx, cy);
     ctx.scale(1.55, 1);
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-    addShadowGradientStops(g);
+    addShadowGradientStopsSoft(g);
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = g;
@@ -101,6 +114,9 @@ export function getGoalFloorShadowTexture(): THREE.CanvasTexture {
   }
   goalEllipseTex = new THREE.CanvasTexture(canvas);
   goalEllipseTex.colorSpace = THREE.SRGBColorSpace;
+  goalEllipseTex.generateMipmaps = false;
+  goalEllipseTex.minFilter = THREE.LinearFilter;
+  goalEllipseTex.magFilter = THREE.LinearFilter;
   return goalEllipseTex;
 }
 

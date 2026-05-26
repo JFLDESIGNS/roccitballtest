@@ -16,7 +16,8 @@ type CloudClusterSpec = {
   puffs: PuffSpec[];
 };
 
-const DIST = 3;
+// Push cloud clumps farther from the stadium bowl.
+const DIST = 3.4;
 const NEAR_RING_M = 31 * DIST;
 /** Extra world-Y lift so clumps sit higher above the stadium */
 const CLOUD_LIFT_M = 14;
@@ -83,6 +84,11 @@ const CLOUD_CLUMP_PLACES: Omit<CloudClusterSpec, 'puffs'>[] = [
   { position: farPos(-8, 77, -NEAR_RING_M / DIST), scale: 1 },
   { position: farPos(0, 80, NEAR_RING_M / DIST + 3), scale: 1.02 },
   { position: farPos(NEAR_RING_M / DIST + 4, 75, -NEAR_RING_M / DIST), scale: 0.94 },
+  // Extra clusters for a fuller skyline (kept outside the arena via puffBlocksCourt filter).
+  { position: farPos(NEAR_RING_M / DIST + 16, 82, NEAR_RING_M / DIST + 10), scale: 1.12 },
+  { position: farPos(-NEAR_RING_M / DIST - 18, 86, -NEAR_RING_M / DIST - 8), scale: 1.14 },
+  { position: farPos(NEAR_RING_M / DIST + 10, 78, -NEAR_RING_M / DIST - 22), scale: 1.08 },
+  { position: farPos(-NEAR_RING_M / DIST - 12, 80, NEAR_RING_M / DIST + 22), scale: 1.1 },
 ];
 
 function puffBlocksCourt(
@@ -108,7 +114,7 @@ const CLOUD_CLUSTERS: CloudClusterSpec[] = CLOUD_CLUMP_PLACES.map((c, i) => ({
 const cloudPuffMaterial = new THREE.MeshLambertMaterial({
   color: '#eef6ff',
   emissive: '#b8dcff',
-  emissiveIntensity: 0.4,
+  emissiveIntensity: 0.8,
   transparent: false,
   opacity: 1,
   depthWrite: true,
@@ -156,7 +162,7 @@ function CloudCluster({
   const geo = useMemo(() => new THREE.SphereGeometry(1, 14, 10), []);
 
   return (
-    <group position={position} scale={scale}>
+    <group position={position} scale={scale * 1.25}>
       {puffs.map((p, i) => (
         <mesh
           key={i}
