@@ -27,7 +27,7 @@ export function spawnRocketSmokeStreak(
     return;
   }
 
-  if (last.distanceTo(_tip) < 0.13) return;
+  if (last.distanceTo(_tip) < 0.075) return;
 
   spawnRocketTrailSmokePuff(x, y, z, explosive);
   last.copy(_tip);

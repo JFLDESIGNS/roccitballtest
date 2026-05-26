@@ -544,9 +544,12 @@ export const BOT = {
   /** Holding ball — drop if moved less than this (ft) in botHoldStuckDropSec */
   botStuckMoveThresholdFt: 5,
   botHoldStuckDropSec: 4,
-  /** Frozen in place — turn/jump, then respawn at spawn */
+  /** Frozen in place — turn/jump escape attempt */
   botFrozenTurnJumpSec: 6,
-  botFrozenRespawnSec: 6.5,
+  /** Same spot ~4s — suicide rockets + ragdoll respawn at spawn */
+  botFrozenRespawnSec: 4,
+  /** Ground rockets fired when a bot suicides from stuck */
+  botStuckSuicideRocketCount: 3,
   stuckEscapeCooldownSec: 2.2,
   stuckEscapePush: 12,
   stuckBoundaryMargin: 4,
@@ -1058,7 +1061,7 @@ export const GOAL_RINGS = {
   /** Rocket-style goal eject for player (same scale as ROCKET.playerForce) */
   characterEjectForce: 24,
   /** Bot eject uses BOT.rocketKnockForce × this */
-  characterEjectBotForceScale: 0.88,
+  characterEjectBotForceScale: 1.05,
   /** Upward bias in knock direction before flatten (slight hop) */
   characterEjectUpBias: 0.12,
   /** Optional pull toward center Z when not in net contact (normalized dir component) */

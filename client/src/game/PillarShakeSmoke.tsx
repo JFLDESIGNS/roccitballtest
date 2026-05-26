@@ -5,12 +5,13 @@ import { ARENA_PILLAR } from './arenaPillarConfig';
 import { tickPillarSmokePuffs } from './pillarSmokePuffs';
 
 const MAX_INSTANCES = 160;
-const SMOKE_OPACITY = 0.1;
-const FRESNEL_OPACITY = 0.12;
+/** ~50% more transparent than prior pillar poof */
+const SMOKE_OPACITY = 0.05;
+const FRESNEL_OPACITY = 0.06;
 const SMOKE_Y_MIN = ARENA_PILLAR.floorY;
 const SMOKE_Y_MAX = ARENA_PILLAR.floorY + ARENA_PILLAR.height;
-const SMOKE_COLOR_BOTTOM = new THREE.Color(0x141618);
-const SMOKE_COLOR_TOP = new THREE.Color(0x52565c);
+const SMOKE_COLOR_BOTTOM = new THREE.Color(0x101214);
+const SMOKE_COLOR_TOP = new THREE.Color(0x3a3e44);
 const _smokeColor = new THREE.Color();
 
 /** Grow-in envelope — 2× faster timing */
@@ -56,7 +57,7 @@ const fresnelFragment = /* glsl */ `
     vec3 viewDir = normalize(cameraPosition - vWorldPos);
     float fresnel = pow(1.0 - max(dot(normalize(vWorldNormal), viewDir), 0.0), 2.2);
     float rim = smoothstep(0.22, 0.88, fresnel);
-    gl_FragColor = vec4(0.36, 0.38, 0.4, rim * uOpacity);
+    gl_FragColor = vec4(0.26, 0.28, 0.3, rim * uOpacity);
   }
 `;
 

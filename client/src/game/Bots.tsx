@@ -74,10 +74,17 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { TeamOrb } from './TeamOrb';
 import {
   createBotCombatState,
+  enterBotRagdoll,
   registerPlayerHitOnBot,
   tickBotRagdoll,
   type BotCombatState,
 } from './botCombat';
+import {
+  createBotMoveStuckState,
+  resetBotMoveStuckState,
+  tickBotMoveStuck,
+  type BotMoveStuckState,
+} from './botStuckRecovery';
 import {
   isBotGoalEjectMoveLocked,
   tickBotKnockStun,
@@ -314,6 +321,7 @@ const _opponentChest = new THREE.Vector3();
 const _opponentVel = new THREE.Vector3();
 const _playerVel = new THREE.Vector3();
 const _launchSpawn = new THREE.Vector3();
+const _suicideAim = new THREE.Vector3();
 const _botSepScratch: {
   id: BotId;
   team: 'red' | 'blue';
@@ -628,6 +636,33 @@ function botFireRocket(
   return true;
 }
 
+/** Stuck ~4s — blast the floor then ragdoll respawn at spawn */
+function botExecuteMoveStuckSuicide(
+  bot: BotRuntime,
+  body: RapierRigidBody,
+  chest: THREE.Vector3,
+  ball: RapierRigidBody | null,
+  onRocketFired: (rocket: ActiveRocket) => void,
+  state: BotMoveStuckState,
+): void {
+  if (state.suicideTriggered || bot.combat.isRagdoll) return;
+  state.suicideTriggered = true;
+  if (bot.holdingBall && ball) {
+    releaseBotBall(bot, ball, true);
+  }
+  const n = BOT.botStuckSuicideRocketCount;
+  for (let i = 0; i < n; i++) {
+    _suicideAim.set(
+      (Math.random() - 0.5) * 0.35,
+      -0.88 - Math.random() * 0.12,
+      (Math.random() - 0.5) * 0.35,
+    );
+    if (_suicideAim.lengthSq() > 1e-6) _suicideAim.normalize();
+    botFireRocket(bot.id, body, chest, _suicideAim, onRocketFired, true);
+  }
+  enterBotRagdoll(body, bot);
+}
+
 function executeBotHoldRelease(
   bot: BotRuntime,
   ball: RapierRigidBody,
@@ -908,6 +943,7 @@ function BotAvatar({
   const goalNetCooldown = useRef(0);
   const goalRimCooldown = useRef(0);
   const stuckState = useRef<BotStuckState | null>(null);
+  const moveStuckState = useRef<BotMoveStuckState | null>(null);
   const jumpState: BotJumpState = {
     grounded,
     jumpsLeft,
@@ -1028,6 +1064,13 @@ function BotAvatar({
     if (gameStore.getState().ballHolderId === bot.id) {
       gameStore.clearBallHolder(true);
     }
+    if (moveStuckState.current) {
+      resetBotMoveStuckState(
+        moveStuckState.current,
+        bot.spawn.x,
+        bot.spawn.z,
+      );
+    }
   };
 
   useFrame((_, dt) => {
@@ -1065,6 +1108,33 @@ function BotAvatar({
     const tEarly = body.translation();
     _pos.set(tEarly.x, tEarly.y, tEarly.z);
     _chest.set(tEarly.x, tEarly.y + BEAM.chestHeight, tEarly.z);
+
+    if (phase === 'playing' && !bot.combat.isRagdoll) {
+      if (!moveStuckState.current) {
+        moveStuckState.current = createBotMoveStuckState(_pos.x, _pos.z);
+      }
+      const moveStuck = tickBotMoveStuck(
+        moveStuckState.current,
+        _pos.x,
+        _pos.z,
+        dt,
+      );
+      if (moveStuck.dropBall && bot.holdingBall && ball) {
+        releaseBotBall(bot, ball, true);
+      }
+      if (moveStuck.needsRespawn) {
+        botExecuteMoveStuckSuicide(
+          bot,
+          body,
+          _chest,
+          ball,
+          onRocketFired,
+          moveStuckState.current,
+        );
+        return;
+      }
+    }
+
     _playerChest.copy(playerChestRef.current);
     const playerBodyEarly = playerBodyRef.current;
     if (playerBodyEarly) {
@@ -1141,7 +1211,7 @@ function BotAvatar({
         tickGoalEntryCharacterBounce(
           body,
           _pos.x,
-          _pos.y + BEAM.chestHeight * 0.35,
+          _pos.y + MOVEMENT.capsuleRadius,
           _pos.z,
           PLAYER_RIM_PROBE_RADIUS,
           tune.gravity,
@@ -2106,7 +2176,7 @@ function BotAvatar({
         tickGoalEntryCharacterBounce(
           body,
           _pos.x,
-          _pos.y + BEAM.chestHeight * 0.35,
+          _pos.y + MOVEMENT.capsuleRadius,
           _pos.z,
           PLAYER_RIM_PROBE_RADIUS,
           tune.gravity,
@@ -2803,7 +2873,7 @@ function BotAvatar({
       tickGoalEntryCharacterBounce(
         body,
         _pos.x,
-        _pos.y + BEAM.chestHeight * 0.35,
+        _pos.y + MOVEMENT.capsuleRadius,
         _pos.z,
         PLAYER_RIM_PROBE_RADIUS,
         tune.gravity,

@@ -94,8 +94,11 @@ function PerimeterWall({
   );
 }
 
-const GOAL_ENV_COLLISION = interactionGroups(2, [0, 1, 2]);
-/** Back-cap square — blocks players/bots in the hole; ball passes through (group 1 excluded). */
+/** Lit goal ring — ball only; players/bots walk through the torus */
+const GOAL_LIT_RING_COLLISION = interactionGroups(2, [1, 2]);
+/** Black back ring — ball only */
+const GOAL_BLACK_RING_COLLISION = interactionGroups(2, [1, 2]);
+/** Black hole disc — blocks players/bots; ball passes through */
 const GOAL_BACK_CAP_COLLISION = interactionGroups(2, [0, 2]);
 const GOAL_RING_RESTITUTION = BALL.restitution * 0.92;
 const GOAL_RING_FRICTION = 0.42;
@@ -209,7 +212,7 @@ function GoalRingBackplate({
             args={[backTorusCollider.vertices, backTorusCollider.indices]}
             friction={GOAL_RING_FRICTION}
             restitution={GOAL_RING_RESTITUTION}
-            collisionGroups={GOAL_ENV_COLLISION}
+            collisionGroups={GOAL_BLACK_RING_COLLISION}
           />
           <mesh
             geometry={torusGeo}
@@ -294,7 +297,7 @@ function GoalRing({
                 args={[litTorusCollider.vertices, litTorusCollider.indices]}
                 friction={GOAL_RING_FRICTION}
                 restitution={GOAL_RING_RESTITUTION}
-                collisionGroups={GOAL_ENV_COLLISION}
+                collisionGroups={GOAL_LIT_RING_COLLISION}
               />
               <mesh geometry={glowGeo} renderOrder={2}>
                 <meshBasicMaterial

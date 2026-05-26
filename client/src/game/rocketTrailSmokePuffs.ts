@@ -9,7 +9,7 @@ export type RocketTrailSmokePuff = {
 };
 
 /** Cap live trail puffs — keeps instanced draw + tick cost bounded */
-export const MAX_ROCKET_TRAIL_PUFFS = 168;
+export const MAX_ROCKET_TRAIL_PUFFS = 256;
 export const ROCKET_TRAIL_PUFF_LIFE_SEC = 1.35;
 
 const puffs: RocketTrailSmokePuff[] = Array.from(
@@ -21,7 +21,7 @@ const puffs: RocketTrailSmokePuff[] = Array.from(
     z: 0,
     life: 0,
     maxLife: ROCKET_TRAIL_PUFF_LIFE_SEC,
-    size: 0.29,
+    size: 0.44,
   }),
 );
 let writeIdx = 0;
@@ -47,7 +47,7 @@ export function spawnRocketTrailSmokePuff(
   p.z = z + (Math.random() - 0.5) * jitter;
   p.maxLife = ROCKET_TRAIL_PUFF_LIFE_SEC * (0.9 + Math.random() * 0.2);
   p.life = p.maxLife;
-  p.size = (explosive ? 0.34 : 0.29) * (0.9 + Math.random() * 0.15);
+  p.size = (explosive ? 0.52 : 0.44) * (0.92 + Math.random() * 0.18);
 }
 
 /** Legacy segment fill — avoid for flight trail (creates solid white slab) */

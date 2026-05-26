@@ -423,7 +423,7 @@ export function Player({
       tickGoalEntryCharacterBounce(
         body,
         tr.x,
-        tr.y + BEAM.chestHeight * 0.35,
+        tr.y + MOVEMENT.capsuleRadius,
         tr.z,
         PLAYER_RIM_PROBE_RADIUS,
         tune.gravity,
@@ -937,7 +937,7 @@ export function Player({
       tickGoalEntryCharacterBounce(
         body,
         pos.x,
-        pos.y + BEAM.chestHeight * 0.35,
+        pos.y + MOVEMENT.capsuleRadius,
         pos.z,
         PLAYER_RIM_PROBE_RADIUS,
         tune.gravity,

@@ -25,7 +25,7 @@ export function RocketTrailSmoke() {
       }),
     [],
   );
-  const geo = useMemo(() => new THREE.SphereGeometry(1, 8, 6), []);
+  const geo = useMemo(() => new THREE.SphereGeometry(1, 10, 8), []);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
@@ -48,7 +48,7 @@ export function RocketTrailSmoke() {
       if (lifeT < 0.06) continue;
 
       const fade = lifeT * lifeT;
-      const s = p.size * (0.45 + fade * 0.55);
+      const s = p.size * (0.55 + fade * 0.65);
       dummy.position.set(p.x, p.y, p.z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(s, s * 0.88, s);

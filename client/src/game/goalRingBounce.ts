@@ -7,6 +7,8 @@ import type { KnockStunKind } from './rocketKnockStun';
 import {
   ARENA_GOALS,
   ballToGoalRingLocal,
+  goalBackCapColliderRadius,
+  goalBackCapDiscCenter,
   goalBackRingCenterX,
   goalScoreHoleRadius,
   goalScoringSensorDepth,
@@ -20,7 +22,8 @@ export type GoalRimContact = {
 
 const _sample = new THREE.Vector3();
 
-function testGoalRimHit(
+/** Lit + black torus — ball / rocket swept hits only */
+function testGoalTorusRimHit(
   x: number,
   y: number,
   z: number,
@@ -51,13 +54,37 @@ function testGoalRimHit(
   return null;
 }
 
+/** Black back cap disc — player / bot trampoline only */
+export function findGoalBackCapDiscHit(
+  x: number,
+  y: number,
+  z: number,
+  entityRadius: number,
+): GoalRimContact | null {
+  for (const goal of ARENA_GOALS) {
+    const discCenter = goalBackCapDiscCenter(goal);
+    const capR = goalBackCapColliderRadius(goal);
+    const depth = goalScoringSensorDepth(goal.size);
+    const discLoc = ballToGoalRingLocal({ x, y, z }, { ...goal, center: discCenter });
+    const mouthLoc = ballToGoalRingLocal({ x, y, z }, goal);
+
+    if (mouthLoc.planeDist > depth + entityRadius + 1.1) continue;
+    if (discLoc.planeDist > 0.62 + entityRadius) continue;
+    if (discLoc.holeDist > capR + entityRadius + 0.12) continue;
+
+    return { outwardX: goal.team === 'red' ? 1 : -1, goalId: goal.id };
+  }
+  return null;
+}
+
+/** @deprecated use findGoalBackCapDiscHit for characters */
 export function findGoalRimHit(
   x: number,
   y: number,
   z: number,
   entityRadius: number,
 ): GoalRimContact | null {
-  return testGoalRimHit(x, y, z, entityRadius);
+  return testGoalTorusRimHit(x, y, z, entityRadius);
 }
 
 /** @deprecated use findGoalRimHit */
@@ -154,7 +181,7 @@ export function applyGoalRimLaunchToCharacter(
 
 export const PLAYER_RIM_PROBE_RADIUS = MOVEMENT.capsuleRadius;
 
-/** Player / bot rim trampoline (returns true if launched). */
+/** Player / bot — bounce only off the black back cap disc (not lit rings). */
 export function tickGoalRimCharacterBounce(
   body: RapierRigidBody,
   x: number,
@@ -169,10 +196,10 @@ export function tickGoalRimCharacterBounce(
   cooldownSec.current = Math.max(0, cooldownSec.current - dt);
   if (cooldownSec.current > 0) return false;
 
-  const rim = findGoalRimHit(x, y, z, entityRadius);
-  if (!rim) return false;
+  const disc = findGoalBackCapDiscHit(x, y, z, entityRadius);
+  if (!disc) return false;
 
-  applyGoalRimLaunchToCharacter(body, rim, kind, combat);
+  applyGoalRimLaunchToCharacter(body, disc, kind, combat);
   cooldownSec.current = GOAL_RINGS.rimBounceCooldownSec;
   return true;
 }

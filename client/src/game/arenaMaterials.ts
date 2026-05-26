@@ -181,14 +181,14 @@ applyArenaMetalWearShader(arenaPlatformTopMaterial, {
   wearStrength: 0.3,
 });
 
-/** Jump / bounce pad top deck — soft idle glow; pulse on launch via jumpPadGlow */
+/** Jump / bounce pad top deck — smooth shaded cyan glow; pulse on launch via jumpPadGlow */
 export const arenaJumpPadTopMaterial = new THREE.MeshStandardMaterial({
-  color: '#e8ecf4',
-  emissive: '#eef2ff',
+  color: '#e4ecff',
+  emissive: '#d8e8ff',
   emissiveIntensity: JUMP_PAD_EMISSIVE_IDLE,
-  metalness: 0.08,
-  roughness: 0.42,
-  flatShading: true,
+  metalness: 0.06,
+  roughness: 0.32,
+  flatShading: false,
   toneMapped: false,
   fog: false,
 });

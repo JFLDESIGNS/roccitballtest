@@ -216,6 +216,25 @@ export function goalBackRingCenterX(
   );
 }
 
+/** Black hole disc collider radius — matches Arena GoalRingBackCapCollider */
+export function goalBackCapColliderRadius(
+  goal: Pick<GoalDef, 'ringRadius' | 'size'>,
+): number {
+  return goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
+}
+
+/** World center of the black back cap disc (matches GoalRingBackplate) */
+export function goalBackCapDiscCenter(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  const backX = goalBackRingCenterX(goal);
+  return {
+    x: backX + goalBackCapArenaNudgeM(goal.team, goal.size),
+    y: goal.center.y,
+    z: goal.center.z,
+  };
+}
+
 /** Local X nudge for middle backup cap square / hole disc (matches GoalRingBackplate) */
 export function goalBackCapArenaNudgeM(team: Team, size: GoalSize): number {
   const capNudgeScale = size === 'medium' ? 0.22 : 0.15;

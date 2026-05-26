@@ -2,10 +2,7 @@ import * as THREE from 'three';
 import { ARENA_PADS } from '../shared/Constants';
 import { getBillboardMounts } from './arenaPadLayout';
 import { listArenaPlatforms } from './arenaSpawn';
-import {
-  findGoalRimHit,
-  findGoalRimSegmentHit,
-} from './goalRingBounce';
+import { findGoalBackCapDiscHit } from './goalRingBounce';
 import { triggerBillboardShake, triggerOctagonShake } from './visualShake';
 
 const _sample = new THREE.Vector3();
@@ -15,7 +12,19 @@ export function tryTriggerGoalRingImpact(
   to: THREE.Vector3,
   entityRadius = 0.5,
 ): string | null {
-  return findGoalRimSegmentHit(from, to, entityRadius);
+  const end = findGoalBackCapDiscHit(to.x, to.y, to.z, entityRadius);
+  if (end) return end.goalId;
+  for (let i = 0; i <= 10; i++) {
+    _sample.lerpVectors(from, to, i / 10);
+    const hit = findGoalBackCapDiscHit(
+      _sample.x,
+      _sample.y,
+      _sample.z,
+      entityRadius,
+    );
+    if (hit) return hit.goalId;
+  }
+  return null;
 }
 
 export function tryTriggerGoalRingImpactAt(
@@ -24,7 +33,7 @@ export function tryTriggerGoalRingImpactAt(
   z: number,
   entityRadius: number,
 ): string | null {
-  const hit = findGoalRimHit(x, y, z, entityRadius);
+  const hit = findGoalBackCapDiscHit(x, y, z, entityRadius);
   return hit?.goalId ?? null;
 }
 

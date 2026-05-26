@@ -10,10 +10,17 @@ export type BotMoveStuckState = {
   anchorZ: number;
   stillSec: number;
   escapeAttempted: boolean;
+  suicideTriggered: boolean;
 };
 
 export function createBotMoveStuckState(x: number, z: number): BotMoveStuckState {
-  return { anchorX: x, anchorZ: z, stillSec: 0, escapeAttempted: false };
+  return {
+    anchorX: x,
+    anchorZ: z,
+    stillSec: 0,
+    escapeAttempted: false,
+    suicideTriggered: false,
+  };
 }
 
 export function resetBotMoveStuckState(state: BotMoveStuckState, x: number, z: number): void {
@@ -21,6 +28,7 @@ export function resetBotMoveStuckState(state: BotMoveStuckState, x: number, z: n
   state.anchorZ = z;
   state.stillSec = 0;
   state.escapeAttempted = false;
+  state.suicideTriggered = false;
 }
 
 export type BotMoveStuckTick = {

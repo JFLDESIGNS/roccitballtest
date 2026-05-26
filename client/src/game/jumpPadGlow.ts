@@ -1,9 +1,9 @@
 import type { FloorPad } from './arenaPadLayout';
 
-/** Idle deck glow (~1/5 prior full-white intensity) */
-export const JUMP_PAD_EMISSIVE_IDLE = 0.16;
+/** Idle deck glow — soft cyan emissive on smooth top */
+export const JUMP_PAD_EMISSIVE_IDLE = 0.28;
 /** Brief pulse when someone launches off the pad */
-export const JUMP_PAD_EMISSIVE_PULSE = 0.52;
+export const JUMP_PAD_EMISSIVE_PULSE = 0.62;
 const PULSE_MS = 420;
 
 const padKey = (pad: FloorPad) => `${pad.x.toFixed(2)},${pad.z.toFixed(2)}`;
