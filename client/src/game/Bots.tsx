@@ -178,6 +178,7 @@ import {
 import { isInsideNetFinishZone, isInsideShootZone } from './botShootZone';
 import {
   getKickoffBallAimPoint,
+  isKickoffBallDropWait,
   isKickoffContestPhase,
   kickoffContestHorizDistToAim,
   kickoffContestJumpForce,
@@ -1097,6 +1098,16 @@ function BotAvatar({
     _pos.set(tEarly.x, tEarly.y, tEarly.z);
     _chest.set(tEarly.x, tEarly.y + BEAM.chestHeight, tEarly.z);
 
+    const kickoffBallDropWait = isKickoffBallDropWait(
+      phase,
+      gs.countdown,
+      gs.ballFrozen,
+      gs.arenaSettleCountdown,
+    );
+    if (kickoffBallDropWait && moveStuckState.current) {
+      resetBotMoveStuckState(moveStuckState.current, _pos.x, _pos.z);
+    }
+
     if (moveStuckState.current?.suicideActive) {
       tickBotMoveStuckSuicide(
         bot,
@@ -1112,7 +1123,7 @@ function BotAvatar({
       return;
     }
 
-    if (phase === 'playing' && !bot.combat.isRagdoll) {
+    if (phase === 'playing' && !bot.combat.isRagdoll && !kickoffBallDropWait) {
       if (!moveStuckState.current) {
         moveStuckState.current = createBotMoveStuckState(_pos.x, _pos.z);
       }

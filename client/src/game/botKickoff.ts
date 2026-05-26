@@ -22,6 +22,18 @@ export function isKickoffContestPhase(
   return phase === 'playing' && (countdown > 0 || ballFrozen);
 }
 
+/** Bots idle under the drop while roof/flaps open — not stuck */
+export function isKickoffBallDropWait(
+  phase: string,
+  countdown: number,
+  ballFrozen: boolean,
+  arenaSettleCountdown: number,
+): boolean {
+  if (phase !== 'playing') return false;
+  if (arenaSettleCountdown > 0) return true;
+  return isKickoffContestPhase(phase, countdown, ballFrozen);
+}
+
 /** World point bots jump toward during countdown / flap hold */
 export function getKickoffBallAimPoint(out = new THREE.Vector3()): THREE.Vector3 {
   const { spawnY } = getBallDropLayout();
