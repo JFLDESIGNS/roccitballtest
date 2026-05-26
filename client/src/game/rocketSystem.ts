@@ -107,15 +107,19 @@ function rocketHitsPlatformSurface(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
 ): boolean {
-  const samples = 5;
-  for (let i = 0; i <= samples; i++) {
+  const samples = 8;
+  let lastPy = prev.y;
+
+  for (let i = 1; i <= samples; i++) {
     const t = i / samples;
     const px = prev.x + (pos.x - prev.x) * t;
     const py = prev.y + (pos.y - prev.y) * t;
     const pz = prev.z + (pos.z - prev.z) * t;
     const surf = getMaxPlatformSurfaceY(px, pz);
-    if (surf === null) continue;
-    if (py <= surf + 0.45) return true;
+    if (surf !== null && lastPy > surf + 0.32 && py <= surf + 0.52) {
+      return true;
+    }
+    lastPy = py;
   }
   return false;
 }

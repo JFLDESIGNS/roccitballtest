@@ -2,14 +2,16 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
+import { ARENA_PADS } from '../shared/Constants';
 import { getBillboardMounts } from './arenaPadLayout';
 import { billboardHitHalfExtents } from './billboardCollision';
-import { getFanGlassPanels, refreshFanGlassBoxes } from './fanGlassHit';
+import {
+  getFanGlassPanels,
+  refreshFanGlassBoxes,
+  type FanGlassPanel,
+} from './fanGlassHit';
 import { gameStore } from './gameStore';
-
-const _box = new THREE.Box3();
-const _size = new THREE.Vector3();
-const _center = new THREE.Vector3();
+import { RocketCollisionDebug } from './RocketCollisionDebug';
 
 function makeWireBoxMaterial(color: string): THREE.LineBasicMaterial {
   return new THREE.LineBasicMaterial({
@@ -21,32 +23,89 @@ function makeWireBoxMaterial(color: string): THREE.LineBasicMaterial {
   });
 }
 
-function WireBox({
-  box,
+const _unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+const _unitEdges = new THREE.EdgesGeometry(_unitBoxGeo);
+const _basis = new THREE.Matrix4();
+const _quat = new THREE.Quaternion();
+
+function OrientedWireBox({
+  position,
+  rotation,
+  quaternion,
+  localOffset = [0, 0, 0],
+  halfExtents,
   color,
 }: {
-  box: THREE.Box3;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  quaternion?: THREE.Quaternion;
+  localOffset?: [number, number, number];
+  halfExtents: [number, number, number];
   color: string;
 }) {
-  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const mat = useMemo(() => makeWireBoxMaterial(color), [color]);
-  const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
-
-  if (box.isEmpty()) return null;
-  box.getSize(_size);
-  box.getCenter(_center);
 
   return (
-    <group
-      position={[_center.x, _center.y, _center.z]}
-      scale={[_size.x, _size.y, _size.z]}
-    >
-      <lineSegments geometry={edges} material={mat} frustumCulled={false} />
+    <group position={position} rotation={rotation} quaternion={quaternion}>
+      <group position={localOffset}>
+        <lineSegments
+          geometry={_unitEdges}
+          material={mat}
+          scale={[
+            halfExtents[0] * 2,
+            halfExtents[1] * 2,
+            halfExtents[2] * 2,
+          ]}
+          frustumCulled={false}
+        />
+      </group>
     </group>
   );
 }
 
-/** Logical + physics-adjacent hit volumes (Rapier wireframes use Physics debug prop). */
+function BillboardHitWire({ mount }: { mount: ReturnType<typeof getBillboardMounts>[0] }) {
+  const { hx, hy, lzMin, lzMax } = billboardHitHalfExtents();
+  const halfZ = (lzMax - lzMin) * 0.5;
+  const zCenter = (lzMin + lzMax) * 0.5;
+
+  return (
+    <OrientedWireBox
+      position={[mount.x, mount.y, mount.z]}
+      rotation={[0, mount.yaw, 0]}
+      localOffset={[0, 0, zCenter]}
+      halfExtents={[hx, hy, halfZ]}
+      color="#ffaa44"
+    />
+  );
+}
+
+function FanGlassHitWire({ panel }: { panel: FanGlassPanel }) {
+  const halfD =
+    ARENA_PADS.fanFacadeGlassThicknessM * 0.5 + 0.05;
+
+  const { position, quaternion } = useMemo(() => {
+    _basis.makeBasis(panel.tangent, panel.bitangent, panel.outwardNormal);
+    _quat.setFromRotationMatrix(_basis);
+    const center = panel.courtFaceCenter
+      .clone()
+      .addScaledVector(panel.outwardNormal, -halfD);
+    return {
+      position: [center.x, center.y, center.z] as [number, number, number],
+      quaternion: _quat.clone(),
+    };
+  }, [panel, halfD]);
+
+  return (
+    <OrientedWireBox
+      position={position}
+      quaternion={quaternion}
+      halfExtents={[panel.halfW, panel.halfH, halfD]}
+      color="#44ffcc"
+    />
+  );
+}
+
+/** Logical hit volumes aligned with billboard yaw + fan glass plane (not world AABBs). */
 export function GameplayCollisionDebug() {
   const visible = useSyncExternalStore(
     gameStore.subscribe,
@@ -63,38 +122,16 @@ export function GameplayCollisionDebug() {
 
   const panels = getFanGlassPanels();
   const billboards = getBillboardMounts();
-  const { hx: w, hy: h, lzMin: depthMin, lzMax: depthMax } =
-    billboardHitHalfExtents();
 
   return (
     <group ref={groupRef} name="gameplay-collision-debug">
+      <RocketCollisionDebug />
       {panels.map((panel) => (
-        <WireBox key={`glass-query-${panel.bayKey}`} box={panel.box} color="#44ffcc" />
+        <FanGlassHitWire key={`glass-query-${panel.bayKey}`} panel={panel} />
       ))}
-      {billboards.map((mount, i) => {
-        const cos = Math.cos(mount.yaw);
-        const sin = Math.sin(mount.yaw);
-        _box.makeEmpty();
-        const corners: [number, number, number][] = [
-          [-w, -h, depthMin],
-          [w, -h, depthMin],
-          [w, h, depthMin],
-          [-w, h, depthMin],
-          [-w, -h, depthMax],
-          [w, -h, depthMax],
-          [w, h, depthMax],
-          [-w, h, depthMax],
-        ];
-        for (const [lx, ly, lz] of corners) {
-          const wx = mount.x + lx * cos - lz * sin;
-          const wy = mount.y + ly;
-          const wz = mount.z + lx * sin + lz * cos;
-          _box.expandByPoint(_center.set(wx, wy, wz));
-        }
-        return (
-          <WireBox key={`billboard-hit-${i}`} box={_box.clone()} color="#ffaa44" />
-        );
-      })}
+      {billboards.map((mount, i) => (
+        <BillboardHitWire key={`billboard-hit-${i}`} mount={mount} />
+      ))}
     </group>
   );
 }

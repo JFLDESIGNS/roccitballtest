@@ -67,6 +67,26 @@ export function rocketSegmentHitsBallDrop(
   );
 }
 
+/** Debug wireframe — swept AABB for rocket vs ball drop */
+export function getBallDropRocketHitAabb(rocketRadius = 0.45): {
+  center: [number, number, number];
+  halfExtents: [number, number, number];
+} {
+  const b = getBallDropBounds(rocketRadius);
+  return {
+    center: [
+      (b.minX + b.maxX) * 0.5,
+      (b.minY + b.maxY) * 0.5,
+      (b.minZ + b.maxZ) * 0.5,
+    ],
+    halfExtents: [
+      (b.maxX - b.minX) * 0.5,
+      (b.maxY - b.minY) * 0.5,
+      (b.maxZ - b.minZ) * 0.5,
+    ],
+  };
+}
+
 function pushOutOfCircleXZ(
   pos: THREE.Vector3,
   cx: number,

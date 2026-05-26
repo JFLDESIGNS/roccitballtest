@@ -12,11 +12,8 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { MOVEMENT } from '../shared/Constants';
 import { CHARACTER_MESH_RENDER_ORDER } from './JerseyDecal';
-import {
-  getForwardFlipProgress,
-  isForwardFlipActive,
-} from './forwardFlipEmote';
 import { gameStore } from './gameStore';
+import { getForwardFlipPitchX } from './forwardFlipEmote';
 import {
   disposeCrownMaterialMaps,
   loadCrownMaterialMaps,
@@ -35,9 +32,12 @@ const CROWN_LOWER_FT = 1.65;
 const CROWN_RAISE_IN = 4;
 const CROWN_FORWARD_Z = 0.06;
 const CROWN_POP_HEIGHT = 0.39;
+/** Normal jump pop — quick bounce */
 const CROWN_POP_DURATION_SEC = 0.6;
-/** Peak height above head during forward flip — crown stays upright, tracks player */
-const CROWN_FLIP_POP_PEAK = 0.68;
+/** E throw + triple jump — pop + one forward somersault */
+const CROWN_FLIP_POP_DURATION_SEC = 0.725;
+/** Peak height above head during forward flip — pops up then somersaults in place */
+const CROWN_FLIP_POP_PEAK = 0.92;
 const CROWN_REST_Y = CAP_TOP_Y - CROWN_LOWER_FT * FT + CROWN_RAISE_IN * INCH;
 
 const CROWN_YAW = Math.PI;
@@ -137,9 +137,23 @@ function forwardFlipCrownPopOffset(progress: number): number {
   return CROWN_FLIP_POP_PEAK * settle;
 }
 
+/** One forward somersault (2π) — slow ease, lands upright */
+function crownSomersaultPitch(u: number): number {
+  if (u <= 0 || u >= 1) return 0;
+
+  const flipStart = 0.08;
+  const flipEnd = 0.92;
+  if (u < flipStart || u > flipEnd) return 0;
+
+  const t = (u - flipStart) / (flipEnd - flipStart);
+  const eased = t * t * (3 - 2 * t);
+  return -eased * Math.PI * 2;
+}
+
 type PlayerJumpHatProps = {
   bodyRef: RefObject<RapierRigidBody | null>;
   visualRef: RefObject<THREE.Group | null>;
+  tiltRef: RefObject<THREE.Group | null>;
   bobRef: RefObject<THREE.Group | null>;
   groundedRef: RefObject<boolean>;
 };
@@ -148,10 +162,12 @@ type PlayerJumpHatProps = {
 export function PlayerJumpHat({
   bodyRef,
   visualRef,
+  tiltRef,
   bobRef,
   groundedRef,
 }: PlayerJumpHatProps) {
   const anchorRef = useRef<THREE.Group>(null);
+  const tiltSyncRef = useRef<THREE.Group>(null);
   const popWrapRef = useRef<THREE.Group>(null);
   const popStartMs = useRef(0);
   const lastPopSeq = useRef(0);
@@ -159,6 +175,7 @@ export function PlayerJumpHat({
   const floatRiseK = useRef(0);
   const reattachK = useRef(1);
   const floatHoldLocal = useRef(new THREE.Vector3());
+  const wantFullFlip = useRef(false);
 
   const popSeq = useSyncExternalStore(
     gameStore.subscribe,
@@ -178,6 +195,7 @@ export function PlayerJumpHat({
     if (popSeq === lastPopSeq.current) return;
     lastPopSeq.current = popSeq;
     popStartMs.current = performance.now();
+    wantFullFlip.current = gameStore.getState().playerHatPopFullFlip;
     detached.current = false;
     reattachK.current = 1;
     floatRiseK.current = 0;
@@ -195,9 +213,23 @@ export function PlayerJumpHat({
     const shouldDetach = !isGrounded && vy < FALL_DETACH_VY;
 
     const elapsed = (performance.now() - popStartMs.current) / 1000;
-    const flipActive = isForwardFlipActive('local');
-    const flipProgress = getForwardFlipProgress('local');
     const bobY = bobRef.current?.position.y ?? 0;
+    const tilt = tiltRef.current;
+    const tiltSync = tiltSyncRef.current;
+    if (tilt && tiltSync) {
+      const bodyFlip = getForwardFlipPitchX('local');
+      tiltSync.rotation.x = tilt.rotation.x - bodyFlip;
+      tiltSync.rotation.y = tilt.rotation.y;
+      tiltSync.rotation.z = tilt.rotation.z;
+    }
+
+    const fullFlipDuration = wantFullFlip.current
+      ? CROWN_FLIP_POP_DURATION_SEC
+      : CROWN_POP_DURATION_SEC;
+    const isFullFlipPop =
+      wantFullFlip.current &&
+      !detached.current &&
+      elapsed < fullFlipDuration;
 
     if (shouldDetach) {
       if (!detached.current) floatRiseK.current = 0;
@@ -211,14 +243,16 @@ export function PlayerJumpHat({
 
     let pop = 0;
     let u = 1;
-    const allowJumpPop = !detached.current && reattachK.current >= 0.98 && !flipActive;
+    const allowJumpPop =
+      !detached.current && reattachK.current >= 0.98 && !isFullFlipPop;
     if (allowJumpPop && elapsed < CROWN_POP_DURATION_SEC) {
       u = elapsed / CROWN_POP_DURATION_SEC;
       pop = cartoonPopOffset(u);
     }
 
-    const flipPop = flipActive ? forwardFlipCrownPopOffset(flipProgress) : 0;
-    const verticalPop = flipActive ? flipPop : pop;
+    const verticalPop = isFullFlipPop
+      ? forwardFlipCrownPopOffset(elapsed / CROWN_FLIP_POP_DURATION_SEC)
+      : pop;
 
     if (detached.current) {
       floatRiseK.current = Math.min(
@@ -255,14 +289,11 @@ export function PlayerJumpHat({
     }
 
     if (wrap) {
-      if (flipActive && flipPop > 0.02) {
-        const fp = Math.min(1, flipProgress);
-        const wave = Math.sin(fp * Math.PI);
-        const stretchY = 1 + 0.12 * wave;
-        const squashXZ = 1 - 0.06 * wave;
-        wrap.scale.set(squashXZ, stretchY, squashXZ);
-        wrap.rotation.z = 0.05 * Math.sin(fp * Math.PI * 2.6);
-        wrap.rotation.x = 0;
+      if (isFullFlipPop) {
+        const flipU = elapsed / CROWN_FLIP_POP_DURATION_SEC;
+        wrap.rotation.x = crownSomersaultPitch(flipU);
+        wrap.rotation.z = 0;
+        wrap.scale.set(1, 1, 1);
       } else if (allowJumpPop && elapsed < CROWN_POP_DURATION_SEC) {
         const wave = Math.sin(u * Math.PI);
         const stretchY = 1 + 0.14 * wave;
@@ -278,11 +309,13 @@ export function PlayerJumpHat({
   });
 
   return (
-    <group ref={anchorRef}>
-      <group rotation={[0, CROWN_YAW, 0]}>
-        <group rotation={[CROWN_PITCH, 0, 0]}>
-          <group ref={popWrapRef}>
-            <primitive object={crownScene} />
+    <group ref={tiltSyncRef}>
+      <group ref={anchorRef}>
+        <group rotation={[0, CROWN_YAW, 0]}>
+          <group rotation={[CROWN_PITCH, 0, 0]}>
+            <group ref={popWrapRef}>
+              <primitive object={crownScene} />
+            </group>
           </group>
         </group>
       </group>

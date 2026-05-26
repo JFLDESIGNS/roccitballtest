@@ -1,7 +1,7 @@
 import { ARENA_GOALS } from '../game/goals';
 import { ARENA_PILLAR, getArenaCornerPillarLayouts } from '../game/arenaPillars';
 import { listOctagonPlatformPlacements } from '../game/arenaOctagonPlatforms';
-import type { MapGroup } from './mapEditorTypes';
+import type { MapDocument, MapGroup } from './mapEditorTypes';
 
 export function stadiumGoalKey(goalId: string): string {
   return `goal:${goalId}`;
@@ -66,6 +66,14 @@ export function createDefaultStadiumGroups(): MapGroup[] {
   }));
 
   return [...goals, ...pillars, ...platforms];
+}
+
+/** Stadium groups for play mode — custom map doc or built-in defaults. */
+export function getPlayModeStadiumGroups(doc: MapDocument | null): MapGroup[] {
+  if (doc?.groups?.length) {
+    return ensureDocumentGroups(doc.groups);
+  }
+  return ensureDocumentGroups([]);
 }
 
 export function getHiddenStadiumPieces(groups: MapGroup[]): {

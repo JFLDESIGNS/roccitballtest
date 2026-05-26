@@ -1,11 +1,15 @@
-import { ARENA } from '../shared/Constants';
+import { ARENA, ARENA_PADS } from '../shared/Constants';
 import { mapRegistryStore } from '../mapEditor/mapEditorStore';
 import {
+  getPlayModeStadiumGroups,
   stadiumPlatformKey,
 } from '../mapEditor/stadiumLayout';
 import { isPointInOctagon } from './arenaOctagon';
 import { listOctagonPlatformPlacements } from './arenaOctagonPlatforms';
-import { sampleTrampolineFloorY } from './arenaPadLayout';
+import {
+  getBounceTrampolinePads,
+  sampleTrampolineFloorY,
+} from './arenaPadLayout';
 
 export type ArenaPlatformPlacement = {
   x: number;
@@ -20,13 +24,13 @@ export function listArenaPlatforms(): ArenaPlatformPlacement[] {
   const sizeMul = ARENA.octagonPlatformSizeMul;
   const baseSlope = ARENA.octagonSlopeRadius * sizeMul;
   const baseTop = ARENA.octagonTopRadius * sizeMul;
-  const doc = mapRegistryStore.getActiveMapDocument();
+  const groups = getPlayModeStadiumGroups(mapRegistryStore.getActiveMapDocument());
 
   return placements.map((p, i) => {
     let x = p.x;
     let z = p.z;
     let scale = p.sizeScale;
-    const group = doc?.groups.find((g) => g.stadiumKey === stadiumPlatformKey(i));
+    const group = groups.find((g) => g.stadiumKey === stadiumPlatformKey(i));
     if (group) {
       x = group.position[0];
       z = group.position[2];
@@ -67,6 +71,40 @@ export function getMaxPlatformSurfaceY(x: number, z: number): number | null {
     if (y !== null && (best === null || y > best)) best = y;
   }
   const tramp = sampleTrampolineFloorY(x, z);
+  if (tramp !== null && (best === null || tramp > best)) best = tramp;
+  return best;
+}
+
+/** Flat deck only — no ramp skirts (used for rocket detonation queries). */
+export function platformDeckSurfaceYAt(
+  x: number,
+  z: number,
+  p: ArenaPlatformPlacement,
+): number | null {
+  const dx = x - p.x;
+  const dz = z - p.z;
+  if (!isPointInOctagon(dx, dz, p.topR)) return null;
+  if (Math.hypot(dx, dz) > p.topR) return null;
+  return ARENA.platformTopHeight;
+}
+
+/** Trampoline rubber deck only — not the outer stone ring. */
+export function sampleTrampolineDeckSurfaceY(x: number, z: number): number | null {
+  for (const pad of getBounceTrampolinePads()) {
+    if (Math.hypot(x - pad.x, z - pad.z) > pad.radius) continue;
+    return pad.platformTopY + ARENA_PADS.bouncePadHeightM;
+  }
+  return null;
+}
+
+/** Rocket explosions — standing decks + trampolines, not invisible ramp volumes. */
+export function getMaxPlatformDeckSurfaceY(x: number, z: number): number | null {
+  let best: number | null = null;
+  for (const p of listArenaPlatforms()) {
+    const y = platformDeckSurfaceYAt(x, z, p);
+    if (y !== null && (best === null || y > best)) best = y;
+  }
+  const tramp = sampleTrampolineDeckSurfaceY(x, z);
   if (tramp !== null && (best === null || tramp > best)) best = tramp;
   return best;
 }

@@ -34,9 +34,9 @@ const JUMP_SAMPLE_BASE = 0.62;
 export const BACKGROUND_MUSIC_ENABLED = true;
 
 /** Menu / title screen — kept low under master + menu slider */
-const BG_MUSIC_MENU_BASE = 0.07;
+const BG_MUSIC_MENU_BASE = 0.035;
 /** In-match / pregame loop — quieter than menu so SFX stay forward */
-const BG_MUSIC_GAME_BASE = 0.0275;
+const BG_MUSIC_GAME_BASE = 0.01375;
 const CHEER_BASE = 0.46;
 const CHEER_HOLD_SEC = 4;
 const CHEER_FADE_SEC = 1.5;

@@ -1629,6 +1629,7 @@ export function Player({
     <PlayerJumpHat
       bodyRef={bodyRef}
       visualRef={visualRef}
+      tiltRef={tiltRef}
       bobRef={bobRef}
       groundedRef={grounded}
     />

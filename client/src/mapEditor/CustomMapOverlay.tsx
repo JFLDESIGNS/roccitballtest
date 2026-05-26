@@ -3,6 +3,9 @@ import { DEFAULT_MAP_ID } from './mapEditorTypes';
 import { cloneDefaultArenaMapLights } from './defaultArenaMapLights';
 import { MapLightNode, MapObjectMesh } from './MapObjectMesh';
 import { mapRegistryStore } from './mapEditorStore';
+import {
+  getPlayModeStadiumGroups,
+} from './stadiumLayout';
 import { StadiumGroupLayer } from './StadiumGroupLayer';
 
 function GroupedObject({ object }: { object: Parameters<typeof MapObjectMesh>[0]['object'] }) {
@@ -34,7 +37,7 @@ export function CustomMapOverlay() {
   if (!doc && !isDefault) return null;
 
   const lights = doc?.lights ?? (isDefault ? cloneDefaultArenaMapLights() : []);
-  const groups = doc?.groups ?? [];
+  const groups = getPlayModeStadiumGroups(doc);
   const objects = doc?.objects ?? [];
 
   const rootObjects = objects.filter((o) => !o.groupId);
