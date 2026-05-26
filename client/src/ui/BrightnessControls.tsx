@@ -2,6 +2,11 @@ import { useSyncExternalStore } from 'react';
 import { graphicsStore } from '../game/graphicsStore';
 import { MAP_LIGHT_GLOW_BLEND_OPTIONS } from '../game/mapLightGlowBlend';
 import {
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MAX,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MIN,
+} from '../game/mapLightGlowSettings';
+import {
   getLightGlowProximityDebug,
   subscribeLightGlowProximityDebug,
 } from '../game/lightGlowProximityDebug';
@@ -167,10 +172,10 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
         }
       />
       <GfxSlider
-        label="Proximity fade (ft past edge)"
-        value={gfx.mapLightGlowProximityFadeFt ?? 80}
-        min={6}
-        max={160}
+        label="Proximity fade edge (ft)"
+        value={gfx.mapLightGlowProximityFadeFt ?? MAP_LIGHT_GLOW_PROXIMITY_FADE_FT}
+        min={MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MIN}
+        max={MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MAX}
         step={1}
         onChange={graphicsStore.setMapLightGlowProximityFadeFt}
         format={(v) => `${Math.round(v)} ft`}

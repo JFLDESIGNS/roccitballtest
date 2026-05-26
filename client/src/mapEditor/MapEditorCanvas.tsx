@@ -20,10 +20,12 @@ import {
   setEditorOrbitDragLock,
 } from './editorOrbitLock';
 import { MapLightNode, MapObjectMesh } from './MapObjectMesh';
+import { stadiumLightStore } from '../game/stadiumLightStore';
 import { mapEditorStore } from './mapEditorStore';
 import type { MapGroup, MapLight, MapObject, TransformMode } from './mapEditorTypes';
 import { getHiddenStadiumPieces } from './stadiumLayout';
 import { EditorMoveGrid } from './editorMoveGrid';
+import { editorDisabledRaycast, editorPickHandler } from './editorPick';
 import { EditorBaseArena, StadiumGroupPickMesh, StadiumGroupVisual } from './StadiumGroupLayer';
 
 const EditorBackdrop = memo(function EditorBackdrop({
@@ -83,13 +85,20 @@ function bindGizmoDragLock(
 ): (() => void) | undefined {
   if (!ctrl) return undefined;
   const node = ctrl as unknown as DraggingChangedControls;
-  const handler = (event: { value: boolean }) => lockOrbit(event.value);
+  const handler = (event: { value: boolean }) => {
+    lockOrbit(event.value);
+    mapEditorStore.setGizmoDragging(event.value);
+  };
   node.addEventListener('dragging-changed', handler);
   return () => {
     node.removeEventListener('dragging-changed', handler);
     lockOrbit(false);
+    mapEditorStore.setGizmoDragging(false);
   };
 }
+
+/** Visual + pick scale for TransformControls (default 1 — larger = easier to grab). */
+const EDITOR_GIZMO_SIZE = 2.35;
 
 function TransformGizmo({
   target,
@@ -112,7 +121,14 @@ function TransformGizmo({
       ref={tcRef}
       object={target}
       mode={mode}
-      onObjectChange={onSync}
+      size={EDITOR_GIZMO_SIZE}
+      onObjectChange={() => {
+        mapEditorStore.touchGizmoPointer();
+        onSync();
+      }}
+      onMouseDown={() => {
+        mapEditorStore.touchGizmoPointer();
+      }}
       onMouseUp={onSync}
     />
   );
@@ -175,14 +191,9 @@ function EditableGroup({
         )}
         {!isStadium && (
           <mesh
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              mapEditorStore.select(group.id);
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              mapEditorStore.select(group.id);
-            }}
+            raycast={selected ? editorDisabledRaycast : undefined}
+            onPointerDown={editorPickHandler(group.id)}
+            onClick={editorPickHandler(group.id)}
           >
             <boxGeometry args={[2, 2, 2]} />
             <meshBasicMaterial
@@ -264,6 +275,7 @@ function EditableGroupMember({
         <MapObjectMesh
           object={meshData}
           selected={isSelected}
+          pickEnabled={!isSelected}
           onSelect={() => mapEditorStore.select(object.id)}
         />
       </group>
@@ -324,6 +336,7 @@ function EditableObject({
         <MapObjectMesh
           object={meshData}
           selected={selected}
+          pickEnabled={!selected}
           onSelect={() => mapEditorStore.select(object.id)}
         />
       </group>
@@ -412,6 +425,9 @@ function EditableLight({
           embedded
           castShadow={light.castShadow}
           selected={selected}
+          pickEnabled={!selected}
+          showGlow
+          editorGlowPreview
           onSelect={() => mapEditorStore.select(light.id)}
         />
       </group>
@@ -533,6 +549,16 @@ function EditorSceneContent() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
+      const stadiumId = stadiumLightStore.getState().selectedId;
+      if (stadiumId) {
+        if (e.key === 'g' || e.key === 'G') stadiumLightStore.setGizmoMode('translate');
+        if (e.key === 'r' || e.key === 'R') stadiumLightStore.setGizmoMode('rotate');
+        if (e.key === 's' || e.key === 'S') stadiumLightStore.setGizmoMode('scale');
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          stadiumLightStore.deleteSelected();
+        }
+        return;
+      }
       if (e.key === 'g' || e.key === 'G') mapEditorStore.setTransformMode('translate');
       if (e.key === 'r' || e.key === 'R') mapEditorStore.setTransformMode('rotate');
       if (e.key === 's' || e.key === 'S') mapEditorStore.setTransformMode('scale');
@@ -576,6 +602,7 @@ export function MapEditorCanvas() {
       onPointerMissed={() => {
         if (mapEditorStore.shouldSuppressPointerMiss()) return;
         mapEditorStore.select(null);
+        stadiumLightStore.deselect();
       }}
     >
       <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>

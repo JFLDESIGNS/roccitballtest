@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { ROCKET } from '../shared/Constants';
 import { spawnRocketTrailSmokeBurst } from './rocketTrailSmokePuffs';
 
 export { tickRocketTrailSmokePuffs as tickRocketSmokeStreaks } from './rocketTrailSmokePuffs';
 
-const TRAIL_MIN_STEP = 0.042;
+const TRAIL_MIN_STEP = ROCKET.trailPuffSpawnStepM;
 
 const lastTipByRocket = new Map<string, THREE.Vector3>();
 const _tip = new THREE.Vector3();
@@ -25,7 +26,6 @@ export function spawnRocketSmokeStreak(
   const last = lastTipByRocket.get(rocketId);
   if (!last) {
     lastTipByRocket.set(rocketId, _tip.clone());
-    spawnRocketTrailSmokeBurst(x, y, z, explosive, vx, vy, vz);
     return;
   }
 

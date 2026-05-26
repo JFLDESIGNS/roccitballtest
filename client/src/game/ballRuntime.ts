@@ -7,7 +7,8 @@ import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import * as THREE from 'three';
 
-function ballMaxSpeed(): number {
+/** Physics cap — loose proxy & clamps read BALL/SUPERBALL.maxSpeed from Constants. */
+export function getBallMaxSpeed(): number {
   return tuningStore.getState().ballType === 'superball'
     ? SUPERBALL.maxSpeed
     : BALL.maxSpeed;
@@ -61,7 +62,7 @@ export function applyBallFloorAssist(body: RapierRigidBody): void {
     body.setLinvel(
       {
         x: v.x,
-        y: Math.min(Math.abs(v.y) * BALL.restitution, ballMaxSpeed() * 0.45),
+        y: Math.min(Math.abs(v.y) * BALL.restitution, getBallMaxSpeed() * 0.45),
         z: v.z,
       },
       true,
@@ -92,7 +93,7 @@ export function applyBallWallBounceAssist(body: RapierRigidBody): void {
 export function clampBallSpeed(body: RapierRigidBody): void {
   const v = body.linvel();
   const speed = Math.hypot(v.x, v.y, v.z);
-  const cap = ballMaxSpeed();
+  const cap = getBallMaxSpeed();
   if (speed <= cap) return;
   const s = cap / speed;
   body.setLinvel({ x: v.x * s, y: v.y * s, z: v.z * s }, true);

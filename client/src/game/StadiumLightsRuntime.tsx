@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
+import { mapEditorSession } from '../mapEditor/mapEditorSession';
 import { gameStore } from './gameStore';
 import { graphicsStore } from './graphicsStore';
 import { arenaRoofStore } from './arenaRoofStore';
@@ -73,7 +74,7 @@ function computeIntensity(
       roofOpen *
       0.92 *
       Math.sqrt(stripWidthM / 42) *
-      95 *
+      40 *
       light.intensity
     );
   }
@@ -462,28 +463,36 @@ export function StadiumLightsRuntime() {
     gameStore.subscribe,
     () => gameStore.getState().debugFreelook,
   );
+  const mapEditorActive = useSyncExternalStore(
+    mapEditorSession.subscribe,
+    mapEditorSession.isActive,
+  );
   const lightState = useSyncExternalStore(
     stadiumLightStore.subscribe,
     stadiumLightStore.getState,
   );
   const [wireframesReady, setWireframesReady] = useState(false);
 
+  const stadiumEditMode = debugFly || mapEditorActive;
+
   useEffect(() => {
-    if (!debugFly) {
+    if (!stadiumEditMode) {
       setWireframesReady(false);
       return;
     }
     const id = requestAnimationFrame(() => setWireframesReady(true));
     return () => cancelAnimationFrame(id);
-  }, [debugFly]);
+  }, [stadiumEditMode]);
 
   const { lights, selectedId, showWireframes } = lightState;
-  const editorMode = debugFly;
-  const wireVisible = editorMode && wireframesReady && showWireframes;
+  const editorMode = stadiumEditMode;
+  const wireVisible =
+    editorMode &&
+    (mapEditorActive || (wireframesReady && showWireframes));
 
   return (
     <>
-      {editorMode && <StadiumLightPicking />}
+      {debugFly && <StadiumLightPicking />}
       {lights.map((light) => (
         <StadiumLightNode
           key={light.id}

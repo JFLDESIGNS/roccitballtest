@@ -16,7 +16,7 @@ import {
   arenaJumpPadTopMaterial,
 } from './arenaMaterials';
 import { jumpPadEmissiveIntensity } from './jumpPadGlow';
-import { billboardShakeKey, getVisualShake } from './visualShake';
+import { getBillboardShake } from './visualShake';
 
 const BILLBOARD_FRAME = '#030304';
 const BILLBOARD_TRIM = '#0c0d10';
@@ -37,9 +37,10 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
   useFrame(() => {
     const visual = visualRef.current;
     if (!visual) return;
-    const { tiltX, tiltY, tiltZ } = getVisualShake(
-      billboardShakeKey(mount.x, mount.y, mount.z),
-      mount.x + mount.z,
+    const { tiltX, tiltY, tiltZ } = getBillboardShake(
+      mount.x,
+      mount.y,
+      mount.z,
     );
     visual.rotation.set(tiltX, tiltY, tiltZ);
   });

@@ -215,6 +215,14 @@ export const BOT = {
   lookFocusHoldSec: 2.4,
   lookPointSmooth: 2.2,
   celebrationLookHoldSec: 1.9,
+  /** Post-goal scorer — visual yaw spin while retreating (rad/s, ~3+ flips over countdown) */
+  celebrateSpinRadPerSec: 13.5,
+  celebrateRocketCount: 8,
+  celebrateRocketIntervalSec: 0.28,
+  celebrateJumpForceScale: 1.28,
+  celebrateDoubleJumpForceScale: 1.08,
+  celebrateRetreatSpeedMult: 1.14,
+  celebrateAirJumpCooldownSec: 0.48,
   kickoffLookHoldSec: 1.6,
   /** Kickoff roam — soft anchor within ~5 ft of center platform */
   kickoffSoftRadiusM: 1.524,
@@ -747,7 +755,8 @@ export const BALL = {
   rocketHitSpinScale: 0.92,
   /** Scales world gravity on the ball (1 = match arena gravity) */
   gravityScale: 1,
-  maxSpeed: 80,
+  /** Was 80 → +12% (90) → pulled back to +6% (85); clamped in ballRuntime */
+  maxSpeed: 85,
   holdDistance: 1.8,
   throwForce: 18,
   launchForce: 20,
@@ -781,9 +790,9 @@ export const BALL = {
   /** Blend held proxy into physics ball on release (seconds) */
   holdReleaseVisualLerpSec: 0.22,
   /** Loose proxy — filter raw physics position (reduces jitter) */
-  looseVisualTargetSmooth: 34,
+  looseVisualTargetSmooth: 40,
   /** Loose proxy display follow — higher = snappier */
-  looseVisualPosSmooth: 28,
+  looseVisualPosSmooth: 36,
   /** Loose proxy spin follow — higher = snappier */
   looseVisualRotSmooth: 58,
   /** Soft catch-up if display drifts farther than this from filtered target (m) */
@@ -812,7 +821,7 @@ export const SUPERBALL = {
   linearDamping: BALL.linearDamping * 1.08,
   angularDamping: BALL.angularDamping,
   gravityScale: BALL.gravityScale,
-  maxSpeed: 68,
+  maxSpeed: 72,
   /** Rear-align dot above this with low lateral offset = straight rocket-axis knock */
   forwardAxialMin: 0.88,
   /** Max lateral offset (0–1) while still counting as a centered rear hit */
@@ -984,6 +993,11 @@ export const ROCKET = {
   energyDamageSplashMin: 10,
   energyDamageSplashMax: 25,
   lifetime: 3,
+  /** Grey smoke puff lifetime (seconds) */
+  trailPuffLifeSec: 0.48,
+  /** Min rocket travel between exhaust bursts (m) */
+  trailPuffSpawnStepM: 0.11,
+  trailPuffMaxCount: 320,
 } as const;
 
 /** Match */

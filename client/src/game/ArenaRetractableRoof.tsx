@@ -11,6 +11,7 @@ import { ARENA } from '../shared/Constants';
 import { arenaPillarTopWorldY } from './arenaPillarConfig';
 import { goalEndFaceX } from './goals';
 import { arenaRoofStore } from './arenaRoofStore';
+import { burstRoofOpenSmoke, burstRoofSeamSmoke } from './pillarSmokePuffs';
 import { arenaCeilingMaterial } from './arenaMaterials';
 import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
 
@@ -52,6 +53,7 @@ export function ArenaRetractableRoof() {
   const farBodyRef = useRef<RapierRigidBody>(null);
   const nearMeshRef = useRef<THREE.Group>(null);
   const farMeshRef = useRef<THREE.Group>(null);
+  const roofSmokeRef = useRef({ prevOpen: 0, wasOpening: false });
 
   const layout = useMemo(() => arenaRoofLayout(), []);
   const panelGeo = useMemo(
@@ -66,11 +68,32 @@ export function ArenaRetractableRoof() {
 
   useFrame((_, dt) => {
     arenaRoofStore.step(dt);
-    const open = arenaRoofStore.getState().open;
+    const { open, target } = arenaRoofStore.getState();
     const slide = layout.separateM * open;
     const nearZ = layout.closedNearZ - slide;
     const farZ = layout.closedFarZ + slide;
     const y = layout.centerY;
+    const halfDepth = layout.halfZ / 2;
+    const nearInnerZ = nearZ + halfDepth;
+    const farInnerZ = farZ - halfDepth;
+    const smokeY = y - layout.thickness * 0.38;
+
+    const opening = target > 0.5 && open < 0.995;
+    const openDelta = open - roofSmokeRef.current.prevOpen;
+    if (opening && openDelta > 0.00015) {
+      if (!roofSmokeRef.current.wasOpening && open < 0.08) {
+        burstRoofOpenSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX);
+      }
+      const puffs = Math.min(
+        22,
+        Math.max(2, Math.round(openDelta * 520 + dt * 14)),
+      );
+      burstRoofSeamSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX, puffs);
+      roofSmokeRef.current.wasOpening = true;
+    } else if (target < 0.5) {
+      roofSmokeRef.current.wasOpening = false;
+    }
+    roofSmokeRef.current.prevOpen = open;
 
     nearMeshRef.current?.position.set(0, y, nearZ);
     farMeshRef.current?.position.set(0, y, farZ);

@@ -27,11 +27,13 @@ import {
 import {
   triggerArenaPillarShake,
   triggerBallDropShake,
+  triggerBillboardShake,
+  triggerCeilingWallHit,
   triggerOctagonShake,
 } from './visualShake';
 import { triggerBallDropSpotlightFrenzy } from './BallDropSpotlightCones';
 import {
-  tryTriggerBillboardImpact,
+  findBillboardSegmentHit,
   tryTriggerOctagonImpactAt,
 } from './interactableHits';
 import { findGoalRimSegmentContact } from './goalRingBounce';
@@ -118,6 +120,15 @@ function rocketHitsPlatformSurface(
   return false;
 }
 
+function rocketSegmentHitsCeiling(prev: THREE.Vector3, pos: THREE.Vector3): boolean {
+  const ceiling = ARENA.wallHeight;
+  return prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35;
+}
+
+function tryTriggerCeilingWallFromRocket(prev: THREE.Vector3, pos: THREE.Vector3): void {
+  if (rocketSegmentHitsCeiling(prev, pos)) triggerCeilingWallHit();
+}
+
 function detectExplosiveSurfaceHit(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
@@ -127,8 +138,8 @@ function detectExplosiveSurfaceHit(
   if (rocketHitsPlatformSurface(prev, pos)) return true;
   if (rocketSegmentHitsArenaPillar(prev, pos)) return true;
   if (rocketSegmentHitsBallDrop(prev, pos)) return true;
-  const ceiling = ARENA.wallHeight;
-  if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) return true;
+  if (findBillboardSegmentHit(prev, pos)) return true;
+  if (rocketSegmentHitsCeiling(prev, pos)) return true;
 
   const playR = arenaRadius - 0.6;
   const wasIn = isInsideHex(prev.x, prev.z, playR);
@@ -263,7 +274,7 @@ export function resolveScorchSurface(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
   arenaRadius: number,
-  arenaHeight: number,
+  _arenaHeight: number,
 ): {
   nx: number;
   ny: number;
@@ -278,8 +289,7 @@ export function resolveScorchSurface(
     return { nx: 0, ny: 1, nz: 0, kind: 'floor' };
   }
 
-  const ceiling = arenaHeight;
-  if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) {
+  if (rocketSegmentHitsCeiling(prev, pos)) {
     return { nx: 0, ny: -1, nz: 0, kind: 'ceiling' };
   }
 
@@ -362,6 +372,54 @@ function reflectVelocityOffWall(
     velocity.x *= -rest;
     velocity.z *= -rest;
   }
+}
+
+const _bbNormal3 = new THREE.Vector3();
+
+function reflectVelocityOffNormal3D(
+  velocity: THREE.Vector3,
+  normal: THREE.Vector3,
+  rest: number,
+): void {
+  const vDotN = velocity.dot(normal);
+  if (vDotN < 0) {
+    velocity.addScaledVector(normal, -2 * vDotN);
+    velocity.multiplyScalar(rest);
+  }
+}
+
+function tryBillboardRocketHit(
+  r: ActiveRocket,
+  prev: THREE.Vector3,
+  pos: THREE.Vector3,
+  explosions: RocketExplosionEvent[],
+  arenaRadius: number,
+  arenaHeight: number,
+): boolean {
+  const hit = findBillboardSegmentHit(prev, pos);
+  if (!hit) return false;
+
+  triggerBillboardShake(hit.mount);
+  pos.copy(hit.point);
+
+  if (r.explosive) {
+    pushExplosionEvent(
+      explosions,
+      prev,
+      pos,
+      arenaRadius,
+      arenaHeight,
+      true,
+      hit.point,
+    );
+    return true;
+  }
+
+  _bbNormal3.copy(hit.normal);
+  reflectVelocityOffNormal3D(r.velocity, _bbNormal3, ROCKET.bounceRestitution);
+  r.velocity.y = Math.abs(r.velocity.y) * ROCKET.bounceRestitution * 0.5 + 1.2;
+  r.bouncesLeft = Math.max(0, r.bouncesLeft - 1);
+  return true;
 }
 
 function trampolineDeckYAt(x: number, z: number): number | null {
@@ -457,10 +515,10 @@ function trySurfaceBounce(
     bounced = true;
   }
 
-  const ceiling = ARENA.wallHeight;
-  if (prev.y <= ceiling - 0.35 && pos.y > ceiling - 0.35) {
-    pos.y = ceiling - 0.35;
+  if (rocketSegmentHitsCeiling(prev, pos)) {
+    pos.y = ARENA.wallHeight - 0.35;
     r.velocity.y = -Math.abs(r.velocity.y) * rest;
+    triggerCeilingWallHit();
     bounced = true;
   }
 
@@ -581,7 +639,22 @@ export function updateRockets(
       continue;
     }
 
-    tryTriggerBillboardImpact(_stepPrev, pos);
+    if (
+      tryBillboardRocketHit(
+        r,
+        _stepPrev,
+        pos,
+        explosions,
+        arenaRadius,
+        arenaHalf.h,
+      )
+    ) {
+      if (!r.explosive) {
+        pushTrailSegment(trailSegments, _stepPrev, pos, r.explosive);
+        remaining.push(r);
+      }
+      continue;
+    }
 
     const goalRingContact = findGoalRimSegmentContact(_stepPrev, pos, 0.55);
     if (goalRingContact) {
@@ -620,6 +693,7 @@ export function updateRockets(
         triggerBallDropShake(1);
         triggerBallDropSpotlightFrenzy(3000);
       }
+      tryTriggerCeilingWallFromRocket(_stepPrev, pos);
       tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
       pushExplosionEvent(
         explosions,
@@ -656,6 +730,8 @@ export function updateRockets(
     if (stuckFloor || stuckCeiling || stuckWall) {
       const pillarHit = findArenaPillarSegmentHit(_stepPrev, pos);
       if (pillarHit) triggerArenaPillarShake(pillarHit.x, pillarHit.z);
+      if (stuckCeiling) triggerCeilingWallHit();
+      else tryTriggerCeilingWallFromRocket(_stepPrev, pos);
       tryTriggerFanGlassFromWallImpact(_stepPrev, pos);
       pushExplosionEvent(
         explosions,

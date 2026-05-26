@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ARENA_PILLAR } from './arenaPillarConfig';
 import { tickPillarSmokePuffs } from './pillarSmokePuffs';
 
-const MAX_INSTANCES = 160;
+const MAX_INSTANCES = 220;
 /** ~50% more transparent than prior pillar poof */
 const SMOKE_OPACITY = 0.05;
 const FRESNEL_OPACITY = 0.06;

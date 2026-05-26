@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { MAP_LIGHT_GLOW_ZERO_CORE_FT } from './mapLightGlowSettings';
 
 export type MapLightGlowBlendMode = 'normal' | 'add' | 'screen' | 'lighten';
 
@@ -38,9 +39,6 @@ export function isMapLightGlowBlendMode(v: string): v is MapLightGlowBlendMode {
 /** Default peak opacity (40% lower than the previous 0.5 default). */
 export const MAP_LIGHT_GLOW_DEFAULT_OPACITY = 0.3;
 
-/** Default fade band beyond the glow disk edge (feet). */
-export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 80;
-
 const FT_TO_M = 0.3048;
 
 export function mapLightGlowFadeRadiusM(fadeFt: number): number {
@@ -48,30 +46,32 @@ export function mapLightGlowFadeRadiusM(fadeFt: number): number {
 }
 
 /**
- * Horizontal distance from listener to the glow disk edge (0 when standing inside the blob).
+ * Horizontal distance into the proximity fade band (0 only when right on the lamp).
+ * Uses a small core at the light center — not the huge glow billboard radius.
  */
 export function mapLightGlowEffectiveHorizontalDistM(
   centerX: number,
   centerZ: number,
   listenerX: number,
   listenerZ: number,
-  glowDiameterM: number,
+  _glowDiameterM: number,
 ): number {
   const horiz = Math.hypot(listenerX - centerX, listenerZ - centerZ);
-  const innerRadius = glowDiameterM * 0.5 * 0.9;
-  return Math.max(0, horiz - innerRadius);
+  const coreM = MAP_LIGHT_GLOW_ZERO_CORE_FT * FT_TO_M;
+  return Math.max(0, horiz - coreM);
 }
 
 /**
- * 0 at the glow edge, 1 at fadeRadiusM or farther beyond the edge.
+ * 0 when against the lamp core, 1 at fadeRadiusM or farther out.
  */
 export function mapLightGlowProximityFactor(
   effectiveDistM: number,
-  fadeRadiusM: number = mapLightGlowFadeRadiusM(MAP_LIGHT_GLOW_PROXIMITY_FADE_FT),
+  fadeRadiusM: number,
 ): number {
   if (effectiveDistM >= fadeRadiusM) return 1;
   if (effectiveDistM <= 0) return 0;
-  return effectiveDistM / fadeRadiusM;
+  const t = effectiveDistM / fadeRadiusM;
+  return t * t * (3 - 2 * t);
 }
 
 export function applyMapLightGlowBlend(

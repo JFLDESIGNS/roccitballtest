@@ -57,6 +57,7 @@ import {
 } from './ballAttach';
 import {
   getEnemyGoalTarget,
+  getOwnGoalAnchor,
   pickAllyProjectileTarget,
   pickAllySaveBallTarget,
   applyBotLaunchAimError,
@@ -129,7 +130,6 @@ import {
   type TeammateBallChaseState,
   type BotZonePosition,
   pickMoveTarget,
-  pickTeamOffenseRoamTarget,
   type PlayerChaseState,
   shouldSetupJump,
   shouldThreatCarryJump,
@@ -1017,7 +1017,9 @@ function BotAvatar({
   const celebrateSeenId = useRef(0);
   const celebrateShotsFired = useRef(0);
   const celebrateNextShotAtSec = useRef(0);
-  const celebrateAimedShotDone = useRef(false);
+  const celebrateSpinYaw = useRef(0);
+  const celebrateKickJumpPending = useRef(false);
+  const celebrateLastJumpAtSec = useRef(-1);
   const lookFocusState = useRef<BotLookFocusState>({
     focus: 'ball',
     holdLeft: 0,
@@ -1031,7 +1033,9 @@ function BotAvatar({
     lv: { x: number; y: number; z: number },
     frameDt: number,
     bodyForUpright?: RapierRigidBody | null,
+    visualYaw?: number,
   ) => {
+    const yawVis = visualYaw ?? yaw.current;
     const refs = {
       visual: visualRef.current,
       tilt: tiltRef.current,
@@ -1045,7 +1049,7 @@ function BotAvatar({
         bodyForUpright,
         bot.visualRecovery,
         refs,
-        yaw.current,
+        yawVis,
         pitch.current,
         Math.hypot(lv.x, lv.z),
         frameDt,
@@ -1058,7 +1062,7 @@ function BotAvatar({
       syncCharacterVisualPresentation(
         bodyForUpright,
         refs,
-        yaw.current,
+        yawVis,
         pitch.current,
         Math.hypot(lv.x, lv.z),
         frameDt,
@@ -1346,19 +1350,20 @@ function BotAvatar({
         celebrateSeenId.current = celebId;
         celebrateShotsFired.current = 0;
         celebrateNextShotAtSec.current = 0;
-        celebrateAimedShotDone.current = false;
+        celebrateSpinYaw.current = 0;
+        celebrateKickJumpPending.current = true;
+        celebrateLastJumpAtSec.current = -1;
       }
 
       beamPullActive.current = false;
-      pickTeamOffenseRoamTarget(
-        { id: bot.id, team: bot.team, pos: _pos },
-        _center,
-      );
+      getOwnGoalAnchor(bot.team, _center);
       _wish.set(_center.x - _pos.x, 0, _center.z - _pos.z);
-      const distCenter = _wish.length();
-      if (distCenter > 0.05) _wish.normalize();
+      const distToNet = _wish.length();
+      if (distToNet > 0.05) _wish.normalize();
 
       const tNowSec = performance.now() / 1000;
+      celebrateSpinYaw.current += dt * BOT.celebrateSpinRadPerSec;
+
       getKickoffBallAimPoint(_kickoffAim);
       getEnemyGoalTarget(bot.team, _goal);
       if (ball) {
@@ -1426,45 +1431,40 @@ function BotAvatar({
       smoothAimToward(yaw, pitch, _chest, _lookTarget, dt, BOT.lookAimSmoothing * 0.7);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
 
-      // Fire two quick "celebration" rockets (up / across-field), then maybe one aimed rocket (50%).
-      // Keep it short so bots return to normal logic fast.
       const canShootNow =
         celebrateSeenId.current !== 0 &&
-        celebrateShotsFired.current < 2 &&
+        celebrateShotsFired.current < BOT.celebrateRocketCount &&
         (celebrateNextShotAtSec.current === 0 ||
           tNowSec >= celebrateNextShotAtSec.current);
       if (canShootNow) {
-        // Shot 0: mostly up. Shot 1: across-field with lift.
-        if (celebrateShotsFired.current === 0) {
-          _lookDir.set(
-            bot.id === 'bot-0' ? -0.18 : bot.id === 'bot-1' ? 0.18 : 0.08,
-            1,
-            0.06,
-          ).normalize();
+        const shotN = celebrateShotsFired.current;
+        const retreatArc = () => {
+          _lookDir
+            .set(
+              _wish.x + (Math.random() - 0.5) * 0.22,
+              0.9 + Math.random() * 0.18,
+              _wish.z + (Math.random() - 0.5) * 0.22,
+            )
+            .normalize();
+        };
+        const skyBurst = () => {
+          _lookDir
+            .set(
+              (Math.random() - 0.5) * 0.4,
+              1.02 + Math.random() * 0.12,
+              (Math.random() - 0.5) * 0.4,
+            )
+            .normalize();
+        };
+        if (shotN % 4 === 0) {
+          skyBurst();
+        } else if (shotN % 4 === 1 || shotN % 4 === 3) {
+          retreatArc();
         } else {
-          // Across the field toward midfield, with some upward arc.
-          _lookDir.set(-_wish.x * 0.75, 0.85, -_wish.z * 0.75).normalize();
-        }
-        if (botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired, true, rocketFireCooldownUntil)) {
-          celebrateShotsFired.current += 1;
-          celebrateNextShotAtSec.current = tNowSec + 0.22;
-        } else {
-          // Retry next frame if cooldown blocked this instant.
-          celebrateNextShotAtSec.current = tNowSec + 0.05;
-        }
-      } else if (
-        celebrateSeenId.current !== 0 &&
-        celebrateShotsFired.current >= 2 &&
-        !celebrateAimedShotDone.current
-      ) {
-        celebrateAimedShotDone.current = true;
-        if (Math.random() < 0.5) {
-          // 50% chance: fire one aimed rocket at an opponent (player or opposing bot).
-          let targetChest: THREE.Vector3 | null = null;
+          let targetChest: THREE.Vector3 | null = opponentChest;
           const localTeamNow = gs.localTeam;
           if (bot.team !== localTeamNow) {
-            // Enemy team scored: prefer the player or a local-team bot.
-            if (Math.random() < 0.55) {
+            if (Math.random() < 0.5) {
               targetChest = _playerChest;
             } else {
               targetChest = getNearestEnemyBotChest(
@@ -1474,8 +1474,7 @@ function BotAvatar({
                 _playerVel,
               );
             }
-          } else {
-            // Friendly bots scored: aim at the nearest enemy bot.
+          } else if (!targetChest) {
             targetChest = getNearestEnemyBotChest(
               bot,
               allBots.filter((b) => b.team !== localTeamNow),
@@ -1486,18 +1485,35 @@ function BotAvatar({
           if (targetChest) {
             _shootTarget.copy(targetChest);
             _shootTarget.y = Math.max(_shootTarget.y, _chest.y + 0.6);
-            smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing * 0.85);
-            writeBotRocketLook(yaw, pitch, _lookDir);
-            botFireRocket(
-              bot.id,
-              body,
+            smoothAimToward(
+              yaw,
+              pitch,
               _chest,
-              _lookDir,
-              onRocketFired,
-              true,
-              rocketFireCooldownUntil,
+              _shootTarget,
+              dt,
+              BOT.aimSmoothing * 0.9,
             );
+            writeBotRocketLook(yaw, pitch, _lookDir);
+          } else {
+            retreatArc();
           }
+        }
+        if (
+          botFireRocket(
+            bot.id,
+            body,
+            _chest,
+            _lookDir,
+            onRocketFired,
+            true,
+            rocketFireCooldownUntil,
+          )
+        ) {
+          celebrateShotsFired.current += 1;
+          celebrateNextShotAtSec.current =
+            tNowSec + BOT.celebrateRocketIntervalSec;
+        } else {
+          celebrateNextShotAtSec.current = tNowSec + 0.05;
         }
       }
 
@@ -1511,7 +1527,8 @@ function BotAvatar({
         wasGrounded,
       );
 
-      const celebrateSpeed = BOT.sprintSpeed;
+      const celebrateSpeed =
+        BOT.sprintSpeed * BOT.celebrateRetreatSpeedMult;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
         _wish.x * celebrateSpeed,
@@ -1524,39 +1541,44 @@ function BotAvatar({
       );
 
       let vy = linvel.y;
-      if (
+      const jumpCooldownReady =
+        tNowSec - celebrateLastJumpAtSec.current >=
+        BOT.celebrateAirJumpCooldownSec;
+      if (celebrateKickJumpPending.current && jumpsLeft.current > 0) {
+        vy =
+          (grounded.current
+            ? BOT.jumpForce
+            : BOT.doubleJumpForce) *
+          (grounded.current
+            ? BOT.celebrateJumpForceScale
+            : BOT.celebrateDoubleJumpForceScale);
+        jumpsLeft.current -= 1;
+        grounded.current = false;
+        airGrace.current = 0.55;
+        celebrateKickJumpPending.current = false;
+        celebrateLastJumpAtSec.current = tNowSec;
+      } else if (
         grounded.current &&
-        distCenter < BOT.celebrateRadius &&
-        jumpsLeft.current > 0
+        jumpsLeft.current > 0 &&
+        jumpCooldownReady &&
+        distToNet > 1.2
       ) {
-        vy = BOT.jumpForce;
+        vy = BOT.jumpForce * BOT.celebrateJumpForceScale;
         jumpsLeft.current -= 1;
         grounded.current = false;
         airGrace.current = 0.5;
+        celebrateLastJumpAtSec.current = tNowSec;
       } else if (
-        grounded.current &&
-        distCenter > 2 &&
+        !grounded.current &&
         jumpsLeft.current > 0 &&
-        Math.random() < 0.12 * dt * 3
+        linvel.y < 0.35 &&
+        jumpCooldownReady
       ) {
-        vy = BOT.jumpForce * 0.95;
+        vy = BOT.doubleJumpForce * BOT.celebrateDoubleJumpForceScale;
         jumpsLeft.current -= 1;
-        grounded.current = false;
         airGrace.current = 0.45;
+        celebrateLastJumpAtSec.current = tNowSec;
       }
-      const idleCelebVy = tryBotIdleJumpDice(
-        dt,
-        idleJumpDiceTimer,
-        body,
-        feetY,
-        linvel,
-        tune,
-        grounded,
-        jumpsLeft,
-        velocity,
-        airGrace,
-      );
-      if (idleCelebVy !== null) vy = idleCelebVy;
       vy = tuningStore.integrateGravity(vy, dt);
       velocity.current.y = vy;
       tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
@@ -1564,7 +1586,12 @@ function BotAvatar({
         { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
         true,
       );
-      applyBotVisual(linvel, dt, body);
+      applyBotVisual(
+        linvel,
+        dt,
+        body,
+        yaw.current + celebrateSpinYaw.current,
+      );
       return;
     }
 

@@ -1,11 +1,103 @@
 import * as THREE from 'three';
-import { ARENA_PADS } from '../shared/Constants';
+import type { WallMount } from './arenaPadLayout';
 import { getBillboardMounts } from './arenaPadLayout';
 import { listArenaPlatforms } from './arenaSpawn';
+import {
+  billboardFaceNormalWorld,
+  billboardHitHalfExtents,
+  segmentHitsLocalAabb,
+  worldDeltaToBillboardLocal,
+} from './billboardCollision';
 import { findGoalBackCapDiscHit } from './goalRingBounce';
 import { triggerBillboardShake, triggerOctagonShake } from './visualShake';
 
 const _sample = new THREE.Vector3();
+const _segFrom = new THREE.Vector3();
+const _segTo = new THREE.Vector3();
+const _localA = { lx: 0, ly: 0, lz: 0 };
+const _localB = { lx: 0, ly: 0, lz: 0 };
+const _impact = new THREE.Vector3();
+
+/** Catches fast rockets grazing corners between frames */
+const BILLBOARD_SEG_SAMPLES = 14;
+
+export type BillboardSegmentHit = {
+  mount: WallMount;
+  point: THREE.Vector3;
+  normal: THREE.Vector3;
+};
+
+export { billboardFaceNormalWorld } from './billboardCollision';
+
+export function findBillboardSegmentHit(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  pad = 0,
+): BillboardSegmentHit | null {
+  const { hx, hy, lzMin, lzMax } = billboardHitHalfExtents();
+  const hxPad = hx + pad;
+  const hyPad = hy + pad;
+  const lzMinPad = lzMin - pad;
+  const lzMaxPad = lzMax + pad;
+
+  for (const mount of getBillboardMounts()) {
+    let hitT = -1;
+
+    for (let s = 0; s < BILLBOARD_SEG_SAMPLES; s++) {
+      const t0 = s / BILLBOARD_SEG_SAMPLES;
+      const t1 = (s + 1) / BILLBOARD_SEG_SAMPLES;
+      _segFrom.lerpVectors(from, to, t0);
+      _segTo.lerpVectors(from, to, t1);
+
+      worldDeltaToBillboardLocal(
+        _segFrom.x - mount.x,
+        _segFrom.y - mount.y,
+        _segFrom.z - mount.z,
+        mount.yaw,
+        _localA,
+      );
+      worldDeltaToBillboardLocal(
+        _segTo.x - mount.x,
+        _segTo.y - mount.y,
+        _segTo.z - mount.z,
+        mount.yaw,
+        _localB,
+      );
+
+      if (
+        segmentHitsLocalAabb(
+          _localA.lx,
+          _localA.ly,
+          _localA.lz,
+          _localB.lx,
+          _localB.ly,
+          _localB.lz,
+          hxPad,
+          hyPad,
+          lzMinPad,
+          lzMaxPad,
+        )
+      ) {
+        hitT = (t0 + t1) * 0.5;
+        break;
+      }
+    }
+
+    if (hitT < 0) continue;
+
+    const normal = billboardFaceNormalWorld(mount.yaw);
+    _impact.lerpVectors(from, to, hitT);
+    return { mount, point: _impact.clone(), normal };
+  }
+  return null;
+}
+
+export function rocketSegmentHitsBillboard(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+): boolean {
+  return findBillboardSegmentHit(from, to) !== null;
+}
 
 export function tryTriggerGoalRingImpact(
   from: THREE.Vector3,
@@ -53,25 +145,8 @@ export function tryTriggerBillboardImpact(
   from: THREE.Vector3,
   to: THREE.Vector3,
 ): boolean {
-  const w = ARENA_PADS.billboardWidthM * 0.55;
-  const h = ARENA_PADS.billboardHeightM * 0.55;
-  const depth = 2.4;
-
-  for (const mount of getBillboardMounts()) {
-    const cos = Math.cos(mount.yaw);
-    const sin = Math.sin(mount.yaw);
-    for (let i = 0; i <= 10; i++) {
-      _sample.lerpVectors(from, to, i / 10);
-      const dx = _sample.x - mount.x;
-      const dy = _sample.y - mount.y;
-      const dz = _sample.z - mount.z;
-      const lx = dx * cos + dz * sin;
-      const lz = -dx * sin + dz * cos;
-      if (Math.abs(lx) <= w && Math.abs(dy) <= h && Math.abs(lz) <= depth) {
-        triggerBillboardShake(mount.x, mount.y, mount.z);
-        return true;
-      }
-    }
-  }
-  return false;
+  const hit = findBillboardSegmentHit(from, to);
+  if (!hit) return false;
+  triggerBillboardShake(hit.mount);
+  return true;
 }

@@ -8,6 +8,7 @@ import { OctagonPlatform } from '../game/OctagonPlatform';
 import { RocccitLogoStamp } from '../game/RocccitLogoStamp';
 import type { MapGroup } from './mapEditorTypes';
 import { parseStadiumKey } from './stadiumLayout';
+import { editorPickHandler } from './editorPick';
 import { StadiumGoalVisual, StadiumPillarVisual } from './StadiumPieceVisuals';
 import { StadiumGroupPhysics } from './stadiumPiecePhysics';
 
@@ -70,27 +71,25 @@ export function StadiumGroupPickMesh({
   const parsed = parseStadiumKey(stadiumKey);
   const pickSize = stadiumPickSize(stadiumKey);
 
-  const handlePick = onSelect
-    ? (e: { stopPropagation: () => void }) => {
-        e.stopPropagation();
-        onSelect(groupId);
-      }
-    : undefined;
+  const handlePick =
+    onSelect && !selected ? editorPickHandler(groupId) : undefined;
 
-  if (!handlePick) return null;
+  if (!onSelect) return null;
 
   return (
     <>
-      <mesh onPointerDown={handlePick} onClick={handlePick}>
-        {parsed?.kind === 'goal' ? (
-          <sphereGeometry args={[pickSize * 1.35, 10, 10]} />
-        ) : parsed?.kind === 'platform' ? (
-          <cylinderGeometry args={[pickSize, pickSize, 3, 8]} />
-        ) : (
-          <cylinderGeometry args={[4.5, 4.5, 14, 8]} />
-        )}
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
+      {handlePick && (
+        <mesh onPointerDown={handlePick} onClick={handlePick}>
+          {parsed?.kind === 'goal' ? (
+            <sphereGeometry args={[pickSize * 1.35, 10, 10]} />
+          ) : parsed?.kind === 'platform' ? (
+            <cylinderGeometry args={[pickSize, pickSize, 3, 8]} />
+          ) : (
+            <cylinderGeometry args={[4.5, 4.5, 14, 8]} />
+          )}
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
       {selected && (
         <mesh>
           {parsed?.kind === 'goal' ? (

@@ -22,6 +22,7 @@ import {
   importMapDocumentFromJson,
   saveCustomMap,
 } from './mapEditorStorage';
+import { stadiumLightStore } from '../game/stadiumLightStore';
 import { snapPositionToMoveGrid } from './editorMoveGrid';
 import { ensureDocumentGroups } from './stadiumLayout';
 import { normalizeMapLight } from './mapLightDefaults';
@@ -49,6 +50,8 @@ function maybeSnapPosition(
 
 const listeners = new Set<() => void>();
 let suppressPointerMissUntil = 0;
+let gizmoDragging = false;
+let blockScenePickUntil = 0;
 
 function notify(): void {
   listeners.forEach((l) => l());
@@ -115,6 +118,19 @@ export const mapEditorStore = {
   getState: () => state,
   shouldSuppressPointerMiss: () => performance.now() < suppressPointerMissUntil,
 
+  shouldBlockScenePick: () =>
+    gizmoDragging || performance.now() < blockScenePickUntil,
+
+  setGizmoDragging: (dragging: boolean) => {
+    gizmoDragging = dragging;
+    if (dragging) blockScenePickUntil = performance.now() + 120;
+    notify();
+  },
+
+  touchGizmoPointer: () => {
+    blockScenePickUntil = performance.now() + 220;
+  },
+
   openEditor: (mapId?: string) => {
     const id = mapId ?? loadActiveMapId();
     if (isDefaultMapId(id)) {
@@ -147,12 +163,26 @@ export const mapEditorStore = {
 
   setSelectIndividual: (value: boolean) => patch({ selectIndividual: value }),
 
+  /**
+   * Select an item, or deselect when id is null.
+   * While something is focused, another pick only clears focus (no switching).
+   */
   select: (id: string | null) => {
+    stadiumLightStore.deselect();
     if (!id) {
       patch({ selectedId: null });
       return;
     }
-    patch({ selectedId: resolveSelectionId(id, state) });
+    const resolved = resolveSelectionId(id, state);
+    if (state.selectedId !== null) {
+      if (state.selectedId !== resolved) {
+        patch({ selectedId: null });
+      }
+      return;
+    }
+    suppressPointerMissUntil = performance.now() + 150;
+    blockScenePickUntil = performance.now() + 80;
+    patch({ selectedId: resolved });
   },
 
   addObject: (kind: MapPrimitiveKind) => {

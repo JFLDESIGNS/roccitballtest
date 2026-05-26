@@ -1,9 +1,14 @@
+import type { WallMount } from './arenaPadLayout';
+import { burstBillboardFaceSparks } from './impactSparkBurst';
 import { burstPillarCornerSmoke } from './pillarSmokePuffs';
+import { ARENA_PADS } from '../shared/Constants';
 
 const SHAKE_MS = 500;
 const MAX_TILT_DEG = 1.35;
 const PILLAR_SHAKE_MS = 680;
 const PILLAR_MAX_TILT_DEG = 1.45;
+const BILLBOARD_SHAKE_MS = 1280;
+const BILLBOARD_MAX_TILT_DEG = 4.6;
 
 type ShakeEntry = { until: number; intensity: number };
 
@@ -102,8 +107,59 @@ export function triggerOctagonShake(x: number, z: number): void {
   triggerVisualShake(octagonShakeKey(x, z), 0.9);
 }
 
-export function triggerBillboardShake(x: number, y: number, z: number): void {
-  triggerVisualShake(billboardShakeKey(x, y, z), 0.95);
+export function triggerBillboardShake(mount: WallMount): void {
+  const key = billboardShakeKey(mount.x, mount.y, mount.z);
+  const now = performance.now();
+  const existing = shakes.get(key);
+  const until = Math.max(existing?.until ?? 0, now + BILLBOARD_SHAKE_MS);
+  shakes.set(key, { until, intensity: 1.35 });
+  burstBillboardFaceSparks(
+    mount.x,
+    mount.y,
+    mount.z,
+    mount.yaw,
+    ARENA_PADS.billboardWidthM,
+    ARENA_PADS.billboardHeightM,
+  );
+}
+
+export function getBillboardShake(
+  x: number,
+  y: number,
+  z: number,
+): { tiltX: number; tiltY: number; tiltZ: number } {
+  const key = billboardShakeKey(x, y, z);
+  const entry = shakes.get(key);
+  if (!entry) return { tiltX: 0, tiltY: 0, tiltZ: 0 };
+
+  const now = performance.now();
+  const remaining = entry.until - now;
+  if (remaining <= 0) {
+    shakes.delete(key);
+    return { tiltX: 0, tiltY: 0, tiltZ: 0 };
+  }
+
+  const seed = x + y * 0.07 + z;
+  const u = 1 - remaining / BILLBOARD_SHAKE_MS;
+  const envelope = Math.sin(u * Math.PI);
+  const wobble =
+    Math.sin(u * Math.PI * 4.2 + seed * 0.19) +
+    Math.sin(u * Math.PI * 6.4 + seed * 0.37) * 0.35 +
+    Math.sin(u * Math.PI * 9.1 + seed * 0.51) * 0.12;
+  const wobble2 =
+    Math.cos(u * Math.PI * 3.6 + seed * 0.27) +
+    Math.cos(u * Math.PI * 5.5 + seed * 0.43) * 0.28;
+  const wobbleY =
+    Math.sin(u * Math.PI * 3.1 + seed * 0.33) +
+    Math.sin(u * Math.PI * 7.2 + seed * 0.49) * 0.22;
+  const maxRad =
+    ((BILLBOARD_MAX_TILT_DEG * entry.intensity) * Math.PI) / 180;
+
+  return {
+    tiltX: wobble * envelope * maxRad,
+    tiltZ: wobble2 * envelope * maxRad * 0.95,
+    tiltY: wobbleY * envelope * maxRad * 0.72,
+  };
 }
 
 const CEILING_WALL_SHAKE_MS = 380;

@@ -56,6 +56,60 @@
 
 .map-editor-panel--right {
   right: 1rem;
+  width: min(320px, 36vw);
+}
+
+.map-editor-browser {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(100, 140, 180, 0.2);
+}
+
+.map-editor-browser-hint {
+  margin-bottom: 0.5rem;
+}
+
+.map-editor-list--browser {
+  max-height: min(52vh, 520px);
+}
+
+.map-editor-list-heading {
+  margin: 0.65rem 0 0.25rem;
+  padding: 0.2rem 0.15rem 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #7a9ab8;
+  border-top: 1px solid rgba(120, 160, 200, 0.22);
+}
+
+.map-editor-list-heading:first-child {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
+}
+
+.map-editor-list-kind--arena {
+  color: #c9a06a;
+}
+
+.map-editor-list-kind {
+  display: inline-block;
+  min-width: 3.1rem;
+  margin-right: 0.35rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6a8aa8;
+}
+
+.map-editor-scale-block {
+  margin-bottom: 0.65rem;
+}
+
+.map-editor-selection-panel {
+  margin-top: 0.25rem;
 }
 
 .map-editor-panel h2,

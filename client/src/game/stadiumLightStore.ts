@@ -1,3 +1,5 @@
+import { ARENA } from '../shared/Constants';
+import { stadiumCeilingStripWorldY } from './stadiumCeilingStripLayout';
 import { buildDefaultStadiumLights } from './stadiumLightsDefaults';
 import type {
   StadiumLightAddKind,
@@ -7,6 +9,9 @@ import type {
 } from './stadiumLightTypes';
 
 const STORAGE_KEY = 'rocketball-stadium-lights-v1';
+const MIGRATION_KEY = 'rocketball-stadium-lights-migration-v2';
+const FT = 0.3048;
+const LEGACY_STRIP_Y = ARENA.platformTopHeight + 132 * FT;
 
 type StadiumLightState = {
   lights: StadiumLightDef[];
@@ -65,6 +70,48 @@ function normalizeLight(raw: Partial<StadiumLightDef> & { id: string }): Stadium
   };
 }
 
+function migrateStoredLights(lights: StadiumLightDef[]): StadiumLightDef[] {
+  let migrated = false;
+  const defs = new Map(
+    buildDefaultStadiumLights().map((d) => [d.id, d] as const),
+  );
+  const stripY = stadiumCeilingStripWorldY();
+  const next = lights.map((light) => {
+    const def = defs.get(light.id);
+    if (!def) return light;
+
+    if (light.id.startsWith('strip-')) {
+      const y = light.position[1];
+      const nearLegacy = Math.abs(y - LEGACY_STRIP_Y) < 2.5;
+      const nearNew = Math.abs(y - stripY) < 0.5;
+      if (nearLegacy || nearNew) {
+        migrated = true;
+        return {
+          ...light,
+          position: [...def.position] as [number, number, number],
+          intensity: def.intensity,
+        };
+      }
+    }
+
+    if (light.linkGroup === 'key2' || light.linkGroup === 'key3') {
+      migrated = true;
+      return { ...light, intensity: def.intensity };
+    }
+
+    return light;
+  });
+
+  if (migrated) {
+    try {
+      localStorage.setItem(MIGRATION_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  }
+  return next;
+}
+
 function loadStored(): StadiumLightDef[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -73,7 +120,12 @@ function loadStored(): StadiumLightDef[] {
     if (!Array.isArray(parsed) || parsed.length === 0) {
       return buildDefaultStadiumLights();
     }
-    return parsed.map((l) => normalizeLight(l));
+    let lights = parsed.map((l) => normalizeLight(l));
+    if (!localStorage.getItem(MIGRATION_KEY)) {
+      lights = migrateStoredLights(lights);
+      persist(lights);
+    }
+    return lights;
   } catch {
     return buildDefaultStadiumLights();
   }

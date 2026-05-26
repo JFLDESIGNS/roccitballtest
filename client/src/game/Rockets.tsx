@@ -29,7 +29,7 @@ const MAX_BOOMS = 8;
 const HEAD_R = RENDER.rocketHeadRadius;
 const HEAD_GLOW_R = RENDER.rocketHeadGlowRadius;
 const TRAIL_HISTORY_MAX = 280;
-const TRAIL_MIN_STEP = 0.04;
+const TRAIL_MIN_STEP = ROCKET.trailPuffSpawnStepM;
 
 type RocketVisual = {
   root: THREE.Group;

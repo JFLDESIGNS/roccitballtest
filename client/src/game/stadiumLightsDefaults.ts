@@ -1,11 +1,13 @@
-import { ARENA } from '../shared/Constants';
 import { arenaPillarTopWorldY } from './arenaPillarConfig';
+import {
+  STADIUM_CEILING_STRIP_LENGTH_M,
+  stadiumCeilingStripWorldY,
+} from './stadiumCeilingStripLayout';
 import type { StadiumLightDef } from './stadiumLightTypes';
 
 const FT = 0.3048;
-const STRIP_HEIGHT_FT = 132;
-const stripLengthM = ARENA.hexRadius * 2.45;
-const stripYM = ARENA.platformTopHeight + STRIP_HEIGHT_FT * FT;
+const stripLengthM = STADIUM_CEILING_STRIP_LENGTH_M;
+const stripYM = stadiumCeilingStripWorldY();
 const stripGapM = 34 * FT;
 const stripWidthM = 150 * FT;
 const centerOffsetZ = stripGapM * 0.5 + stripWidthM * 0.5;
@@ -38,7 +40,7 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
       position: [-26, y2, 24],
       rotation: [-Math.PI / 2, 0, 0],
       color: '#fff0e0',
-      intensity: 1,
+      intensity: 0.55,
       rectWidth: 40,
       rectHeight: 40,
       castShadow: false,
@@ -53,7 +55,7 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
       position: [-26, y2, 24],
       rotation: [0, 0, 0],
       color: '#fff0e0',
-      intensity: 1,
+      intensity: 0.55,
       distance: 118,
       decay: 1.05,
       castShadow: true,
@@ -68,7 +70,7 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
       position: [26, y2, -24],
       rotation: [-Math.PI / 2, 0, 0],
       color: '#dfe8f5',
-      intensity: 1,
+      intensity: 0.55,
       rectWidth: 40,
       rectHeight: 40,
       castShadow: false,
@@ -83,7 +85,7 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
       position: [26, y2, -24],
       rotation: [0, 0, 0],
       color: '#dfe8f5',
-      intensity: 1,
+      intensity: 0.55,
       distance: 118,
       decay: 1.05,
       castShadow: true,
@@ -103,7 +105,7 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
         position: [x, stripYM, z],
         rotation: [0, 0, 0],
         color: '#f0f2f4',
-        intensity: 1,
+        intensity: 0.34,
         distance: stripYM * 2.6,
         decay: 1.6,
         castShadow: false,

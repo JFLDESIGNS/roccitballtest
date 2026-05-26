@@ -3,6 +3,7 @@ import { useRef, useSyncExternalStore } from 'react';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BALL } from '../shared/Constants';
+import { getBallMaxSpeed } from './ballRuntime';
 import { EightBallVisual } from './EightBallVisual';
 import { getPremium8Ball, subscribePremium8Ball } from './premiumBall';
 import {
@@ -26,6 +27,7 @@ const _targetQuat = new THREE.Quaternion();
 const _filteredPos = new THREE.Vector3();
 const _displayPos = new THREE.Vector3();
 const _displayQuat = new THREE.Quaternion();
+const _followPos = new THREE.Vector3();
 
 function isBotHolder(holderId: BallHolderId): boolean {
   return holderId !== null && holderId !== 'local';
@@ -140,15 +142,22 @@ export function LooseBallVisual({
     } else {
       const linvel = body.linvel();
       const speed = Math.hypot(linvel.x, linvel.y, linvel.z);
+      const speedCap = getBallMaxSpeed();
       const speedBoost =
-        1 + THREE.MathUtils.clamp(speed / 14, 0, speedBoostMax);
+        1 +
+        THREE.MathUtils.clamp(speed / (speedCap * 0.155), 0, speedBoostMax);
       let posAlpha = 1 - Math.exp(-posSmooth * speedBoost * dtClamped);
-      const lagM = _displayPos.distanceTo(_filteredPos);
-      if (lagM > maxLagM) {
-        const overflow = (lagM - maxLagM) / Math.max(maxLagM, 1e-4);
-        posAlpha = Math.max(posAlpha, Math.min(0.9, overflow * 0.28 + posAlpha));
+      const lagToFiltered = _displayPos.distanceTo(_filteredPos);
+      const lagToPhysics = _displayPos.distanceTo(_targetPos);
+      if (lagToFiltered > maxLagM || lagToPhysics > maxLagM * 1.15) {
+        const overflow =
+          Math.max(lagToFiltered, lagToPhysics * 0.92) / Math.max(maxLagM, 1e-4);
+        const catchT = THREE.MathUtils.clamp((overflow - 1) * 0.35, 0, 0.72);
+        _followPos.lerpVectors(_filteredPos, _targetPos, catchT);
+      } else {
+        _followPos.copy(_filteredPos);
       }
-      _displayPos.lerp(_filteredPos, posAlpha);
+      _displayPos.lerp(_followPos, posAlpha);
       const rotAlpha = 1 - Math.exp(-rotSmooth * dtClamped);
       _displayQuat.slerp(_targetQuat, rotAlpha);
     }

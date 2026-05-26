@@ -1,9 +1,13 @@
 import {
   isMapLightGlowBlendMode,
   MAP_LIGHT_GLOW_DEFAULT_OPACITY,
-  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
   type MapLightGlowBlendMode,
 } from './mapLightGlowBlend';
+import {
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MAX,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MIN,
+} from './mapLightGlowSettings';
 import {
   isShadowMapTypeId,
   type ShadowMapTypeId,
@@ -97,9 +101,9 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
         ? raw.mapLightGlowBlendMode
         : defaults.mapLightGlowBlendMode,
     mapLightGlowProximityFadeFt: Math.max(
-      6,
+      MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MIN,
       Math.min(
-        160,
+        MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MAX,
         raw.mapLightGlowProximityFadeFt ?? defaults.mapLightGlowProximityFadeFt,
       ),
     ),
@@ -193,14 +197,14 @@ const defaults: GraphicsSettings = {
   fisheye: false,
   fisheyeIntensity: 0.28,
   lensFlare: false,
-  stadiumStripLightIntensity: 6.5,
+  stadiumStripLightIntensity: 3.6,
   stadiumStripGapFt: 34,
   /** ~half stadium width per strip (Z), with gap unchanged */
   stadiumStripPlaneWidthFt: 150,
   keyLight2Color: '#fff0e0',
-  keyLight2Brightness: 280,
+  keyLight2Brightness: 185,
   keyLight3Color: '#dfe8f5',
-  keyLight3Brightness: 240,
+  keyLight3Brightness: 160,
   keyLight2CastShadow: true,
   keyLight3CastShadow: true,
   keyLightWireframe: true,
@@ -319,7 +323,10 @@ export const graphicsStore = {
     patch({ mapLightGlowBlendMode: v }),
   setMapLightGlowProximityFadeFt: (v: number) =>
     patch({
-      mapLightGlowProximityFadeFt: Math.max(6, Math.min(160, Math.round(v))),
+      mapLightGlowProximityFadeFt: Math.max(
+        MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MIN,
+        Math.min(MAP_LIGHT_GLOW_PROXIMITY_FADE_FT_MAX, Math.round(v)),
+      ),
     }),
   setMapLightGlowProximityDebug: (v: boolean) =>
     patch({ mapLightGlowProximityDebug: v }),

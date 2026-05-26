@@ -43,6 +43,7 @@ import {
   shouldSuppressBallBounceSound,
   suppressBallBounceForMs,
 } from './audio';
+import { tryTriggerBillboardImpact } from './interactableHits';
 import { triggerCeilingWallHit } from './visualShake';
 import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
@@ -307,6 +308,7 @@ const hasPrevBallPos = useRef(false);
       refreshFanGlassBoxes();
       const glass = trySegmentHitsFanGlassWithPoint(from, _ballTo.current);
       if (glass) triggerFanGlassHit(glass.panel.bayKey, glass.point);
+      tryTriggerBillboardImpact(from, _ballTo.current);
     }
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;

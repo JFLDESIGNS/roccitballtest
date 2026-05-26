@@ -9,14 +9,26 @@ import { getMapObjectMaterial } from './mapEditorMaterials';
 import { LightGlowBillboard, lightGlowSizeForRect } from './LightGlowBillboard';
 import { initStadiumRectAreaLights } from '../game/stadiumRectAreaLightInit';
 import { MAP_LIGHT_SHADOW_PROPS } from './mapLightDefaults';
+import {
+  editorDisabledRaycast,
+  editorPickCallback,
+  editorPickRaycast,
+} from './editorPick';
 
 type MapObjectMeshProps = {
   object: MapObject;
   selected?: boolean;
+  /** When false (e.g. while gizmo is active), mesh cannot be re-picked. */
+  pickEnabled?: boolean;
   onSelect?: () => void;
 };
 
-export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps) {
+export function MapObjectMesh({
+  object,
+  selected,
+  pickEnabled = true,
+  onSelect,
+}: MapObjectMeshProps) {
   const isAlphaShadow = object.kind === 'alphaShadow';
 
   const material = useMemo(
@@ -51,14 +63,9 @@ export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps
       renderOrder={isAlphaShadow ? ALPHA_SHADOW_RENDER_ORDER : undefined}
       castShadow={!isAlphaShadow}
       receiveShadow={!isAlphaShadow}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect?.();
-      }}
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        onSelect?.();
-      }}
+      raycast={editorPickRaycast(pickEnabled)}
+      onClick={onSelect ? editorPickCallback(onSelect) : undefined}
+      onPointerDown={onSelect ? editorPickCallback(onSelect) : undefined}
     >
       {selected && (
         <mesh scale={[1.08, 1.08, 1.08]}>
@@ -79,12 +86,17 @@ export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps
 type MapLightNodeProps = {
   light: MapLight;
   selected?: boolean;
+  pickEnabled?: boolean;
   onSelect?: () => void;
   /** When true, render at group origin (parent supplies transform). */
   embedded?: boolean;
   castShadow?: boolean;
-  /** Editor sphere gizmo vs play-mode camera-facing glow plane */
+  /** Wireframe pick gizmo at the lamp */
   showBulb?: boolean;
+  /** Camera-facing glow blob (play + editor preview) */
+  showGlow?: boolean;
+  /** Full-opacity glow in editor (no player proximity fade) */
+  editorGlowPreview?: boolean;
 };
 
 function MapRectAreaLight({ light }: { light: MapLight }) {
@@ -105,11 +117,16 @@ function MapRectAreaLight({ light }: { light: MapLight }) {
 function MapLightContent({
   light,
   selected,
+  pickEnabled = true,
   onSelect,
   castShadow = false,
   showBulb = true,
+  showGlow = true,
+  editorGlowPreview = false,
 }: Omit<MapLightNodeProps, 'embedded'>) {
   const bulbColor = selected ? '#ffee66' : light.color;
+  const pick = pickEnabled && onSelect ? editorPickCallback(onSelect) : undefined;
+  const raycast = editorPickRaycast(Boolean(pickEnabled && onSelect));
 
   return (
     <>
@@ -151,18 +168,33 @@ function MapLightContent({
         />
       )}
       {light.kind === 'rectArea' && <MapRectAreaLight light={light} />}
+      {showGlow ? (
+        <group
+          raycast={showBulb ? editorDisabledRaycast : raycast}
+          onClick={showBulb ? undefined : pick}
+          onPointerDown={showBulb ? undefined : pick}
+        >
+          {light.kind === 'rectArea' ? (
+            <LightGlowBillboard
+              color={light.color}
+              size={lightGlowSizeForRect(light.rectWidth, light.rectHeight)}
+              editorPreview={editorGlowPreview}
+            />
+          ) : (
+            <LightGlowBillboard
+              color={light.color}
+              editorPreview={editorGlowPreview}
+            />
+          )}
+        </group>
+      ) : null}
       {showBulb ? (
         light.kind === 'rectArea' ? (
           <mesh
             rotation={[-Math.PI / 2, 0, 0]}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect?.();
-            }}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              onSelect?.();
-            }}
+            raycast={raycast}
+            onClick={pick}
+            onPointerDown={pick}
           >
             <planeGeometry args={[light.rectWidth, light.rectHeight]} />
             <meshBasicMaterial
@@ -174,54 +206,26 @@ function MapLightContent({
             />
           </mesh>
         ) : (
-        <mesh
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-        >
-          <sphereGeometry args={[0.35, 12, 12]} />
-          <meshBasicMaterial
-            color={bulbColor}
-            transparent
-            opacity={0.85}
-          />
-        </mesh>
+          <mesh
+            raycast={raycast}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
+          >
+            <sphereGeometry args={[0.35, 12, 12]} />
+            <meshBasicMaterial
+              color={bulbColor}
+              transparent
+              opacity={0.85}
+            />
+          </mesh>
         )
-      ) : light.kind === 'rectArea' ? (
-        <group
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-        >
-          <LightGlowBillboard
-            color={light.color}
-            size={lightGlowSizeForRect(light.rectWidth, light.rectHeight)}
-          />
-        </group>
-      ) : (
-        <group
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            onSelect?.();
-          }}
-        >
-          <LightGlowBillboard color={light.color} />
-        </group>
-      )}
+      ) : null}
     </>
   );
 }
@@ -229,37 +233,46 @@ function MapLightContent({
 export function MapLightNode({
   light,
   selected,
+  pickEnabled = true,
   onSelect,
   embedded,
   castShadow = false,
   showBulb = true,
+  showGlow = true,
+  editorGlowPreview = false,
 }: MapLightNodeProps) {
   if (embedded) {
     return (
       <MapLightContent
         light={light}
         selected={selected}
+        pickEnabled={pickEnabled}
         onSelect={onSelect}
         castShadow={castShadow}
         showBulb={showBulb}
+        showGlow={showGlow}
+        editorGlowPreview={editorGlowPreview}
       />
     );
   }
+  const pick = pickEnabled && onSelect ? editorPickCallback(onSelect) : undefined;
   return (
     <group
       position={light.position}
       rotation={light.rotation}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect?.();
-      }}
+      raycast={editorPickRaycast(pickEnabled)}
+      onClick={pick}
+      onPointerDown={pick}
     >
       <MapLightContent
         light={light}
         selected={selected}
+        pickEnabled={pickEnabled}
         onSelect={onSelect}
         castShadow={castShadow}
         showBulb={showBulb}
+        showGlow={showGlow}
+        editorGlowPreview={editorGlowPreview}
       />
     </group>
   );

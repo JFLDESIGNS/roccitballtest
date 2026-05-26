@@ -2,19 +2,20 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
-import { ARENA } from '../shared/Constants';
 import { arenaRoofStore } from './arenaRoofStore';
 import { graphicsStore } from './graphicsStore';
+import {
+  STADIUM_CEILING_STRIP_LENGTH_M,
+  stadiumCeilingStripWorldY,
+} from './stadiumCeilingStripLayout';
 
 const FT = 0.3048;
-/** Height above platform deck */
-const STRIP_HEIGHT_FT = 132;
+
 /** Neutral ceiling fill — avoids blue wash on the concrete floor */
 const STRIP_COLOR = '#f0f2f4';
 const BRIGHTNESS_MUL = 0.92;
-/** Long edge goal-to-goal (world X) */
-const stripLengthM = ARENA.hexRadius * 2.45;
-const stripYM = ARENA.platformTopHeight + STRIP_HEIGHT_FT * FT;
+const stripLengthM = STADIUM_CEILING_STRIP_LENGTH_M;
+const stripYM = stadiumCeilingStripWorldY();
 
 /** Point lights along each strip — avoids RectAreaLight shader cost on every mesh */
 function CeilingStrip({
@@ -36,7 +37,7 @@ function CeilingStrip({
     const k =
       open < 0.01
         ? 0
-        : base * open * BRIGHTNESS_MUL * Math.sqrt(stripWidthM / 42) * 95;
+        : base * open * BRIGHTNESS_MUL * Math.sqrt(stripWidthM / 42) * 40;
     for (const light of lightsRef.current) {
       if (light) light.intensity = k;
     }

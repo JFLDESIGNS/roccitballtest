@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import {
   mapLightGlowEffectiveHorizontalDistM,
   mapLightGlowFadeRadiusM,
-  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
   mapLightGlowProximityFactor,
 } from './mapLightGlowBlend';
 
@@ -54,7 +53,7 @@ export function mapLightGlowProximityOpacity(
   glowDiameterM: number,
   cameraPosition: THREE.Vector3,
   peakOpacity: number,
-  fadeFt: number = MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
+  fadeFt: number,
 ): { effectiveDistM: number; factor: number; opacity: number } {
   const effectiveDistM = mapLightGlowListenerEffectiveDistanceM(
     glowWorld,

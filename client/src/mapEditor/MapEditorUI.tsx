@@ -1,6 +1,182 @@
 import { useRef, useSyncExternalStore, useState, type ReactNode } from 'react';
-import { MAP_TEXTURE_OPTIONS, type MapLightKind, type MapPrimitiveKind } from './mapEditorTypes';
+import {
+  MAP_TEXTURE_OPTIONS,
+  type MapLightKind,
+  type MapPrimitiveKind,
+} from './mapEditorTypes';
+import { stadiumLightStore } from '../game/stadiumLightStore';
+import type { StadiumLightDef } from '../game/stadiumLightTypes';
 import { mapEditorStore } from './mapEditorStore';
+
+type EditorSnapshot = ReturnType<typeof mapEditorStore.getState>;
+
+function ScaleInputs({
+  scale,
+  onChange,
+}: {
+  scale: [number, number, number];
+  onChange: (next: [number, number, number]) => void;
+}) {
+  const uniform = Number(
+    ((scale[0] + scale[1] + scale[2]) / 3).toFixed(3),
+  );
+
+  const setAxis = (index: number, raw: string) => {
+    const next: [number, number, number] = [...scale];
+    next[index] = Math.max(0.05, Number(raw) || 0.05);
+    onChange(next);
+  };
+
+  return (
+    <div className="map-editor-scale-block">
+      <label className="map-editor-field">
+        <span>Uniform scale</span>
+        <input
+          type="number"
+          min={0.05}
+          step={0.1}
+          value={uniform}
+          onChange={(e) => {
+            const s = Math.max(0.05, Number(e.target.value) || 0.05);
+            onChange([s, s, s]);
+          }}
+        />
+      </label>
+      <div className="map-editor-scale-row">
+        {(['X', 'Y', 'Z'] as const).map((axis, i) => (
+          <label key={axis} className="map-editor-field map-editor-field--compact">
+            <span>Scale {axis}</span>
+            <input
+              type="number"
+              min={0.05}
+              step={0.1}
+              value={Number(scale[i].toFixed(3))}
+              onChange={(e) => setAxis(i, e.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isBrowserItemActive(
+  editor: EditorSnapshot,
+  item: { id: string; groupId?: string },
+): boolean {
+  if (editor.selectedId === item.id) return true;
+  if (
+    !editor.selectIndividual &&
+    item.groupId &&
+    editor.selectedId === item.groupId
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function lightKindShort(kind: string): string {
+  if (kind === 'rectArea') return 'Rect';
+  if (kind === 'directional') return 'Dir';
+  if (kind === 'spot') return 'Spot';
+  return 'Point';
+}
+
+function pickStadiumLight(id: string): void {
+  const { selectedId } = stadiumLightStore.getState();
+  if (selectedId !== null) {
+    if (selectedId !== id) stadiumLightStore.deselect();
+    return;
+  }
+  mapEditorStore.select(null);
+  stadiumLightStore.select(id);
+}
+
+function SceneBrowser({
+  editor,
+  stadiumLights,
+  stadiumSelectedId,
+}: {
+  editor: EditorSnapshot;
+  stadiumLights: StadiumLightDef[];
+  stadiumSelectedId: string | null;
+}) {
+  const { groups, objects, lights } = editor.document;
+
+  return (
+    <section className="map-editor-browser">
+      <h3>Scene</h3>
+      <p className="map-editor-muted map-editor-browser-hint">
+        Arena lights (rect strips, keys) are built into the stadium. Map lights
+        are saved with your custom map. While focused, another click only
+        deselects.
+      </p>
+      <div className="map-editor-list map-editor-list--browser">
+        {groups.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            className={`map-editor-list-item${editor.selectedId === g.id ? ' map-editor-list-item--active' : ''}`}
+            onClick={() => mapEditorStore.select(g.id)}
+          >
+            <span className="map-editor-list-kind">Group</span>
+            {g.name}
+          </button>
+        ))}
+        {objects.map((obj) => (
+          <button
+            key={obj.id}
+            type="button"
+            className={`map-editor-list-item${isBrowserItemActive(editor, obj) ? ' map-editor-list-item--active' : ''}`}
+            onClick={() => mapEditorStore.select(obj.id)}
+          >
+            <span className="map-editor-list-kind">Object</span>
+            {obj.name}
+          </button>
+        ))}
+        {lights.length > 0 && (
+          <p className="map-editor-list-heading">Map lights</p>
+        )}
+        {lights.map((light) => (
+          <button
+            key={light.id}
+            type="button"
+            className={`map-editor-list-item${editor.selectedId === light.id ? ' map-editor-list-item--active' : ''}`}
+            onClick={() => mapEditorStore.select(light.id)}
+          >
+            <span className="map-editor-list-kind">
+              {lightKindShort(light.kind)}
+            </span>
+            {light.name}
+          </button>
+        ))}
+        {stadiumLights.length > 0 && (
+          <p className="map-editor-list-heading">Arena lights</p>
+        )}
+        {stadiumLights.map((light) => (
+          <button
+            key={light.id}
+            type="button"
+            className={`map-editor-list-item${stadiumSelectedId === light.id ? ' map-editor-list-item--active' : ''}`}
+            onClick={() => pickStadiumLight(light.id)}
+          >
+            <span className="map-editor-list-kind map-editor-list-kind--arena">
+              {lightKindShort(light.kind)}
+            </span>
+            {light.name}
+            {!light.enabled ? ' (off)' : ''}
+          </button>
+        ))}
+        {groups.length === 0 &&
+          objects.length === 0 &&
+          lights.length === 0 &&
+          stadiumLights.length === 0 && (
+          <p className="map-editor-muted">No objects yet — add primitives or lights.</p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 type MapEditorUIProps = {
   onExit: () => void;
@@ -10,40 +186,21 @@ function BtnRow({ children }: { children: ReactNode }) {
   return <div className="map-editor-btn-row">{children}</div>;
 }
 
-function ScaleInputs({
-  object,
-}: {
-  object: { id: string; scale: [number, number, number] };
-}) {
-  return (
-    <div className="map-editor-scale-row">
-      {(['X', 'Y', 'Z'] as const).map((axis, i) => (
-        <label key={axis} className="map-editor-field map-editor-field--compact">
-          <span>Scale {axis}</span>
-          <input
-            type="number"
-            min={0.05}
-            step={0.1}
-            value={Number(object.scale[i].toFixed(2))}
-            onChange={(e) => {
-              const next = [...object.scale] as [number, number, number];
-              next[i] = Math.max(0.05, Number(e.target.value) || 0.05);
-              mapEditorStore.updateObject(object.id, { scale: next });
-            }}
-          />
-        </label>
-      ))}
-    </div>
-  );
-}
-
 export function MapEditorUI({ onExit }: MapEditorUIProps) {
   const editor = useSyncExternalStore(
     mapEditorStore.subscribe,
     () => mapEditorStore.getState(),
   );
+  const stadiumLightState = useSyncExternalStore(
+    stadiumLightStore.subscribe,
+    stadiumLightStore.getState,
+  );
   const [status, setStatus] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  const selectedStadiumLight = stadiumLightState.lights.find(
+    (l) => l.id === stadiumLightState.selectedId,
+  );
 
   const selectedObject = editor.document.objects.find(
     (o) => o.id === editor.selectedId,
@@ -140,9 +297,10 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
       <aside className="map-editor-panel map-editor-panel--left">
         <h2>Map Editor</h2>
         <p className="map-editor-hint">
-          Full arena base map — click goals, pillars, or placed objects to move them.
-          Drag empty space to orbit · right-click pan · scroll zoom.
-          G / R / S — move, rotate, scale.
+          Click an object to focus and use the gizmo. While focused, another click
+          only deselects — click empty space to exit focus.
+          then click another object. Drag empty space to orbit · right-click pan ·
+          scroll zoom. G / R / S — move, rotate, scale.
         </p>
 
         <label className="map-editor-checkbox">
@@ -247,43 +405,6 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
         </section>
 
         <section>
-          <h3>Placed objects</h3>
-          {editor.document.objects.length === 0 && (
-            <p className="map-editor-muted">Add primitives above, then click to move again</p>
-          )}
-          <div className="map-editor-list">
-            {editor.document.objects.map((obj) => (
-              <button
-                key={obj.id}
-                type="button"
-                className={`map-editor-list-item${editor.selectedId === obj.id || (editor.selectedId === obj.groupId && !editor.selectIndividual) ? ' map-editor-list-item--active' : ''}`}
-                onClick={() => mapEditorStore.select(obj.id)}
-              >
-                {obj.name}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3>Stadium groups</h3>
-          <div className="map-editor-list">
-            {editor.document.groups
-              .filter((g) => g.stadiumKey)
-              .map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  className={`map-editor-list-item${editor.selectedId === g.id ? ' map-editor-list-item--active' : ''}`}
-                  onClick={() => mapEditorStore.select(g.id)}
-                >
-                  {g.name}
-                </button>
-              ))}
-          </div>
-        </section>
-
-        <section>
           <h3>Gizmo</h3>
           <BtnRow>
             {(
@@ -307,12 +428,22 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
       </aside>
 
       <aside className="map-editor-panel map-editor-panel--right">
-        <h3>Selection</h3>
-        {!selectedObject && !selectedGroup && !selectedLight && (
-          <p className="map-editor-muted">
-            Nothing selected — click a goal, pillar, platform, or object
-          </p>
-        )}
+        <SceneBrowser
+          editor={editor}
+          stadiumLights={stadiumLightState.lights}
+          stadiumSelectedId={stadiumLightState.selectedId}
+        />
+
+        <section className="map-editor-selection-panel">
+          <h3>Selection</h3>
+          {!selectedObject &&
+            !selectedGroup &&
+            !selectedLight &&
+            !selectedStadiumLight && (
+            <p className="map-editor-muted">
+              Nothing selected — pick from the scene list or click in the view
+            </p>
+          )}
 
         {selectedGroup && (
           <>
@@ -330,6 +461,12 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
             {selectedGroup.stadiumKey && (
               <p className="map-editor-muted">Stadium piece — moves as one group</p>
             )}
+            <ScaleInputs
+              scale={selectedGroup.scale}
+              onChange={(scale) =>
+                mapEditorStore.updateGroup(selectedGroup.id, { scale })
+              }
+            />
           </>
         )}
 
@@ -386,7 +523,12 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 like other primitives.
               </p>
             )}
-            <ScaleInputs object={selectedObject} />
+            <ScaleInputs
+              scale={selectedObject.scale}
+              onChange={(scale) =>
+                mapEditorStore.updateObject(selectedObject.id, { scale })
+              }
+            />
             {!selectedObject.groupId && (
               <button
                 type="button"
@@ -396,6 +538,103 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 Wrap in group
               </button>
             )}
+          </>
+        )}
+
+        {selectedStadiumLight && (
+          <>
+            <p className="map-editor-muted">
+              Arena light — shared across all maps (not in export JSON). Use G /
+              R / S for gizmo mode.
+            </p>
+            <label className="map-editor-field">
+              <span>Name</span>
+              <input
+                value={selectedStadiumLight.name}
+                onChange={(e) =>
+                  stadiumLightStore.patchLight(selectedStadiumLight.id, {
+                    name: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="map-editor-field">
+              <span>Type</span>
+              <input
+                readOnly
+                value={lightKindShort(selectedStadiumLight.kind)}
+              />
+            </label>
+            <label className="map-editor-field">
+              <span>Color</span>
+              <input
+                type="color"
+                value={selectedStadiumLight.color}
+                onChange={(e) =>
+                  stadiumLightStore.patchLight(selectedStadiumLight.id, {
+                    color: e.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="map-editor-field">
+              <span>Intensity</span>
+              <input
+                type="number"
+                min={0}
+                max={40}
+                step={0.05}
+                value={selectedStadiumLight.intensity}
+                onChange={(e) =>
+                  stadiumLightStore.patchLight(selectedStadiumLight.id, {
+                    intensity: Number(e.target.value) || 0,
+                  })
+                }
+              />
+            </label>
+            {selectedStadiumLight.kind === 'rectArea' && (
+              <>
+                <label className="map-editor-field">
+                  <span>Panel width (m)</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={120}
+                    step={0.5}
+                    value={selectedStadiumLight.rectWidth ?? 20}
+                    onChange={(e) =>
+                      stadiumLightStore.patchLight(selectedStadiumLight.id, {
+                        rectWidth: Number(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </label>
+                <label className="map-editor-field">
+                  <span>Panel height (m)</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={120}
+                    step={0.5}
+                    value={selectedStadiumLight.rectHeight ?? 20}
+                    onChange={(e) =>
+                      stadiumLightStore.patchLight(selectedStadiumLight.id, {
+                        rectHeight: Number(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
+            <BtnRow>
+              <button
+                type="button"
+                className="map-editor-btn map-editor-btn--danger"
+                onClick={() => stadiumLightStore.deleteSelected()}
+              >
+                Delete arena light
+              </button>
+            </BtnRow>
           </>
         )}
 
@@ -568,6 +807,7 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
             </button>
           </BtnRow>
         )}
+        </section>
 
         <section className="map-editor-save">
           <h3>Save</h3>

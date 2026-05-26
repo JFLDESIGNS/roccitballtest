@@ -2,8 +2,8 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
-import { ARENA_PADS } from '../shared/Constants';
 import { getBillboardMounts } from './arenaPadLayout';
+import { billboardHitHalfExtents } from './billboardCollision';
 import { getFanGlassPanels, refreshFanGlassBoxes } from './fanGlassHit';
 import { gameStore } from './gameStore';
 
@@ -63,9 +63,8 @@ export function GameplayCollisionDebug() {
 
   const panels = getFanGlassPanels();
   const billboards = getBillboardMounts();
-  const w = ARENA_PADS.billboardWidthM * 0.55;
-  const h = ARENA_PADS.billboardHeightM * 0.55;
-  const depth = 2.4;
+  const { hx: w, hy: h, lzMin: depthMin, lzMax: depthMax } =
+    billboardHitHalfExtents();
 
   return (
     <group ref={groupRef} name="gameplay-collision-debug">
@@ -77,14 +76,14 @@ export function GameplayCollisionDebug() {
         const sin = Math.sin(mount.yaw);
         _box.makeEmpty();
         const corners: [number, number, number][] = [
-          [-w, -h, -depth],
-          [w, -h, -depth],
-          [w, h, -depth],
-          [-w, h, -depth],
-          [-w, -h, depth],
-          [w, -h, depth],
-          [w, h, depth],
-          [-w, h, depth],
+          [-w, -h, depthMin],
+          [w, -h, depthMin],
+          [w, h, depthMin],
+          [-w, h, depthMin],
+          [-w, -h, depthMax],
+          [w, -h, depthMax],
+          [w, h, depthMax],
+          [-w, h, depthMax],
         ];
         for (const [lx, ly, lz] of corners) {
           const wx = mount.x + lx * cos - lz * sin;

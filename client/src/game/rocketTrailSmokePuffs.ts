@@ -1,3 +1,5 @@
+import { ROCKET } from '../shared/Constants';
+
 export type RocketTrailSmokePuff = {
   active: boolean;
   x: number;
@@ -11,8 +13,8 @@ export type RocketTrailSmokePuff = {
 };
 
 /** Cap live trail puffs — keeps instanced draw + tick cost bounded */
-export const MAX_ROCKET_TRAIL_PUFFS = 320;
-export const ROCKET_TRAIL_PUFF_LIFE_SEC = 1.35;
+export const MAX_ROCKET_TRAIL_PUFFS = ROCKET.trailPuffMaxCount;
+export const ROCKET_TRAIL_PUFF_LIFE_SEC = ROCKET.trailPuffLifeSec;
 
 const puffs: RocketTrailSmokePuff[] = Array.from(
   { length: MAX_ROCKET_TRAIL_PUFFS },
@@ -22,7 +24,7 @@ const puffs: RocketTrailSmokePuff[] = Array.from(
     y: 0,
     z: 0,
     life: 0,
-    maxLife: ROCKET_TRAIL_PUFF_LIFE_SEC,
+    maxLife: ROCKET.trailPuffLifeSec,
     size: 0.44,
     sizeMul: 1,
   }),
@@ -95,7 +97,7 @@ export function spawnRocketTrailSmokeBurst(
   const uy = vlen > 0.35 ? vy / vlen : 0;
   const uz = vlen > 0.35 ? vz / vlen : 0;
 
-  if (Math.random() < 0.78) {
+  if (Math.random() < 0.42) {
     const back = 0.06 + Math.random() * 0.12;
     const { puff: p2 } = claimPuff();
     initPuff(
@@ -108,7 +110,7 @@ export function spawnRocketTrailSmokeBurst(
     );
   }
 
-  if (Math.random() < 0.38) {
+  if (Math.random() < 0.18) {
     const side = 0.05 + Math.random() * 0.08;
     const px = -uz;
     const pz = ux;

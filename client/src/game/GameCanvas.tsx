@@ -54,6 +54,7 @@ import {
   type RocketExplosionSpritesHandle,
 } from './RocketExplosionSprites';
 import { FanGlassCrackFx } from './FanGlassCrackFx';
+import { ImpactSparks } from './BillboardImpactSparks';
 import { PillarShakeSmoke } from './PillarShakeSmoke';
 import { triggerArenaPillarShake } from './visualShake';
 import { GameplayCollisionDebug } from './GameplayCollisionDebug';
@@ -579,6 +580,7 @@ function Scene({
       <RocketExplosionSprites poolRef={splashFxRef} />
       <FanGlassCrackFx />
       <PillarShakeSmoke />
+      <ImpactSparks />
       <GameplayCollisionDebug />
       <RocketWallImpactFx poolRef={wallImpactFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
