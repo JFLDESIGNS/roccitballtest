@@ -6,6 +6,7 @@ import { getMaxPlatformSurfaceY } from './arenaSpawn';
 import {
   bounceLaunchSpeedY,
   getBounceTrampolinePads,
+  segmentHitsBounceTrampoline,
 } from './arenaPadLayout';
 import {
   findArenaPillarSegmentHit,
@@ -107,6 +108,8 @@ function rocketHitsPlatformSurface(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
 ): boolean {
+  if (segmentHitsBounceTrampoline(prev, pos)) return true;
+
   const samples = 8;
   let lastPy = prev.y;
 
@@ -439,6 +442,24 @@ function tryPlatformBounce(
   prev: THREE.Vector3,
   pos: THREE.Vector3,
 ): boolean {
+  const trampHit = segmentHitsBounceTrampoline(prev, pos);
+  if (trampHit) {
+    const rest = ROCKET.bounceRestitution;
+    pos.x = trampHit.x;
+    pos.z = trampHit.z;
+    pos.y = trampHit.deckTopY + 0.44;
+    const tune = tuningStore.getState();
+    const launchVy = bounceLaunchSpeedY(tune.gravity, tune.trampolineStrength);
+    r.velocity.y = Math.max(Math.abs(r.velocity.y) * rest, launchVy * 0.82);
+    triggerOctagonShake(pos.x, pos.z);
+    const horiz = Math.hypot(r.velocity.x, r.velocity.z);
+    if (horiz > 0.5) {
+      r.velocity.x *= 0.9;
+      r.velocity.z *= 0.9;
+    }
+    return true;
+  }
+
   const rest = ROCKET.bounceRestitution;
   const samples = 8;
   let bestSurf: number | null = null;

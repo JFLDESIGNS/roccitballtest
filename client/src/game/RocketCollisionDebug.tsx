@@ -199,6 +199,7 @@ function HexBoundaryWire({
   return <WireLineSegments geometry={geometry} />;
 }
 
+/** Full platform mesh — same topR/slopeR as OctagonPlatform + listArenaPlatforms. */
 function PlatformRocketWire({
   x,
   z,

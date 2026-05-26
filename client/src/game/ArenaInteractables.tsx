@@ -173,6 +173,20 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
       </MaybeRigidBody>
+      <MaybeRigidBody
+        type="fixed"
+        colliders={false}
+        position={[0, stoneTopY + deckH * 0.5, 0]}
+        friction={0.55}
+        restitution={0.35}
+      >
+        <CylinderCollider
+          args={[deckH * 0.5, r]}
+          friction={0.55}
+          restitution={0.35}
+          collisionGroups={interactionGroups(2, [0, 1, 2])}
+        />
+      </MaybeRigidBody>
       <mesh
         position={[0, stoneTopY + deckH * 0.5, 0]}
         castShadow

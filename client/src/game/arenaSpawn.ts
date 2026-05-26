@@ -18,6 +18,17 @@ export type ArenaPlatformPlacement = {
   slopeR: number;
 };
 
+/** World XZ scale for a platform — must match StadiumGroupLayer (group scale only, not placement × group). */
+export function resolvePlatformWorldScale(
+  placementSizeScale: number,
+  group: { scale: [number, number, number] } | undefined,
+): number {
+  if (group) {
+    return (group.scale[0] + group.scale[2]) * 0.5;
+  }
+  return placementSizeScale;
+}
+
 /** All raised octagon decks (center + hex corners), including custom map offsets. */
 export function listArenaPlatforms(): ArenaPlatformPlacement[] {
   const placements = listOctagonPlatformPlacements();
@@ -29,13 +40,12 @@ export function listArenaPlatforms(): ArenaPlatformPlacement[] {
   return placements.map((p, i) => {
     let x = p.x;
     let z = p.z;
-    let scale = p.sizeScale;
     const group = groups.find((g) => g.stadiumKey === stadiumPlatformKey(i));
     if (group) {
       x = group.position[0];
       z = group.position[2];
-      scale = p.sizeScale * ((group.scale[0] + group.scale[2]) / 2);
     }
+    const scale = resolvePlatformWorldScale(p.sizeScale, group);
     return {
       x,
       z,
@@ -97,7 +107,7 @@ export function sampleTrampolineDeckSurfaceY(x: number, z: number): number | nul
   return null;
 }
 
-/** Rocket explosions — standing decks + trampolines, not invisible ramp volumes. */
+/** Rocket hits — metal deck tops + trampoline rubber only (not ramp skirts). */
 export function getMaxPlatformDeckSurfaceY(x: number, z: number): number | null {
   let best: number | null = null;
   for (const p of listArenaPlatforms()) {

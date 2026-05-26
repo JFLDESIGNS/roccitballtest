@@ -199,3 +199,42 @@ export function bounceLaunchSpeedY(gravity = -11, strengthMult = 1): number {
     ARENA_PADS.trampolineStrengthScale
   );
 }
+
+/** Swept segment vs cyan trampoline deck volume (rockets graze the pad, not only top-down). */
+export function segmentHitsBounceTrampoline(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  padRadius = 0.5,
+): { x: number; z: number; deckTopY: number } | null {
+  const pads = getBounceTrampolinePads();
+  const deckH = ARENA_PADS.bouncePadHeightM;
+  const samples = 12;
+
+  for (const pad of pads) {
+    const deckBottom = pad.platformTopY;
+    const deckTop = pad.platformTopY + deckH;
+    const hitR = pad.radius + padRadius;
+    const yMin = deckBottom - 0.2;
+    const yMax = deckTop + padRadius + 0.35;
+
+    let lastPy = from.y;
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      const px = from.x + (to.x - from.x) * t;
+      const py = from.y + (to.y - from.y) * t;
+      const pz = from.z + (to.z - from.z) * t;
+      const d = Math.hypot(px - pad.x, pz - pad.z);
+
+      if (d <= hitR) {
+        if (py >= yMin && py <= yMax) {
+          return { x: px, z: pz, deckTopY: deckTop };
+        }
+        if (lastPy > deckTop + 0.18 && py <= deckTop + 0.55) {
+          return { x: px, z: pz, deckTopY: deckTop };
+        }
+      }
+      lastPy = py;
+    }
+  }
+  return null;
+}
