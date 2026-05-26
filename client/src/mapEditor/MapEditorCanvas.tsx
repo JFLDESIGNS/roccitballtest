@@ -1,5 +1,6 @@
 import { OrbitControls, TransformControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
+import { Physics } from '@react-three/rapier';
 import {
   memo,
   useCallback,
@@ -163,7 +164,7 @@ function EditableGroup({
       <group ref={groupRef}>
         {isStadium && group.stadiumKey && (
           <>
-            <StadiumGroupVisual stadiumKey={group.stadiumKey} physics={false} />
+            <StadiumGroupVisual stadiumKey={group.stadiumKey} />
             <StadiumGroupPickMesh
               stadiumKey={group.stadiumKey}
               selected={selected}
@@ -577,7 +578,9 @@ export function MapEditorCanvas() {
         mapEditorStore.select(null);
       }}
     >
-      <EditorSceneContent />
+      <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
+        <EditorSceneContent />
+      </Physics>
     </Canvas>
   );
 }

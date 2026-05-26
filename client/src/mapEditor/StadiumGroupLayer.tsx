@@ -1,4 +1,3 @@
-import { Physics } from '@react-three/rapier';
 import { Suspense, useMemo } from 'react';
 import { Arena } from '../game/Arena';
 import { ArenaLighting } from '../game/ArenaLighting';
@@ -11,14 +10,7 @@ import type { MapGroup } from './mapEditorTypes';
 import { parseStadiumKey } from './stadiumLayout';
 import { StadiumGoalVisual, StadiumPillarVisual } from './StadiumPieceVisuals';
 
-function StadiumGroupVisual({
-  stadiumKey,
-  physics = true,
-}: {
-  stadiumKey: string;
-  /** Map editor previews must not mount Rapier bodies outside `<Physics />`. */
-  physics?: boolean;
-}) {
+function StadiumGroupVisual({ stadiumKey }: { stadiumKey: string }) {
   const parsed = parseStadiumKey(stadiumKey);
   const content = useMemo(() => {
     if (!parsed) return null;
@@ -30,7 +22,7 @@ function StadiumGroupVisual({
     if (parsed.kind === 'platform') {
       return (
         <>
-          <OctagonPlatform x={0} z={0} sizeScale={1} physics={false} />
+          <OctagonPlatform x={0} z={0} sizeScale={1} />
           {parsed.index === 0 && (
             <group
               position={[0, ARENA.platformTopHeight + 0.04, 0]}
@@ -173,13 +165,11 @@ export function EditorBaseArena({
     <>
       <ArenaLighting />
       <Suspense fallback={null}>
-        <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
-          <Arena
-            hiddenGoalIds={hiddenGoalIds}
-            hiddenPillarIndices={hiddenPillarIndices}
-            hiddenPlatformIndices={hiddenPlatformIndices}
-          />
-        </Physics>
+        <Arena
+          hiddenGoalIds={hiddenGoalIds}
+          hiddenPillarIndices={hiddenPillarIndices}
+          hiddenPlatformIndices={hiddenPlatformIndices}
+        />
       </Suspense>
     </>
   );

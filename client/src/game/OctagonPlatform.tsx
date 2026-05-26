@@ -16,15 +16,12 @@ export type OctagonPlatformProps = {
   z?: number;
   /** Scales top + ramp footprint (center = 2, corners = 1) */
   sizeScale?: number;
-  /** False in map editor / previews — avoids Rapier outside `<Physics />`. */
-  physics?: boolean;
 };
 
 export function OctagonPlatform({
   x = 0,
   z = 0,
   sizeScale = 1,
-  physics = true,
 }: OctagonPlatformProps) {
   const topR = octagonTopRadius * sizeScale;
   const slopeR = octagonSlopeRadius * sizeScale;
@@ -56,43 +53,35 @@ export function OctagonPlatform({
     visual.rotation.set(tiltX, tiltY, tiltZ);
   });
 
-  const visuals = (
-    <group ref={visualRef}>
-      <mesh
-        geometry={geometry}
-        material={arenaPlatformMaterial}
-        castShadow
-        receiveShadow
-      />
-      <mesh
-        position={[0, platformTopHeight + 0.02, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        geometry={topRingGeo}
-        material={arenaPlatformTopMaterial}
-      />
-    </group>
-  );
-
   return (
     <group position={[x, 0, z]}>
-      {physics ? (
-        <RigidBody
-          type="fixed"
-          colliders={false}
-          friction={0.85}
-          collisionGroups={interactionGroups(2)}
-        >
-          <TrimeshCollider
-            args={[vertices, indices]}
-            friction={0.55}
-            restitution={BALL.restitution * 0.85}
-            collisionGroups={interactionGroups(2, [0, 1, 2])}
+      <RigidBody
+        type="fixed"
+        colliders={false}
+        friction={0.85}
+        collisionGroups={interactionGroups(2)}
+      >
+        <TrimeshCollider
+          args={[vertices, indices]}
+          friction={0.55}
+          restitution={BALL.restitution * 0.85}
+          collisionGroups={interactionGroups(2, [0, 1, 2])}
+        />
+        <group ref={visualRef}>
+          <mesh
+            geometry={geometry}
+            material={arenaPlatformMaterial}
+            castShadow
+            receiveShadow
           />
-          {visuals}
-        </RigidBody>
-      ) : (
-        visuals
-      )}
+          <mesh
+            position={[0, platformTopHeight + 0.02, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            geometry={topRingGeo}
+            material={arenaPlatformTopMaterial}
+          />
+        </group>
+      </RigidBody>
     </group>
   );
 }
