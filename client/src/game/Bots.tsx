@@ -986,6 +986,10 @@ function BotAvatar({
   const knockTumble = useRef(createKnockVisualTumbleState());
   const knockStunWasActive = useRef(false);
   const trailPos = useRef(new THREE.Vector3());
+  const celebrateSeenId = useRef(0);
+  const celebrateShotsFired = useRef(0);
+  const celebrateNextShotAtSec = useRef(0);
+  const celebrateAimedShotDone = useRef(false);
 
   const applyBotVisual = (
     lv: { x: number; y: number; z: number },
@@ -1299,11 +1303,102 @@ function BotAvatar({
       !gs.ballFrozen &&
       gs.lastScoringTeam === bot.team
     ) {
+      const celebId = gs.goalCelebration?.id ?? 0;
+      if (celebId !== 0 && celebId !== celebrateSeenId.current) {
+        celebrateSeenId.current = celebId;
+        celebrateShotsFired.current = 0;
+        celebrateNextShotAtSec.current = 0;
+        celebrateAimedShotDone.current = false;
+      }
+
       beamPullActive.current = false;
       _center.set(BOT.celebrateCenterX, _pos.y, BOT.celebrateCenterZ);
       _wish.set(_center.x - _pos.x, 0, _center.z - _pos.z);
       const distCenter = _wish.length();
       if (distCenter > 0.05) _wish.normalize();
+
+      // Celebration: wiggle-rotate while running back from the goal.
+      const baseYaw = Math.atan2(-_wish.x, -_wish.z);
+      const tNowSec = performance.now() / 1000;
+      const phaseJitter =
+        bot.id === 'bot-0' ? 0.2 : bot.id === 'bot-1' ? 1.7 : 3.4;
+      yaw.current = baseYaw + Math.sin(tNowSec * 7.5 + phaseJitter) * 0.85;
+      pitch.current = 0.1 + Math.sin(tNowSec * 6.1 + phaseJitter) * 0.05;
+
+      // Fire two quick "celebration" rockets (up / across-field), then maybe one aimed rocket (50%).
+      // Keep it short so bots return to normal logic fast.
+      const canShootNow =
+        celebrateSeenId.current !== 0 &&
+        celebrateShotsFired.current < 2 &&
+        (celebrateNextShotAtSec.current === 0 ||
+          tNowSec >= celebrateNextShotAtSec.current);
+      if (canShootNow) {
+        // Shot 0: mostly up. Shot 1: across-field with lift.
+        if (celebrateShotsFired.current === 0) {
+          _lookDir.set(
+            bot.id === 'bot-0' ? -0.18 : bot.id === 'bot-1' ? 0.18 : 0.08,
+            1,
+            0.06,
+          ).normalize();
+        } else {
+          // Across the field toward midfield, with some upward arc.
+          _lookDir.set(-_wish.x * 0.75, 0.85, -_wish.z * 0.75).normalize();
+        }
+        if (botFireRocket(bot.id, body, _chest, _lookDir, onRocketFired, true, rocketFireCooldownUntil)) {
+          celebrateShotsFired.current += 1;
+          celebrateNextShotAtSec.current = tNowSec + 0.22;
+        } else {
+          // Retry next frame if cooldown blocked this instant.
+          celebrateNextShotAtSec.current = tNowSec + 0.05;
+        }
+      } else if (
+        celebrateSeenId.current !== 0 &&
+        celebrateShotsFired.current >= 2 &&
+        !celebrateAimedShotDone.current
+      ) {
+        celebrateAimedShotDone.current = true;
+        if (Math.random() < 0.5) {
+          // 50% chance: fire one aimed rocket at an opponent (player or opposing bot).
+          let targetChest: THREE.Vector3 | null = null;
+          const localTeamNow = gs.localTeam;
+          if (bot.team !== localTeamNow) {
+            // Enemy team scored: prefer the player or a local-team bot.
+            if (Math.random() < 0.55) {
+              targetChest = _playerChest;
+            } else {
+              targetChest = getNearestEnemyBotChest(
+                bot,
+                allBots.filter((b) => b.team === localTeamNow),
+                _shootTarget,
+                _playerVel,
+              );
+            }
+          } else {
+            // Friendly bots scored: aim at the nearest enemy bot.
+            targetChest = getNearestEnemyBotChest(
+              bot,
+              allBots.filter((b) => b.team !== localTeamNow),
+              _shootTarget,
+              _playerVel,
+            );
+          }
+          if (targetChest) {
+            _shootTarget.copy(targetChest);
+            _shootTarget.y = Math.max(_shootTarget.y, _chest.y + 0.6);
+            smoothAimToward(yaw, pitch, _chest, _shootTarget, dt, BOT.aimSmoothing * 0.85);
+            writeBotRocketLook(yaw, pitch, _lookDir);
+            botFireRocket(
+              bot.id,
+              body,
+              _chest,
+              _lookDir,
+              onRocketFired,
+              true,
+              rocketFireCooldownUntil,
+            );
+          }
+        }
+      }
 
       const linvel = body.linvel();
       updateBotGrounded(
