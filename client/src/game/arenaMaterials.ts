@@ -72,10 +72,12 @@ const darkDeckMetalMap = makeRepeatingCanvas(256, 256, (ctx, w, h) => {
 });
 darkDeckMetalMap.repeat.set(3, 3);
 
-/** Sealed concrete — slight gloss so walls/floor catch arena lights (no emissive/fog) */
-const ARENA_CONCRETE_ROUGHNESS = 0.74;
-const ARENA_CONCRETE_METALNESS = 0.06;
-const ARENA_CONCRETE_ENV_INTENSITY = 0.26;
+/** Sealed concrete — walls/floor: darker base, more specular catch on arena lights */
+const ARENA_CONCRETE_ROUGHNESS = 0.56;
+const ARENA_CONCRETE_METALNESS = 0.12;
+const ARENA_CONCRETE_ENV_INTENSITY = 0.44;
+/** Shared albedo for hex perimeter walls + main floor */
+const ARENA_WALL_FLOOR_CONCRETE_COLOR = '#3a4149';
 
 function createArenaConcreteSurfaceMaterial(
   color: string,
@@ -112,7 +114,9 @@ function bindConcrete(
 }
 
 /** Hex perimeter walls — grey concrete (darker than pillars) */
-export const arenaWallMaterial = createArenaConcreteSurfaceMaterial('#4a5159');
+export const arenaWallMaterial = createArenaConcreteSurfaceMaterial(
+  ARENA_WALL_FLOOR_CONCRETE_COLOR,
+);
 
 /** Corner pillars */
 export const arenaPillarMaterial = createArenaConcreteSurfaceMaterial('#5a626c');
@@ -138,14 +142,17 @@ export const goalBackRingMaterial = new THREE.MeshStandardMaterial({
 
 /** Legacy concrete floor (map editor fallback) */
 export const arenaFloorMaterial = new THREE.MeshStandardMaterial({
-  color: '#b8bec6',
-  roughness: 0.9,
-  metalness: 0.04,
+  color: ARENA_WALL_FLOOR_CONCRETE_COLOR,
+  roughness: ARENA_CONCRETE_ROUGHNESS,
+  metalness: ARENA_CONCRETE_METALNESS,
+  envMap: arenaMetalEnv,
+  envMapIntensity: ARENA_CONCRETE_ENV_INTENSITY,
+  fog: false,
 });
 
 /** Hex arena floor — same concrete as walls; DoubleSide in case winding varies */
 export const arenaHexFloorMaterial = (() => {
-  const mat = createArenaConcreteSurfaceMaterial('#4a5159');
+  const mat = createArenaConcreteSurfaceMaterial(ARENA_WALL_FLOOR_CONCRETE_COLOR);
   mat.side = THREE.DoubleSide;
   return mat;
 })();

@@ -12,6 +12,10 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { MOVEMENT } from '../shared/Constants';
 import { CHARACTER_MESH_RENDER_ORDER } from './JerseyDecal';
+import {
+  getForwardFlipProgress,
+  isForwardFlipActive,
+} from './forwardFlipEmote';
 import { gameStore } from './gameStore';
 import {
   disposeCrownMaterialMaps,
@@ -32,6 +36,8 @@ const CROWN_RAISE_IN = 4;
 const CROWN_FORWARD_Z = 0.06;
 const CROWN_POP_HEIGHT = 0.39;
 const CROWN_POP_DURATION_SEC = 0.6;
+/** Extra Y above head during forward flip (3rd jump + E) — not frozen, follows player */
+const CROWN_FLIP_LIFT_PEAK = 0.52;
 const CROWN_REST_Y = CAP_TOP_Y - CROWN_LOWER_FT * FT + CROWN_RAISE_IN * INCH;
 
 const CROWN_YAW = Math.PI;
@@ -45,7 +51,6 @@ const FALL_FLOAT_ABOVE_M = 0.26;
 const FALL_FLOAT_RISE_SEC = 0.34;
 const REATTACH_LERP = 14;
 
-/** Slow lift at first, reaches full height within FALL_FLOAT_RISE_SEC */
 function floatRiseEase(t: number): number {
   const u = Math.min(1, Math.max(0, t));
   return u * u * u;
@@ -111,6 +116,12 @@ function cartoonPopOffset(u: number): number {
   return CROWN_POP_HEIGHT * fall * bounce;
 }
 
+/** Quick upward burst early in flip — independent of body somersault rotation */
+function forwardFlipCrownLift(progress: number): number {
+  const burst = Math.sin(Math.min(1, progress * 2.6) * Math.PI);
+  return CROWN_FLIP_LIFT_PEAK * burst;
+}
+
 type PlayerJumpHatProps = {
   bodyRef: RefObject<RapierRigidBody | null>;
   visualRef: RefObject<THREE.Group | null>;
@@ -131,6 +142,7 @@ export function PlayerJumpHat({
   const floatRiseK = useRef(0);
   const reattachK = useRef(1);
   const floatHoldLocal = useRef(new THREE.Vector3());
+  const flipLiftY = useRef(0);
 
   const popSeq = useSyncExternalStore(
     gameStore.subscribe,
@@ -150,6 +162,10 @@ export function PlayerJumpHat({
     if (popSeq === lastPopSeq.current) return;
     lastPopSeq.current = popSeq;
     popStartMs.current = performance.now();
+    flipLiftY.current = 0;
+    detached.current = false;
+    reattachK.current = 1;
+    floatRiseK.current = 0;
   }, [popSeq]);
 
   useFrame((_, dt) => {
@@ -163,6 +179,21 @@ export function PlayerJumpHat({
     const isGrounded = groundedRef.current;
     const shouldDetach = !isGrounded && vy < FALL_DETACH_VY;
 
+    const elapsed = (performance.now() - popStartMs.current) / 1000;
+    const flipActive = isForwardFlipActive('local');
+    const flipProgress = getForwardFlipProgress('local');
+
+    let targetFlipLift = 0;
+    if (flipActive) {
+      targetFlipLift = forwardFlipCrownLift(flipProgress);
+    }
+    const flipLiftK = 1 - Math.exp(-22 * dt);
+    flipLiftY.current = THREE.MathUtils.lerp(
+      flipLiftY.current,
+      targetFlipLift,
+      flipLiftK,
+    );
+
     if (shouldDetach) {
       if (!detached.current) floatRiseK.current = 0;
       detached.current = true;
@@ -173,7 +204,6 @@ export function PlayerJumpHat({
       reattachK.current = 0;
     }
 
-    const elapsed = (performance.now() - popStartMs.current) / 1000;
     let pop = 0;
     let u = 1;
     const allowPop = !detached.current && reattachK.current >= 0.98;
@@ -181,6 +211,8 @@ export function PlayerJumpHat({
       u = elapsed / CROWN_POP_DURATION_SEC;
       pop = cartoonPopOffset(u);
     }
+
+    const flipLift = detached.current ? 0 : flipLiftY.current;
 
     if (detached.current) {
       floatRiseK.current = Math.min(
@@ -202,14 +234,14 @@ export function PlayerJumpHat({
       anchor.position.copy(_headWorld);
     } else if (reattachK.current < 1) {
       reattachK.current = Math.min(1, reattachK.current + dt * REATTACH_LERP);
-      _restLocal.y = CROWN_REST_Y + pop;
+      _restLocal.y = CROWN_REST_Y + pop + flipLift;
       anchor.position.lerpVectors(
         floatHoldLocal.current,
         _restLocal,
         reattachK.current,
       );
     } else {
-      anchor.position.set(_restLocal.x, _restLocal.y + pop, _restLocal.z);
+      anchor.position.set(_restLocal.x, _restLocal.y + pop + flipLift, _restLocal.z);
     }
 
     if (wrap) {

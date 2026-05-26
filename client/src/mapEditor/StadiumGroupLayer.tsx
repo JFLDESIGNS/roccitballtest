@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Arena } from '../game/Arena';
 import { ArenaLighting } from '../game/ArenaLighting';
 import { ARENA } from '../shared/Constants';
@@ -165,13 +165,11 @@ export function EditorBaseArena({
   return (
     <>
       <ArenaLighting />
-      <Suspense fallback={null}>
-        <Arena
-          hiddenGoalIds={hiddenGoalIds}
-          hiddenPillarIndices={hiddenPillarIndices}
-          hiddenPlatformIndices={hiddenPlatformIndices}
-        />
-      </Suspense>
+      <Arena
+        hiddenGoalIds={hiddenGoalIds}
+        hiddenPillarIndices={hiddenPillarIndices}
+        hiddenPlatformIndices={hiddenPlatformIndices}
+      />
     </>
   );
 }

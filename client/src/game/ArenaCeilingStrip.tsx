@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
 import { goalEndFaceX } from './goals';
+import { useArenaVisualOnly } from './arenaVisualOnly';
 
 const FT = 0.3048;
 /** Base cross-section ~5 ft; 5× wider along arena Z */
@@ -42,6 +43,7 @@ export function arenaCeilingStripLayout() {
  * with an LED strip along the arena-facing underside.
  */
 export function ArenaCeilingStrip() {
+  const visualOnly = useArenaVisualOnly();
   const { lengthX, centerY, lightLength } = useMemo(
     () => arenaCeilingStripLayout(),
     [],
@@ -49,14 +51,16 @@ export function ArenaCeilingStrip() {
 
   return (
     <group position={[0, centerY, 0]}>
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider
-          args={[lengthX / 2, STRIP_DROP_Y / 2, STRIP_THICKNESS_Z / 2]}
-          friction={0.22}
-          restitution={0.58}
-          collisionGroups={CEILING_STRIP_COLLISION}
-        />
-      </RigidBody>
+      {!visualOnly && (
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider
+            args={[lengthX / 2, STRIP_DROP_Y / 2, STRIP_THICKNESS_Z / 2]}
+            friction={0.22}
+            restitution={0.58}
+            collisionGroups={CEILING_STRIP_COLLISION}
+          />
+        </RigidBody>
+      )}
 
       <RoundedBox
         args={[lengthX, STRIP_DROP_Y, STRIP_THICKNESS_Z]}

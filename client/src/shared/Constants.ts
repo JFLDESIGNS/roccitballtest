@@ -726,6 +726,16 @@ export const MOVEMENT = {
   dashDurationSec: 0.9,
   /** Upward pop at dash start (m/s) */
   dashUpSpeed: 2,
+  /** E — leap + forward propel (flip stays on keydown) */
+  ePropelDurationSec: 1,
+  ePropelImpulseCount: 4,
+  ePropelUpSpeed: 13,
+  /** Horizontal speed added on each of the 4 move samples (m/s) */
+  ePropelImpulseHSpeed: 8.5,
+  /** Locked horizontal speed for the rest of the propel window (m/s) */
+  ePropelSustainSpeed: 19,
+  ePropelEnergyCostFrac: 0.6,
+  ePropelCooldownSec: 0.45,
 } as const;
 
 /** Energy */

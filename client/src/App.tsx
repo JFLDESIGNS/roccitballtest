@@ -74,7 +74,7 @@ function App() {
 
   return (
     <div className="app">
-      <GamePreloadHost />
+      {mode !== 'editor' && <GamePreloadHost />}
       {mode === 'menu' && (
         <MainMenu onPlay={startGame} onEditMap={startEditor} />
       )}

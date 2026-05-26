@@ -6,6 +6,7 @@ import {
   getArenaCornerPillarLayouts,
 } from './arenaPillars';
 import { arenaBlackMetalMaterial, arenaPillarMaterial } from './arenaMaterials';
+import { useArenaVisualOnly } from './arenaVisualOnly';
 import { useArenaPillarShake } from './useArenaPillarShake';
 
 const PILLAR_LIGHT_INSET = 2.4;
@@ -61,6 +62,7 @@ function PillarSquareLight({
 }
 
 function CornerPillar({ x, z }: { x: number; z: number }) {
+  const visualOnly = useArenaVisualOnly();
   const visualRef = useRef<THREE.Group>(null);
   const yCenter = ARENA_PILLAR.height / 2;
   const halfH = ARENA_PILLAR.height / 2;
@@ -74,19 +76,21 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
       position={[x, ARENA_PILLAR.floorY, z]}
       userData={{ arenaPillarX: x, arenaPillarZ: z }}
     >
-      <RigidBody
-        type="fixed"
-        colliders={false}
-        position={[0, yCenter, 0]}
-        userData={{ arenaPillarX: x, arenaPillarZ: z }}
-      >
-        <CylinderCollider
-          args={[ARENA_PILLAR.height / 2, ARENA_PILLAR.colliderRadius]}
-          friction={0.32}
-          restitution={ARENA_PILLAR.bounceRestitution}
-          collisionGroups={interactionGroups(2, [0, 1, 2])}
-        />
-      </RigidBody>
+      {!visualOnly && (
+        <RigidBody
+          type="fixed"
+          colliders={false}
+          position={[0, yCenter, 0]}
+          userData={{ arenaPillarX: x, arenaPillarZ: z }}
+        >
+          <CylinderCollider
+            args={[ARENA_PILLAR.height / 2, ARENA_PILLAR.colliderRadius]}
+            friction={0.32}
+            restitution={ARENA_PILLAR.bounceRestitution}
+            collisionGroups={interactionGroups(2, [0, 1, 2])}
+          />
+        </RigidBody>
+      )}
       <group ref={visualRef} position={[0, yCenter, 0]}>
         <mesh castShadow receiveShadow material={arenaPillarMaterial}>
           <cylinderGeometry

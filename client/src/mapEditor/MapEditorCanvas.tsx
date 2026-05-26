@@ -573,7 +573,6 @@ function EditorSceneContent() {
 
   return (
     <EditorOrbitContext.Provider value={orbitRef}>
-      <MapEditorSceneSetup />
       <EditorBackdrop
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}
@@ -587,27 +586,28 @@ function EditorSceneContent() {
 }
 
 export function MapEditorCanvas() {
-  const editorLights = useSyncExternalStore(
-    mapEditorStore.subscribe,
-    () => mapEditorStore.getState().document.lights,
-  );
-  const enableShadows = editorLights.some((l) => l.castShadow);
-
   return (
-    <Canvas
-      shadows={enableShadows}
-      dpr={[1, 1.25]}
-      camera={{ position: [0, 24, 44], fov: 58, near: 0.5, far: 320 }}
-      gl={{ antialias: RENDER.antialias, powerPreference: 'high-performance' }}
-      onPointerMissed={() => {
-        if (mapEditorStore.shouldSuppressPointerMiss()) return;
-        mapEditorStore.select(null);
-        stadiumLightStore.deselect();
-      }}
-    >
-      <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
-        <EditorSceneContent />
-      </Physics>
-    </Canvas>
+    <div className="map-editor-canvas-host">
+      <Canvas
+        className="map-editor-canvas"
+        shadows={false}
+        dpr={[1, 1.25]}
+        frameloop="always"
+        camera={{ position: [0, 24, 44], fov: 58, near: 0.5, far: 320 }}
+        gl={{ antialias: RENDER.antialias, alpha: false, powerPreference: 'high-performance' }}
+        onPointerMissed={() => {
+          if (mapEditorStore.shouldSuppressPointerMiss()) return;
+          mapEditorStore.select(null);
+          stadiumLightStore.deselect();
+        }}
+      >
+        <color attach="background" args={['#3a4a62']} />
+        <fog attach="fog" args={['#3a4a62', 90, 240]} />
+        <MapEditorSceneSetup />
+        <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
+          <EditorSceneContent />
+        </Physics>
+      </Canvas>
+    </div>
   );
 }

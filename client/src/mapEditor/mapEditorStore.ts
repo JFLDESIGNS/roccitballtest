@@ -14,6 +14,7 @@ import {
 } from './mapEditorTypes';
 import {
   createNewCustomMap,
+  findCustomMapByName,
   getCustomMapById,
   isDefaultMapId,
   loadActiveMapId,
@@ -24,6 +25,7 @@ import {
 } from './mapEditorStorage';
 import { stadiumLightStore } from '../game/stadiumLightStore';
 import { snapPositionToMoveGrid } from './editorMoveGrid';
+import { createDefaultArenaDocument } from './defaultArenaMapLights';
 import { ensureDocumentGroups } from './stadiumLayout';
 import { normalizeMapLight } from './mapLightDefaults';
 
@@ -135,7 +137,7 @@ export const mapEditorStore = {
     const id = mapId ?? loadActiveMapId();
     if (isDefaultMapId(id)) {
       patch({
-        document: createEditorDocument('Untitled'),
+        document: createDefaultArenaDocument(),
         selectedId: null,
         transformMode: 'translate',
         dirty: false,
@@ -144,7 +146,25 @@ export const mapEditorStore = {
       });
       return;
     }
-    const doc = getCustomMapById(id);
+    let doc = getCustomMapById(id);
+    if (!doc) {
+      const byName = findCustomMapByName('Newbie');
+      if (byName) {
+        doc = byName;
+        mapRegistryStore.setActiveMapId(byName.id);
+      }
+    }
+    if (!doc) {
+      const available = listCustomMapSummaries();
+      if (available.length > 0) {
+        console.warn(
+          '[MapEditor] Saved map id missing from registry; opening most recent custom map.',
+          { requestedId: id, available: available.map((m) => m.name) },
+        );
+        doc = getCustomMapById(available[0]!.id);
+        if (doc) mapRegistryStore.setActiveMapId(doc.id);
+      }
+    }
     if (!doc) {
       mapEditorStore.openEditor(DEFAULT_MAP_ID);
       return;

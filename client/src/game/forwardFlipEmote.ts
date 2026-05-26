@@ -1,4 +1,4 @@
-import type { BotId } from './gameStore';
+import { gameStore, type BotId } from './gameStore';
 import type { ActorId } from './playerRoster';
 
 /** Teammate drone — flips when the local player presses E */
@@ -19,6 +19,21 @@ export function triggerAllyBotForwardFlip(): void {
 /** E throw flourish — local player only */
 export function triggerThrowFlipEmotes(): void {
   triggerForwardFlip('local');
+  gameStore.bumpPlayerHatPop(true);
+}
+
+export function isForwardFlipActive(actorId: string): boolean {
+  const until = flipUntilByActor.get(actorId);
+  return until !== undefined && performance.now() < until;
+}
+
+/** 0 at flip start → 1 at flip end */
+export function getForwardFlipProgress(actorId: string): number {
+  const until = flipUntilByActor.get(actorId);
+  if (!until) return 0;
+  const remaining = until - performance.now();
+  if (remaining <= 0) return 1;
+  return 1 - remaining / FLIP_DURATION_MS;
 }
 
 /** Extra pitch (rad) on the tilt group — one forward somersault, eased in/out */

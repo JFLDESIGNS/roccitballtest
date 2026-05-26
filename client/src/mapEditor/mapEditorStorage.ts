@@ -109,6 +109,15 @@ export function getCustomMapById(id: string): MapDocument | null {
   return loadRegistry().maps.find((m) => m.id === id) ?? null;
 }
 
+/** Case-insensitive lookup — custom maps live in browser localStorage only. */
+export function findCustomMapByName(name: string): MapDocument | null {
+  const q = name.trim().toLowerCase();
+  if (!q) return null;
+  return (
+    loadRegistry().maps.find((m) => m.name.trim().toLowerCase() === q) ?? null
+  );
+}
+
 export function getActiveMapDocument(activeId: string): MapDocument | null {
   if (activeId === DEFAULT_MAP_ID) return null;
   return getCustomMapById(activeId);

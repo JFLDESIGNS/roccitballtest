@@ -14,6 +14,7 @@ import {
 import { shouldIgnoreGameplayKeys } from './uiFocus';
 import { matchStatRows } from './matchStats';
 import { resumeAudio, warmAudio } from './audio';
+import { MatchScoreboard } from './MatchScoreboard';
 import { StadiumLightEditorPanel } from './StadiumLightEditorPanel';
 
 function formatTime(sec: number): string {
@@ -92,14 +93,13 @@ export function HUD({ onMainMenu }: HUDProps) {
               <div className="hud-combo-mult">x{state.ballCombo}</div>
             </div>
           )}
-          <div className="hud-score" aria-label="Match score">
-            <span className="team-red">{state.score.red}</span>
-            <span className="hud-score-div">—</span>
-            <span className="team-blue">{state.score.blue}</span>
-          </div>
+          <MatchScoreboard
+            red={state.score.red}
+            blue={state.score.blue}
+            timeLabel={formatTime(state.timeLeft)}
+          />
         </div>
         <div className="hud-top-right">
-          <div className="hud-timer">{formatTime(state.timeLeft)}</div>
           <div className="hud-speed-panel">
             <div className="hud-speed-row">
               <svg className="hud-speed-icon" viewBox="0 0 24 24" aria-hidden>

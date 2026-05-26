@@ -1,4 +1,5 @@
-import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups, RigidBody } from '@react-three/rapier';
+import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups } from '@react-three/rapier';
+import { MaybeRigidBody } from './maybeRigid';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { ARENA, BALL } from '../shared/Constants';
@@ -73,7 +74,7 @@ function PerimeterWall({
   );
 
   return (
-    <RigidBody
+    <MaybeRigidBody
       type="fixed"
       colliders={false}
       position={[x, y, z]}
@@ -92,7 +93,7 @@ function PerimeterWall({
         geometry={wallGeo}
       />
       <WallTopTrim length={length} thickness={wallThickness} />
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 
@@ -132,7 +133,7 @@ function GoalScoringVolume({
   const tiltX = ringTiltX(goal.team, goal.size);
 
   return (
-    <RigidBody
+    <MaybeRigidBody
       type="fixed"
       colliders={false}
       position={[center.x, center.y, center.z]}
@@ -148,7 +149,7 @@ function GoalScoringVolume({
           </group>
         </group>
       </group>
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 
@@ -200,7 +201,7 @@ function GoalRingBackplate({
     size === 'medium' ? 0.2 : size === 'small' ? ringTiltX(team, size) * 0.35 : 0;
 
   return (
-    <RigidBody
+    <MaybeRigidBody
       type="fixed"
       colliders={false}
       position={[backX, center.y, center.z]}
@@ -234,7 +235,7 @@ function GoalRingBackplate({
           />
         </group>
       </group>
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 
@@ -287,7 +288,7 @@ function GoalRing({
         team={team}
         size={size}
       />
-      <RigidBody
+      <MaybeRigidBody
         type="fixed"
         colliders={false}
         position={[center.x, center.y, center.z]}
@@ -342,7 +343,7 @@ function GoalRing({
             </group>
           </group>
         </group>
-      </RigidBody>
+      </MaybeRigidBody>
     </>
   );
 }
@@ -397,7 +398,7 @@ export function Arena({
   );
   return (
     <group>
-      <RigidBody type="fixed" colliders={false} position={[0, 0, 0]}>
+      <MaybeRigidBody type="fixed" colliders={false} position={[0, 0, 0]}>
         <CuboidCollider
           args={[hexRadius * 0.87, 0.25, hexRadius * 0.87]}
           position={[0, 0.12, 0]}
@@ -411,7 +412,7 @@ export function Arena({
           castShadow={false}
           material={arenaHexFloorMaterial}
         />
-      </RigidBody>
+      </MaybeRigidBody>
       <ArenaPlatformGroundShadows />
       <ArenaGoalGroundShadows />
 

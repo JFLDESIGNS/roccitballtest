@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { preloadRapier } from '../game/rapierPreload';
 import { initStadiumRectAreaLights } from '../game/stadiumRectAreaLightInit';
 import { stadiumLightStore } from '../game/stadiumLightStore';
 import { MapEditorCanvas } from './MapEditorCanvas';
@@ -13,6 +14,7 @@ type MapEditorProps = {
 
 export function MapEditor({ onExit }: MapEditorProps) {
   useEffect(() => {
+    void preloadRapier();
     initStadiumRectAreaLights();
     mapEditorSession.setActive(true);
     stadiumLightStore.setShowWireframes(true);

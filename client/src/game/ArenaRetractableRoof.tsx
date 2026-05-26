@@ -14,6 +14,7 @@ import { arenaRoofStore } from './arenaRoofStore';
 import { burstRoofOpenSmoke, burstRoofSeamSmoke } from './pillarSmokePuffs';
 import { triggerStadiumRoofRumbleShake } from './visualShake';
 import { arenaCeilingMaterial } from './arenaMaterials';
+import { useArenaVisualOnly } from './arenaVisualOnly';
 import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
 
 const ROOF_COLLISION = interactionGroups(2, [0, 1, 2]);
@@ -50,6 +51,7 @@ export function arenaRoofLayout() {
  * Colliders stay mounted — kinematic translation only (avoids Rapier crash on toggle).
  */
 export function ArenaRetractableRoof() {
+  const visualOnly = useArenaVisualOnly();
   const nearBodyRef = useRef<RapierRigidBody>(null);
   const farBodyRef = useRef<RapierRigidBody>(null);
   const nearMeshRef = useRef<THREE.Group>(null);
@@ -122,13 +124,15 @@ export function ArenaRetractableRoof() {
     nearMeshRef.current?.position.set(0, y, nearZ);
     farMeshRef.current?.position.set(0, y, farZ);
 
-    const nearBody = nearBodyRef.current;
-    if (nearBody) {
-      nearBody.setNextKinematicTranslation({ x: 0, y, z: nearZ });
-    }
-    const farBody = farBodyRef.current;
-    if (farBody) {
-      farBody.setNextKinematicTranslation({ x: 0, y, z: farZ });
+    if (!visualOnly) {
+      const nearBody = nearBodyRef.current;
+      if (nearBody) {
+        nearBody.setNextKinematicTranslation({ x: 0, y, z: nearZ });
+      }
+      const farBody = farBodyRef.current;
+      if (farBody) {
+        farBody.setNextKinematicTranslation({ x: 0, y, z: farZ });
+      }
     }
   });
 
@@ -170,19 +174,21 @@ export function ArenaRetractableRoof() {
           receiveShadow={false}
         />
       </group>
-      <RigidBody
-        ref={farBodyRef}
-        type="kinematicPosition"
-        colliders={false}
-        position={[0, layout.centerY, layout.closedFarZ]}
-      >
-        <CuboidCollider
-          args={[layout.spanX / 2, layout.thickness / 2, layout.halfZ / 2]}
-          friction={0.2}
-          restitution={0.55}
-          collisionGroups={ROOF_COLLISION}
-        />
-      </RigidBody>
+      {!visualOnly && (
+        <RigidBody
+          ref={farBodyRef}
+          type="kinematicPosition"
+          colliders={false}
+          position={[0, layout.centerY, layout.closedFarZ]}
+        >
+          <CuboidCollider
+            args={[layout.spanX / 2, layout.thickness / 2, layout.halfZ / 2]}
+            friction={0.2}
+            restitution={0.55}
+            collisionGroups={ROOF_COLLISION}
+          />
+        </RigidBody>
+      )}
     </>
   );
 }

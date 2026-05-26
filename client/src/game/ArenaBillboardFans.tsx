@@ -1,5 +1,6 @@
 import { useFrame } from '@react-three/fiber';
-import { CuboidCollider, RigidBody, interactionGroups } from '@react-three/rapier';
+import { CuboidCollider, interactionGroups } from '@react-three/rapier';
+import { MaybeRigidBody } from './maybeRigid';
 import { useEffect, useLayoutEffect, useMemo, useRef, type ComponentProps } from 'react';
 import * as THREE from 'three';
 import { ARENA, ARENA_PADS, BALL } from '../shared/Constants';
@@ -769,7 +770,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
       position={[mount.x, mount.y, mount.z]}
       rotation={[0, mount.yaw, 0]}
     >
-      <RigidBody type="fixed" colliders={false}>
+      <MaybeRigidBody type="fixed" colliders={false}>
         <CuboidCollider
           args={[bayW / 2, bayH / 2, 0.22]}
           position={[0, bayY + bayH * 0.08, backZ]}
@@ -777,7 +778,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
           restitution={BALL.restitution}
           collisionGroups={FAN_BOOTH_INTERIOR_COLLISION}
         />
-      </RigidBody>
+      </MaybeRigidBody>
 
       <MeterTiledWallMesh
         position={[-bayW * 0.5 + sideInset, bayY, recessCenterZ]}
@@ -853,7 +854,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
       })}
 
       {/* Glass physics — flush on court face, not floating in front of the window */}
-      <RigidBody type="fixed" colliders={false}>
+      <MaybeRigidBody type="fixed" colliders={false}>
         <CuboidCollider
           args={[
             (bayW * 0.992) / 2,
@@ -869,7 +870,7 @@ function FanBay({ mount, bayKey, homeTeam, edgeIndex }: FanBayProps) {
           restitution={FAN_GLASS_RESTITUTION}
           collisionGroups={WALL_COLLISION}
         />
-      </RigidBody>
+      </MaybeRigidBody>
       <group position={[0, bayY, glassZ]}>
         <mesh
           ref={(mesh) => {
@@ -1026,7 +1027,7 @@ function FanOpeningWallFill({
   );
 
   return (
-    <RigidBody
+    <MaybeRigidBody
       type="fixed"
       colliders={false}
       position={[0, centerYLocal, 0]}
@@ -1049,7 +1050,7 @@ function FanOpeningWallFill({
           centerY={height / 2 + WALL_TOP_TRIM_HEIGHT / 2}
         />
       )}
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 
@@ -1098,7 +1099,7 @@ export function SplitPerimeterWallWithFans({
   return (
     <group position={[x, y, z]} rotation={[0, yaw, 0]}>
       {([-1, 1] as const).map((side) => (
-        <RigidBody
+        <MaybeRigidBody
           key={side}
           type="fixed"
           colliders={false}
@@ -1117,7 +1118,7 @@ export function SplitPerimeterWallWithFans({
             geometry={wingGeo}
           />
           <WallTopTrim length={wingLen} />
-        </RigidBody>
+        </MaybeRigidBody>
       ))}
 
       {sillH > 0.05 && (

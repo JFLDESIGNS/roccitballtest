@@ -108,7 +108,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
 
   const openEditor = () => {
     commitProfile();
-    mapEditorStore.openEditor(activeMapId);
+    mapEditorStore.openEditor(DEFAULT_MAP_ID);
     onEditMap();
   };
 

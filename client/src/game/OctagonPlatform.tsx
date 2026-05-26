@@ -1,4 +1,6 @@
-import { interactionGroups, RigidBody, TrimeshCollider } from '@react-three/rapier';
+import { interactionGroups, TrimeshCollider } from '@react-three/rapier';
+import { useArenaVisualOnly } from './arenaVisualOnly';
+import { MaybeRigidBody } from './maybeRigid';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -19,13 +21,18 @@ export type OctagonPlatformProps = {
   x?: number;
   z?: number;
   sizeScale?: number;
+  /** When false, mesh only (map editor stadium groups). */
+  physics?: boolean;
 };
 
 export function OctagonPlatform({
   x = 0,
   z = 0,
   sizeScale = 1,
+  physics: physicsProp,
 }: OctagonPlatformProps) {
+  const visualOnly = useArenaVisualOnly();
+  const physics = physicsProp ?? !visualOnly;
   const topR = octagonTopRadius * sizeScale * octagonPlatformSizeMul;
   const slopeR = octagonSlopeRadius * sizeScale * octagonPlatformSizeMul;
 
@@ -56,35 +63,43 @@ export function OctagonPlatform({
     visual.rotation.set(tiltX, tiltY, tiltZ);
   });
 
+  const visuals = (
+    <group ref={visualRef}>
+      <mesh
+        geometry={geometry}
+        material={arenaPlatformMaterial}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        position={[0, platformTopHeight + 0.02, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        geometry={topRingGeo}
+        material={arenaPlatformTopMaterial}
+      />
+    </group>
+  );
+
   return (
     <group position={[x, 0, z]}>
-      <RigidBody
-        type="fixed"
-        colliders={false}
-        friction={0.85}
-        collisionGroups={interactionGroups(2, [0, 1, 2])}
-      >
-        <TrimeshCollider
-          args={[vertices, indices]}
-          friction={0.55}
-          restitution={BALL.restitution * 0.85}
+      {physics ? (
+        <MaybeRigidBody
+          type="fixed"
+          colliders={false}
+          friction={0.85}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
-        />
-        <group ref={visualRef}>
-          <mesh
-            geometry={geometry}
-            material={arenaPlatformMaterial}
-            castShadow
-            receiveShadow
+        >
+          <TrimeshCollider
+            args={[vertices, indices]}
+            friction={0.55}
+            restitution={BALL.restitution * 0.85}
+            collisionGroups={interactionGroups(2, [0, 1, 2])}
           />
-          <mesh
-            position={[0, platformTopHeight + 0.02, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            geometry={topRingGeo}
-            material={arenaPlatformTopMaterial}
-          />
-        </group>
-      </RigidBody>
+          {visuals}
+        </MaybeRigidBody>
+      ) : (
+        visuals
+      )}
     </group>
   );
 }

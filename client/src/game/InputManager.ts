@@ -23,6 +23,7 @@ class InputManager {
   private yaw = 0;
   private aimPitch: number = AIM.defaultPitch;
   private throwQueued = false;
+  private ePropelQueued = false;
   private fireQueued = false;
   private jumpQueued = false;
   private jumpBufferUntil = 0;
@@ -507,6 +508,12 @@ class InputManager {
   consumeThrow(): boolean {
     if (!this.throwQueued) return false;
     this.throwQueued = false;
+    return true;
+  }
+
+  consumeEPropel(): boolean {
+    if (!this.ePropelQueued) return false;
+    this.ePropelQueued = false;
     return true;
   }
 

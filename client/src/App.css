@@ -1556,15 +1556,76 @@ body,
   z-index: 20;
 }
 
-.hud-score {
-  font-family: 'Orbitron', 'Segoe UI', system-ui, sans-serif;
-  font-size: clamp(2.75rem, 7.5vw, 4.25rem);
-  font-weight: 700;
+/* Rocket League–style top score bar (Rocccit red / blue) */
+.rl-scoreboard {
+  --rl-red: #e81919;
+  --rl-blue: #55aaff;
+  display: flex;
+  align-items: stretch;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+.rl-scoreboard-seg {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.35rem;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* Top edge wider than bottom — outer sides slant outward going up (RL reference) */
+.rl-scoreboard-seg--red {
+  width: clamp(3.4rem, 11vw, 4.6rem);
+  padding: 0 0.55rem 0 0.85rem;
+  background: var(--rl-red);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 14% 100%);
+}
+
+.rl-scoreboard-seg--blue {
+  width: clamp(3.4rem, 11vw, 4.6rem);
+  padding: 0 0.85rem 0 0.55rem;
+  background: var(--rl-blue);
+  clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%);
+}
+
+.rl-scoreboard-seg--timer {
+  width: clamp(4.6rem, 14vw, 6.2rem);
+  margin: 0 -1px;
+  padding: 0 0.35rem;
+  background: #0a0c10;
+  z-index: 1;
+}
+
+.rl-scoreboard-digit {
+  position: relative;
+  z-index: 1;
+  font-family: 'Barlow Semi Condensed', 'Orbitron', system-ui, sans-serif;
+  font-size: clamp(2.1rem, 5.5vw, 2.85rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   text-shadow:
-    0 0 28px rgba(0, 0, 0, 0.85),
-    0 2px 8px rgba(0, 0, 0, 0.65);
+    0 0 18px rgba(255, 255, 255, 0.35),
+    0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.rl-scoreboard-time {
+  position: relative;
+  z-index: 1;
+  font-family: 'Barlow Semi Condensed', 'Orbitron', system-ui, sans-serif;
+  font-size: clamp(1.55rem, 4vw, 2rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: #f4f8ff;
+  text-shadow:
+    0 0 14px rgba(200, 220, 255, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .team-red {
@@ -1575,23 +1636,11 @@ body,
   color: #55aaff;
 }
 
-.hud-score-div {
-  margin: 0 0.35rem;
-  color: rgba(200, 220, 240, 0.45);
-  font-weight: 600;
-}
-
 .hud-top-right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
-}
-
-.hud-timer {
-  font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
-  color: #ccddee;
 }
 
 .hud-speed-panel {

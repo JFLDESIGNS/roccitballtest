@@ -40,6 +40,7 @@ import {
   pointOnCrosshairAimRay,
   updateThirdPersonCamera,
 } from './CameraController';
+import { triggerForwardFlip } from './forwardFlipEmote';
 import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import { PlayerJumpHat } from './PlayerJumpHat';
@@ -137,6 +138,32 @@ function speedCameraFactor(
 }
 
 const _moveVelXZ = new THREE.Vector3();
+const _ePropelVel = new THREE.Vector3();
+const _ePropelDir = new THREE.Vector3();
+
+function ePropelImpulseThreshold(index: number): number {
+  const n = MOVEMENT.ePropelImpulseCount;
+  if (n <= 1) return 0;
+  return (index / (n - 1)) * MOVEMENT.ePropelDurationSec;
+}
+
+/** Move at sample time, else camera forward */
+function resolveEPropelDirection(
+  out: THREE.Vector3,
+  forward: THREE.Vector3,
+  right: THREE.Vector3,
+  move: { x: number; y: number },
+  walkSpeed: number,
+): void {
+  cameraMoveTargetXZ(_ePropelVel, forward, right, move, walkSpeed);
+  if (_ePropelVel.lengthSq() > 1e-6) {
+    out.copy(_ePropelVel).setY(0).normalize();
+    return;
+  }
+  out.copy(forward).setY(0);
+  if (out.lengthSq() < 1e-6) out.set(0, 0, -1);
+  else out.normalize();
+}
 
 /** Camera-relative wish velocity — strafe (A/D) faster than forward/back */
 function cameraMoveTargetXZ(
@@ -233,6 +260,11 @@ export function Player({
   const goalNetCooldown = useRef(0);
   const goalRimCooldown = useRef(0);
   const _dashDir = useRef(new THREE.Vector3());
+  const ePropelTimer = useRef(0);
+  const ePropelElapsed = useRef(0);
+  const ePropelImpulsesApplied = useRef(0);
+  const ePropelCooldown = useRef(0);
+  const ePropelVyBoost = useRef<number | null>(null);
   const energy = useRef<number>(ENERGY.max);
   const regenTimer = useRef(0);
   const draining = useRef(false);
@@ -664,8 +696,13 @@ export function Player({
     knockStunWasActive.current = false;
     const localTeam = gameStore.getState().localTeam;
     dashCooldown.current = Math.max(0, dashCooldown.current - dt);
+    ePropelCooldown.current = Math.max(0, ePropelCooldown.current - dt);
     rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
+    ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
+    if (ePropelTimer.current > 0) {
+      ePropelElapsed.current += dt;
+    }
     goalNetCooldown.current = Math.max(0, goalNetCooldown.current - dt);
     goalRimCooldown.current = Math.max(0, goalRimCooldown.current - dt);
     const t = body.translation();
@@ -816,8 +853,66 @@ export function Player({
       lastWishDir.current.copy(wishDir);
     }
 
-    const dashing = dashActiveTimer.current > 0;
-    if (dashing) {
+    if (
+      !goalEjectMoveLocked &&
+      !isPlayerKnockStunActive() &&
+      ePropelCooldown.current <= 0 &&
+      inputManager.consumeEPropel()
+    ) {
+      energy.current = Math.max(
+        0,
+        energy.current * (1 - MOVEMENT.ePropelEnergyCostFrac),
+      );
+      regenTimer.current = ENERGY.regenDelay;
+      draining.current = true;
+      ePropelTimer.current = MOVEMENT.ePropelDurationSec;
+      ePropelElapsed.current = 0;
+      ePropelImpulsesApplied.current = 0;
+      ePropelCooldown.current = MOVEMENT.ePropelCooldownSec;
+      ePropelVyBoost.current = MOVEMENT.ePropelUpSpeed;
+      resolveEPropelDirection(
+        _ePropelDir,
+        forward,
+        right,
+        moveEarly,
+        tune.walkSpeed,
+      );
+      playDash();
+      grounded.current = false;
+      jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+      coyoteTime.current = 0;
+      const tr = body.translation();
+      body.setTranslation(
+        { x: tr.x, y: tr.y + MOVEMENT.jumpLiftY, z: tr.z },
+        true,
+      );
+    }
+
+    const ePropelling = ePropelTimer.current > 0;
+    const dashing = dashActiveTimer.current > 0 && !ePropelling;
+    if (ePropelling) {
+      while (
+        ePropelImpulsesApplied.current < MOVEMENT.ePropelImpulseCount &&
+        ePropelElapsed.current >=
+          ePropelImpulseThreshold(ePropelImpulsesApplied.current)
+      ) {
+        const moveSample = goalEjectMoveLocked
+          ? { x: 0, y: 0 }
+          : inputManager.getMoveVector();
+        resolveEPropelDirection(
+          _ePropelDir,
+          forward,
+          right,
+          moveSample,
+          tune.walkSpeed,
+        );
+        velocity.current.x += _ePropelDir.x * MOVEMENT.ePropelImpulseHSpeed;
+        velocity.current.z += _ePropelDir.z * MOVEMENT.ePropelImpulseHSpeed;
+        ePropelImpulsesApplied.current += 1;
+      }
+      velocity.current.x = _ePropelDir.x * MOVEMENT.ePropelSustainSpeed;
+      velocity.current.z = _ePropelDir.z * MOVEMENT.ePropelSustainSpeed;
+    } else if (dashing) {
       const dashSpd = MOVEMENT.dashForwardSpeed;
       velocity.current.x = _dashDir.current.x * dashSpd;
       velocity.current.z = _dashDir.current.z * dashSpd;
@@ -848,6 +943,10 @@ export function Player({
     }
 
     let vy = linvel.y;
+    if (ePropelVyBoost.current !== null) {
+      vy = ePropelVyBoost.current;
+      ePropelVyBoost.current = null;
+    }
 
     if (
       !goalEjectMoveLocked &&
@@ -882,7 +981,12 @@ export function Player({
 
     if (!goalEjectMoveLocked && jumpsLeft.current > 0 && inputManager.consumeJump()) {
       const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
-      gameStore.bumpPlayerHatPop();
+      if (jumpIndex >= 2) {
+        triggerForwardFlip('local');
+        gameStore.bumpPlayerHatPop(true);
+      } else {
+        gameStore.bumpPlayerHatPop(false);
+      }
       thrusterJumpBoost.current = 1;
       playJump(jumpIndex);
       vy = tuningStore.getJumpImpulse(jumpIndex);

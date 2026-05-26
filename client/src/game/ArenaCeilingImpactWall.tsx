@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
 import { createCeilingGridShaderMaterial } from './ceilingGridShader';
+import { useArenaVisualOnly } from './arenaVisualOnly';
 import { getCeilingWallHitPulse, getCeilingWallWobble } from './visualShake';
 
 const CEILING_COLLISION = interactionGroups(2, [0, 1, 2]);
@@ -11,6 +12,7 @@ const CEILING_COLLISION = interactionGroups(2, [0, 1, 2]);
 const CEILING_PLANE_SIZE = ARENA.hexRadius * 2.35;
 
 export function ArenaCeilingImpactWall() {
+  const visualOnly = useArenaVisualOnly();
   const ceilingY = ARENA.wallHeight + ARENA.ceilingOverlapM;
   const colliderY = ARENA.wallHeight - 0.08;
   const mat = useMemo(() => createCeilingGridShaderMaterial(), []);
@@ -35,15 +37,17 @@ export function ArenaCeilingImpactWall() {
 
   return (
     <group>
-      <RigidBody type="fixed" colliders={false} position={[0, 0, 0]}>
-        <CuboidCollider
-          args={[ARENA.hexRadius * 0.9, 0.22, ARENA.hexRadius * 0.9]}
-          position={[0, colliderY, 0]}
-          restitution={0.85}
-          friction={0.2}
-          collisionGroups={CEILING_COLLISION}
-        />
-      </RigidBody>
+      {!visualOnly && (
+        <RigidBody type="fixed" colliders={false} position={[0, 0, 0]}>
+          <CuboidCollider
+            args={[ARENA.hexRadius * 0.9, 0.22, ARENA.hexRadius * 0.9]}
+            position={[0, colliderY, 0]}
+            restitution={0.85}
+            friction={0.2}
+            collisionGroups={CEILING_COLLISION}
+          />
+        </RigidBody>
+      )}
 
       <mesh
         ref={meshRef}

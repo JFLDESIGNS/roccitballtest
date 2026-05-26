@@ -2,9 +2,9 @@ import { useFrame } from '@react-three/fiber';
 import {
   CuboidCollider,
   interactionGroups,
-  RigidBody,
   TrimeshCollider,
 } from '@react-three/rapier';
+import { MaybeRigidBody } from './maybeRigid';
 import {
   createContext,
   useContext,
@@ -118,7 +118,7 @@ function BottomDropSlice({
   return (
     <group position={[0, bottomY, 0]}>
       <group ref={swingRef} position={[slice.mx, 0, slice.mz]}>
-        <RigidBody
+        <MaybeRigidBody
           type="fixed"
           colliders={false}
           friction={DROP_FRICTION}
@@ -136,7 +136,7 @@ function BottomDropSlice({
             castShadow
             receiveShadow
           />
-        </RigidBody>
+        </MaybeRigidBody>
       </group>
     </group>
   );
@@ -251,7 +251,7 @@ export function BallDrop() {
   return (
     <DoorOpenRefContext.Provider value={doorOpenRef}>
       <group position={[0, ARENA.ballDropCenterY, 0]} ref={shakeRoot}>
-        <RigidBody
+        <MaybeRigidBody
           type="fixed"
           colliders={false}
           friction={DROP_FRICTION}
@@ -329,7 +329,7 @@ export function BallDrop() {
             castShadow
             receiveShadow
           />
-        </RigidBody>
+        </MaybeRigidBody>
 
         {screenYaw.map((yaw, i) => (
           <group

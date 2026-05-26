@@ -19,7 +19,7 @@ export function MapEditorSceneSetup() {
     gl.setClearColor(bg, 1);
     scene.background = bg;
     gl.toneMapping = THREE.ACESFilmicToneMapping;
-    gl.toneMappingExposure = gfx.exposure * brightness;
+    gl.toneMappingExposure = Math.max(0.9, gfx.exposure * brightness);
 
     const pmrem = new THREE.PMREMGenerator(gl);
     pmrem.compileCubemapShader();
@@ -47,13 +47,21 @@ export function MapEditorSceneSetup() {
   }, [gl, scene, gfx.exposure, brightness]);
 
   useFrame(() => {
-    gl.toneMappingExposure = gfx.exposure * brightness;
+    gl.toneMappingExposure = Math.max(0.9, gfx.exposure * brightness);
   });
 
   return (
-    <hemisphereLight
-      args={['#9aa8b8', '#2a3038', 0.38 * brightness]}
-      position={[0, 48, 0]}
-    />
+    <>
+      <hemisphereLight
+        args={['#c8daf0', '#4a5568', 0.65 * brightness]}
+        position={[0, 48, 0]}
+      />
+      <ambientLight intensity={0.42 * brightness} color="#eef2fa" />
+      <directionalLight
+        position={[36, 58, 22]}
+        intensity={1.35 * brightness}
+        color="#fff4e6"
+      />
+    </>
   );
 }

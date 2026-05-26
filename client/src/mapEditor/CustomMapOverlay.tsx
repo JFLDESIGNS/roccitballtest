@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { DEFAULT_MAP_ID } from './mapEditorTypes';
+import { cloneDefaultArenaMapLights } from './defaultArenaMapLights';
 import { MapLightNode, MapObjectMesh } from './MapObjectMesh';
 import { mapRegistryStore } from './mapEditorStore';
 import { StadiumGroupLayer } from './StadiumGroupLayer';
@@ -19,32 +21,41 @@ function GroupedObject({ object }: { object: Parameters<typeof MapObjectMesh>[0]
 
 /** Custom map props layered on top of the default arena during play. */
 export function CustomMapOverlay() {
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
   const doc = useSyncExternalStore(
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapDocument(),
   );
 
-  if (!doc) return null;
+  const isDefault = activeMapId === DEFAULT_MAP_ID;
+  if (!doc && !isDefault) return null;
 
-  const rootObjects = doc.objects.filter((o) => !o.groupId);
-  const groupedObjects = doc.groups
+  const lights = doc?.lights ?? (isDefault ? cloneDefaultArenaMapLights() : []);
+  const groups = doc?.groups ?? [];
+  const objects = doc?.objects ?? [];
+
+  const rootObjects = objects.filter((o) => !o.groupId);
+  const groupedObjects = groups
     .filter((g) => !g.stadiumKey)
     .map((group) => ({
       group,
-      objects: doc.objects.filter((o) => o.groupId === group.id),
+      objects: objects.filter((o) => o.groupId === group.id),
     }));
 
   return (
     <>
-      <StadiumGroupLayer groups={doc.groups} />
-      {groupedObjects.map(({ group, objects }) => (
+      <StadiumGroupLayer groups={groups} />
+      {groupedObjects.map(({ group, objects: grouped }) => (
         <group
           key={group.id}
           position={group.position}
           rotation={group.rotation}
           scale={group.scale}
         >
-          {objects.map((obj) => (
+          {grouped.map((obj) => (
             <GroupedObject key={obj.id} object={obj} />
           ))}
         </group>
@@ -52,7 +63,7 @@ export function CustomMapOverlay() {
       {rootObjects.map((obj) => (
         <MapObjectMesh key={obj.id} object={obj} />
       ))}
-      {doc.lights.map((light) => (
+      {lights.map((light) => (
         <MapLightNode
           key={light.id}
           light={light}

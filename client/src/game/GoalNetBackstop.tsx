@@ -1,4 +1,5 @@
-import { CuboidCollider, interactionGroups, RigidBody } from '@react-three/rapier';
+import { CuboidCollider, interactionGroups } from '@react-three/rapier';
+import { MaybeRigidBody } from './maybeRigid';
 import type { Team } from '../shared/Types';
 import {
   goalEndFaceX,
@@ -22,14 +23,14 @@ function GoalEndBackstop({ team }: { team: Team }) {
   const x = team === 'red' ? wallX - halfX : wallX + halfX;
 
   return (
-    <RigidBody type="fixed" colliders={false} position={[x, y, 0]}>
+    <MaybeRigidBody type="fixed" colliders={false} position={[x, y, 0]}>
       <CuboidCollider
         args={[halfX, halfH, halfZ]}
         friction={0.25}
         restitution={0.55}
         collisionGroups={ENV_COLLISION}
       />
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 

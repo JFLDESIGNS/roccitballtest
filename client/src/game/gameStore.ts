@@ -68,6 +68,8 @@ type GameStoreState = {
   playerVisualProxy: boolean;
   /** Increments on local jump — drives hat pop animation */
   playerHatPopSeq: number;
+  /** True when the latest hat pop should do a full aerial flip */
+  playerHatPopFullFlip: boolean;
   /** Debug: show "helping" badge until this timestamp (performance.now) */
   ballBoundaryHelpUntil: number;
   /** Kill-feed style callout (performance.now ms when it expires) */
@@ -150,6 +152,7 @@ let state: GameStoreState = {
   showPhysicsBall: false,
   playerVisualProxy: true,
   playerHatPopSeq: 0,
+  playerHatPopFullFlip: false,
   ballBoundaryHelpUntil: 0,
   announcement: null,
   ballCombo: 0,
@@ -306,8 +309,12 @@ export const gameStore = {
     state = { ...state, playerVisualProxy: !state.playerVisualProxy };
     notify();
   },
-  bumpPlayerHatPop: () => {
-    state = { ...state, playerHatPopSeq: state.playerHatPopSeq + 1 };
+  bumpPlayerHatPop: (fullFlip = false) => {
+    state = {
+      ...state,
+      playerHatPopSeq: state.playerHatPopSeq + 1,
+      playerHatPopFullFlip: fullFlip,
+    };
     notify();
   },
   setEnergy: (energy: number, flash = false) => {

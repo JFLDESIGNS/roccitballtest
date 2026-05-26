@@ -2,8 +2,8 @@ import {
   CuboidCollider,
   CylinderCollider,
   interactionGroups,
-  RigidBody,
 } from '@react-three/rapier';
+import { MaybeRigidBody } from './maybeRigid';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -46,7 +46,7 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
   });
 
   return (
-    <RigidBody
+    <MaybeRigidBody
       type="fixed"
       colliders={false}
       position={[mount.x, mount.y, mount.z]}
@@ -124,7 +124,7 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
           </group>
         </group>
       </group>
-    </RigidBody>
+    </MaybeRigidBody>
   );
 }
 
@@ -159,7 +159,7 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
       >
         <cylinderGeometry args={[stemTopR, stemBotR, stemH, 8]} />
       </mesh>
-      <RigidBody
+      <MaybeRigidBody
         type="fixed"
         colliders={false}
         position={[0, colliderCenterY, 0]}
@@ -172,7 +172,7 @@ function BounceTrampolineMesh({ pad }: { pad: FloorPad }) {
           restitution={0.35}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-      </RigidBody>
+      </MaybeRigidBody>
       <mesh
         position={[0, stoneTopY + deckH * 0.5, 0]}
         castShadow

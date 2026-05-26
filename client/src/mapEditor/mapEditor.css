@@ -5,7 +5,15 @@
   background: #06080c;
 }
 
-.map-editor-root canvas {
+.map-editor-canvas-host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.map-editor-canvas,
+.map-editor-canvas-host canvas {
+  display: block;
   width: 100% !important;
   height: 100% !important;
 }
