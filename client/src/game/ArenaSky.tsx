@@ -106,9 +106,9 @@ const CLOUD_CLUSTERS: CloudClusterSpec[] = CLOUD_CLUMP_PLACES.map((c, i) => ({
 })).filter((c) => c.puffs.length > 0);
 
 const cloudPuffMaterial = new THREE.MeshLambertMaterial({
-  color: '#e2f0fc',
-  emissive: '#9cc4ea',
-  emissiveIntensity: 0.22,
+  color: '#eef6ff',
+  emissive: '#b8dcff',
+  emissiveIntensity: 0.4,
   transparent: false,
   opacity: 1,
   depthWrite: true,

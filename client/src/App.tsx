@@ -87,8 +87,8 @@ function App() {
           {mountArena && <GameCanvas onExit={exitGame} />}
           {isArenaGameplayPhase(gamePhase) && (
             <>
-              <GamePointerCapture />
               <HUD onMainMenu={exitGame} />
+              <GamePointerCapture />
               <TuningMenu />
             </>
           )}

@@ -673,12 +673,13 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     warmAudio();
   }, []);
 
-  const handleClick = () => {
+  const tryCapturePointer = () => {
     if (matchOver || tuningStore.getState().showMenu || debugFreelook) return;
     const canvas = wrapRef.current?.querySelector('canvas');
     if (!canvas || document.pointerLockElement === canvas) return;
     resumeAudio();
     warmAudio();
+    inputManager.onGameplayResume();
     inputManager.requestPointerLock(canvas);
   };
 
@@ -692,7 +693,10 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
             ? 'game-canvas game-canvas--match-end'
             : 'game-canvas'
       }
-      onClick={handleClick}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        tryCapturePointer();
+      }}
     >
       <Canvas
         style={{ background: '#181c22' }}

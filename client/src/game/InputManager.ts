@@ -421,6 +421,11 @@ class InputManager {
     return this.pointerLocked;
   }
 
+  /** Sync store + internal flag from document (alt-tab, visibility, menu close). */
+  refreshPointerLockState(): void {
+    this.syncPointerLockState();
+  }
+
   getCanvas(): HTMLElement | null {
     return this.canvas;
   }
