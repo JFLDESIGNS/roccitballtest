@@ -550,6 +550,14 @@ export const BOT = {
   botFrozenRespawnSec: 4,
   /** Ground rockets fired when a bot suicides from stuck */
   botStuckSuicideRocketCount: 3,
+  /** Seconds between rapid-fire suicide rockets */
+  botStuckSuicideShotIntervalSec: 0.13,
+  /** Yaw spin speed while suiciding (rad/s) */
+  botStuckSuicideSpinRadPerSec: 6.2,
+  /** Aim pitch while firing at the floor (rad, negative = down) */
+  botStuckSuicideGroundPitchRad: -1.08,
+  /** Pause after last shot before ragdoll */
+  botStuckSuicideRagdollDelaySec: 0.2,
   stuckEscapeCooldownSec: 2.2,
   stuckEscapePush: 12,
   stuckBoundaryMargin: 4,

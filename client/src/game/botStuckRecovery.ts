@@ -11,6 +11,12 @@ export type BotMoveStuckState = {
   stillSec: number;
   escapeAttempted: boolean;
   suicideTriggered: boolean;
+  /** Rapid-fire spin + ground rockets before ragdoll */
+  suicideActive: boolean;
+  suicideShotsFired: number;
+  suicideShotTimer: number;
+  suicideSpinYaw: number;
+  suicideRagdollTimer: number;
 };
 
 export function createBotMoveStuckState(x: number, z: number): BotMoveStuckState {
@@ -20,6 +26,11 @@ export function createBotMoveStuckState(x: number, z: number): BotMoveStuckState
     stillSec: 0,
     escapeAttempted: false,
     suicideTriggered: false,
+    suicideActive: false,
+    suicideShotsFired: 0,
+    suicideShotTimer: 0,
+    suicideSpinYaw: 0,
+    suicideRagdollTimer: 0,
   };
 }
 
@@ -29,6 +40,11 @@ export function resetBotMoveStuckState(state: BotMoveStuckState, x: number, z: n
   state.stillSec = 0;
   state.escapeAttempted = false;
   state.suicideTriggered = false;
+  state.suicideActive = false;
+  state.suicideShotsFired = 0;
+  state.suicideShotTimer = 0;
+  state.suicideSpinYaw = 0;
+  state.suicideRagdollTimer = 0;
 }
 
 export type BotMoveStuckTick = {

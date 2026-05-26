@@ -636,31 +636,63 @@ function botFireRocket(
   return true;
 }
 
-/** Stuck ~4s — blast the floor then ragdoll respawn at spawn */
-function botExecuteMoveStuckSuicide(
+function startBotMoveStuckSuicide(
   bot: BotRuntime,
-  body: RapierRigidBody,
-  chest: THREE.Vector3,
   ball: RapierRigidBody | null,
-  onRocketFired: (rocket: ActiveRocket) => void,
   state: BotMoveStuckState,
+  startYaw: number,
 ): void {
   if (state.suicideTriggered || bot.combat.isRagdoll) return;
   state.suicideTriggered = true;
+  state.suicideActive = true;
+  state.suicideShotsFired = 0;
+  state.suicideShotTimer = 0;
+  state.suicideSpinYaw = startYaw;
+  state.suicideRagdollTimer = 0;
   if (bot.holdingBall && ball) {
     releaseBotBall(bot, ball, true);
   }
-  const n = BOT.botStuckSuicideRocketCount;
-  for (let i = 0; i < n; i++) {
-    _suicideAim.set(
-      (Math.random() - 0.5) * 0.35,
-      -0.88 - Math.random() * 0.12,
-      (Math.random() - 0.5) * 0.35,
-    );
-    if (_suicideAim.lengthSq() > 1e-6) _suicideAim.normalize();
+}
+
+/** Spin in place, rapid-fire ground rockets, then ragdoll respawn */
+function tickBotMoveStuckSuicide(
+  bot: BotRuntime,
+  body: RapierRigidBody,
+  chest: THREE.Vector3,
+  onRocketFired: (rocket: ActiveRocket) => void,
+  state: BotMoveStuckState,
+  yaw: React.MutableRefObject<number>,
+  pitch: React.MutableRefObject<number>,
+  dt: number,
+): void {
+  state.suicideSpinYaw += BOT.botStuckSuicideSpinRadPerSec * dt;
+  yaw.current = state.suicideSpinYaw;
+  pitch.current = BOT.botStuckSuicideGroundPitchRad;
+  writeLookDirection(yaw.current, pitch.current, _suicideAim);
+
+  const lv = body.linvel();
+  body.setLinvel({ x: 0, y: lv.y, z: 0 }, true);
+
+  state.suicideShotTimer -= dt;
+  if (
+    state.suicideShotTimer <= 0 &&
+    state.suicideShotsFired < BOT.botStuckSuicideRocketCount
+  ) {
     botFireRocket(bot.id, body, chest, _suicideAim, onRocketFired, true);
+    state.suicideShotsFired += 1;
+    state.suicideShotTimer = BOT.botStuckSuicideShotIntervalSec;
   }
-  enterBotRagdoll(body, bot);
+
+  if (state.suicideShotsFired >= BOT.botStuckSuicideRocketCount) {
+    if (state.suicideRagdollTimer <= 0) {
+      state.suicideRagdollTimer = BOT.botStuckSuicideRagdollDelaySec;
+    }
+    state.suicideRagdollTimer -= dt;
+    if (state.suicideRagdollTimer <= 0) {
+      state.suicideActive = false;
+      enterBotRagdoll(body, bot);
+    }
+  }
 }
 
 function executeBotHoldRelease(
@@ -1109,6 +1141,21 @@ function BotAvatar({
     _pos.set(tEarly.x, tEarly.y, tEarly.z);
     _chest.set(tEarly.x, tEarly.y + BEAM.chestHeight, tEarly.z);
 
+    if (moveStuckState.current?.suicideActive) {
+      tickBotMoveStuckSuicide(
+        bot,
+        body,
+        _chest,
+        onRocketFired,
+        moveStuckState.current,
+        yaw,
+        pitch,
+        dt,
+      );
+      applyBotVisual(body.linvel(), dt, body);
+      return;
+    }
+
     if (phase === 'playing' && !bot.combat.isRagdoll) {
       if (!moveStuckState.current) {
         moveStuckState.current = createBotMoveStuckState(_pos.x, _pos.z);
@@ -1122,15 +1169,24 @@ function BotAvatar({
       if (moveStuck.dropBall && bot.holdingBall && ball) {
         releaseBotBall(bot, ball, true);
       }
-      if (moveStuck.needsRespawn) {
-        botExecuteMoveStuckSuicide(
+      if (moveStuck.needsRespawn && !moveStuckState.current.suicideTriggered) {
+        startBotMoveStuckSuicide(
+          bot,
+          ball,
+          moveStuckState.current,
+          yaw.current,
+        );
+        tickBotMoveStuckSuicide(
           bot,
           body,
           _chest,
-          ball,
           onRocketFired,
           moveStuckState.current,
+          yaw,
+          pitch,
+          dt,
         );
+        applyBotVisual(body.linvel(), dt, body);
         return;
       }
     }
