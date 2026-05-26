@@ -47,6 +47,5 @@ export function createBallOutlineMaterial(
     depthWrite: false,
     toneMapped: false,
     side: THREE.FrontSide,
-    extensions: { derivatives: true },
   });
 }

@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useArenaPillarShake } from '../game/useArenaPillarShake';
 import { GOAL_RINGS } from '../shared/Constants';
 import type { GoalDef } from '../shared/Types';
 import { ARENA_PILLAR } from '../game/arenaPillars';
@@ -66,6 +67,7 @@ function PillarSquareLight({
 }
 
 export function StadiumPillarVisual({ pillarX, pillarZ }: { pillarX: number; pillarZ: number }) {
+  const visualRef = useRef<THREE.Group>(null);
   const yCenter = ARENA_PILLAR.height / 2;
   const halfH = ARENA_PILLAR.height / 2;
   const bandRadius =
@@ -74,8 +76,10 @@ export function StadiumPillarVisual({ pillarX, pillarZ }: { pillarX: number; pil
   const topLightY = halfH - PILLAR_LIGHT_INSET;
   const bottomLightY = -halfH + PILLAR_LIGHT_INSET;
 
+  useArenaPillarShake(visualRef, pillarX, pillarZ, yCenter);
+
   return (
-    <group position={[0, yCenter, 0]}>
+    <group ref={visualRef} position={[0, yCenter, 0]}>
       <mesh castShadow receiveShadow material={arenaPillarMaterial}>
         <cylinderGeometry
           args={[

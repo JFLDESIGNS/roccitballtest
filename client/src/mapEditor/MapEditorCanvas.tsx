@@ -27,6 +27,7 @@ import { getHiddenStadiumPieces } from './stadiumLayout';
 import { EditorMoveGrid } from './editorMoveGrid';
 import { editorDisabledRaycast, editorPickHandler } from './editorPick';
 import { EditorBaseArena, StadiumGroupPickMesh, StadiumGroupVisual } from './StadiumGroupLayer';
+import { MapEditorSceneSetup } from './MapEditorSceneSetup';
 
 const EditorBackdrop = memo(function EditorBackdrop({
   hiddenGoalIds,
@@ -39,8 +40,6 @@ const EditorBackdrop = memo(function EditorBackdrop({
 }) {
   return (
     <>
-      <color attach="background" args={['#3a4a62']} />
-      <fog attach="fog" args={['#3a4a62', 90, 240]} />
       <EditorBaseArena
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}
@@ -574,6 +573,7 @@ function EditorSceneContent() {
 
   return (
     <EditorOrbitContext.Provider value={orbitRef}>
+      <MapEditorSceneSetup />
       <EditorBackdrop
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}

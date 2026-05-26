@@ -2,6 +2,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import type { MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { MOVEMENT } from '../shared/Constants';
+import { getForwardFlipPitchX } from './forwardFlipEmote';
 import { getRocketRecoilPitch } from './rocketRecoil';
 
 /** Team markers / billboards above characters */
@@ -111,6 +112,25 @@ export type CharacterVisualRefs = {
   bobPhase: MutableRefObject<number>;
 };
 
+function characterAimPitchWithRecoil(
+  actorId: string | undefined,
+  aimPitch: number,
+): number {
+  const recoil = actorId ? getRocketRecoilPitch(actorId) : 0;
+  return aimPitch + recoil;
+}
+
+function applyForwardFlipOnTilt(
+  refs: CharacterVisualRefs,
+  actorId: string | undefined,
+): void {
+  if (!refs.tilt || !actorId) return;
+  const flip = getForwardFlipPitchX(actorId);
+  if (flip === 0) return;
+  refs.tilt.rotation.x += flip;
+  refs.tilt.quaternion.setFromEuler(refs.tilt.rotation);
+}
+
 /** Yaw on root, pitch on tilt group, vertical bob on bob group — physics unchanged */
 export function syncCharacterVisualPresentation(
   body: RapierRigidBody,
@@ -132,14 +152,14 @@ export function syncCharacterVisualPresentation(
     targetPitch,
     ps,
   );
-  const recoil = actorId ? getRocketRecoilPitch(actorId) : 0;
   alignCharacterVisualUpright(
     body,
     refs,
     yaw,
     null,
-    refs.pitchSmooth.current + recoil,
+    characterAimPitchWithRecoil(actorId, refs.pitchSmooth.current),
   );
+  applyForwardFlipOnTilt(refs, actorId);
 
   const bobFactor = Math.min(1, moveSpeed / 4.5);
   if (bobFactor > 0.02) {
@@ -257,14 +277,14 @@ export function tickCharacterVisualRecovery(
     targetPitch,
     1 - Math.exp(-PITCH_SMOOTH * dt * 2.4),
   );
-  const recoil = actorId ? getRocketRecoilPitch(actorId) : 0;
   alignCharacterVisualUpright(
     body,
     refs,
     yaw,
     null,
-    refs.pitchSmooth.current + recoil,
+    characterAimPitchWithRecoil(actorId, refs.pitchSmooth.current),
   );
+  applyForwardFlipOnTilt(refs, actorId);
   void moveSpeed;
   return state.secLeft > 0;
 }

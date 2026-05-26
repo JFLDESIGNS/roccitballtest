@@ -7,6 +7,13 @@ import type { Team } from '../shared/Types';
 import { teamGoalColor } from './goals';
 import { gameStore } from './gameStore';
 import { isBallDropShaking } from './visualShake';
+import {
+  ALPHA_HOLE_NOISE_GLSL,
+  ALPHA_HOLE_UNIFORM_DECLS_GLSL,
+  GLSL_ALPHA_HOLE_MASK_FUNC,
+  SPOTLIGHT_CONE_NOISE_WORLD_MUL,
+  alphaHoleNoiseUniforms,
+} from './alphaHoleNoiseShader';
 
 const DEFAULT_CORE = new THREE.Color('#8ec8ff');
 const DEFAULT_GLOW = new THREE.Color('#5aa8e8');
@@ -15,8 +22,8 @@ const DEFAULT_LIGHT = new THREE.Color('#9ed8ff');
 
 const SWEEP_IDLE = 0.55;
 const SWEEP_SCORE = 3.1;
-/** Multiplier on cone shader uStrength (0.8 = 20% more transparent) */
-const CONE_BEAM_OPACITY_MUL = 0.8;
+/** Multiplier on cone shader uStrength (0.608 ≈ 24% more transparent than prior 0.8) */
+const CONE_BEAM_OPACITY_MUL = 0.608;
 
 type BallDropSpotlightConesProps = {
   /** Half-extent of jumbotron cube (local Y up at structure center) */
@@ -51,6 +58,7 @@ function makeConeFadeMaterial(
       uConeH: { value: coneH },
       uStrength: { value: baseStrength },
       uFresnelPower: { value: fresnelPower },
+      ...alphaHoleNoiseUniforms(),
     },
     vertexShader: /* glsl */ `
       uniform float uConeH;
@@ -58,11 +66,13 @@ function makeConeFadeMaterial(
       varying vec3 vViewPos;
       varying vec3 vNormalV;
       varying float vHeightFade;
+      varying vec3 vWorldPos;
 
       void main() {
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vViewPos = -mv.xyz;
         vNormalV = normalize(normalMatrix * normal);
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
 
         float along = clamp(-position.y / uConeH, 0.0, 1.0);
         vHeightFade = 1.0 - along;
@@ -74,10 +84,15 @@ function makeConeFadeMaterial(
       uniform vec3 uColor;
       uniform float uStrength;
       uniform float uFresnelPower;
+      ${ALPHA_HOLE_UNIFORM_DECLS_GLSL}
 
       varying vec3 vViewPos;
       varying vec3 vNormalV;
       varying float vHeightFade;
+      varying vec3 vWorldPos;
+
+      ${ALPHA_HOLE_NOISE_GLSL}
+      ${GLSL_ALPHA_HOLE_MASK_FUNC}
 
       void main() {
         vec3 viewDir = normalize(vViewPos);
@@ -87,7 +102,19 @@ function makeConeFadeMaterial(
         float rim = mix(0.5, 1.0, fresnel);
         float beam = heightFade * rim;
 
+        vec2 nUv =
+          vWorldPos.xz * (uNoiseScale * ${SPOTLIGHT_CONE_NOISE_WORLD_MUL.toFixed(4)}) +
+          vec2(vHeightFade * 0.4, vHeightFade * 0.22);
+        float holeMask = alphaHoleMask(nUv);
+
         float alpha = beam * uStrength;
+        alpha *= mix(1.0, holeMask, uHoleStrength);
+
+        float edgeBreak = smoothstep(0.15, 0.92, vHeightFade) * (1.0 - fresnel * 0.35);
+        alpha *= mix(1.0, holeMask, edgeBreak * 0.45);
+
+        if (alpha < 0.004) discard;
+
         vec3 col = uColor * beam * (0.85 + fresnel * 0.25);
 
         gl_FragColor = vec4(col, alpha);

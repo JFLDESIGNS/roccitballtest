@@ -1,5 +1,4 @@
 import { CylinderCollider, interactionGroups, RigidBody } from '@react-three/rapier';
-import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
@@ -7,7 +6,7 @@ import {
   getArenaCornerPillarLayouts,
 } from './arenaPillars';
 import { arenaBlackMetalMaterial, arenaPillarMaterial } from './arenaMaterials';
-import { getArenaPillarShake } from './visualShake';
+import { useArenaPillarShake } from './useArenaPillarShake';
 
 const PILLAR_LIGHT_INSET = 2.4;
 const PILLAR_LIGHT_SIZE = 0.58;
@@ -68,12 +67,7 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
   const topLightY = halfH - PILLAR_LIGHT_INSET;
   const bottomLightY = -halfH + PILLAR_LIGHT_INSET;
 
-  useFrame(() => {
-    const visual = visualRef.current;
-    if (!visual) return;
-    const { tiltX, tiltZ } = getArenaPillarShake(x, z);
-    visual.rotation.set(tiltX, 0, tiltZ);
-  });
+  useArenaPillarShake(visualRef, x, z, yCenter);
 
   return (
     <group
@@ -92,7 +86,8 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
           restitution={ARENA_PILLAR.bounceRestitution}
           collisionGroups={interactionGroups(2, [0, 1, 2])}
         />
-        <group ref={visualRef}>
+      </RigidBody>
+      <group ref={visualRef} position={[0, yCenter, 0]}>
         <mesh castShadow receiveShadow material={arenaPillarMaterial}>
           <cylinderGeometry
             args={[
@@ -120,8 +115,7 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
         </mesh>
         <PillarSquareLight y={topLightY} pillarX={x} pillarZ={z} />
         <PillarSquareLight y={bottomLightY} pillarX={x} pillarZ={z} />
-        </group>
-      </RigidBody>
+      </group>
     </group>
   );
 }

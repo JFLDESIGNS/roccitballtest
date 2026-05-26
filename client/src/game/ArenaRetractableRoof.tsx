@@ -12,7 +12,7 @@ import { arenaPillarTopWorldY } from './arenaPillarConfig';
 import { goalEndFaceX } from './goals';
 import { arenaRoofStore } from './arenaRoofStore';
 import { burstRoofOpenSmoke, burstRoofSeamSmoke } from './pillarSmokePuffs';
-import { triggerStadiumRoofOpenShake } from './visualShake';
+import { triggerStadiumRoofRumbleShake } from './visualShake';
 import { arenaCeilingMaterial } from './arenaMaterials';
 import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
 
@@ -54,7 +54,11 @@ export function ArenaRetractableRoof() {
   const farBodyRef = useRef<RapierRigidBody>(null);
   const nearMeshRef = useRef<THREE.Group>(null);
   const farMeshRef = useRef<THREE.Group>(null);
-  const roofSmokeRef = useRef({ prevOpen: 0, wasOpening: false });
+  const roofSmokeRef = useRef({
+    prevOpen: 0,
+    wasOpening: false,
+    wasClosing: false,
+  });
 
   const layout = useMemo(() => arenaRoofLayout(), []);
   const panelGeo = useMemo(
@@ -80,11 +84,12 @@ export function ArenaRetractableRoof() {
     const smokeY = y - layout.thickness * 0.38;
 
     const opening = target > 0.5 && open < 0.995;
+    const closing = target < 0.5 && open > 0.005;
     const openDelta = open - roofSmokeRef.current.prevOpen;
     if (opening && openDelta > 0.00015) {
       if (!roofSmokeRef.current.wasOpening && open < 0.08) {
         burstRoofOpenSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX);
-        triggerStadiumRoofOpenShake();
+        triggerStadiumRoofRumbleShake();
       }
       const puffs = Math.min(
         44,
@@ -92,9 +97,26 @@ export function ArenaRetractableRoof() {
       );
       burstRoofSeamSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX, puffs);
       roofSmokeRef.current.wasOpening = true;
+      roofSmokeRef.current.wasClosing = false;
     } else if (target < 0.5) {
       roofSmokeRef.current.wasOpening = false;
     }
+
+    if (closing && openDelta < -0.00015) {
+      if (!roofSmokeRef.current.wasClosing && open > 0.92) {
+        burstRoofOpenSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX);
+        triggerStadiumRoofRumbleShake();
+      }
+      const puffs = Math.min(
+        40,
+        Math.max(4, Math.round(-openDelta * 1040 + dt * 24)),
+      );
+      burstRoofSeamSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX, puffs);
+      roofSmokeRef.current.wasClosing = true;
+    } else if (target > 0.5) {
+      roofSmokeRef.current.wasClosing = false;
+    }
+
     roofSmokeRef.current.prevOpen = open;
 
     nearMeshRef.current?.position.set(0, y, nearZ);

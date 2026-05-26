@@ -11,6 +11,12 @@ const SUPPRESSED_CONSOLE_WARN_PREFIXES = [
   'using deprecated parameters for the initialization function',
 ];
 
+function isSuppressedDeprecatedInitWarn(message: string): boolean {
+  return message.includes(
+    'using deprecated parameters for the initialization function',
+  );
+}
+
 function isSuppressedFbxTextureWarn(message: string): boolean {
   return (
     SUPPRESSED_CONSOLE_WARN_PREFIXES.some((p) => message.startsWith(p)) &&
@@ -42,6 +48,7 @@ export function installDevKnownThreeWarningFilters(): void {
   console.warn = (...args: unknown[]) => {
     const head = typeof args[0] === 'string' ? args[0] : String(args[0] ?? '');
     if (isSuppressedFbxTextureWarn(head)) return;
+    if (isSuppressedDeprecatedInitWarn(head)) return;
     nativeWarn(...args);
   };
 }

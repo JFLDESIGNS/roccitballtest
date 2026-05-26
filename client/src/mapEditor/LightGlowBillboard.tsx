@@ -5,12 +5,14 @@ import * as THREE from 'three';
 import { applyMapLightGlowBlend, MAP_LIGHT_GLOW_DEFAULT_OPACITY } from '../game/mapLightGlowBlend';
 import { ARENA } from '../shared/Constants';
 import {
-  MAP_LIGHT_GLOW_ALPHA_HOLE_CUTOFF,
-  MAP_LIGHT_GLOW_ALPHA_HOLE_SOFT,
-  MAP_LIGHT_GLOW_ALPHA_HOLE_STRENGTH,
   MAP_LIGHT_GLOW_GROUND_FADE_M,
-  MAP_LIGHT_GLOW_NOISE_SCALE,
 } from '../game/mapLightGlowSettings';
+import {
+  ALPHA_HOLE_NOISE_GLSL,
+  ALPHA_HOLE_UNIFORM_DECLS_GLSL,
+  GLSL_ALPHA_HOLE_MASK_FUNC,
+  alphaHoleNoiseUniforms,
+} from '../game/alphaHoleNoiseShader';
 import {
   isLightGlowProximityAnchorActive,
   mapLightGlowProximityOpacity,
@@ -55,12 +57,10 @@ export function LightGlowBillboard({
       uniforms: {
         uColor: { value: new THREE.Color(color) },
         uOpacity: { value: MAP_LIGHT_GLOW_DEFAULT_OPACITY },
-        uNoiseScale: { value: MAP_LIGHT_GLOW_NOISE_SCALE },
-        uHoleStrength: { value: MAP_LIGHT_GLOW_ALPHA_HOLE_STRENGTH },
-        uHoleCutoff: { value: MAP_LIGHT_GLOW_ALPHA_HOLE_CUTOFF },
-        uHoleSoft: { value: MAP_LIGHT_GLOW_ALPHA_HOLE_SOFT },
+        ...alphaHoleNoiseUniforms(),
         uFloorY: { value: ARENA.floorY },
         uGroundFadeM: { value: MAP_LIGHT_GLOW_GROUND_FADE_M },
+        uEditorPreview: { value: editorPreview ? 1 : 0 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -76,39 +76,13 @@ export function LightGlowBillboard({
         varying vec3 vWorldPos;
         uniform vec3 uColor;
         uniform float uOpacity;
-        uniform float uNoiseScale;
-        uniform float uHoleStrength;
-        uniform float uHoleCutoff;
-        uniform float uHoleSoft;
+        ${ALPHA_HOLE_UNIFORM_DECLS_GLSL}
         uniform float uFloorY;
         uniform float uGroundFadeM;
+        uniform float uEditorPreview;
 
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-
-        float fbm(vec2 p) {
-          float v = 0.0;
-          float amp = 0.55;
-          mat2 rot = mat2(0.877, 0.48, -0.48, 0.877);
-          for (int i = 0; i < 4; i++) {
-            v += amp * noise(p);
-            p = rot * p * 2.02 + vec2(1.6, 4.1);
-            amp *= 0.5;
-          }
-          return v;
-        }
+        ${ALPHA_HOLE_NOISE_GLSL}
+        ${GLSL_ALPHA_HOLE_MASK_FUNC}
 
         void main() {
           vec2 c = vUv - 0.5;
@@ -119,18 +93,15 @@ export function LightGlowBillboard({
           radial = pow(radial, 2.05);
 
           vec2 nUv = vUv * uNoiseScale + c * 0.28;
-          float nCoarse = fbm(nUv);
-          float nFine = fbm(nUv * 3.6 + vec2(17.3, 4.7));
-          float nSpeck = fbm(nUv * 9.5 + vec2(4.2, 11.1));
-          float bw = nCoarse * 0.58 + nFine * 0.32 + nSpeck * 0.1;
-
-          float holeLo = uHoleCutoff - uHoleSoft;
-          float holeHi = uHoleCutoff + uHoleSoft;
-          float holeMask = smoothstep(holeLo, holeHi, bw);
+          float holeMask = alphaHoleMask(nUv);
           float alpha = radial * uOpacity;
           alpha *= mix(1.0, holeMask, uHoleStrength);
 
-          float aboveFloor = smoothstep(uFloorY, uFloorY + uGroundFadeM, vWorldPos.y);
+          float aboveFloor = mix(
+            smoothstep(uFloorY, uFloorY + uGroundFadeM, vWorldPos.y),
+            1.0,
+            uEditorPreview
+          );
           alpha *= aboveFloor;
 
           float edgeBreak = smoothstep(0.72, 0.98, d);
@@ -149,7 +120,8 @@ export function LightGlowBillboard({
 
   useEffect(() => {
     material.uniforms.uColor.value.set(color);
-  }, [color, material]);
+    material.uniforms.uEditorPreview.value = editorPreview ? 1 : 0;
+  }, [color, editorPreview, material]);
 
   useFrame((state) => {
     const root = worldRef.current;

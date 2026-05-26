@@ -1,4 +1,5 @@
 import type { WallMount } from './arenaPadLayout';
+import { getBillboardMounts } from './arenaPadLayout';
 import { getArenaCornerPillarLayouts } from './arenaPillars';
 import { burstBillboardFaceSparks } from './impactSparkBurst';
 import { burstPillarCornerSmoke } from './pillarSmokePuffs';
@@ -7,7 +8,8 @@ import { ARENA_PADS } from '../shared/Constants';
 const SHAKE_MS = 500;
 const MAX_TILT_DEG = 1.35;
 const PILLAR_SHAKE_MS = 680;
-const PILLAR_MAX_TILT_DEG = 1.45;
+const PILLAR_MAX_TILT_DEG = 2.55;
+const PILLAR_MAX_OFFSET_M = 0.22;
 const BILLBOARD_SHAKE_MS = 1280;
 const BILLBOARD_MAX_TILT_DEG = 2.15;
 
@@ -74,7 +76,7 @@ export function triggerArenaPillarShake(x: number, z: number): void {
   if ((pillarShakeCooldownUntil.get(key) ?? 0) > now) return;
   pillarShakeCooldownUntil.set(key, now + PILLAR_SHAKE_COOLDOWN_MS);
 
-  triggerArenaPillarShakeVisual(x, z, 1);
+  triggerArenaPillarShakeVisual(x, z, 1.05);
   burstPillarCornerSmoke(x, z);
 }
 
@@ -87,27 +89,38 @@ export function triggerArenaPillarShakeVisual(
   triggerVisualShake(pillarShakeKey(x, z), intensity, PILLAR_SHAKE_MS);
 }
 
-/** When the retractable roof starts opening — shake every pillar + ball drop. */
-export function triggerStadiumRoofOpenShake(): void {
+/** Roof open/close rumble — pillars, jumbotron, billboards, center platform. */
+export function triggerStadiumRoofRumbleShake(): void {
   for (const p of getArenaCornerPillarLayouts()) {
-    triggerArenaPillarShakeVisual(p.x, p.z, 1.2);
+    triggerArenaPillarShakeVisual(p.x, p.z, 1.05);
   }
-  triggerBallDropShake(1.35);
+  triggerBallDropShake(1.12);
+  triggerOctagonShake(0, 0);
+  for (const mount of getBillboardMounts()) {
+    triggerBillboardShakeVisual(mount, 1.1);
+  }
 }
+
+/** @deprecated use triggerStadiumRoofRumbleShake */
+export const triggerStadiumRoofOpenShake = triggerStadiumRoofRumbleShake;
 
 export function getArenaPillarShake(x: number, z: number): {
   tiltX: number;
   tiltZ: number;
+  offsetX: number;
+  offsetZ: number;
 } {
   const key = pillarShakeKey(x, z);
   const entry = shakes.get(key);
-  if (!entry) return { tiltX: 0, tiltZ: 0 };
+  if (!entry) {
+    return { tiltX: 0, tiltZ: 0, offsetX: 0, offsetZ: 0 };
+  }
 
   const now = performance.now();
   const remaining = entry.until - now;
   if (remaining <= 0) {
     shakes.delete(key);
-    return { tiltX: 0, tiltZ: 0 };
+    return { tiltX: 0, tiltZ: 0, offsetX: 0, offsetZ: 0 };
   }
 
   const seed = x + z;
@@ -121,10 +134,13 @@ export function getArenaPillarShake(x: number, z: number): {
     Math.cos(u * Math.PI * 4.2 + seed * 0.31) * 0.18;
   const maxRad =
     ((PILLAR_MAX_TILT_DEG * entry.intensity) * Math.PI) / 180;
+  const maxOff = PILLAR_MAX_OFFSET_M * entry.intensity * envelope;
 
   return {
     tiltX: wobble * envelope * maxRad,
     tiltZ: wobble2 * envelope * maxRad * 0.92,
+    offsetX: wobble * maxOff,
+    offsetZ: wobble2 * maxOff * 0.88,
   };
 }
 
@@ -135,12 +151,21 @@ export function triggerOctagonShake(x: number, z: number): void {
 const billboardSparkCooldownUntil = new Map<string, number>();
 const BILLBOARD_SPARK_COOLDOWN_MS = 90;
 
-export function triggerBillboardShake(mount: WallMount): void {
+export function triggerBillboardShakeVisual(
+  mount: WallMount,
+  intensity = 1.35,
+): void {
   const key = billboardShakeKey(mount.x, mount.y, mount.z);
   const now = performance.now();
   const existing = shakes.get(key);
   const until = Math.max(existing?.until ?? 0, now + BILLBOARD_SHAKE_MS);
-  shakes.set(key, { until, intensity: 1.35 });
+  shakes.set(key, { until, intensity });
+}
+
+export function triggerBillboardShake(mount: WallMount): void {
+  const key = billboardShakeKey(mount.x, mount.y, mount.z);
+  const now = performance.now();
+  triggerBillboardShakeVisual(mount, 1.35);
 
   if ((billboardSparkCooldownUntil.get(key) ?? 0) <= now) {
     billboardSparkCooldownUntil.set(key, now + BILLBOARD_SPARK_COOLDOWN_MS);

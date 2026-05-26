@@ -12,6 +12,7 @@ import { arenaRoofStore } from './arenaRoofStore';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import { getLookDirection } from './CameraController';
+import { triggerThrowFlipEmotes } from './forwardFlipEmote';
 import { shouldIgnoreGameplayKeys } from './uiFocus';
 
 type Keys = Record<string, boolean>;
@@ -280,6 +281,7 @@ class InputManager {
       }
       if (e.code === 'KeyE' && !gameStore.getState().debugFreelook) {
         this.throwQueued = true;
+        triggerThrowFlipEmotes();
       }
       if (e.code === 'KeyF') this.spawnBallQueued = true;
       if (e.code === 'KeyT') this.spawnBallQueued = true;

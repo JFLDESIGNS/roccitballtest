@@ -72,20 +72,24 @@ const darkDeckMetalMap = makeRepeatingCanvas(256, 256, (ctx, w, h) => {
 });
 darkDeckMetalMap.repeat.set(3, 3);
 
-/** Matte concrete like perimeter walls — no sky IBL, emissive, or blue fog */
+/** Sealed concrete — slight gloss so walls/floor catch arena lights (no emissive/fog) */
+const ARENA_CONCRETE_ROUGHNESS = 0.74;
+const ARENA_CONCRETE_METALNESS = 0.06;
+const ARENA_CONCRETE_ENV_INTENSITY = 0.26;
+
 function createArenaConcreteSurfaceMaterial(
   color: string,
   flatShading = false,
 ): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     color,
-    roughness: 0.92,
-    metalness: 0.02,
+    roughness: ARENA_CONCRETE_ROUGHNESS,
+    metalness: ARENA_CONCRETE_METALNESS,
     flatShading,
     emissive: '#000000',
     emissiveIntensity: 0,
-    envMap: null,
-    envMapIntensity: 0,
+    envMap: arenaMetalEnv,
+    envMapIntensity: ARENA_CONCRETE_ENV_INTENSITY,
     fog: false,
   });
 }
@@ -98,8 +102,10 @@ function bindConcrete(
   const map = cloneArenaConcreteMap(repeatX, repeatY);
   if (!map) return;
   mat.map = map;
-  mat.envMap = null;
-  mat.envMapIntensity = 0;
+  mat.envMap = arenaMetalEnv;
+  mat.envMapIntensity = ARENA_CONCRETE_ENV_INTENSITY;
+  mat.roughness = ARENA_CONCRETE_ROUGHNESS;
+  mat.metalness = ARENA_CONCRETE_METALNESS;
   mat.emissive.set('#000000');
   mat.emissiveIntensity = 0;
   mat.needsUpdate = true;
