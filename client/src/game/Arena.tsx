@@ -34,6 +34,7 @@ import { ArenaRoofLightBlocker } from './ArenaRoofLightBlocker';
 import { WallTopTrim } from './arenaWallTrim';
 import { BallDrop } from './BallDrop';
 import { OctagonPlatform } from './OctagonPlatform';
+import { ArenaPlatformGroundShadows } from './ArenaPlatformGroundShadows';
 import { RocccitLogoStamp } from './RocccitLogoStamp';
 import { BackWallEscapeZones } from './BackWallEscapeZones';
 import { GoalNetBackstop } from './GoalNetBackstop';
@@ -405,6 +406,7 @@ export function Arena({
           material={arenaHexFloorMaterial}
         />
       </RigidBody>
+      <ArenaPlatformGroundShadows />
 
       <OctagonPlatform />
       <group

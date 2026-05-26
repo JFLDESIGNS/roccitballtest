@@ -6,7 +6,6 @@ import { applyArenaMetalWearShader } from './arenaMetalWear';
 import { ARENA_PILLAR } from './arenaPillarConfig';
 import {
   ARENA_CONCRETE_TILE_M,
-  arenaFloorConcreteRepeat,
   cloneArenaConcreteMap,
   onArenaConcreteReady,
 } from './arenaConcreteTexture';
@@ -235,10 +234,9 @@ function applyAllConcreteMaps(): void {
     ARENA_PADS.trampolineDeckRaiseM;
   const padRep = cylinderConcreteRepeat(padStemR, padStemR * 1.22, padStemH);
 
-  const floorRep = arenaFloorConcreteRepeat();
-
   bindConcrete(arenaWallMaterial, 1, 1);
-  bindConcrete(arenaHexFloorMaterial, floorRep.x, floorRep.y);
+  /** Floor UVs are already meter-tiled in createArenaHexFloorGeometry — repeat must stay 1× */
+  bindConcrete(arenaHexFloorMaterial, 1, 1);
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
 }
