@@ -38,6 +38,8 @@ export const ARENA = {
   /** Logo screen size (m) */
   ballDropScreenWidthM: 13.8,
   ballDropScreenHeightM: 7.8,
+  /** Raise octagonal drum + bottom flaps only; upper cube/screens stay fixed (ft) */
+  ballDropDrumOffsetFt: 10,
   /** Octagonal lower drum (circumradius m, before ballDropDrumScale) */
   ballDropDrumRadius: 10.2,
   ballDropDrumHeight: 9.6,
@@ -677,7 +679,8 @@ export const AIM = {
 /** Player movement */
 export const MOVEMENT = {
   walkSpeed: 9.5,
-  sprintSpeed: 14,
+  /** +30% vs prior sprint — shift sprint */
+  sprintSpeed: 18.2,
   /** A/D strafe vs W/S — pure sideways uses walk/sprint × this */
   strafeSpeedScale: 1.38,
   jumpForce: 18,
@@ -726,7 +729,8 @@ export const MOVEMENT = {
 /** Energy */
 export const ENERGY = {
   max: 100,
-  sprintDrain: 14,
+  /** Scales with faster sprint so shift sprint burns bar quicker */
+  sprintDrain: 21,
   beamDrain: 17,
   /** RMB + carrying ball — ~8s from full (100 / 12.5) */
   carryBeamDrain: 12.5,

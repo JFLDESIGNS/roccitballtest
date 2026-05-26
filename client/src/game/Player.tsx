@@ -59,7 +59,6 @@ import {
 } from './characterVisual';
 import {
   CHARACTER_MESH_RENDER_ORDER,
-  GroundJerseyDecal,
 } from './JerseyDecal';
 import { PlayerDroneThrusters } from './BotDroneVisual';
 import { LocalHeldBallVisual } from './LocalHeldBallVisual';
@@ -118,7 +117,6 @@ import {
   isPlayerInTrampolineZone,
   isPlayerOverTrampolineDeck,
 } from './arenaPadPhysics';
-import { getJerseyNumber } from './playerRoster';
 import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
@@ -1592,13 +1590,6 @@ export function Player({
           </group>
         ) : null}
       </RigidBody>
-      <GroundJerseyDecal
-        bodyRef={bodyRef}
-        jerseyNumber={getJerseyNumber('local')}
-        fillColor="#c8cdd4"
-        groundedRef={grounded}
-        hideWhenGrounded
-      />
     </group>
   );
 }

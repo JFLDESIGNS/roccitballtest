@@ -250,6 +250,39 @@ export function resumeAudio(): void {
   bindMasterVolumeListener();
 }
 
+/** Cut a looping track immediately so a new loop cannot overlap the old one. */
+function disconnectLoopingTrack(track: LoopingTrack): void {
+  const ac = getCtx();
+  if (!ac) return;
+  const { source, gain } = track;
+  const t = ac.currentTime;
+  try {
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(0, t);
+  } catch {
+    /* ignore */
+  }
+  try {
+    source.stop(t);
+  } catch {
+    try {
+      source.stop();
+    } catch {
+      /* already stopped */
+    }
+  }
+  try {
+    source.disconnect();
+  } catch {
+    /* ignore */
+  }
+  try {
+    gain.disconnect();
+  } catch {
+    /* ignore */
+  }
+}
+
 function stopBgMusic(): void {
   bgMusicStartGen += 1;
   bgMusicLoadingMode = null;
@@ -257,20 +290,7 @@ function stopBgMusic(): void {
   const track = bgMusicTrack;
   bgMusicTrack = null;
   bgMusicMode = null;
-  if (!track) return;
-
-  const ac = getCtx();
-  if (!ac) return;
-  const { source, gain } = track;
-  const t = ac.currentTime;
-  gain.gain.cancelScheduledValues(t);
-  gain.gain.setValueAtTime(gain.gain.value, t);
-  gain.gain.linearRampToValueAtTime(0.001, t + 0.12);
-  try {
-    source.stop(t + 0.14);
-  } catch {
-    /* already stopped */
-  }
+  if (track) disconnectLoopingTrack(track);
 }
 
 function isBgMusicActive(mode: 'menu' | 'game'): boolean {
@@ -353,6 +373,7 @@ function startBgMusicLoop(mode: 'menu' | 'game'): void {
 
   void loadSample(rocketDopeTronUrl).then((buffer) => {
     if (startGen !== bgMusicStartGen) return;
+    if (bgMusicLoadingMode !== mode) return;
 
     const live = getCtx();
     if (!buffer || !live) {
@@ -364,6 +385,9 @@ function startBgMusicLoop(mode: 'menu' | 'game'): void {
       bgMusicLoadingMode = null;
       return;
     }
+
+    const stale = bgMusicTrack;
+    if (stale) disconnectLoopingTrack(stale);
 
     const source = live.createBufferSource();
     source.buffer = buffer;

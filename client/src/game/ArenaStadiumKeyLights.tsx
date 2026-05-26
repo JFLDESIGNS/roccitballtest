@@ -18,7 +18,7 @@ export function keyLightRectIntensityFromMenu(
   brightness: number,
   arenaBrightness: number,
 ): number {
-  return (brightness / 78) * (arenaBrightness ?? 1);
+  return (brightness / 98) * (arenaBrightness ?? 1);
 }
 
 /** Map menu brightness (1–1000) to omni point intensity (+ shadows) */
@@ -26,7 +26,7 @@ export function keyLightPointIntensityFromMenu(
   brightness: number,
   arenaBrightness: number,
 ): number {
-  return (brightness / 26) * (arenaBrightness ?? 1);
+  return (brightness / 34) * (arenaBrightness ?? 1);
 }
 
 const POINT_SHADOW_PROPS = {

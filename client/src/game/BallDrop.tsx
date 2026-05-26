@@ -25,6 +25,7 @@ import {
 } from './ballDropDrum';
 import { BallDropSquareLights } from './BallDropSquareLights';
 import { BallDropSpotlightCones } from './BallDropSpotlightCones';
+import { ballDropDrumOffsetM } from './arenaLayout';
 import { triggerKickoffBallRelease } from './kickoffDrop';
 import { getBallDropShake } from './visualShake';
 
@@ -151,8 +152,10 @@ export function BallDrop() {
   const drumH = ARENA.ballDropDrumHeight * DRUM_SCALE;
 
   const cubeBottomLocal = -cubeHalf;
-  const drumCenterLocal = cubeBottomLocal - drumH * 0.5;
-  const drumBottomLocal = cubeBottomLocal - drumH;
+  const drumRaiseLocal = ballDropDrumOffsetM();
+  const drumTopLocal = cubeBottomLocal + drumRaiseLocal;
+  const drumCenterLocal = drumTopLocal - drumH * 0.5;
+  const drumBottomLocal = drumTopLocal - drumH;
   const logoPadW = screenW * 0.72;
   const logoPadH = screenH * 0.72;
 
@@ -370,14 +373,14 @@ export function BallDrop() {
         <pointLight
           position={[0, cubeHalf * 0.45, 0]}
           color="#b8e8ff"
-          intensity={85}
+          intensity={38}
           distance={48}
           decay={1.6}
         />
         <pointLight
           position={[0, 0, cubeHalf * 0.6]}
           color="#a8ddff"
-          intensity={55}
+          intensity={24}
           distance={40}
           decay={1.8}
         />

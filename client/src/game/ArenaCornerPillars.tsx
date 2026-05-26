@@ -12,9 +12,6 @@ import { getArenaPillarShake } from './visualShake';
 const PILLAR_LIGHT_INSET = 2.4;
 const PILLAR_LIGHT_SIZE = 0.58;
 const PILLAR_LIGHT_DEPTH = 0.14;
-const PILLAR_BAND_HEIGHT = 0.55;
-/** Mid-column disc band — 6% smaller diameter than prior */
-const PILLAR_BAND_RADIUS_SCALE = 1.05 * 0.94;
 const PILLAR_CAP_HEIGHT = ARENA_PILLAR.capHeight;
 const PILLAR_CAP_RADIUS_SCALE = 1.14;
 
@@ -68,9 +65,6 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
   const visualRef = useRef<THREE.Group>(null);
   const yCenter = ARENA_PILLAR.height / 2;
   const halfH = ARENA_PILLAR.height / 2;
-  const bandRadius =
-    Math.max(ARENA_PILLAR.radiusTop, ARENA_PILLAR.radiusBase) *
-    PILLAR_BAND_RADIUS_SCALE;
   const topLightY = halfH - PILLAR_LIGHT_INSET;
   const bottomLightY = -halfH + PILLAR_LIGHT_INSET;
 
@@ -82,8 +76,16 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
   });
 
   return (
-    <group position={[x, ARENA_PILLAR.floorY, z]}>
-      <RigidBody type="fixed" colliders={false} position={[0, yCenter, 0]}>
+    <group
+      position={[x, ARENA_PILLAR.floorY, z]}
+      userData={{ arenaPillarX: x, arenaPillarZ: z }}
+    >
+      <RigidBody
+        type="fixed"
+        colliders={false}
+        position={[0, yCenter, 0]}
+        userData={{ arenaPillarX: x, arenaPillarZ: z }}
+      >
         <CylinderCollider
           args={[ARENA_PILLAR.height / 2, ARENA_PILLAR.colliderRadius]}
           friction={0.32}
@@ -99,16 +101,6 @@ function CornerPillar({ x, z }: { x: number; z: number }) {
               ARENA_PILLAR.height,
               16,
             ]}
-          />
-        </mesh>
-        <mesh
-          position={[0, 0, 0]}
-          castShadow={false}
-          receiveShadow
-          material={arenaBlackMetalMaterial}
-        >
-          <cylinderGeometry
-            args={[bandRadius, bandRadius, PILLAR_BAND_HEIGHT, 20]}
           />
         </mesh>
         <mesh

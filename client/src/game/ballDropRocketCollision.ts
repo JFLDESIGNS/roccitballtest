@@ -32,10 +32,9 @@ function sampleSegmentHitsAABB(
 }
 
 function getBallDropBounds(pad: number) {
-  const { centerY, drumBottomY } = getBallDropLayout();
+  const { centerY, drumBottomY, drumTopY } = getBallDropLayout();
   const cubeHalf = ARENA.ballDropCubeSize * 0.5 + pad;
   const drumR = ARENA.ballDropDrumRadius * ARENA.ballDropDrumScale + pad;
-  const drumTopY = centerY - ARENA.ballDropCubeSize * 0.5 + pad;
   const yMin = drumBottomY - pad - 2;
   const yMax = centerY + cubeHalf;
   return {

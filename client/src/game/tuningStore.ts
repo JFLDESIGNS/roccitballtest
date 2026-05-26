@@ -2,7 +2,7 @@ import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId, type ReleaseSystemId } fr
 import { integrateFallGravity } from './movementGravity';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v21';
+const STORAGE_KEY = 'rocketball-tuning-v22';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;

@@ -43,8 +43,17 @@ import {
   shouldSuppressBallBounceSound,
   suppressBallBounceForMs,
 } from './audio';
+import {
+  findArenaPillarNearXZ,
+  findArenaPillarSegmentHit,
+} from './arenaPillars';
 import { tryTriggerBillboardImpact } from './interactableHits';
-import { triggerCeilingWallHit } from './visualShake';
+import type { WallMount } from './arenaPadLayout';
+import {
+  triggerArenaPillarShake,
+  triggerBillboardShake,
+  triggerCeilingWallHit,
+} from './visualShake';
 import { announceBallStrike } from './announcements';
 import { registerLocalBallComboHit } from './ballCombo';
 import { applyBallStrikeKnock } from './characterKnock';
@@ -146,6 +155,8 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const wasHeldRef = useRef(false);
   const lastBounceAt = useRef(0);
   const lastBodyHitAt = useRef(0);
+  const lastPillarShakeAt = useRef(0);
+  const lastBillboardShakeAt = useRef(0);
   const pendingSpinBounceRef = useRef<PendingSpinBounce | null>(null);
   const glowTick = useRef(0);
   const lastHolderId = useRef<BallHolderId>(null);
@@ -180,11 +191,50 @@ const hasPrevBallPos = useRef(false);
       playCeilingBump(impact);
     }
 
-    const otherObj = payload.other.rigidBodyObject as
-      | { userData?: { hitTarget?: boolean; actorId?: ActorId } }
-      | undefined;
-    const actorId = otherObj?.userData?.actorId;
-    if (otherObj?.userData?.hitTarget || actorId) {
+    const ballPos = body.translation();
+    const otherObj = payload.other.rigidBodyObject as THREE.Object3D | undefined;
+    let billboardMount: WallMount | undefined;
+    let pillarHit: { x: number; z: number } | null = null;
+    let hitTarget = false;
+    let actorId: ActorId | undefined;
+
+    for (let node: THREE.Object3D | null = otherObj ?? null; node; node = node.parent) {
+      const d = node.userData;
+      if (!billboardMount && d?.billboardMount) {
+        billboardMount = d.billboardMount as WallMount;
+      }
+      if (
+        pillarHit == null &&
+        d?.arenaPillarX != null &&
+        d?.arenaPillarZ != null
+      ) {
+        pillarHit = { x: d.arenaPillarX as number, z: d.arenaPillarZ as number };
+      }
+      if (d?.hitTarget) hitTarget = true;
+      if (d?.actorId) actorId = d.actorId as ActorId;
+    }
+
+    if (!pillarHit) {
+      pillarHit = findArenaPillarNearXZ(
+        ballPos.x,
+        ballPos.z,
+        BALL.radius + 0.55,
+      );
+    }
+
+    if (billboardMount && impact >= 0.35) {
+      if (now - lastBillboardShakeAt.current > 90) {
+        lastBillboardShakeAt.current = now;
+        triggerBillboardShake(billboardMount);
+      }
+    } else if (pillarHit && impact >= 0.35) {
+      if (now - lastPillarShakeAt.current > 90) {
+        lastPillarShakeAt.current = now;
+        triggerArenaPillarShake(pillarHit.x, pillarHit.z);
+      }
+    }
+
+    if (hitTarget || actorId) {
       if (impact < 1.8) return;
       if (now - lastBodyHitAt.current < 140) return;
       lastBodyHitAt.current = now;
@@ -308,6 +358,14 @@ const hasPrevBallPos = useRef(false);
       refreshFanGlassBoxes();
       const glass = trySegmentHitsFanGlassWithPoint(from, _ballTo.current);
       if (glass) triggerFanGlassHit(glass.panel.bayKey, glass.point);
+      const sweepPillar = findArenaPillarSegmentHit(
+        from,
+        _ballTo.current,
+        BALL.radius * 0.92,
+      );
+      if (sweepPillar) {
+        triggerArenaPillarShake(sweepPillar.x, sweepPillar.z);
+      }
       tryTriggerBillboardImpact(from, _ballTo.current);
     }
     prevBallPos.current.set(t.x, t.y, t.z);

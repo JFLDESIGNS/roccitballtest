@@ -15,6 +15,8 @@ const DEFAULT_LIGHT = new THREE.Color('#9ed8ff');
 
 const SWEEP_IDLE = 0.55;
 const SWEEP_SCORE = 3.1;
+/** Multiplier on cone shader uStrength (0.8 = 20% more transparent) */
+const CONE_BEAM_OPACITY_MUL = 0.8;
 
 type BallDropSpotlightConesProps = {
   /** Half-extent of jumbotron cube (local Y up at structure center) */
@@ -143,8 +145,18 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
   }, [coneR, coneH]);
 
   const { material, glowMat } = useMemo(() => {
-    const core = makeConeFadeMaterial(coneH, DEFAULT_CORE, 0.52, 2.2);
-    const glow = makeConeFadeMaterial(coneH, DEFAULT_GLOW, 0.28, 1.5);
+    const core = makeConeFadeMaterial(
+      coneH,
+      DEFAULT_CORE,
+      0.52 * CONE_BEAM_OPACITY_MUL,
+      2.2,
+    );
+    const glow = makeConeFadeMaterial(
+      coneH,
+      DEFAULT_GLOW,
+      0.28 * CONE_BEAM_OPACITY_MUL,
+      1.5,
+    );
     return { material: core, glowMat: glow };
   }, [coneH]);
 
@@ -257,8 +269,8 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       : 0.9 + Math.sin(t * 2.4) * 0.1;
     const coreStr = celebrating ? 0.88 : 0.52;
     const glowStr = celebrating ? 0.48 : 0.28;
-    material.uniforms.uStrength.value = coreStr * pulse;
-    glowMat.uniforms.uStrength.value = glowStr * pulse;
+    material.uniforms.uStrength.value = coreStr * pulse * CONE_BEAM_OPACITY_MUL;
+    glowMat.uniforms.uStrength.value = glowStr * pulse * CONE_BEAM_OPACITY_MUL;
     cornerLampMat.emissiveIntensity = celebrating ? 7.5 : 4.5;
 
     const spotI = (celebrating ? 1180 : 680) * (frenzy ? (0.65 + flicker) : 1);

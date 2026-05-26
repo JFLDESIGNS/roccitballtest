@@ -74,7 +74,7 @@ function computeIntensity(
       roofOpen *
       0.92 *
       Math.sqrt(stripWidthM / 42) *
-      40 *
+      26 *
       light.intensity
     );
   }

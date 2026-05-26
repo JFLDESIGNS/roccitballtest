@@ -7,6 +7,9 @@ export const GROUND_BLOB_SHADOW_RENDER_ORDER = 8;
 
 let octagonTex: THREE.CanvasTexture | null = null;
 let goalEllipseTex: THREE.CanvasTexture | null = null;
+/** Bump when goal blob bake changes so dev HMR picks up new alpha */
+const GOAL_BLOB_TEX_VERSION = 3;
+let goalBlobTexBuiltVersion = 0;
 
 /** Alpha-only decal — transparent outside the gradient, dark center only */
 export function createGroundBlobShadowMaterial(
@@ -16,6 +19,7 @@ export function createGroundBlobShadowMaterial(
     map,
     transparent: true,
     opacity: 1,
+    alphaTest: 0.02,
     depthWrite: false,
     depthTest: true,
     toneMapped: false,
@@ -37,11 +41,12 @@ function addShadowGradientStopsStrong(g: CanvasGradient): void {
 }
 
 function addShadowGradientStopsSoft(g: CanvasGradient): void {
-  // Softer goal blob; still fades to fully transparent at edges.
-  g.addColorStop(0, 'rgba(0, 0, 0, 0.9)');
-  g.addColorStop(0.3, 'rgba(0, 0, 0, 0.6)');
-  g.addColorStop(0.56, 'rgba(0, 0, 0, 0.3)');
-  g.addColorStop(0.78, 'rgba(0, 0, 0, 0.1)');
+  // Fade to zero well inside the painted radius so UV edges stay invisible.
+  g.addColorStop(0, 'rgba(0, 0, 0, 0.88)');
+  g.addColorStop(0.32, 'rgba(0, 0, 0, 0.52)');
+  g.addColorStop(0.58, 'rgba(0, 0, 0, 0.2)');
+  g.addColorStop(0.78, 'rgba(0, 0, 0, 0.04)');
+  g.addColorStop(0.92, 'rgba(0, 0, 0, 0)');
   g.addColorStop(1, 'rgba(0, 0, 0, 0)');
 }
 
@@ -90,8 +95,15 @@ export function getOctagonPlatformShadowTexture(): THREE.CanvasTexture {
 
 /** Elliptical radial shadow for a full goal stack on an end wall */
 export function getGoalFloorShadowTexture(): THREE.CanvasTexture {
-  if (goalEllipseTex) return goalEllipseTex;
-  const size = 256;
+  if (goalEllipseTex && goalBlobTexBuiltVersion === GOAL_BLOB_TEX_VERSION) {
+    return goalEllipseTex;
+  }
+  goalEllipseTex?.dispose();
+  goalEllipseTex = null;
+
+  const size = 512;
+  const margin = 20;
+  const scaleX = 1.55;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -100,10 +112,11 @@ export function getGoalFloorShadowTexture(): THREE.CanvasTexture {
     ctx.clearRect(0, 0, size, size);
     const cx = size / 2;
     const cy = size / 2;
-    const r = size * 0.48;
+    // Keep the scaled ellipse inside the canvas — old r=0.48*256*1.55 clipped the sides.
+    const r = (size / 2 - margin) / scaleX;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.scale(1.55, 1);
+    ctx.scale(scaleX, 1);
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
     addShadowGradientStopsSoft(g);
     ctx.beginPath();
@@ -111,12 +124,23 @@ export function getGoalFloorShadowTexture(): THREE.CanvasTexture {
     ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
+
+    // Guarantee a fully transparent border (no square fringe from filtering).
+    ctx.clearRect(0, 0, margin, size);
+    ctx.clearRect(size - margin, 0, margin, size);
+    ctx.clearRect(0, 0, size, margin);
+    ctx.clearRect(0, size - margin, size, margin);
   }
+
   goalEllipseTex = new THREE.CanvasTexture(canvas);
   goalEllipseTex.colorSpace = THREE.SRGBColorSpace;
   goalEllipseTex.generateMipmaps = false;
   goalEllipseTex.minFilter = THREE.LinearFilter;
   goalEllipseTex.magFilter = THREE.LinearFilter;
+  goalEllipseTex.wrapS = THREE.ClampToEdgeWrapping;
+  goalEllipseTex.wrapT = THREE.ClampToEdgeWrapping;
+  goalEllipseTex.needsUpdate = true;
+  goalBlobTexBuiltVersion = GOAL_BLOB_TEX_VERSION;
   return goalEllipseTex;
 }
 

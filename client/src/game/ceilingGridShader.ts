@@ -35,7 +35,7 @@ const fragmentShader = /* glsl */ `
     float pulse = uPulse * (0.88 + 0.12 * sin(uTime * 14.0));
     float shimmer = 0.92 + 0.08 * sin(uTime * 9.0 + uv.x * 24.0 + uv.y * 18.0);
     vec3 green = vec3(0.18, 1.0, 0.42);
-    float alpha = grid * pulse * shimmer;
+    float alpha = grid * pulse * shimmer * 0.5;
     gl_FragColor = vec4(green * alpha * 1.35, alpha);
   }
 `;

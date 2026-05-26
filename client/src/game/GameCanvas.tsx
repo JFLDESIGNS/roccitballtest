@@ -732,6 +732,16 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
           if (gfx.shadows) {
             gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
           }
+          gl.domElement.addEventListener(
+            'webglcontextlost',
+            (e) => {
+              e.preventDefault();
+              console.warn(
+                '[RocccitBall] WebGL context lost — do a full page refresh (Ctrl+Shift+R).',
+              );
+            },
+            false,
+          );
         }}
       >
         <SceneEnvironment />

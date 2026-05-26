@@ -10,10 +10,13 @@ import {
 } from './arenaGroundBlobShadow';
 import { ARENA_GOALS, ringRadiusForTier } from './goals';
 
-/** Spread onto the court (world X) — mesh scale X */
-const COURT_SPREAD = 20;
-/** Spread along the wall (world Z) — mesh scale Z */
+const FT = 0.3048;
+/** Spread toward/away from end wall (world X) — +20% vs square baseline */
+const COURT_SPREAD = 20 * 1.2;
+/** Spread along the wall (world Z) — square baseline */
 const WALL_SPREAD = ringRadiusForTier(0) * 3.1;
+/** Offset from goal anchor toward court; pull 4 ft back toward the wall */
+const SHADOW_TOWARD_COURT_M = 2.45 - 4 * FT;
 
 function goalEndShadowPlacement(team: Team): {
   position: [number, number, number];
@@ -23,8 +26,7 @@ function goalEndShadowPlacement(team: Team): {
   const towardCourt = team === 'red' ? 1 : -1;
   return {
     position: [
-      // Pull the blob back toward the end wall (closer to the net).
-      anchor.center.x + towardCourt * 2.45,
+      anchor.center.x + towardCourt * SHADOW_TOWARD_COURT_M,
       ARENA.floorY + GROUND_BLOB_SHADOW_LIFT,
       anchor.center.z,
     ],

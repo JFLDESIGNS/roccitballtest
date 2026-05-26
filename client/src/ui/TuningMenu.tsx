@@ -5,8 +5,11 @@ import {
   TUNING_TABS,
   type TuningTabId,
 } from '../game/tuningStore';
+import { MOVEMENT } from '../shared/Constants';
 import { BrightnessControls } from './BrightnessControls';
 import { GraphicsControls } from './GraphicsControls';
+
+const TUNING_SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
 
 type SliderRowProps = {
   label: string;
@@ -155,7 +158,9 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             max={22}
             step={0.5}
             onChange={tuningStore.setWalkSpeed}
-            format={(v) => `${v.toFixed(1)} (sprint ${(v * 1.43).toFixed(1)})`}
+            format={(v) =>
+              `${v.toFixed(1)} (sprint ${(v * TUNING_SPRINT_RATIO).toFixed(1)})`
+            }
           />
           <SliderRow
             label="Mouse sensitivity"

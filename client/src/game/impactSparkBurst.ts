@@ -47,8 +47,8 @@ export function burstBillboardFaceSparks(
   const s = Math.sin(yaw);
   const halfW = widthM * 0.46;
   const halfH = heightM * 0.46;
-  const faceZ = 0.28;
-  const count = 56;
+  const faceZ = 0.22;
+  const count = 72;
   const out = { x: 0, y: 0, z: 0 };
   const n = billboardFaceNormalWorld(yaw);
 

@@ -53,6 +53,7 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
       rotation={[0, mount.yaw, 0]}
       friction={BILLBOARD_FRICTION}
       restitution={BILLBOARD_RESTITUTION}
+      userData={{ billboardMount: mount }}
     >
       <CuboidCollider
         args={[(w + 0.35) * 0.5, (h + 0.35) * 0.5, frameDepth * 0.5]}

@@ -4,6 +4,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BALL } from '../shared/Constants';
 import { getBallMaxSpeed } from './ballRuntime';
+import { BallOutlineRing } from './BallOutlineRing';
 import { EightBallVisual } from './EightBallVisual';
 import { getPremium8Ball, subscribePremium8Ball } from './premiumBall';
 import {
@@ -185,6 +186,7 @@ export function LooseBallVisual({
           />
         </mesh>
       )}
+      <BallOutlineRing />
     </group>
   );
 }

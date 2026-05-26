@@ -12,6 +12,7 @@ import { arenaPillarTopWorldY } from './arenaPillarConfig';
 import { goalEndFaceX } from './goals';
 import { arenaRoofStore } from './arenaRoofStore';
 import { burstRoofOpenSmoke, burstRoofSeamSmoke } from './pillarSmokePuffs';
+import { triggerStadiumRoofOpenShake } from './visualShake';
 import { arenaCeilingMaterial } from './arenaMaterials';
 import { createMeterTiledBoxGeometry } from './arenaConcreteTexture';
 
@@ -83,10 +84,11 @@ export function ArenaRetractableRoof() {
     if (opening && openDelta > 0.00015) {
       if (!roofSmokeRef.current.wasOpening && open < 0.08) {
         burstRoofOpenSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX);
+        triggerStadiumRoofOpenShake();
       }
       const puffs = Math.min(
-        22,
-        Math.max(2, Math.round(openDelta * 520 + dt * 14)),
+        44,
+        Math.max(4, Math.round(openDelta * 1040 + dt * 28)),
       );
       burstRoofSeamSmoke(nearInnerZ, farInnerZ, smokeY, layout.spanX, puffs);
       roofSmokeRef.current.wasOpening = true;

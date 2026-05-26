@@ -3158,6 +3158,13 @@ function BotAvatar({
         opacity={0.22}
         maxPoints={10}
         minStep={0.32}
+        minActiveHorizSpeed={6}
+        getHorizSpeed={() => {
+          const b = bodyRef.current;
+          if (!b) return 0;
+          const lv = b.linvel();
+          return Math.hypot(lv.x, lv.z);
+        }}
         samplePosition={() => {
           const b = bodyRef.current;
           if (!b) return null;

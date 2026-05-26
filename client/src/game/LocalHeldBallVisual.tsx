@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { BALL, RENDER } from '../shared/Constants';
+import { BallOutlineRing } from './BallOutlineRing';
 import { EightBallVisual } from './EightBallVisual';
 import { applyEightBallAuraGlow } from './eightBallAuraMaterial';
 import { createBallPolkaTexture } from './ballPolkaTexture';
@@ -155,6 +156,7 @@ export function LocalHeldBallVisual({
           />
         </mesh>
       )}
+      <BallOutlineRing />
     </group>
   );
 }

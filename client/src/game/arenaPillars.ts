@@ -76,6 +76,25 @@ export function rocketSegmentHitsArenaPillar(
   return findArenaPillarSegmentHit(from, to, rocketRadius) !== null;
 }
 
+/** Ball / rocket impact at a world XZ point (fallback when collider userData is missing). */
+export function findArenaPillarNearXZ(
+  x: number,
+  z: number,
+  padRadius = 0.5,
+): { x: number; z: number } | null {
+  const hitRSq = (ARENA_PILLAR.colliderRadius + padRadius) ** 2;
+  let best: { x: number; z: number; distSq: number } | null = null;
+  for (const p of getArenaCornerPillarLayouts()) {
+    const dx = x - p.x;
+    const dz = z - p.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq <= hitRSq && (!best || distSq < best.distSq)) {
+      best = { x: p.x, z: p.z, distSq };
+    }
+  }
+  return best ? { x: best.x, z: best.z } : null;
+}
+
 export function findArenaPillarSegmentHit(
   from: THREE.Vector3,
   to: THREE.Vector3,

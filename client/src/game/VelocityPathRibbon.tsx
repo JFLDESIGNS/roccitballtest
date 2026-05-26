@@ -18,6 +18,8 @@ type VelocityPathRibbonProps = {
   tubeSegments?: number;
   /** Fade ribbon opacity down as horizontal speed rises */
   getHorizSpeed?: () => number;
+  /** Hide trail and clear history below this horizontal speed (m/s) */
+  minActiveHorizSpeed?: number;
 };
 
 const DEFAULT_COLOR = '#ffffff';
@@ -57,6 +59,19 @@ function trailFade(
 
 function speedOpacityMult(horizSpeed: number): number {
   return THREE.MathUtils.clamp(1.15 - horizSpeed / 26, 0.38, 1);
+}
+
+function ribbonInactive(
+  hidden: boolean,
+  getHorizSpeed: (() => number) | undefined,
+  minActiveHorizSpeed: number | undefined,
+): boolean {
+  if (hidden) return true;
+  if (minActiveHorizSpeed != null && minActiveHorizSpeed > 0) {
+    const speed = getHorizSpeed?.() ?? 0;
+    if (speed < minActiveHorizSpeed) return true;
+  }
+  return false;
 }
 
 function makeTubeGeometry(maxPoints: number, segments: number) {
@@ -126,6 +141,7 @@ export function VelocityPathRibbon({
   crossSection = false,
   tubeSegments = 0,
   getHorizSpeed,
+  minActiveHorizSpeed,
 }: VelocityPathRibbonProps) {
   const { camera } = useThree();
   const history = useRef<THREE.Vector3[]>([]);
@@ -288,7 +304,7 @@ export function VelocityPathRibbon({
       const mesh = meshRef.current;
       if (!mesh) return;
 
-      if (hidden) {
+      if (ribbonInactive(hidden, getHorizSpeed, minActiveHorizSpeed)) {
         mesh.visible = false;
         if (meshRef2.current) meshRef2.current.visible = false;
         history.current.length = 0;
@@ -325,7 +341,7 @@ export function VelocityPathRibbon({
     const mesh = lineRef.current ?? thinLine;
     if (!mesh) return;
 
-    if (hidden) {
+    if (ribbonInactive(hidden, getHorizSpeed, minActiveHorizSpeed)) {
       mesh.visible = false;
       history.current.length = 0;
       return;

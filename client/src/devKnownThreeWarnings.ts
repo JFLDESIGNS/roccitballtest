@@ -6,7 +6,10 @@ const SUPPRESSED_THREE_WARNINGS = [
 ];
 
 /** FBX materials reference maps three.js does not implement */
-const SUPPRESSED_CONSOLE_WARN_PREFIXES = ['THREE.FBXLoader:'];
+const SUPPRESSED_CONSOLE_WARN_PREFIXES = [
+  'THREE.FBXLoader:',
+  'using deprecated parameters for the initialization function',
+];
 
 function isSuppressedFbxTextureWarn(message: string): boolean {
   return (

@@ -4,10 +4,10 @@ import * as THREE from 'three';
 import { ARENA_PILLAR } from './arenaPillarConfig';
 import { tickPillarSmokePuffs } from './pillarSmokePuffs';
 
-const MAX_INSTANCES = 220;
-/** ~50% more transparent than prior pillar poof */
-const SMOKE_OPACITY = 0.05;
-const FRESNEL_OPACITY = 0.06;
+const MAX_INSTANCES = 320;
+/** Pillar poofs — extra 30% transparent vs prior tuning */
+const SMOKE_OPACITY = 0.035;
+const FRESNEL_OPACITY = 0.042;
 const SMOKE_Y_MIN = ARENA_PILLAR.floorY;
 const SMOKE_Y_MAX = ARENA_PILLAR.floorY + ARENA_PILLAR.height;
 const SMOKE_COLOR_BOTTOM = new THREE.Color(0x101214);

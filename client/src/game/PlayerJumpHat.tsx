@@ -40,7 +40,7 @@ const CROWN_PITCH = 0;
 /** Start floating crown when falling faster than this (m/s) */
 const FALL_DETACH_VY = -1.6;
 /** Extra lift above head when fully floated */
-const FALL_FLOAT_ABOVE_M = 0.42;
+const FALL_FLOAT_ABOVE_M = 0.26;
 /** Seconds to ease up to full float height (quick overall, slow start) */
 const FALL_FLOAT_RISE_SEC = 0.34;
 const REATTACH_LERP = 14;
@@ -191,7 +191,7 @@ export function PlayerJumpHat({
       visual.getWorldPosition(_headWorld);
       _headWorld.y += CROWN_REST_Y + FALL_FLOAT_ABOVE_M * rise;
       if (rise > 0.72) {
-        _headWorld.y += Math.sin(performance.now() * 0.009) * 0.05 * rise;
+        _headWorld.y += Math.sin(performance.now() * 0.009) * 0.03 * rise;
       }
       const parent = anchor.parent;
       if (parent) {

@@ -37,7 +37,7 @@ function CeilingStrip({
     const k =
       open < 0.01
         ? 0
-        : base * open * BRIGHTNESS_MUL * Math.sqrt(stripWidthM / 42) * 40;
+        : base * open * BRIGHTNESS_MUL * Math.sqrt(stripWidthM / 42) * 26;
     for (const light of lightsRef.current) {
       if (light) light.intensity = k;
     }

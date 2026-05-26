@@ -11,6 +11,8 @@ import { playerFeetY } from './playerGroundProbe';
 export const JERSEY_DECAL_RENDER_ORDER = 60;
 /** Player / bot meshes always on top of floor numbers */
 export const CHARACTER_MESH_RENDER_ORDER = 100;
+/** Floor jersey digits — material opacity (bots only; local player has no decal) */
+export const GROUND_JERSEY_DECAL_OPACITY = 0.48;
 
 const textureCache = new Map<string, THREE.CanvasTexture>();
 const _euler = new THREE.Euler(-Math.PI / 2, 0, 0, 'YXZ');
@@ -43,14 +45,16 @@ function makeNumberTexture(digits: string, fill: string): THREE.CanvasTexture {
   ctx.shadowColor = 'rgba(0,0,0,0.35)';
   ctx.shadowBlur = 8;
   ctx.lineWidth = 16;
-  ctx.strokeStyle = 'rgba(20, 24, 28, 0.85)';
+  ctx.strokeStyle = 'rgba(20, 24, 28, 0.45)';
   ctx.strokeText(digits, cx, cy);
   ctx.lineWidth = 6;
-  ctx.strokeStyle = 'rgba(90, 98, 108, 0.7)';
+  ctx.strokeStyle = 'rgba(90, 98, 108, 0.38)';
   ctx.strokeText(digits, cx, cy);
   ctx.shadowBlur = 0;
   ctx.fillStyle = fill;
+  ctx.globalAlpha = 0.72;
   ctx.fillText(digits, cx, cy);
+  ctx.globalAlpha = 1;
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -68,6 +72,7 @@ type GroundJerseyDecalProps = {
   /** When set with hideWhenGrounded, skip the decal while feet are on the ground */
   groundedRef?: React.RefObject<boolean>;
   hideWhenGrounded?: boolean;
+  opacity?: number;
 };
 
 /** Jersey number flat on the floor, yaw toward the active camera */
@@ -78,6 +83,7 @@ export function GroundJerseyDecal({
   size = 3.6,
   groundedRef,
   hideWhenGrounded = false,
+  opacity = GROUND_JERSEY_DECAL_OPACITY,
 }: GroundJerseyDecalProps) {
   const { world } = useRapier();
   const groupRef = useRef<THREE.Group>(null);
@@ -130,6 +136,7 @@ export function GroundJerseyDecal({
         <meshBasicMaterial
           map={map}
           transparent
+          opacity={opacity}
           alphaTest={0.03}
           depthWrite={false}
           depthTest={true}

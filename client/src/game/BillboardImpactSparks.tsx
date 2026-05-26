@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { tickImpactSparks } from './impactSparkBurst';
 
@@ -10,7 +10,6 @@ const MAX = 160;
  */
 export function ImpactSparks() {
   const pointsRef = useRef<THREE.Points>(null);
-  const posAttrRef = useRef<THREE.BufferAttribute | null>(null);
   const positions = useMemo(() => new Float32Array(MAX * 3), []);
   const colors = useMemo(() => new Float32Array(MAX * 3), []);
 
@@ -22,11 +21,12 @@ export function ImpactSparks() {
   const material = useMemo(
     () =>
       new THREE.PointsMaterial({
-        size: 0.14,
+        size: 0.32,
         sizeAttenuation: true,
         transparent: true,
         opacity: 1,
         depthWrite: false,
+        depthTest: true,
         toneMapped: false,
         blending: THREE.AdditiveBlending,
         vertexColors: true,
@@ -34,19 +34,21 @@ export function ImpactSparks() {
     [],
   );
 
-  useLayoutEffect(() => {
-    const pts = pointsRef.current;
-    if (!pts) return;
-    pts.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    pts.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setDrawRange(0, 0);
+    return geo;
   }, [positions, colors]);
 
   useFrame((_, dt) => {
-    const active = tickImpactSparks(dt);
     const pts = pointsRef.current;
-    const posAttr = posAttrRef.current;
-    const colAttr = pts?.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
-    if (!pts || !posAttr || !colAttr) return;
+    if (!pts) return;
+
+    const active = tickImpactSparks(dt);
+    const posAttr = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const colAttr = geometry.getAttribute('color') as THREE.BufferAttribute;
 
     let n = 0;
     for (let i = 0; i < active.length && n < MAX; i++) {
@@ -64,25 +66,19 @@ export function ImpactSparks() {
       n++;
     }
 
-    pts.geometry.setDrawRange(0, n);
+    geometry.setDrawRange(0, n);
     posAttr.needsUpdate = true;
     colAttr.needsUpdate = true;
     pts.visible = n > 0;
   });
 
   return (
-    <points ref={pointsRef} frustumCulled={false} renderOrder={16}>
-      <bufferGeometry>
-        <bufferAttribute
-          ref={(a) => {
-            posAttrRef.current = a;
-          }}
-          attach="attributes-position"
-          args={[positions, 3]}
-        />
-        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-      </bufferGeometry>
-      <primitive object={material} attach="material" />
-    </points>
+    <points
+      ref={pointsRef}
+      geometry={geometry}
+      material={material}
+      frustumCulled={false}
+      renderOrder={2400}
+    />
   );
 }
