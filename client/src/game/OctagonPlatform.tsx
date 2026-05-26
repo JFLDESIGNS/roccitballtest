@@ -7,14 +7,17 @@ import { buildOctagonPlatformBuffers, createOctagonShape } from './arenaOctagon'
 import { arenaPlatformMaterial, arenaPlatformTopMaterial } from './arenaMaterials';
 import { getVisualShake, octagonShakeKey } from './visualShake';
 
-const { octagonTopRadius, octagonSlopeRadius, platformTopHeight, floorY } = ARENA;
+const {
+  octagonTopRadius,
+  octagonSlopeRadius,
+  octagonPlatformSizeMul,
+  platformTopHeight,
+  floorY,
+} = ARENA;
 
 export type OctagonPlatformProps = {
-  /** World X — default arena center */
   x?: number;
-  /** World Z — default arena center */
   z?: number;
-  /** Scales top + ramp footprint (center = 2, corners = 1) */
   sizeScale?: number;
 };
 
@@ -23,8 +26,8 @@ export function OctagonPlatform({
   z = 0,
   sizeScale = 1,
 }: OctagonPlatformProps) {
-  const topR = octagonTopRadius * sizeScale;
-  const slopeR = octagonSlopeRadius * sizeScale;
+  const topR = octagonTopRadius * sizeScale * octagonPlatformSizeMul;
+  const slopeR = octagonSlopeRadius * sizeScale * octagonPlatformSizeMul;
 
   const { geometry, vertices, indices } = useMemo(() => {
     const built = buildOctagonPlatformBuffers(
@@ -34,7 +37,7 @@ export function OctagonPlatform({
       floorY,
     );
     return built;
-  }, [topR, slopeR, x, z]);
+  }, [topR, slopeR]);
 
   const topRingGeo = useMemo(() => {
     const shape = createOctagonShape(topR * 0.88);
@@ -59,7 +62,7 @@ export function OctagonPlatform({
         type="fixed"
         colliders={false}
         friction={0.85}
-        collisionGroups={interactionGroups(2)}
+        collisionGroups={interactionGroups(2, [0, 1, 2])}
       >
         <TrimeshCollider
           args={[vertices, indices]}
@@ -79,8 +82,6 @@ export function OctagonPlatform({
             rotation={[-Math.PI / 2, 0, 0]}
             geometry={topRingGeo}
             material={arenaPlatformTopMaterial}
-            castShadow
-            receiveShadow
           />
         </group>
       </RigidBody>

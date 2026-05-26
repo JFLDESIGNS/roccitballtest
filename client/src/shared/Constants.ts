@@ -11,6 +11,8 @@ export const ARENA = {
   octagonTopRadius: 11,
   /** Outer edge of ramp slopes down to arena floor */
   octagonSlopeRadius: 28,
+  /** Visual + physics scale for octagon decks (1 = legacy size) */
+  octagonPlatformSizeMul: 0.9,
   /** Center deck height — all platforms (1.5× original) */
   platformTopHeight: 4.575,
   /** Top/bottom hex corners (field midline, x ≈ 0) — 2× footprint */

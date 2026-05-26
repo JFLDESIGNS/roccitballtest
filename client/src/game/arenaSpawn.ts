@@ -17,8 +17,9 @@ export type ArenaPlatformPlacement = {
 /** All raised octagon decks (center + hex corners), including custom map offsets. */
 export function listArenaPlatforms(): ArenaPlatformPlacement[] {
   const placements = listOctagonPlatformPlacements();
-  const baseSlope = ARENA.octagonSlopeRadius;
-  const baseTop = ARENA.octagonTopRadius;
+  const sizeMul = ARENA.octagonPlatformSizeMul;
+  const baseSlope = ARENA.octagonSlopeRadius * sizeMul;
+  const baseTop = ARENA.octagonTopRadius * sizeMul;
   const doc = mapRegistryStore.getActiveMapDocument();
 
   return placements.map((p, i) => {

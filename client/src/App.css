@@ -727,6 +727,75 @@ body,
   text-align: left;
 }
 
+.main-menu-platform-tune {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(80, 120, 170, 0.28);
+}
+
+.main-menu-platform-tune .menu-section-title {
+  margin-top: 0;
+}
+
+.menu-platform-tune-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #8aa4c8;
+  text-align: left;
+}
+
+.main-menu-platform-rot-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.menu-field--compact {
+  gap: 0.2rem;
+}
+
+.menu-field--compact span {
+  font-size: 0.72rem;
+}
+
+.menu-field--compact input {
+  padding: 0.28rem 0.35rem;
+  font-size: 0.8rem;
+}
+
+.main-menu-platform-tune-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
+.main-menu-platform-tune-actions .btn-secondary {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.menu-platform-tune-status {
+  font-size: 0.75rem;
+  color: #66ccff;
+}
+
+.menu-platform-tune-dump {
+  margin: 0.5rem 0 0;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: #a8c4e8;
+  background: rgba(6, 10, 18, 0.65);
+  border: 1px solid rgba(80, 120, 170, 0.25);
+  border-radius: 6px;
+  overflow-x: auto;
+  text-align: left;
+}
+
 .graphics-controls {
   margin: 1rem 0;
   padding: 0.85rem 0.75rem;

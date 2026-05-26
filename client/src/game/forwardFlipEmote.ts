@@ -34,5 +34,7 @@ export function getForwardFlipPitchX(actorId: string): number {
   }
 
   const u = 1 - remaining / FLIP_DURATION_MS;
-  return Math.sin(u * Math.PI) * Math.PI * 2;
+  const t = u * u * (3 - 2 * u);
+  // One forward somersault (0 → 2π), no unwind — sin(π·u) peaked at mid-flip then rotated back.
+  return -t * Math.PI * 2;
 }
