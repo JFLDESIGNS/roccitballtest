@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ARENA } from '../shared/Constants';
-import { listOctagonPlatformPlacements } from './arenaOctagonPlatforms';
+import { listArenaPlatforms } from './arenaSpawn';
 import {
   GROUND_BLOB_SHADOW_LIFT,
   GROUND_BLOB_SHADOW_RENDER_ORDER,
@@ -20,12 +20,12 @@ export function ArenaPlatformGroundShadows() {
     [],
   );
 
-  const placements = useMemo(() => listOctagonPlatformPlacements(), []);
+  const placements = useMemo(() => listArenaPlatforms(), []);
 
   return (
     <group renderOrder={GROUND_BLOB_SHADOW_RENDER_ORDER}>
       {placements.map((p, i) => {
-        const footprint = ARENA.octagonSlopeRadius * p.sizeScale * FOOTPRINT_MUL;
+        const footprint = p.slopeR * FOOTPRINT_MUL;
         return (
           <mesh
             key={`platform-shadow-${p.x}-${p.z}-${i}`}

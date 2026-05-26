@@ -1,3 +1,85 @@
+# Coding Notes (RocccitBall)
+
+This file is a living log of gameplay/editor changes and where to find the code.
+
+## Project paths
+
+- **Repo root**: `C:\Users\joe\Desktop\RocccitBall`
+- **Client**: `client/`
+- **Gameplay code**: `client/src/game/`
+- **Map editor code**: `client/src/mapEditor/`
+
+## Recent gameplay changes
+
+### Bots: look targets + smooth aim (`botLook.ts`)
+
+- Bots always resolve a look point (ball / teammate / opponent / ball drop / goal).
+- Chase modes lock onto the **ball**; focus changes are **held ~2.4s** and blended in world space.
+- `smoothAimToward` uses **angle lerp + max turn rate** (no snap yaw).
+- **No defensive net camping**: `defense` teammate-chase roll → `teamCenter` midfield roam.
+- **Kickoff contest**: soft roam within **~5 ft** of center; look at ball drop; occasional playful rockets (cooldown).
+- **Post-score celebration**: smooth look at ball drop / teammate / opponent; soft center roam.
+- **Held ball**: carry look + **setup windup** (glance down) → **release look-up** on shot.
+
+### Bots: “never park / never fully idle”
+
+- **Defensive support (`teamDefense`) no longer parks in the net**
+  - Implemented a roaming/loiter target in front of the bot’s own goal so they keep moving.
+  - **Files**:
+    - `client/src/game/botBrain.ts` (new `pickTeamDefenseRoamTarget`, defense look target → ball)
+    - `client/src/game/Bots.tsx` (avoid `_wish.set(0,0,0)` idle case by orbiting)
+
+### Ball Drop: shake on hit + spotlight frenzy
+
+- **Explosive rocket impact on the Ball Drop** triggers:
+  - **Ball Drop shake** (small wobble)
+  - **3s spotlight “frenzy”**: faster sweep + strong flicker + sparks
+- **Files**:
+  - `client/src/game/rocketSystem.ts` (detect ball drop hit and trigger shake/frenzy)
+  - `client/src/game/visualShake.ts` (added `triggerBallDropShake` + `getBallDropShake`)
+  - `client/src/game/BallDrop.tsx` (applies `getBallDropShake` to the ball drop root group)
+  - `client/src/game/BallDropSpotlightCones.tsx`
+    - `triggerBallDropSpotlightFrenzy()`
+    - Spark points + flicker/intensity modulation while frenzy is active
+
+### Ball spawn: `T` respawns a new ball
+
+- Bound `KeyT` to the same “spawn ball” queue used for the kickoff drop behavior.
+- **File**: `client/src/game/InputManager.ts`
+
+### Ceiling invisible wall + green wireframe flash + sound
+
+- Added an **invisible ceiling collider** so ball/player can’t fly out.
+- When the **ball or player hits the ceiling**:
+  - The **ceiling wireframe flashes** (bright, layered additive wireframe)
+  - A **small ceiling bump sound** plays
+- **Files**:
+  - `client/src/game/ArenaCeilingImpactWall.tsx` (collider + ceiling-plane wireframe flash)
+  - `client/src/game/Ball.tsx` (detect ceiling normal → trigger flash + sound)
+  - `client/src/game/Player.tsx` (detect ceiling normal → trigger flash + sound)
+  - `client/src/game/audio.ts` (added `playCeilingBump`)
+  - `client/src/game/visualShake.ts` (added ceiling hit pulse/wobble helpers)
+
+### Rocket impacts louder overall
+
+- Boosted rocket explosion sample gain.
+- **File**: `client/src/game/audio.ts` (`playRocketExplosion`)
+
+### Mouse focus loss after menus
+
+- When closing the tuning menu, we now do a stronger resume sequence to reduce cases where you return and the mouse isn’t captured:
+  - `onGameplayResume()` + `refreshPointerLockState()`
+- **File**: `client/src/game/tuningStore.ts`
+
+## Map Editor: JSON import/export
+
+- Added “Map JSON” UI section for **Export JSON** / **Import JSON**.
+- Import validates, normalizes, assigns a new ID if needed, saves, and activates.
+- **Files**:
+  - `client/src/mapEditor/MapEditorUI.tsx`
+  - `client/src/mapEditor/mapEditorStorage.ts`
+  - `client/src/mapEditor/mapEditorStore.ts`
+
 # Rocccit Ball — Coding Notes (for Cursor)
 
 Quick map of the project so a new chat can pick up without this conversation.

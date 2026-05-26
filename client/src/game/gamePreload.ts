@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mapRegistryStore } from '../mapEditor/mapEditorStore';
+import { DRONE_TEXTURE_URLS } from './droneMaterials';
 import { preloadCrownMaterialMaps } from './playerCrownModel';
 import { EIGHT_BALL_TEXTURE_URLS } from './eightBallTextures';
 import explosionSheetUrl from '../assets/images/explosion.png';
@@ -46,7 +47,11 @@ const UI_TEXTURE_URLS = [explosionSheetUrl, glassCrackUrl];
 async function preloadTexturesChunked(
   onSlice: (progress: number) => void,
 ): Promise<void> {
-  const urls = [...UI_TEXTURE_URLS, ...collectEightBallTextureUrls()];
+  const urls = [
+    ...UI_TEXTURE_URLS,
+    ...collectEightBallTextureUrls(),
+    ...Object.values(DRONE_TEXTURE_URLS),
+  ];
   const batch = 4;
   for (let i = 0; i < urls.length; i += batch) {
     const slice = urls.slice(i, i + batch);

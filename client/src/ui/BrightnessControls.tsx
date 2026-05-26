@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { graphicsStore } from '../game/graphicsStore';
-import { GfxColorInput, GfxSlider, GfxToggle } from './gfxMenuFields';
+import { MAP_LIGHT_GLOW_BLEND_OPTIONS } from '../game/mapLightGlowBlend';
+import { GfxColorInput, GfxSelect, GfxSlider, GfxToggle } from './gfxMenuFields';
 
 /** Stadium ceiling strips + scene exposure — press 1, Brightness tab */
 export function BrightnessControls({ compact }: { compact?: boolean }) {
@@ -117,6 +118,44 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
         max={2}
         step={0.05}
         onChange={graphicsStore.setExposure}
+      />
+
+      <h4 className="menu-section-title">Map light glow (custom maps)</h4>
+      <p className="tuning-sub">
+        Soft radial halos on placed point, spot, and rect lights in play mode
+        (not the editor bulb mesh).
+      </p>
+      <GfxSlider
+        label="Glow opacity"
+        value={gfx.mapLightGlowOpacity ?? 0.3}
+        min={0.02}
+        max={1}
+        step={0.02}
+        onChange={graphicsStore.setMapLightGlowOpacity}
+        format={(v) => `${Math.round(v * 100)}%`}
+      />
+      <GfxSlider
+        label="Glow size"
+        value={gfx.mapLightGlowSizeScale ?? 1}
+        min={0.25}
+        max={2.5}
+        step={0.05}
+        onChange={graphicsStore.setMapLightGlowSizeScale}
+        format={(v) => `${Math.round(v * 100)}%`}
+      />
+      <GfxSelect
+        label="Glow blend mode"
+        value={gfx.mapLightGlowBlendMode ?? 'normal'}
+        options={MAP_LIGHT_GLOW_BLEND_OPTIONS.map((o) => ({
+          id: o.id,
+          label: o.label,
+        }))}
+        onChange={graphicsStore.setMapLightGlowBlendMode}
+        hint={
+          MAP_LIGHT_GLOW_BLEND_OPTIONS.find(
+            (o) => o.id === (gfx.mapLightGlowBlendMode ?? 'normal'),
+          )?.hint
+        }
       />
 
       <h4 className="menu-section-title">Highlights</h4>

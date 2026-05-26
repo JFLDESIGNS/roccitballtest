@@ -374,9 +374,11 @@ function GoalWallAccentLights() {
 export function Arena({
   hiddenGoalIds = [],
   hiddenPillarIndices = [],
+  hiddenPlatformIndices = [],
 }: {
   hiddenGoalIds?: string[];
   hiddenPillarIndices?: number[];
+  hiddenPlatformIndices?: number[];
 } = {}) {
   const floorGeo = useMemo(
     () => createArenaHexFloorGeometry(hexRadius),
@@ -386,10 +388,12 @@ export function Arena({
     () => buildHexWallSegments(hexRadius, wallThickness),
     [],
   );
-  const cornerPlatforms = useMemo(
+  const platformPlacements = useMemo(
     () =>
-      listOctagonPlatformPlacements().filter((p) => p.x !== 0 || p.z !== 0),
-    [hexRadius],
+      listOctagonPlatformPlacements().filter(
+        (_, i) => !hiddenPlatformIndices.includes(i),
+      ),
+    [hexRadius, hiddenPlatformIndices],
   );
   return (
     <group>
@@ -411,20 +415,22 @@ export function Arena({
       <ArenaPlatformGroundShadows />
       <ArenaGoalGroundShadows />
 
-      <OctagonPlatform />
-      <group
-        position={[0, ARENA.platformTopHeight + 0.04, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
-        <RocccitLogoStamp size={16} maxWidth={18} maxHeight={9} />
-      </group>
-      {cornerPlatforms.map((corner, i) => (
-        <OctagonPlatform
-          key={`corner-platform-${i}`}
-          x={corner.x}
-          z={corner.z}
-          sizeScale={corner.sizeScale}
-        />
+      {platformPlacements.map((placement, i) => (
+        <group key={`arena-platform-${placement.x}-${placement.z}-${i}`}>
+          <OctagonPlatform
+            x={placement.x}
+            z={placement.z}
+            sizeScale={placement.sizeScale}
+          />
+          {placement.x === 0 && placement.z === 0 && (
+            <group
+              position={[0, ARENA.platformTopHeight + 0.04, 0]}
+              rotation={[-Math.PI / 2, 0, 0]}
+            >
+              <RocccitLogoStamp size={16} maxWidth={18} maxHeight={9} />
+            </group>
+          )}
+        </group>
       ))}
       <BallDrop />
       <GoalZoneDebugVisuals />

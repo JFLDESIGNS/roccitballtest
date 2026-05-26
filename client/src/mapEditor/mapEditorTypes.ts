@@ -25,7 +25,7 @@ export type MapGroup = {
   stadiumKey?: string;
 };
 
-export type MapLightKind = 'point' | 'spot' | 'directional';
+export type MapLightKind = 'point' | 'spot' | 'directional' | 'rectArea';
 
 export type MapLight = {
   id: string;
@@ -38,6 +38,11 @@ export type MapLight = {
   distance: number;
   angle: number;
   penumbra: number;
+  /** Rect area light panel width (m) */
+  rectWidth: number;
+  /** Rect area light panel height (m) */
+  rectHeight: number;
+  castShadow: boolean;
 };
 
 export type MapDocument = {
@@ -109,17 +114,27 @@ export function createMapLight(kind: MapLightKind): MapLight {
     point: 'Point light',
     spot: 'Spot light',
     directional: 'Directional light',
+    rectArea: 'Rect area light',
   };
   return {
     id,
     name: names[kind],
     kind,
     position: [0, 12, 0],
-    rotation: [-Math.PI / 4, 0, 0],
+    rotation:
+      kind === 'rectArea'
+        ? [-Math.PI / 2, 0, 0]
+        : kind === 'directional'
+          ? [-Math.PI / 3, 0.4, 0]
+          : [-Math.PI / 4, 0, 0],
     color: '#ffffff',
-    intensity: kind === 'directional' ? 1.2 : 2.5,
+    intensity:
+      kind === 'directional' ? 1.2 : kind === 'rectArea' ? 6 : 2.5,
     distance: 48,
     angle: Math.PI / 5,
     penumbra: 0.35,
+    rectWidth: 14,
+    rectHeight: 8,
+    castShadow: false,
   };
 }

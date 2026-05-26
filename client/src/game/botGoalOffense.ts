@@ -9,7 +9,7 @@ import type { BotHoldPhase } from './botBrain';
 
 const _scratch = new THREE.Vector3();
 
-export type BotShotStyle = 'normal' | 'dunk' | 'jam';
+export type BotShotStyle = 'normal' | 'dunk' | 'jam' | 'feint';
 
 function defendTeam(attackingTeam: Team): Team {
   return attackingTeam === 'red' ? 'blue' : 'red';
@@ -88,9 +88,21 @@ export function rollBotShotStyle(
 ): BotShotStyle {
   if (inShootZone) {
     const r = Math.random();
-    if (r < BOT.shootZoneDunkChance) return 'dunk';
-    if (r < BOT.shootZoneDunkChance + BOT.shootZoneJamChance) return 'jam';
+    if (r < BOT.feintShotChance) return 'feint';
+    if (r < BOT.feintShotChance + BOT.shootZoneDunkChance) return 'dunk';
+    if (
+      r <
+      BOT.feintShotChance + BOT.shootZoneDunkChance + BOT.shootZoneJamChance
+    ) {
+      return 'jam';
+    }
     return 'normal';
+  }
+  if (
+    distGoal <= BOT.goalQuickShotDist &&
+    Math.random() < BOT.feintShotChance * 0.55
+  ) {
+    return 'feint';
   }
   if (distGoal <= BOT.goalJamMaxDist && Math.random() < BOT.nearGoalJamChance) {
     return 'jam';

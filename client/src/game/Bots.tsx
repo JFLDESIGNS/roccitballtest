@@ -56,7 +56,6 @@ import {
   updateBallSocketSmooth,
 } from './ballAttach';
 import {
-  aimAnglesToward,
   getEnemyGoalTarget,
   pickAllyProjectileTarget,
   pickAllySaveBallTarget,
@@ -129,10 +128,11 @@ import {
   type AllyShootZoneMagnetState,
   type TeammateBallChaseState,
   type BotZonePosition,
-  pickLookTarget,
   pickMoveTarget,
+  pickTeamOffenseRoamTarget,
   type PlayerChaseState,
   shouldSetupJump,
+  shouldThreatCarryJump,
   ensureHoldReleasePlan,
   pickBotHoldCarryFocus,
   resolveTimedBotHoldRelease,
@@ -150,6 +150,15 @@ import {
   type BotMode,
   type CarryLookState,
 } from './botBrain';
+import {
+  applyBotShotReleasePitch,
+  pickShotWindupLookPoint,
+  resetBotLookFocusState,
+  isBallLooseOnCourt,
+  resolveBotLookTarget,
+  smoothAimToward,
+  type BotLookFocusState,
+} from './botLook';
 import {
   armBotRetaliation,
   clearBotRetaliation,
@@ -198,6 +207,11 @@ import {
   rollNetFinishShotStyle,
   type BotShotStyle,
 } from './botGoalOffense';
+import {
+  createBotFeintShotState,
+  resetBotFeintShotState,
+  tickBotFeintShot,
+} from './botFeintShot';
 import { gameStore } from './gameStore';
 import { writeLookDirection } from './CameraController';
 import { BeamPullTrace } from './BeamPullTrace';
@@ -326,20 +340,6 @@ function collectBotSepPositions(
     const t = body.translation();
     out.push({ id: b.id, team: b.team, x: t.x, z: t.z });
   }
-}
-
-function smoothAimToward(
-  yawRef: React.MutableRefObject<number>,
-  pitchRef: React.MutableRefObject<number>,
-  chest: THREE.Vector3,
-  target: THREE.Vector3,
-  dt: number,
-  smoothing: number = BOT.aimSmoothing,
-) {
-  const aim = aimAnglesToward(chest, target);
-  const s = 1 - Math.exp(-smoothing * dt);
-  yawRef.current = THREE.MathUtils.lerp(yawRef.current, aim.yaw, s);
-  pitchRef.current = THREE.MathUtils.lerp(pitchRef.current, aim.pitch, s);
 }
 
 function writeBotRocketLook(
@@ -567,6 +567,36 @@ function tickBotJumpCycle(
   return null;
 }
 
+/** 30% jump roll every 5s (5s cooldown between rolls), regardless of task */
+function tryBotIdleJumpDice(
+  dt: number,
+  diceTimer: React.MutableRefObject<number>,
+  body: RapierRigidBody,
+  feetY: number,
+  linvel: { x: number; y: number; z: number },
+  tune: { jumpForce: number },
+  grounded: React.MutableRefObject<boolean>,
+  jumpsLeft: React.MutableRefObject<number>,
+  velocity: React.MutableRefObject<THREE.Vector3>,
+  airGrace: React.MutableRefObject<number>,
+): number | null {
+  diceTimer.current -= dt;
+  if (diceTimer.current > 0) return null;
+  diceTimer.current = BOT.idleJumpDiceIntervalSec;
+  if (Math.random() >= BOT.idleJumpDiceChance) return null;
+  if (!grounded.current || jumpsLeft.current <= 0) return null;
+  return botApplyJump(
+    body,
+    feetY,
+    tune.jumpForce,
+    linvel,
+    velocity,
+    airGrace,
+    grounded,
+    jumpsLeft,
+  );
+}
+
 function releaseBotBall(
   bot: BotRuntime,
   ball: RapierRigidBody | null,
@@ -695,20 +725,16 @@ function executeBotHoldRelease(
   shotStyle: BotShotStyle = 'normal',
 ) {
   applyBotLaunchAimError(chest, target, _shootTarget);
-  smoothAimToward(yaw, pitch, chest, _shootTarget, dt, BOT.aimSmoothing);
   const stylePitch = dunkPitchOffsetRad(shotStyle);
   if (kind === 'shoot' || kind === 'loft') {
-    const loftExtra =
-      kind === 'loft' ? THREE.MathUtils.degToRad(BOT.loftPitchOffsetDeg) : 0;
-    pitch.current = Math.min(
-      1.22,
-      pitch.current +
-        THREE.MathUtils.degToRad(BOT.shotPitchOffsetDeg) +
-        stylePitch +
-        loftExtra,
-    );
-  } else if (stylePitch !== 0) {
-    pitch.current = Math.max(-0.35, Math.min(1.22, pitch.current + stylePitch));
+    pitch.current = THREE.MathUtils.degToRad(BOT.shotWindupPitchDeg);
+    smoothAimToward(yaw, pitch, chest, _shootTarget, dt, BOT.aimSmoothing * 1.4);
+    applyBotShotReleasePitch(pitch, kind, stylePitch);
+  } else {
+    smoothAimToward(yaw, pitch, chest, _shootTarget, dt, BOT.aimSmoothing);
+    if (stylePitch !== 0) {
+      pitch.current = Math.max(-0.35, Math.min(1.22, pitch.current + stylePitch));
+    }
   }
   writeLookDirection(yaw.current, pitch.current, lookDir);
   const lv = body.linvel();
@@ -901,6 +927,7 @@ function BotAvatar({
   const setupJumped = useRef(false);
   const setupDoubleJumped = useRef(false);
   const setupEnterSec = useRef(0);
+  const feintShotState = useRef(createBotFeintShotState());
   const modeRef = useRef<BotMode>('runToBall');
   const groundJumpTimer = useRef(staggerTimer(bot.id, BOT.groundJumpIntervalSec));
   const kickoffContestJumpTimer = useRef(
@@ -991,6 +1018,14 @@ function BotAvatar({
   const celebrateShotsFired = useRef(0);
   const celebrateNextShotAtSec = useRef(0);
   const celebrateAimedShotDone = useRef(false);
+  const lookFocusState = useRef<BotLookFocusState>({
+    focus: 'ball',
+    holdLeft: 0,
+    smoothed: new THREE.Vector3(),
+    initialized: false,
+  });
+  const kickoffPlayfulRocketCooldown = useRef(0);
+  const idleJumpDiceTimer = useRef(BOT.idleJumpDiceIntervalSec * 0.5);
 
   const applyBotVisual = (
     lv: { x: number; y: number; z: number },
@@ -1050,9 +1085,11 @@ function BotAvatar({
   bot.onRecovered = () => {
     bot.holdingBall = false;
     resetCarryLookState(carryLookState.current);
+    resetBotLookFocusState(lookFocusState.current);
     holdPhase.current = 'advance';
     setupJumped.current = false;
     setupEnterSec.current = 0;
+    resetBotFeintShotState(feintShotState.current);
     holdTimer.current = 0;
     velocity.current.set(0, 0, 0);
     if (gameStore.getState().ballHolderId === bot.id) {
@@ -1313,18 +1350,81 @@ function BotAvatar({
       }
 
       beamPullActive.current = false;
-      _center.set(BOT.celebrateCenterX, _pos.y, BOT.celebrateCenterZ);
+      pickTeamOffenseRoamTarget(
+        { id: bot.id, team: bot.team, pos: _pos },
+        _center,
+      );
       _wish.set(_center.x - _pos.x, 0, _center.z - _pos.z);
       const distCenter = _wish.length();
       if (distCenter > 0.05) _wish.normalize();
 
-      // Celebration: wiggle-rotate while running back from the goal.
-      const baseYaw = Math.atan2(-_wish.x, -_wish.z);
       const tNowSec = performance.now() / 1000;
-      const phaseJitter =
-        bot.id === 'bot-0' ? 0.2 : bot.id === 'bot-1' ? 1.7 : 3.4;
-      yaw.current = baseYaw + Math.sin(tNowSec * 7.5 + phaseJitter) * 0.85;
-      pitch.current = 0.1 + Math.sin(tNowSec * 6.1 + phaseJitter) * 0.05;
+      getKickoffBallAimPoint(_kickoffAim);
+      getEnemyGoalTarget(bot.team, _goal);
+      if (ball) {
+        const bt = ball.translation();
+        _ballPos.set(bt.x, bt.y, bt.z);
+      } else {
+        _ballPos.copy(_kickoffAim);
+      }
+      const opponentChest = getOpponentChest(
+        bot,
+        allBots,
+        gs.localTeam,
+        _playerChest,
+        _opponentChest,
+      );
+      const teammateChest = getTeammateChest(
+        bot,
+        allBots,
+        gs.localTeam,
+        _playerChest,
+        _playerVel,
+        _shootTarget,
+        _teammateVel,
+      );
+      resolveBotLookTarget(
+        {
+          mode: 'teamOffense',
+          input: {
+            id: bot.id,
+            role,
+            team: bot.team,
+            localTeam: gs.localTeam,
+            isEnemy: isEnemyBot,
+            pos: _pos,
+            ballPos: _ballPos,
+            playerChest: _playerChest,
+            goal: _goal,
+            otherBotPos: null,
+            ballHolder: gs.ballHolderId,
+            ballVel: _ballVel,
+            ballState: gs.ballState,
+            holdingBall: false,
+            holdSec: 0,
+            holdPhase: 'advance',
+            grounded: grounded.current,
+            inBeamRange: false,
+            beamDenied: false,
+          },
+          moveTarget: _center,
+          teammateChest,
+          opponentChest,
+          ballDropPoint: _kickoffAim,
+          celebrating: true,
+          kickoffContest: false,
+          ballLooseOnCourt: isBallLooseOnCourt(
+            gs.ballHolderId,
+            gs.ballState,
+            gs.ballFrozen,
+          ),
+        },
+        lookFocusState.current,
+        dt,
+        _lookTarget,
+      );
+      smoothAimToward(yaw, pitch, _chest, _lookTarget, dt, BOT.lookAimSmoothing * 0.7);
+      writeLookDirection(yaw.current, pitch.current, _lookDir);
 
       // Fire two quick "celebration" rockets (up / across-field), then maybe one aimed rocket (50%).
       // Keep it short so bots return to normal logic fast.
@@ -1444,6 +1544,19 @@ function BotAvatar({
         grounded.current = false;
         airGrace.current = 0.45;
       }
+      const idleCelebVy = tryBotIdleJumpDice(
+        dt,
+        idleJumpDiceTimer,
+        body,
+        feetY,
+        linvel,
+        tune,
+        grounded,
+        jumpsLeft,
+        velocity,
+        airGrace,
+      );
+      if (idleCelebVy !== null) vy = idleCelebVy;
       vy = tuningStore.integrateGravity(vy, dt);
       velocity.current.y = vy;
       tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
@@ -1458,6 +1571,13 @@ function BotAvatar({
     if (isKickoffContestPhase(phase, gs.countdown, gs.ballFrozen)) {
       beamPullActive.current = false;
       getKickoffBallAimPoint(_kickoffAim);
+      getEnemyGoalTarget(bot.team, _goal);
+      if (ball) {
+        const bt = ball.translation();
+        _ballPos.set(bt.x, bt.y, bt.z);
+      } else {
+        _ballPos.copy(_kickoffAim);
+      }
       pickKickoffContestMoveTarget(bot.id, feetY, _kickoffAim, _moveTarget);
       _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
       const distDrop = _wish.length();
@@ -1485,8 +1605,99 @@ function BotAvatar({
         BOT.groundAccel * dt,
       );
 
-      smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt, BOT.aimSmoothing * 1.15);
+      resolveBotLookTarget(
+        {
+          mode: 'teamCenter',
+          input: {
+            id: bot.id,
+            role,
+            team: bot.team,
+            localTeam: gs.localTeam,
+            isEnemy: isEnemyBot,
+            pos: _pos,
+            ballPos: _ballPos,
+            playerChest: _playerChest,
+            goal: _goal,
+            otherBotPos: null,
+            ballHolder: gs.ballHolderId,
+            ballVel: _ballVel,
+            ballState: gs.ballState,
+            holdingBall: false,
+            holdSec: 0,
+            holdPhase: 'advance',
+            grounded: grounded.current,
+            inBeamRange: false,
+            beamDenied: false,
+          },
+          moveTarget: _moveTarget,
+          teammateChest: getTeammateChest(
+            bot,
+            allBots,
+            gs.localTeam,
+            _playerChest,
+            _playerVel,
+            _shootTarget,
+            _teammateVel,
+          ),
+          opponentChest: getOpponentChest(
+            bot,
+            allBots,
+            gs.localTeam,
+            _playerChest,
+            _opponentChest,
+          ),
+          ballDropPoint: _kickoffAim,
+          celebrating: false,
+          kickoffContest: true,
+          ballLooseOnCourt: isBallLooseOnCourt(
+            gs.ballHolderId,
+            gs.ballState,
+            gs.ballFrozen,
+          ),
+        },
+        lookFocusState.current,
+        dt,
+        _lookTarget,
+      );
+      smoothAimToward(yaw, pitch, _chest, _lookTarget, dt, BOT.lookAimSmoothing);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
+
+      kickoffPlayfulRocketCooldown.current = Math.max(
+        0,
+        kickoffPlayfulRocketCooldown.current - dt,
+      );
+      if (kickoffPlayfulRocketCooldown.current <= 0) {
+        let playfulTarget: THREE.Vector3 | null = null;
+        for (const other of allBots) {
+          if (other.id === bot.id) continue;
+          const ob = other.bodyRef.current;
+          if (!ob) continue;
+          const ot = ob.translation();
+          playfulTarget = _shootTarget.set(ot.x, ot.y + BEAM.chestHeight, ot.z);
+          break;
+        }
+        if (
+          playfulTarget &&
+          Math.random() < BOT.kickoffPlayfulRocketChance * dt * 2.2
+        ) {
+          smoothAimToward(yaw, pitch, _chest, playfulTarget, dt, BOT.aimSmoothing);
+          writeBotRocketLook(yaw, pitch, _lookDir);
+          if (
+            botFireRocket(
+              bot.id,
+              body,
+              _chest,
+              _lookDir,
+              onRocketFired,
+              true,
+              rocketFireCooldownUntil,
+            )
+          ) {
+            kickoffPlayfulRocketCooldown.current =
+              BOT.kickoffPlayfulRocketCooldownSec;
+          }
+        }
+      }
 
       const horizToAim = kickoffContestHorizDistToAim(
         _chest.x,
@@ -1568,6 +1779,19 @@ function BotAvatar({
         doubleJumpPending.current = false;
       }
 
+      const idleKickVy = tryBotIdleJumpDice(
+        dt,
+        idleJumpDiceTimer,
+        body,
+        feetY,
+        linvelKick,
+        tune,
+        grounded,
+        jumpsLeft,
+        velocity,
+        airGrace,
+      );
+      if (idleKickVy !== null) vyKick = idleKickVy;
       vyKick = tuningStore.integrateGravity(vyKick, dt);
       velocity.current.y = vyKick;
       tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
@@ -1735,6 +1959,9 @@ function BotAvatar({
         holdReleasePlan.current,
         distGoal,
         inNetFinish,
+        grounded.current,
+        jumpsLeft.current,
+        shotStyle.current,
       );
       const dunkTryExpired =
         shotStyle.current === 'dunk' &&
@@ -1829,6 +2056,7 @@ function BotAvatar({
         holdPhase.current = 'advance';
         setupJumped.current = false;
         setupEnterSec.current = 0;
+        resetBotFeintShotState(feintShotState.current);
         holdTimer.current = 0;
         holdReleasePlan.current = null;
         shotStyle.current = 'normal';
@@ -1866,6 +2094,9 @@ function BotAvatar({
         _playerChest,
         _opponentChest,
       );
+      const opponentDist = opponentChest
+        ? _pos.distanceTo(opponentChest)
+        : Infinity;
 
       const mode = pickBotMode(think);
       modeRef.current = mode;
@@ -1900,19 +2131,46 @@ function BotAvatar({
         holdCarryFocus.current = 'goal';
         holdReleasePlan.current = 'shoot';
       }
-      updateCarryLook(
-        carryLookState.current,
-        mode as 'carryToGoal' | 'setupShot' | 'shootGoal',
-        _goal,
-        teammateChest,
-        opponentChest,
-        distGoal,
-        dt,
-        _lookTarget,
-      );
+      if (holdPhase.current === 'setup') {
+        if (
+          shotStyle.current === 'feint' &&
+          (setupJumped.current || !grounded.current)
+        ) {
+          if (
+            tickBotFeintShot(
+              feintShotState.current,
+              _chest,
+              _goal,
+              dt,
+              _lookTarget,
+            )
+          ) {
+            holdPhase.current = 'shoot';
+          }
+        } else {
+          pickShotWindupLookPoint(_chest, _goal, _lookTarget);
+        }
+      } else {
+        updateCarryLook(
+          carryLookState.current,
+          mode as 'carryToGoal' | 'setupShot' | 'shootGoal',
+          _goal,
+          teammateChest,
+          opponentChest,
+          distGoal,
+          dt,
+          _lookTarget,
+        );
+      }
 
       const carryAimSmooth =
-        mode === 'shootGoal' ? BOT.aimSmoothing : BOT.carryAimSmoothing;
+        holdPhase.current === 'setup' && shotStyle.current === 'feint'
+          ? BOT.feintAimSmoothing
+          : holdPhase.current === 'setup'
+            ? BOT.carryAimSmoothing * 0.85
+            : mode === 'shootGoal'
+              ? BOT.aimSmoothing
+              : BOT.carryAimSmoothing;
       smoothAimToward(yaw, pitch, _chest, _lookTarget, dt, carryAimSmooth);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
 
@@ -1983,6 +2241,13 @@ function BotAvatar({
           jumpsLeft,
         );
       } else if (
+        shouldThreatCarryJump(
+          holdPhase.current,
+          setupJumped.current,
+          grounded.current,
+          jumpsLeft.current,
+          opponentDist,
+        ) ||
         shouldSetupJump(
           holdPhase.current,
           setupJumped.current,
@@ -2004,9 +2269,11 @@ function BotAvatar({
           grounded,
           jumpsLeft,
         );
-        setupJumped.current = true;
-        if (shotStyle.current === 'dunk') {
-          setupDoubleJumped.current = false;
+        if (holdPhase.current === 'setup') {
+          setupJumped.current = true;
+          if (shotStyle.current === 'dunk') {
+            setupDoubleJumped.current = false;
+          }
         }
       } else if (
         shotStyle.current === 'dunk' &&
@@ -2037,6 +2304,20 @@ function BotAvatar({
           setupDoubleJumped.current = true;
         }
       }
+
+      const idleHoldVy = tryBotIdleJumpDice(
+        dt,
+        idleJumpDiceTimer,
+        body,
+        feetY,
+        linvel,
+        tune,
+        grounded,
+        jumpsLeft,
+        velocity,
+        airGrace,
+      );
+      if (idleHoldVy !== null) vy = idleHoldVy;
 
       vy = tuningStore.integrateGravity(vy, dt);
       velocity.current.y = vy;
@@ -2241,7 +2522,41 @@ function BotAvatar({
       _moveTarget.copy(_lookTarget);
       _moveTarget.y = _pos.y;
     } else {
-      pickLookTarget(mode, think, _moveTarget, _lookTarget);
+      getKickoffBallAimPoint(_kickoffAim);
+      resolveBotLookTarget(
+        {
+          mode,
+          input: think,
+          moveTarget: _moveTarget,
+          teammateChest: getTeammateChest(
+            bot,
+            allBots,
+            localTeam,
+            _playerChest,
+            _playerVel,
+            _shootTarget,
+            _teammateVel,
+          ),
+          opponentChest: getOpponentChest(
+            bot,
+            allBots,
+            localTeam,
+            _playerChest,
+            _opponentChest,
+          ),
+          ballDropPoint: _kickoffAim,
+          celebrating: false,
+          kickoffContest: false,
+          ballLooseOnCourt: isBallLooseOnCourt(
+            holder,
+            ballState,
+            gs.ballFrozen,
+          ),
+        },
+        lookFocusState.current,
+        dt,
+        _lookTarget,
+      );
     }
 
     if (retaliating) {
@@ -2274,7 +2589,7 @@ function BotAvatar({
         retaliating = false;
       }
     } else {
-      smoothAimToward(yaw, pitch, _chest, _lookTarget, dt);
+      smoothAimToward(yaw, pitch, _chest, _lookTarget, dt, BOT.lookAimSmoothing);
       writeLookDirection(yaw.current, pitch.current, _lookDir);
     }
 
@@ -2621,6 +2936,20 @@ function BotAvatar({
         jumpsLeft,
       );
     }
+
+    const idleFieldVy = tryBotIdleJumpDice(
+      dt,
+      idleJumpDiceTimer,
+      body,
+      feetY,
+      linvel,
+      tune,
+      grounded,
+      jumpsLeft,
+      velocity,
+      airGrace,
+    );
+    if (idleFieldVy !== null) vy = idleFieldVy;
 
     vy = tuningStore.integrateGravity(vy, dt);
     velocity.current.y = vy;

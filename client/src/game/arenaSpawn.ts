@@ -1,6 +1,10 @@
 import { ARENA } from '../shared/Constants';
-import { hexCornerPositions, isMidMapWallCorner } from './arenaHex';
+import { mapRegistryStore } from '../mapEditor/mapEditorStore';
+import {
+  stadiumPlatformKey,
+} from '../mapEditor/stadiumLayout';
 import { isPointInOctagon } from './arenaOctagon';
+import { listOctagonPlatformPlacements } from './arenaOctagonPlatforms';
 import { sampleTrampolineFloorY } from './arenaPadLayout';
 
 export type ArenaPlatformPlacement = {
@@ -10,23 +14,30 @@ export type ArenaPlatformPlacement = {
   slopeR: number;
 };
 
-/** All raised octagon decks (center + hex corners). */
+/** All raised octagon decks (center + hex corners), including custom map offsets. */
 export function listArenaPlatforms(): ArenaPlatformPlacement[] {
-  const corners = hexCornerPositions(ARENA.hexRadius);
+  const placements = listOctagonPlatformPlacements();
   const baseSlope = ARENA.octagonSlopeRadius;
   const baseTop = ARENA.octagonTopRadius;
-  const scalePlatform = (s: number) => ({
-    topR: baseTop * s,
-    slopeR: baseSlope * s,
+  const doc = mapRegistryStore.getActiveMapDocument();
+
+  return placements.map((p, i) => {
+    let x = p.x;
+    let z = p.z;
+    let scale = p.sizeScale;
+    const group = doc?.groups.find((g) => g.stadiumKey === stadiumPlatformKey(i));
+    if (group) {
+      x = group.position[0];
+      z = group.position[2];
+      scale = p.sizeScale * ((group.scale[0] + group.scale[2]) / 2);
+    }
+    return {
+      x,
+      z,
+      topR: baseTop * scale,
+      slopeR: baseSlope * scale,
+    };
   });
-  return [
-    { x: 0, z: 0, ...scalePlatform(1) },
-    ...corners.map((c) => ({
-      x: c.x,
-      z: c.z,
-      ...scalePlatform(isMidMapWallCorner(c.x) ? ARENA.midWallOctagonSizeScale : 1),
-    })),
-  ];
 }
 
 /** Deck + ramp height at world (x, z), or null if outside the platform footprint. */

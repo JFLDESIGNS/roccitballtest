@@ -24,6 +24,7 @@ import {
 } from './mapEditorStorage';
 import { snapPositionToMoveGrid } from './editorMoveGrid';
 import { ensureDocumentGroups } from './stadiumLayout';
+import { normalizeMapLight } from './mapLightDefaults';
 
 type EditorState = {
   document: MapDocument;
@@ -67,7 +68,7 @@ function normalizeDocument(doc: MapDocument): MapDocument {
     ...doc,
     groups: ensureDocumentGroups(doc.groups),
     objects: doc.objects ?? [],
-    lights: doc.lights ?? [],
+    lights: (doc.lights ?? []).map((l) => normalizeMapLight(l as MapLight)),
   };
 }
 
@@ -163,7 +164,7 @@ export const mapEditorStore = {
       obj.groupId = selectedGroup.id;
       obj.position = [0, 1.5, 0];
     }
-    suppressPointerMissUntil = performance.now() + 250;
+    suppressPointerMissUntil = performance.now() + 80;
     patch({
       document: {
         ...state.document,
@@ -176,7 +177,7 @@ export const mapEditorStore = {
 
   addLight: (kind: MapLightKind) => {
     const light = createMapLight(kind);
-    suppressPointerMissUntil = performance.now() + 250;
+    suppressPointerMissUntil = performance.now() + 40;
     patch({
       document: {
         ...state.document,
@@ -270,6 +271,24 @@ export const mapEditorStore = {
         ...state.document,
         lights: state.document.lights.map((l) =>
           l.id === id ? { ...l, position: snapped, rotation } : l,
+        ),
+      },
+      dirty: true,
+    });
+  },
+
+  syncLightRectSize: (id: string, width: number, height: number) => {
+    patch({
+      document: {
+        ...state.document,
+        lights: state.document.lights.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                rectWidth: Math.max(0.5, width),
+                rectHeight: Math.max(0.5, height),
+              }
+            : l,
         ),
       },
       dirty: true,

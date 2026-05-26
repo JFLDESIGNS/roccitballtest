@@ -12,7 +12,12 @@ import {
 import * as THREE from 'three';
 import { useSyncExternalStore } from 'react';
 import { RENDER } from '../shared/Constants';
-import { EditorOrbitContext, useEditorOrbit } from './EditorOrbitContext';
+import { EditorOrbitContext } from './EditorOrbitContext';
+import {
+  forceUnlockEditorOrbit,
+  registerEditorOrbitControls,
+  setEditorOrbitDragLock,
+} from './editorOrbitLock';
 import { MapLightNode, MapObjectMesh } from './MapObjectMesh';
 import { mapEditorStore } from './mapEditorStore';
 import type { MapGroup, MapLight, MapObject, TransformMode } from './mapEditorTypes';
@@ -23,9 +28,11 @@ import { EditorBaseArena, StadiumGroupPickMesh, StadiumGroupVisual } from './Sta
 const EditorBackdrop = memo(function EditorBackdrop({
   hiddenGoalIds,
   hiddenPillarIndices,
+  hiddenPlatformIndices,
 }: {
   hiddenGoalIds: string[];
   hiddenPillarIndices: number[];
+  hiddenPlatformIndices: number[];
 }) {
   return (
     <>
@@ -34,6 +41,7 @@ const EditorBackdrop = memo(function EditorBackdrop({
       <EditorBaseArena
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}
+        hiddenPlatformIndices={hiddenPlatformIndices}
       />
     </>
   );
@@ -52,13 +60,9 @@ function vec3FromObject(obj: THREE.Object3D): {
 }
 
 function useGizmoOrbitLock() {
-  const orbitRef = useEditorOrbit();
-  return useCallback(
-    (dragging: boolean) => {
-      if (orbitRef?.current) orbitRef.current.enabled = !dragging;
-    },
-    [orbitRef],
-  );
+  return useCallback((dragging: boolean) => {
+    setEditorOrbitDragLock(dragging);
+  }, []);
 }
 
 type DraggingChangedControls = {
@@ -80,7 +84,10 @@ function bindGizmoDragLock(
   const node = ctrl as unknown as DraggingChangedControls;
   const handler = (event: { value: boolean }) => lockOrbit(event.value);
   node.addEventListener('dragging-changed', handler);
-  return () => node.removeEventListener('dragging-changed', handler);
+  return () => {
+    node.removeEventListener('dragging-changed', handler);
+    lockOrbit(false);
+  };
 }
 
 function TransformGizmo({
@@ -337,21 +344,54 @@ function EditableLight({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [gizmoTarget, setGizmoTarget] = useState<THREE.Object3D | null>(null);
+  const rectBase = useRef({ w: light.rectWidth, h: light.rectHeight });
+
+  useEffect(() => {
+    rectBase.current = { w: light.rectWidth, h: light.rectHeight };
+  }, [light.id, light.rectWidth, light.rectHeight]);
 
   useEffect(() => {
     const g = groupRef.current;
     if (!g) return;
     g.position.set(...light.position);
     g.rotation.set(...light.rotation);
+    g.scale.set(1, 1, 1);
   }, [light.id, light.position, light.rotation]);
 
   useLayoutEffect(() => {
     setGizmoTarget(selected ? groupRef.current : null);
   }, [selected, light.id]);
 
+  const gizmoMode =
+    light.kind === 'rectArea'
+      ? mode
+      : mode === 'scale'
+        ? 'translate'
+        : mode;
+
   const sync = () => {
     const g = groupRef.current;
     if (!g) return;
+
+    if (light.kind === 'rectArea' && mode === 'scale') {
+      const sx = g.scale.x;
+      const sz = g.scale.z;
+      if (Math.abs(sx - 1) > 0.002 || Math.abs(sz - 1) > 0.002) {
+        mapEditorStore.syncLightRectSize(
+          light.id,
+          rectBase.current.w * sx,
+          rectBase.current.h * sz,
+        );
+        g.scale.set(1, 1, 1);
+        const updated = mapEditorStore
+          .getState()
+          .document.lights.find((l) => l.id === light.id);
+        if (updated) {
+          rectBase.current = { w: updated.rectWidth, h: updated.rectHeight };
+        }
+      }
+    }
+
     mapEditorStore.syncLightTransform(
       light.id,
       [g.position.x, g.position.y, g.position.z],
@@ -369,17 +409,13 @@ function EditableLight({
         <MapLightNode
           light={light}
           embedded
-          castShadow={false}
+          castShadow={light.castShadow}
           selected={selected}
           onSelect={() => mapEditorStore.select(light.id)}
         />
       </group>
       {gizmoTarget && (
-        <TransformGizmo
-          target={gizmoTarget}
-          mode={mode === 'scale' ? 'translate' : mode}
-          onSync={sync}
-        />
+        <TransformGizmo target={gizmoTarget} mode={gizmoMode} onSync={sync} />
       )}
     </>
   );
@@ -440,6 +476,25 @@ function EditorControls({
 }: {
   orbitRef: React.RefObject<React.ComponentRef<typeof OrbitControls> | null>;
 }) {
+  useEffect(() => {
+    registerEditorOrbitControls(orbitRef);
+    return () => registerEditorOrbitControls(
+      { current: null } as React.RefObject<React.ComponentRef<typeof OrbitControls> | null>,
+    );
+  }, [orbitRef]);
+
+  useEffect(() => {
+    const unlock = () => forceUnlockEditorOrbit();
+    window.addEventListener('pointerup', unlock);
+    window.addEventListener('pointercancel', unlock);
+    window.addEventListener('blur', unlock);
+    return () => {
+      window.removeEventListener('pointerup', unlock);
+      window.removeEventListener('pointercancel', unlock);
+      window.removeEventListener('blur', unlock);
+    };
+  }, []);
+
   return (
     <OrbitControls
       ref={orbitRef}
@@ -467,7 +522,7 @@ function EditorSceneContent() {
     mapEditorStore.subscribe,
     () => mapEditorStore.getState(),
   );
-  const { hiddenGoalIds, hiddenPillarIndices } = useMemo(
+  const { hiddenGoalIds, hiddenPillarIndices, hiddenPlatformIndices } = useMemo(
     () => getHiddenStadiumPieces(editor.document.groups),
     [editor.document.groups],
   );
@@ -495,6 +550,7 @@ function EditorSceneContent() {
       <EditorBackdrop
         hiddenGoalIds={hiddenGoalIds}
         hiddenPillarIndices={hiddenPillarIndices}
+        hiddenPlatformIndices={hiddenPlatformIndices}
       />
       <EditorMoveGrid visible={editor.showMoveGrid} />
       <EditorPlacedContent />
@@ -504,9 +560,15 @@ function EditorSceneContent() {
 }
 
 export function MapEditorCanvas() {
+  const editorLights = useSyncExternalStore(
+    mapEditorStore.subscribe,
+    () => mapEditorStore.getState().document.lights,
+  );
+  const enableShadows = editorLights.some((l) => l.castShadow);
+
   return (
     <Canvas
-      shadows={false}
+      shadows={enableShadows}
       dpr={[1, 1.25]}
       camera={{ position: [0, 24, 44], fov: 58, near: 0.5, far: 320 }}
       gl={{ antialias: RENDER.antialias, powerPreference: 'high-performance' }}

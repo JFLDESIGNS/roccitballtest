@@ -52,14 +52,22 @@ export function pickKickoffContestGroundTarget(
   return out.set(BALL_SPAWN.x + laneX, feetY, BALL_SPAWN.z + laneZ);
 }
 
-/** Lane target on the floor — vertical reach is jump / double-jump only */
+/** Soft roam within ~5 ft of center platform — not a fixed lane point */
 export function pickKickoffContestMoveTarget(
   botId: BotId,
   feetY: number,
-  _aim: THREE.Vector3,
+  aim: THREE.Vector3,
   out = _lane,
 ): THREE.Vector3 {
-  return pickKickoffContestGroundTarget(botId, feetY, out);
+  const phase = botId === 'bot-0' ? 0.35 : botId === 'bot-1' ? 2.15 : 4.05;
+  const t = performance.now() / 1000;
+  const softR =
+    BOT.kickoffSoftRadiusM * (0.5 + 0.5 * (0.5 + 0.5 * Math.sin(t * 0.45 + phase)));
+  const angle = t * 0.4 + phase * 1.2;
+  out.set(Math.cos(angle) * softR, feetY, Math.sin(angle) * softR);
+  out.lerp(aim, 0.24);
+  out.y = feetY;
+  return out;
 }
 
 export function kickoffContestHorizDistToAim(

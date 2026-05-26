@@ -30,13 +30,13 @@ const BALL_SHOT_DEBOUNCE_MS = 120;
 const SHOT_SAMPLE_BASE = 0.44;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
-/** Menu + in-match loops (Rocket Dope Tron) — off until re-enabled */
-export const BACKGROUND_MUSIC_ENABLED = false;
+/** Menu + in-match loops (Rocket Dope Tron) */
+export const BACKGROUND_MUSIC_ENABLED = true;
 
-/** Menu / title screen — full relative level before master slider */
-const BG_MUSIC_MENU_BASE = (0.5 / 3) * 1.25 * 1.25 * 1.3;
-/** In-match / pregame loop — half of prior in-game level */
-const BG_MUSIC_GAME_BASE = 0.2 * 1.3 * 0.5;
+/** Menu / title screen — kept low under master + menu slider */
+const BG_MUSIC_MENU_BASE = 0.14;
+/** In-match / pregame loop — quieter than menu so SFX stay forward */
+const BG_MUSIC_GAME_BASE = 0.055;
 const CHEER_BASE = 0.46;
 const CHEER_HOLD_SEC = 4;
 const CHEER_FADE_SEC = 1.5;
@@ -156,12 +156,12 @@ export async function preloadGameAudioSamples(
 
 const FT = 0.3048;
 
-/** Rocket explosion SFX — full level within ~25 ft, quiet tail by ~130 ft. */
+/** Rocket explosion SFX — loud when close, still audible far away (~3× prior tail). */
 export function explosionVolumeByDistanceFt(distFt: number): number {
-  const maxVol = 1;
-  const minVol = 0.06;
-  const fullDistFt = 25;
-  const silentDistFt = 130;
+  const maxVol = 1.2;
+  const minVol = 0.2;
+  const fullDistFt = 22;
+  const silentDistFt = 150;
   if (distFt <= fullDistFt) return maxVol;
   if (distFt >= silentDistFt) return minVol;
   const t = (distFt - fullDistFt) / (silentDistFt - fullDistFt);
@@ -787,7 +787,7 @@ export function playRocketExplosion(
   } else {
     distMul = 0.35;
   }
-  playSample(explosionUrl, 0.52 * scale * distMul, true);
+  playSample(explosionUrl, 0.72 * scale * distMul, true);
 }
 
 /** WW forward dash */

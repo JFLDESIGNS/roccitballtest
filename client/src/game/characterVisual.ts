@@ -97,41 +97,11 @@ export function teamAccentColor(team: 'red' | 'blue'): string {
   return team === 'red' ? '#ff5544' : '#55aaff';
 }
 
-export const DRONE_TEAM_COLORS: Record<'red' | 'blue', THREE.Color> = {
-  red: new THREE.Color('#d62828'),
-  blue: new THREE.Color('#2a6fd8'),
-};
-
-const TEAM_DIFFUSE_GREY = 0.26;
-const TEAM_DIFFUSE_TINT = 0.74;
-/** Emissive uses the same tinted diffuse color at this strength */
-const TEAM_EMISSIVE_INTENSITY = 1;
-
-/** Shared red/blue drone look for player + bots on the same team */
-export function applyDroneTeamMaterial(
-  std: THREE.MeshStandardMaterial,
-  team: 'red' | 'blue',
-  emissiveMap?: THREE.Texture | null,
-) {
-  const teamColor = DRONE_TEAM_COLORS[team];
-  const g = TEAM_DIFFUSE_GREY;
-  std.color.setRGB(
-    THREE.MathUtils.lerp(g, teamColor.r, TEAM_DIFFUSE_TINT),
-    THREE.MathUtils.lerp(g, teamColor.g, TEAM_DIFFUSE_TINT),
-    THREE.MathUtils.lerp(g, teamColor.b, TEAM_DIFFUSE_TINT),
-  );
-  if (emissiveMap) {
-    std.emissiveMap = emissiveMap;
-    std.emissive.set(1, 1, 1);
-    std.emissive.multiply(std.color);
-  } else {
-    std.emissiveMap = null;
-    std.emissive.copy(std.color);
-  }
-  std.emissiveIntensity = TEAM_EMISSIVE_INTENSITY;
-  std.toneMapped = false;
-  std.customProgramCacheKey = () => `drone-team-${team}`;
-}
+export {
+  applyDroneTeamMaterial,
+  DRONE_EMISSIVE_INTENSITY,
+  DRONE_TEAM_COLORS,
+} from './droneMaterials';
 
 export type CharacterVisualRefs = {
   visual: THREE.Group | null;

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { initStadiumRectAreaLights } from '../game/stadiumRectAreaLightInit';
 import { MapEditorCanvas } from './MapEditorCanvas';
 import { MapEditorUI } from './MapEditorUI';
 import { mapEditorStore, mapRegistryStore } from './mapEditorStore';
@@ -8,6 +10,10 @@ type MapEditorProps = {
 };
 
 export function MapEditor({ onExit }: MapEditorProps) {
+  useEffect(() => {
+    initStadiumRectAreaLights();
+  }, []);
+
   const handleExit = () => {
     mapRegistryStore.refresh();
     onExit();

@@ -1,4 +1,9 @@
 import {
+  isMapLightGlowBlendMode,
+  MAP_LIGHT_GLOW_DEFAULT_OPACITY,
+  type MapLightGlowBlendMode,
+} from './mapLightGlowBlend';
+import {
   isShadowMapTypeId,
   type ShadowMapTypeId,
 } from './shadowMapType';
@@ -11,7 +16,7 @@ function isAoQualityId(v: string): v is AoQualityId {
   return (AO_QUALITIES as string[]).includes(v);
 }
 
-const STORAGE_KEY = 'rocketball-graphics-v21';
+const STORAGE_KEY = 'rocketball-graphics-v22';
 
 function normalizeHexColor(raw: string | undefined, fallback: string): string {
   if (!raw || !/^#[0-9a-fA-F]{6}$/.test(raw)) return fallback;
@@ -77,6 +82,19 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
       raw.aoQuality && isAoQualityId(raw.aoQuality)
         ? raw.aoQuality
         : defaults.aoQuality,
+    mapLightGlowOpacity: Math.max(
+      0.02,
+      Math.min(1, raw.mapLightGlowOpacity ?? defaults.mapLightGlowOpacity),
+    ),
+    mapLightGlowSizeScale: Math.max(
+      0.25,
+      Math.min(2.5, raw.mapLightGlowSizeScale ?? defaults.mapLightGlowSizeScale),
+    ),
+    mapLightGlowBlendMode:
+      raw.mapLightGlowBlendMode &&
+      isMapLightGlowBlendMode(raw.mapLightGlowBlendMode)
+        ? raw.mapLightGlowBlendMode
+        : defaults.mapLightGlowBlendMode,
   };
 }
 
@@ -124,6 +142,12 @@ export type GraphicsSettings = {
   keyLight3CastShadow: boolean;
   /** Wireframe gizmo at ceiling mount + beam cone */
   keyLightWireframe: boolean;
+  /** Custom map light billboard glow — peak opacity (0–1) */
+  mapLightGlowOpacity: number;
+  /** Multiplier on default glow diameter */
+  mapLightGlowSizeScale: number;
+  /** How glow billboards composite over the scene */
+  mapLightGlowBlendMode: MapLightGlowBlendMode;
 };
 
 type GraphicsState = GraphicsSettings;
@@ -166,6 +190,9 @@ const defaults: GraphicsSettings = {
   keyLight2CastShadow: true,
   keyLight3CastShadow: true,
   keyLightWireframe: true,
+  mapLightGlowOpacity: MAP_LIGHT_GLOW_DEFAULT_OPACITY,
+  mapLightGlowSizeScale: 1,
+  mapLightGlowBlendMode: 'normal',
 };
 
 const listeners = new Set<() => void>();
@@ -268,6 +295,12 @@ export const graphicsStore = {
   setKeyLight2CastShadow: (v: boolean) => patch({ keyLight2CastShadow: v }),
   setKeyLight3CastShadow: (v: boolean) => patch({ keyLight3CastShadow: v }),
   setKeyLightWireframe: (v: boolean) => patch({ keyLightWireframe: v }),
+  setMapLightGlowOpacity: (v: number) =>
+    patch({ mapLightGlowOpacity: Math.max(0.02, Math.min(1, v)) }),
+  setMapLightGlowSizeScale: (v: number) =>
+    patch({ mapLightGlowSizeScale: Math.max(0.25, Math.min(2.5, v)) }),
+  setMapLightGlowBlendMode: (v: MapLightGlowBlendMode) =>
+    patch({ mapLightGlowBlendMode: v }),
   resetBrightnessDefaults: () => {
     patch({
       arenaBrightness: defaults.arenaBrightness,
@@ -284,6 +317,9 @@ export const graphicsStore = {
       keyLight2CastShadow: defaults.keyLight2CastShadow,
       keyLight3CastShadow: defaults.keyLight3CastShadow,
       keyLightWireframe: defaults.keyLightWireframe,
+      mapLightGlowOpacity: defaults.mapLightGlowOpacity,
+      mapLightGlowSizeScale: defaults.mapLightGlowSizeScale,
+      mapLightGlowBlendMode: defaults.mapLightGlowBlendMode,
     });
   },
   resetDefaults: () => {

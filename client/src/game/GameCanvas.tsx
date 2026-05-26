@@ -497,13 +497,18 @@ function Scene({
   );
   const stadiumHidden = customMap
     ? getHiddenStadiumPieces(customMap.groups)
-    : { hiddenGoalIds: [] as string[], hiddenPillarIndices: [] as number[] };
+    : {
+        hiddenGoalIds: [] as string[],
+        hiddenPillarIndices: [] as number[],
+        hiddenPlatformIndices: [] as number[],
+      };
 
   return (
     <>
       <Arena
         hiddenGoalIds={stadiumHidden.hiddenGoalIds}
         hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
+        hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
       />
       <CustomMapOverlay />
       <Ball

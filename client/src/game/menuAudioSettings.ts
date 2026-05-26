@@ -1,5 +1,7 @@
+import { MENU_MUSIC_VOLUME_DEFAULT } from './menuOptionDefaults';
+
 const STORAGE_KEY = 'rocketball-menu-music-volume';
-const DEFAULT_VOLUME = 1;
+const DEFAULT_VOLUME = MENU_MUSIC_VOLUME_DEFAULT;
 
 let menuMusicVolume = loadMenuMusicVolume();
 

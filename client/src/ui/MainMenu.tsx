@@ -16,6 +16,7 @@ import {
   setLocalProfile,
 } from '../game/playerRoster';
 import { MenuLogoTilt } from './MenuLogoTilt';
+import { MenuBotPreview } from './MenuBotPreview';
 import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
 import { mapEditorStore, mapRegistryStore } from '../mapEditor/mapEditorStore';
 import {
@@ -113,11 +114,9 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
 
   return (
     <div className="main-menu">
-      <div
-        className={`main-menu-panel${showHowToPlay ? ' main-menu-panel--how-to' : ''}`}
-      >
-        {showHowToPlay ? (
-          <>
+      {showHowToPlay ? (
+        <div className="main-menu-howto">
+          <div className="main-menu-howto-panel">
             <h2 className="how-to-play-title">How to Play</h2>
             <HowToPlayContent />
             <button
@@ -127,136 +126,172 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
             >
               Back to Menu
             </button>
-          </>
-        ) : (
-          <>
+          </div>
+        </div>
+      ) : (
+        <div className="main-menu-layout">
+          <header className="main-menu-hero">
             <MenuLogoTilt />
+          </header>
 
-            <div className="menu-profile">
-              <label className="menu-field">
-                <span>Your name</span>
-                <input
-                  type="text"
-                  maxLength={18}
-                  value={playerName}
-                  placeholder={DEFAULT_LOCAL_NAME}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  onBlur={commitProfile}
-                />
-              </label>
-              <label className="menu-field menu-field--number">
-                <span>Jersey #</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={99}
-                  value={jerseyNumber}
-                  onChange={(e) =>
-                    setJerseyNumber(clampJersey(Number(e.target.value)))
-                  }
-                  onBlur={commitProfile}
-                />
-                <span className="menu-jersey-preview">
-                  {formatJersey(jerseyNumber)}
-                </span>
-              </label>
-            </div>
+          <div className="main-menu-bot-overlay" aria-hidden>
+            <MenuBotPreview team="blue" />
+          </div>
 
-            <label className="menu-option">
-              <input
-                type="checkbox"
-                checked={botsEnabled}
-                onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
-              />
-              <span>Enable practice bots</span>
-            </label>
+          <footer className="main-menu-bottom">
+            <div
+              className="main-menu-action-strip"
+              aria-label="Menu options — scroll sideways"
+            >
+              <div className="main-menu-action-strip-track">
+                <section
+                  className="main-menu-strip-card"
+                  aria-label="Player profile"
+                >
+                  <div className="menu-profile menu-profile--strip">
+                    <label className="menu-field">
+                      <span>Your name</span>
+                      <input
+                        type="text"
+                        maxLength={18}
+                        value={playerName}
+                        placeholder={DEFAULT_LOCAL_NAME}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        onBlur={commitProfile}
+                      />
+                    </label>
+                    <label className="menu-field menu-field--number">
+                      <span>Jersey #</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        value={jerseyNumber}
+                        onChange={(e) =>
+                          setJerseyNumber(clampJersey(Number(e.target.value)))
+                        }
+                        onBlur={commitProfile}
+                      />
+                      <span className="menu-jersey-preview">
+                        {formatJersey(jerseyNumber)}
+                      </span>
+                    </label>
+                  </div>
+                </section>
 
-            <label className="menu-field menu-field--range">
-              <span>
-                Menu music
-                <em className="menu-range-val">
-                  {Math.round(menuMusicVolume * 100)}%
-                </em>
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round(menuMusicVolume * 100)}
-                onChange={(e) => {
-                  const v = Number(e.target.value) / 100;
-                  setMenuMusicVolumeState(v);
-                  setMenuBackgroundMusicVolume(v);
-                }}
-              />
-            </label>
+                <section className="main-menu-strip-card main-menu-strip-card--compact">
+                  <label className="menu-option menu-option--strip">
+                    <input
+                      type="checkbox"
+                      checked={botsEnabled}
+                      onChange={(e) =>
+                        gameStore.setBotsEnabled(e.target.checked)
+                      }
+                    />
+                    <span>Practice bots</span>
+                  </label>
+                </section>
 
-            <label className="menu-map-picker">
-              <span>Arena map</span>
-              <select
-                value={activeMapId}
-                onChange={(e) => mapRegistryStore.setActiveMapId(e.target.value)}
-              >
-                <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
-                {customMaps.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <section className="main-menu-strip-card">
+                  <label className="menu-field menu-field--range">
+                    <span>
+                      Menu music
+                      <em className="menu-range-val">
+                        {Math.round(menuMusicVolume * 100)}%
+                      </em>
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(menuMusicVolume * 100)}
+                      onChange={(e) => {
+                        const v = Number(e.target.value) / 100;
+                        setMenuMusicVolumeState(v);
+                        setMenuBackgroundMusicVolume(v);
+                      }}
+                    />
+                  </label>
+                </section>
 
-            <div className="premium-ball-offer">
-              {premium8Ball ? (
-                <p className="premium-ball-equipped">
-                  Premium 8-Ball equipped
-                </p>
-              ) : (
-                <>
+                <section className="main-menu-strip-card">
+                  <label className="menu-field menu-map-picker">
+                    <span>Arena map</span>
+                    <select
+                      value={activeMapId}
+                      onChange={(e) =>
+                        mapRegistryStore.setActiveMapId(e.target.value)
+                      }
+                    >
+                      <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
+                      {customMaps.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </section>
+
+                <section className="main-menu-strip-card main-menu-strip-card--wide">
+                  <div className="premium-ball-offer premium-ball-offer--strip">
+                    {premium8Ball ? (
+                      <p className="premium-ball-equipped">
+                        Premium 8-Ball equipped
+                      </p>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-premium-ball"
+                          onClick={() => setShowPremiumModal(true)}
+                        >
+                          <span className="premium-ball-btn-icons" aria-hidden>
+                            <span className="premium-ball-icon">🎁</span>
+                            <span className="premium-ball-icon">💵</span>
+                          </span>
+                          Buy Premium Ball
+                        </button>
+                        <ul className="premium-ball-stats">
+                          <li>+30 extra power on ball</li>
+                          <li>+18% magnetic grip strength</li>
+                          <li>Pro-grade billiards resin finish</li>
+                          <li>VIP chalk pocket (cosmetic)</li>
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                </section>
+
+                <section className="main-menu-strip-card main-menu-strip-card--actions">
                   <button
                     type="button"
-                    className="btn-premium-ball"
-                    onClick={() => setShowPremiumModal(true)}
+                    className="btn-secondary"
+                    onClick={openEditor}
                   >
-                    <span className="premium-ball-btn-icons" aria-hidden>
-                      <span className="premium-ball-icon">🎁</span>
-                      <span className="premium-ball-icon">💵</span>
-                    </span>
-                    Buy Premium Ball
+                    Edit Map
                   </button>
-                  <ul className="premium-ball-stats">
-                    <li>+30 extra power on ball</li>
-                    <li>+18% magnetic grip strength</li>
-                    <li>Pro-grade billiards resin finish</li>
-                    <li>VIP chalk pocket (cosmetic)</li>
-                  </ul>
-                </>
-              )}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowHowToPlay(true)}
+                  >
+                    How to Play
+                  </button>
+                </section>
+              </div>
             </div>
 
-            <div className="main-menu-actions">
-              <button type="button" className="btn-primary" onClick={enterArena}>
-                Enter Arena
-              </button>
-              <button type="button" className="btn-secondary" onClick={openEditor}>
-                Edit Map
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowHowToPlay(true)}
-              >
-                How to Play
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+            <button type="button" className="btn-play-now" onClick={enterArena}>
+              Play Now
+            </button>
+          </footer>
+        </div>
+      )}
+
       {showPremiumModal && (
-        <PremiumBallPurchaseModal
-          onClose={() => setShowPremiumModal(false)}
-        />
+        <PremiumBallPurchaseModal onClose={() => setShowPremiumModal(false)} />
       )}
     </div>
   );

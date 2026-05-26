@@ -3,8 +3,10 @@ import {
   DEFAULT_MAP_ID,
   DEFAULT_MAP_NAME,
   type MapDocument,
+  type MapLight,
   type MapSummary,
 } from './mapEditorTypes';
+import { normalizeMapLight } from './mapLightDefaults';
 
 const REGISTRY_KEY = 'rocketball-map-registry-v1';
 const ACTIVE_MAP_KEY = 'rocketball-active-map-v1';
@@ -71,7 +73,7 @@ export function importMapDocumentFromJson(raw: string): MapDocument {
     updatedAt: now,
     groups: (d.groups ?? []).map((g) => ({ ...g })),
     objects: d.objects.map((o) => ({ ...o })),
-    lights: d.lights.map((l) => ({ ...l })),
+    lights: d.lights.map((l) => normalizeMapLight(l as MapLight)),
   };
 
   return saveCustomMap(normalized);

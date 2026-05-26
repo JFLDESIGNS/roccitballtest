@@ -18,7 +18,8 @@ import {
 import { jumpPadEmissiveIntensity } from './jumpPadGlow';
 import { billboardShakeKey, getVisualShake } from './visualShake';
 
-const BILLBOARD_FRAME = '#08090c';
+const BILLBOARD_FRAME = '#030304';
+const BILLBOARD_TRIM = '#0c0d10';
 const BILLBOARD_SCREEN = '#0a1520';
 const ENV_COLLISION = interactionGroups(2, [0, 1, 2]);
 const BILLBOARD_FRICTION = 0.35;
@@ -79,8 +80,18 @@ function BillboardPanel({ mount }: { mount: WallMount }) {
           <boxGeometry args={[w + 0.35, h + 0.35, frameDepth]} />
           <meshStandardMaterial
             color={BILLBOARD_FRAME}
-            metalness={0.02}
-            roughness={0.96}
+            metalness={0.88}
+            roughness={0.18}
+            envMapIntensity={1.1}
+          />
+        </mesh>
+        <mesh position={[0, 0, -frameDepth * 0.5 - 0.01]}>
+          <boxGeometry args={[w + 0.52, h + 0.52, frameDepth * 0.55]} />
+          <meshStandardMaterial
+            color={BILLBOARD_TRIM}
+            metalness={0.92}
+            roughness={0.12}
+            envMapIntensity={1.2}
           />
         </mesh>
         <group position={[0, 0, frameDepth * 0.5 + 0.1]}>

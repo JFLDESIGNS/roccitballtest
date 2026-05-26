@@ -1,7 +1,10 @@
-import { useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { MapLight, MapObject } from './mapEditorTypes';
 import { getMapObjectMaterial } from './mapEditorMaterials';
+import { LightGlowBillboard, lightGlowSizeForRect } from './LightGlowBillboard';
+import { initStadiumRectAreaLights } from '../game/stadiumRectAreaLightInit';
+import { MAP_LIGHT_SHADOW_PROPS } from './mapLightDefaults';
 
 type MapObjectMeshProps = {
   object: MapObject;
@@ -69,14 +72,34 @@ type MapLightNodeProps = {
   /** When true, render at group origin (parent supplies transform). */
   embedded?: boolean;
   castShadow?: boolean;
+  /** Editor sphere gizmo vs play-mode camera-facing glow plane */
+  showBulb?: boolean;
 };
+
+function MapRectAreaLight({ light }: { light: MapLight }) {
+  useLayoutEffect(() => {
+    initStadiumRectAreaLights();
+  }, []);
+
+  return (
+    <rectAreaLight
+      color={light.color}
+      intensity={light.intensity}
+      width={light.rectWidth}
+      height={light.rectHeight}
+    />
+  );
+}
 
 function MapLightContent({
   light,
   selected,
   onSelect,
-  castShadow = true,
+  castShadow = false,
+  showBulb = true,
 }: Omit<MapLightNodeProps, 'embedded'>) {
+  const bulbColor = selected ? '#ffee66' : light.color;
+
   return (
     <>
       {light.kind === 'point' && (
@@ -85,6 +108,7 @@ function MapLightContent({
           intensity={light.intensity}
           distance={light.distance}
           castShadow={castShadow}
+          {...(castShadow ? MAP_LIGHT_SHADOW_PROPS : {})}
         />
       )}
       {light.kind === 'spot' && (
@@ -95,6 +119,7 @@ function MapLightContent({
           angle={light.angle}
           penumbra={light.penumbra}
           castShadow={castShadow}
+          {...(castShadow ? MAP_LIGHT_SHADOW_PROPS : {})}
         />
       )}
       {light.kind === 'directional' && (
@@ -102,16 +127,90 @@ function MapLightContent({
           color={light.color}
           intensity={light.intensity}
           castShadow={castShadow}
+          {...(castShadow
+            ? {
+                ...MAP_LIGHT_SHADOW_PROPS,
+                'shadow-camera-far': 120,
+                'shadow-camera-left': -60,
+                'shadow-camera-right': 60,
+                'shadow-camera-top': 60,
+                'shadow-camera-bottom': -60,
+              }
+            : {})}
         />
       )}
-      <mesh onClick={(e) => { e.stopPropagation(); onSelect?.(); }} onPointerDown={(e) => { e.stopPropagation(); onSelect?.(); }}>
-        <sphereGeometry args={[0.35, 12, 12]} />
-        <meshBasicMaterial
-          color={selected ? '#ffee66' : light.color}
-          transparent
-          opacity={0.85}
-        />
-      </mesh>
+      {light.kind === 'rectArea' && <MapRectAreaLight light={light} />}
+      {showBulb ? (
+        light.kind === 'rectArea' ? (
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
+          >
+            <planeGeometry args={[light.rectWidth, light.rectHeight]} />
+            <meshBasicMaterial
+              color={bulbColor}
+              wireframe
+              transparent
+              opacity={0.9}
+              depthWrite={false}
+            />
+          </mesh>
+        ) : (
+        <mesh
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+        >
+          <sphereGeometry args={[0.35, 12, 12]} />
+          <meshBasicMaterial
+            color={bulbColor}
+            transparent
+            opacity={0.85}
+          />
+        </mesh>
+        )
+      ) : light.kind === 'rectArea' ? (
+        <group
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+        >
+          <LightGlowBillboard
+            color={light.color}
+            size={lightGlowSizeForRect(light.rectWidth, light.rectHeight)}
+          />
+        </group>
+      ) : (
+        <group
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+        >
+          <LightGlowBillboard color={light.color} />
+        </group>
+      )}
     </>
   );
 }
@@ -121,7 +220,8 @@ export function MapLightNode({
   selected,
   onSelect,
   embedded,
-  castShadow = true,
+  castShadow = false,
+  showBulb = true,
 }: MapLightNodeProps) {
   if (embedded) {
     return (
@@ -130,6 +230,7 @@ export function MapLightNode({
         selected={selected}
         onSelect={onSelect}
         castShadow={castShadow}
+        showBulb={showBulb}
       />
     );
   }
@@ -147,6 +248,7 @@ export function MapLightNode({
         selected={selected}
         onSelect={onSelect}
         castShadow={castShadow}
+        showBulb={showBulb}
       />
     </group>
   );

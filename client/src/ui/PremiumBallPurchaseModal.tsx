@@ -6,7 +6,8 @@ type PremiumBallPurchaseModalProps = {
 };
 
 const START_MONEY = 50;
-const TICK_MS = 90;
+/** Total time from $50 → $0 */
+const COUNTDOWN_MS = 1300;
 const HOLD_AT_ZERO_MS = 840;
 
 export function PremiumBallPurchaseModal({
@@ -18,25 +19,29 @@ export function PremiumBallPurchaseModal({
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    let remaining = START_MONEY;
-    setMoney(remaining);
+    const start = performance.now();
+    let raf = 0;
 
-    const id = window.setInterval(() => {
-      remaining -= 1;
-      if (remaining > 0) {
-        setMoney(remaining);
+    const tick = () => {
+      const elapsed = performance.now() - start;
+      const t = Math.min(1, elapsed / COUNTDOWN_MS);
+      const remaining = Math.max(0, Math.ceil(START_MONEY * (1 - t)));
+      setMoney(remaining);
+
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
         return;
       }
 
       setMoney(0);
-      window.clearInterval(id);
       unlockPremium8Ball();
       window.setTimeout(() => {
         if (!closedRef.current) onCloseRef.current();
       }, HOLD_AT_ZERO_MS);
-    }, TICK_MS);
+    };
 
-    return () => window.clearInterval(id);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const handleClose = () => {

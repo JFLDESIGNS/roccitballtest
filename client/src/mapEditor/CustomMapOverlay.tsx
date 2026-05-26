@@ -53,7 +53,12 @@ export function CustomMapOverlay() {
         <MapObjectMesh key={obj.id} object={obj} />
       ))}
       {doc.lights.map((light) => (
-        <MapLightNode key={light.id} light={light} />
+        <MapLightNode
+          key={light.id}
+          light={light}
+          showBulb={false}
+          castShadow={light.castShadow}
+        />
       ))}
     </>
   );

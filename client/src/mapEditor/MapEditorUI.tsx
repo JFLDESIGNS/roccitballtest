@@ -230,6 +230,7 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 ['point', 'Point'],
                 ['spot', 'Spot'],
                 ['directional', 'Sun'],
+                ['rectArea', 'Rect area'],
               ] as [MapLightKind, string][]
             ).map(([kind, label]) => (
               <button
@@ -307,7 +308,9 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
       <aside className="map-editor-panel map-editor-panel--right">
         <h3>Selection</h3>
         {!selectedObject && !selectedGroup && !selectedLight && (
-          <p className="map-editor-muted">Nothing selected — click a goal, pillar, or object</p>
+          <p className="map-editor-muted">
+            Nothing selected — click a goal, pillar, platform, or object
+          </p>
         )}
 
         {selectedGroup && (
@@ -425,6 +428,113 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 }
               />
             </label>
+            <label className="map-editor-field map-editor-field--row">
+              <span>Cast shadows</span>
+              <input
+                type="checkbox"
+                checked={selectedLight.castShadow}
+                disabled={selectedLight.kind === 'rectArea'}
+                onChange={(e) =>
+                  mapEditorStore.updateLight(selectedLight.id, {
+                    castShadow: e.target.checked,
+                  })
+                }
+              />
+            </label>
+            {selectedLight.kind === 'rectArea' && (
+              <p className="map-editor-muted">
+                Rect area lights illuminate surfaces but do not cast shadows in
+                Three.js.
+              </p>
+            )}
+            {selectedLight.kind === 'spot' && (
+              <>
+                <label className="map-editor-field">
+                  <span>Distance</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    step={1}
+                    value={selectedLight.distance}
+                    onChange={(e) =>
+                      mapEditorStore.updateLight(selectedLight.id, {
+                        distance: Number(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </label>
+                <label className="map-editor-field">
+                  <span>Angle</span>
+                  <input
+                    type="number"
+                    min={0.05}
+                    max={1.5}
+                    step={0.05}
+                    value={selectedLight.angle}
+                    onChange={(e) =>
+                      mapEditorStore.updateLight(selectedLight.id, {
+                        angle: Number(e.target.value) || 0.1,
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
+            {selectedLight.kind === 'point' && (
+              <label className="map-editor-field">
+                <span>Distance</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  step={1}
+                  value={selectedLight.distance}
+                  onChange={(e) =>
+                    mapEditorStore.updateLight(selectedLight.id, {
+                      distance: Number(e.target.value) || 1,
+                    })
+                  }
+                />
+              </label>
+            )}
+            {selectedLight.kind === 'rectArea' && (
+              <>
+                <label className="map-editor-field">
+                  <span>Panel width (m)</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={80}
+                    step={0.5}
+                    value={selectedLight.rectWidth}
+                    onChange={(e) =>
+                      mapEditorStore.updateLight(selectedLight.id, {
+                        rectWidth: Number(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </label>
+                <label className="map-editor-field">
+                  <span>Panel height (m)</span>
+                  <input
+                    type="number"
+                    min={0.5}
+                    max={80}
+                    step={0.5}
+                    value={selectedLight.rectHeight}
+                    onChange={(e) =>
+                      mapEditorStore.updateLight(selectedLight.id, {
+                        rectHeight: Number(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </label>
+                <p className="map-editor-muted">
+                  Use Scale (S) on the gizmo to resize the rect panel.
+                </p>
+              </>
+            )}
           </>
         )}
 

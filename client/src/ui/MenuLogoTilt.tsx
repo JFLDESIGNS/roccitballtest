@@ -2,25 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { getRocccitLogoUrl } from '../game/roccitLogo';
 
-const MAX_TILT_DEG = 20;
-const SHINE_LEFT_BASE = 0.26;
-const SHINE_RIGHT_BASE = 0.74;
-const SHINE_SHIFT_X = 0.07;
-const SHINE_SHIFT_Y = 0.025;
+const MAX_TILT_DEG = 28;
+/** Both shine bars offset together from this center (0–1 across logo width). */
+const SHINE_CENTER_BASE = 0.5;
+const SHINE_SHIFT_X = 0.09;
+const SHINE_SHIFT_Y = 0.032;
+/** Fixed spacing between the two shine bars (moves as one unit). */
+const SHINE_PAIR_SPREAD = 0.2;
 const SMOOTH = 0.11;
 
 type Tilt = {
   rotateX: number;
   rotateY: number;
-  shineA: number;
-  shineB: number;
+  shineCenter: number;
 };
 
 const NEUTRAL: Tilt = {
   rotateX: 0,
   rotateY: 0,
-  shineA: SHINE_LEFT_BASE,
-  shineB: SHINE_RIGHT_BASE,
+  shineCenter: SHINE_CENTER_BASE,
 };
 
 function clampNorm(v: number): number {
@@ -31,8 +31,8 @@ function lerpTilt(current: Tilt, target: Tilt, alpha: number): Tilt {
   return {
     rotateX: current.rotateX + (target.rotateX - current.rotateX) * alpha,
     rotateY: current.rotateY + (target.rotateY - current.rotateY) * alpha,
-    shineA: current.shineA + (target.shineA - current.shineA) * alpha,
-    shineB: current.shineB + (target.shineB - current.shineB) * alpha,
+    shineCenter:
+      current.shineCenter + (target.shineCenter - current.shineCenter) * alpha,
   };
 }
 
@@ -44,6 +44,14 @@ export function MenuLogoTilt() {
   const [tilt, setTilt] = useState<Tilt>(NEUTRAL);
   const [clipSize, setClipSize] = useState({ w: 0, h: 0 });
   const logoUrl = getRocccitLogoUrl();
+
+  const shinePositions = useMemo(() => {
+    const half = SHINE_PAIR_SPREAD * 0.5;
+    return {
+      a: (tilt.shineCenter - half) * 100,
+      b: (tilt.shineCenter + half) * 100,
+    };
+  }, [tilt.shineCenter]);
 
   const syncClipSize = useCallback(() => {
     const img = imgRef.current;
@@ -101,14 +109,8 @@ export function MenuLogoTilt() {
     targetRef.current = {
       rotateY: nx * MAX_TILT_DEG,
       rotateX: -ny * MAX_TILT_DEG,
-      shineA:
-        SHINE_LEFT_BASE +
-        nx * SHINE_SHIFT_X +
-        ny * SHINE_SHIFT_Y * 0.35,
-      shineB:
-        SHINE_RIGHT_BASE +
-        nx * SHINE_SHIFT_X * 0.88 -
-        ny * SHINE_SHIFT_Y * 0.25,
+      shineCenter:
+        SHINE_CENTER_BASE + nx * SHINE_SHIFT_X + ny * SHINE_SHIFT_Y,
     };
   }, []);
 
@@ -160,11 +162,11 @@ export function MenuLogoTilt() {
           <div className="main-menu-logo-shines" aria-hidden>
             <span
               className="main-menu-logo-shine main-menu-logo-shine--a"
-              style={{ left: `${tilt.shineA * 100}%` }}
+              style={{ left: `${shinePositions.a}%` }}
             />
             <span
               className="main-menu-logo-shine main-menu-logo-shine--b"
-              style={{ left: `${tilt.shineB * 100}%` }}
+              style={{ left: `${shinePositions.b}%` }}
             />
           </div>
         </div>

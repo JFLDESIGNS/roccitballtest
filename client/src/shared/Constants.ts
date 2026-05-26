@@ -207,6 +207,29 @@ export const BOT = {
   doubleJumpForce: 11,
   groundAccel: 16,
   aimSmoothing: 11,
+  /** General field look — slower than combat aim */
+  lookAimSmoothing: 6,
+  /** Max head turn speed (deg/s) — prevents snap jerks */
+  aimMaxYawRateDeg: 200,
+  aimMaxPitchRateDeg: 140,
+  lookFocusHoldSec: 2.4,
+  lookPointSmooth: 2.2,
+  celebrationLookHoldSec: 1.9,
+  kickoffLookHoldSec: 1.6,
+  /** Kickoff roam — soft anchor within ~5 ft of center platform */
+  kickoffSoftRadiusM: 1.524,
+  /** Occasional playful rocket during kickoff contest */
+  kickoffPlayfulRocketChance: 0.14,
+  kickoffPlayfulRocketCooldownSec: 2.75,
+  /** Global hop — 30% roll every 5s, then 5s until next roll */
+  idleJumpDiceIntervalSec: 5,
+  idleJumpDiceChance: 0.3,
+  /** Loose ball on court — look weights (non chase / non follow-player) */
+  looseBallLookWeight: 0.7,
+  /** Shot windup — glance down then release look-up */
+  shotWindupLookDownOffsetY: 1.65,
+  shotReleaseLookUpDeg: 24,
+  shotWindupPitchDeg: -28,
   airControl: 0.9,
   maxJumps: 2,
   beamDrain: 12,
@@ -247,6 +270,12 @@ export const BOT = {
   shootMinHoldSec: 0.14,
   holdSetupMaxSec: 0.5,
   holdShootAfterJumpSec: 0.15,
+  /** Prefer jumping before a shot when jumps remain (avoids strip steals on the floor) */
+  preferAirBeforeShot: true,
+  /** Max time to wait on the ground in setup before forcing a shot anyway */
+  holdAirShotMaxWaitSec: 1.15,
+  /** Opponent within this range while carrying — hop early toward setup */
+  carryThreatJumpDist: 13,
   holdForceShootSec: 0.4,
   holdForceLooseShootSec: 0.2,
   holdFarDecisionSec: 0.35,
@@ -332,6 +361,14 @@ export const BOT = {
   shootZoneInsetFromWall: 7,
   /** In shoot zone with ball — attempt high dunk vs normal shot */
   shootZoneDunkChance: 0.6,
+  /** Fake wind-up: goal → 60° left → sweep right, release ~59° on the right */
+  feintShotChance: 0.2,
+  feintSideDeg: 60,
+  feintReleaseAtRightDeg: 59,
+  feintLookGoalSec: 0.38,
+  feintTurnLeftSec: 0.26,
+  feintSweepRightSec: 0.46,
+  feintAimSmoothing: 11,
   /** Remaining shoot-zone rolls that jam instead of normal */
   shootZoneJamChance: 0.12,
   /** Close to net (outside zone) — drive jam into mouth */
@@ -504,7 +541,7 @@ export const BOT = {
   doubleJumpDelaySec: 0.18,
   /** Hop cadence while carrying */
   carryJumpIntervalSec: 1.35,
-  carryJumpChance: 0.26,
+  carryJumpChance: 0.4,
   /** Reactive hop when ball is above chest */
   ballAboveJumpChance: 0.5,
   /** Wall stuck: min horizontal move (m) to reset timer */

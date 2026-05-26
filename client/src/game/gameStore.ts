@@ -92,13 +92,17 @@ type GameStoreState = {
 
 const listeners = new Set<() => void>();
 
+import { MENU_BOTS_ENABLED_DEFAULT } from './menuOptionDefaults';
+
 const BOTS_ENABLED_KEY = 'rocketball-bots-enabled';
 
 function loadBotsEnabled(): boolean {
   try {
-    return localStorage.getItem(BOTS_ENABLED_KEY) !== 'false';
+    const raw = localStorage.getItem(BOTS_ENABLED_KEY);
+    if (raw === null) return MENU_BOTS_ENABLED_DEFAULT;
+    return raw !== 'false';
   } catch {
-    return true;
+    return MENU_BOTS_ENABLED_DEFAULT;
   }
 }
 

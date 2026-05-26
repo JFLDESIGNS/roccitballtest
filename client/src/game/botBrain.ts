@@ -3,12 +3,8 @@ import { ARENA, BALL, BEAM, BOT } from '../shared/Constants';
 import type { BallHolderId, BotId } from './gameStore';
 import { getBotPressureScalars } from './botTuning';
 import { isInsideShootZone } from './botShootZone';
-import {
-  findTeammateBallChaser,
-  rollTeammateBallChaseResponse,
-  type TeammateBallChaseResponse,
-} from './botTeamBallChase';
-import { getEnemyGoalTarget, getOwnGoalAnchor, pickFieldCenterTarget } from './botGoals';
+import type { TeammateBallChaseResponse } from './botTeamBallChase';
+import { getEnemyGoalTarget, pickFieldCenterTarget } from './botGoals';
 import type { Team } from '../shared/Types';
 
 export type BotRole = 'ball' | 'pressure';
@@ -45,12 +41,6 @@ export type CarryLookState = {
 export type BotHoldMode = 'carryToGoal' | 'setupShot' | 'shootGoal';
 
 export type BotMode = BotFieldMode | BotHoldMode;
-
-function isHoldMode(mode: BotMode): mode is BotHoldMode {
-  return (
-    mode === 'carryToGoal' || mode === 'setupShot' || mode === 'shootGoal'
-  );
-}
 
 export type BotHoldPhase = 'advance' | 'setup' | 'shoot';
 
@@ -371,70 +361,25 @@ export type TeammateBallChaseState = {
   offenseUntilMs: number;
 };
 
-const CHASE_RESPONSE_MODE: Record<
-  TeammateBallChaseResponse,
-  BotFieldMode
-> = {
-  join: 'runToBall',
-  center: 'teamCenter',
-  offense: 'teamOffense',
-  defense: 'teamDefense',
-};
-
 /** True when this bot is actively pursuing the loose ball (broadcast to teammates). */
 export function isBallChaseBroadcastMode(mode: BotMode): boolean {
   return mode === 'runToBall' || mode === 'attractBall';
 }
 
-/**
- * When a teammate is chasing the ball, roll once how this bot supports:
- * 30% join chase, 30% center (1s then rejoin), 15% offense, 15% defense, 10% unchanged.
- */
+/** Teammate chase role split disabled — bots keep their normal picked mode. */
 export function applyTeammateBallChaseMode(
   state: TeammateBallChaseState,
-  selfId: BotId,
-  team: Team,
-  isEnemy: boolean,
+  _selfId: BotId,
+  _team: Team,
+  _isEnemy: boolean,
   picked: BotMode,
-  nowMs = performance.now(),
+  _nowMs = performance.now(),
 ): BotMode {
-  if (!isEnemy || isHoldMode(picked)) return picked;
-
-  const chaserId = findTeammateBallChaser(selfId, team, nowMs / 1000);
-  if (!chaserId) {
-    state.chaserId = null;
-    state.response = null;
-    state.centerUntilMs = 0;
-    state.offenseUntilMs = 0;
-    return picked;
-  }
-
-  if (state.chaserId !== chaserId) {
-    state.chaserId = chaserId;
-    state.response = rollTeammateBallChaseResponse();
-    state.centerUntilMs = 0;
-    state.offenseUntilMs = 0;
-  }
-
-  if (!state.response) return picked;
-
-  if (state.response === 'center') {
-    if (state.centerUntilMs === 0) {
-      state.centerUntilMs =
-        nowMs + BOT.teammateBallChaseCenterSec * 1000;
-    }
-    if (nowMs < state.centerUntilMs) return 'teamCenter';
-    return 'runToBall';
-  }
-
-  // "Wait for pass" support: only loiter briefly, then rejoin normal ball chase.
-  if (state.response === 'offense') {
-    if (state.offenseUntilMs === 0) state.offenseUntilMs = nowMs + 5000;
-    if (nowMs < state.offenseUntilMs) return 'teamOffense';
-    return 'runToBall';
-  }
-
-  return CHASE_RESPONSE_MODE[state.response];
+  state.chaserId = null;
+  state.response = null;
+  state.centerUntilMs = 0;
+  state.offenseUntilMs = 0;
+  return picked;
 }
 
 export type BotZonePosition = {
@@ -694,6 +639,25 @@ function pickFieldMode(input: BotThinkInput): BotFieldMode {
   return canShootPlayer && isEnemy ? 'moveAndShoot' : 'runToBall';
 }
 
+function canLeaveSetupForShot(
+  setupJumped: boolean,
+  setupAge: number,
+  grounded: boolean,
+  jumpsLeft: number,
+  wantsAirShot: boolean,
+): boolean {
+  if (wantsAirShot && jumpsLeft > 0) {
+    if (!setupJumped && setupAge < BOT.holdAirShotMaxWaitSec) return false;
+    if (grounded) {
+      return (
+        setupJumped && setupAge >= BOT.holdAirShotMaxWaitSec
+      );
+    }
+    return setupJumped && setupAge >= BOT.holdShootAfterJumpSec;
+  }
+  return setupAge >= BOT.holdShootAfterJumpSec || setupJumped;
+}
+
 export function updateHoldPhase(
   phase: BotHoldPhase,
   distGoal: number,
@@ -703,15 +667,34 @@ export function updateHoldPhase(
   inShootZone = false,
   _farAction: BotFarHoldAction | null = null,
   inNetFinishZone = false,
+  grounded = true,
+  jumpsLeft = 0,
+  shotStyle: 'normal' | 'dunk' | 'jam' | 'feint' = 'normal',
 ): BotHoldPhase {
   if (phase === 'shoot') return 'shoot';
+
+  const wantsAirShot =
+    BOT.preferAirBeforeShot &&
+    jumpsLeft > 0 &&
+    shotStyle !== 'jam' &&
+    shotStyle !== 'feint';
 
   if (inNetFinishZone) {
     if (phase === 'advance') return 'setup';
     if (phase === 'setup') {
       const setupAge = Math.max(0, holdSec - setupEnterSec);
-      if (setupJumped && setupAge >= BOT.holdShootAfterJumpSec) return 'shoot';
-      if (setupAge >= BOT.netFinishMinHoldSec) return 'shoot';
+      if (
+        canLeaveSetupForShot(
+          setupJumped,
+          setupAge,
+          grounded,
+          jumpsLeft,
+          wantsAirShot,
+        )
+      ) {
+        return 'shoot';
+      }
+      if (setupAge >= BOT.netFinishMinHoldSec && !wantsAirShot) return 'shoot';
     }
     return phase;
   }
@@ -726,13 +709,34 @@ export function updateHoldPhase(
 
   if (phase === 'setup') {
     const setupAge = Math.max(0, holdSec - setupEnterSec);
+    if (shotStyle === 'feint') return phase;
     if (holdSec >= BOT.dunkTryMaxSec) return 'shoot';
-    if (inShootZone && setupAge >= BOT.quickShotMinHoldSec) return 'shoot';
-    if (setupJumped && setupAge >= BOT.holdShootAfterJumpSec) return 'shoot';
-    if (setupAge >= BOT.holdSetupMaxSec) return 'shoot';
     if (
+      canLeaveSetupForShot(
+        setupJumped,
+        setupAge,
+        grounded,
+        jumpsLeft,
+        wantsAirShot,
+      )
+    ) {
+      return 'shoot';
+    }
+    if (!wantsAirShot && inShootZone && setupAge >= BOT.quickShotMinHoldSec) {
+      return 'shoot';
+    }
+    if (!wantsAirShot && setupAge >= BOT.holdSetupMaxSec) return 'shoot';
+    if (
+      !wantsAirShot &&
       distGoal <= BOT.goalQuickShotDist &&
       setupAge >= BOT.quickShotMinHoldSec
+    ) {
+      return 'shoot';
+    }
+    if (
+      wantsAirShot &&
+      setupAge >= BOT.holdAirShotMaxWaitSec &&
+      setupJumped
     ) {
       return 'shoot';
     }
@@ -753,6 +757,25 @@ export function shouldSetupJump(
     grounded &&
     jumpsLeft > 0
   );
+}
+
+/** Hop while dribbling if an opponent is close — sets up an air release. */
+export function shouldThreatCarryJump(
+  holdPhase: BotHoldPhase,
+  setupJumped: boolean,
+  grounded: boolean,
+  jumpsLeft: number,
+  opponentDist: number,
+): boolean {
+  if (!grounded || jumpsLeft <= 0 || setupJumped) return false;
+  if (holdPhase === 'setup') return true;
+  if (
+    holdPhase === 'advance' &&
+    opponentDist < BOT.carryThreatJumpDist
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Movement target for current mode */
@@ -794,7 +817,7 @@ export function pickMoveTarget(
   }
 }
 
-function pickTeamOffenseRoamTarget(
+export function pickTeamOffenseRoamTarget(
   input: Pick<BotThinkInput, 'id' | 'team' | 'pos'>,
   out: THREE.Vector3,
 ): THREE.Vector3 {
@@ -829,25 +852,14 @@ function pickTeamDefenseRoamTarget(
   input: Pick<BotThinkInput, 'id' | 'team' | 'pos'>,
   out: THREE.Vector3,
 ): THREE.Vector3 {
-  // Defensive support shouldn't park in the net — keep them moving on their half
-  // with a short loiter pattern in front of their own goal.
-  getOwnGoalAnchor(input.team, out).setY(input.pos.y);
-
-  const towardCourt = input.team === 'red' ? 1 : -1;
-  // Pull them a bit farther toward midfield than the anchor.
-  out.x += towardCourt * 6;
-
+  // Legacy mode name — roam midfield, never the net.
+  pickFieldCenterTarget(input.id, input.pos.y, out);
   const botPhase = input.id === 'bot-0' ? 0.9 : input.id === 'bot-1' ? 2.8 : 4.7;
   const t = performance.now() / 1000;
-  const loopZ = Math.sin(t * 0.6 + botPhase) * 10 + Math.sin(t * 0.2 + botPhase) * 3.5;
-  const loopX = Math.cos(t * 0.52 + botPhase) * 4.5 + Math.sin(t * 0.27 + botPhase) * 2.2;
+  const loopZ = Math.sin(t * 0.6 + botPhase) * 8 + Math.sin(t * 0.2 + botPhase) * 3;
+  const loopX = Math.cos(t * 0.52 + botPhase) * 5 + Math.sin(t * 0.27 + botPhase) * 2;
   out.z += loopZ;
   out.x += loopX;
-
-  // Keep them on their defensive half.
-  if (input.team === 'red') out.x = Math.min(-6, out.x);
-  else out.x = Math.max(6, out.x);
-
   return out;
 }
 
@@ -1192,7 +1204,12 @@ export function resolveTimedBotHoldRelease(
   releasePlan: BotHoldReleasePlan | null,
   distGoal = Infinity,
   inNetFinishZone = false,
+  grounded = true,
+  jumpsLeft = 0,
+  shotStyle: 'normal' | 'dunk' | 'jam' | 'feint' = 'normal',
 ): HoldReleaseKind | null {
+  if (shotStyle === 'feint') return null;
+
   if (inNetFinishZone) {
     if (holdSec < BOT.netFinishMinHoldSec) return null;
     return 'shoot';
@@ -1202,6 +1219,16 @@ export function resolveTimedBotHoldRelease(
     inShootZone || distGoal <= BOT.goalQuickShotDist;
   const minHold = nearGoal ? BOT.releaseMinHoldSec : BOT.holdCarryMinSec;
   if (holdSec < minHold) return null;
+
+  if (
+    BOT.preferAirBeforeShot &&
+    jumpsLeft > 0 &&
+    grounded &&
+    nearGoal &&
+    shotStyle !== 'jam'
+  ) {
+    return null;
+  }
 
   if (holdSec >= BOT.holdMaxCarrySec) {
     if (inShootZone && hasTeammate) {

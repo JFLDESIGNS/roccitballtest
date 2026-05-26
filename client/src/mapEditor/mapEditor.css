@@ -130,6 +130,17 @@
   color: #f0f8ff;
 }
 
+.map-editor-field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.map-editor-field--row input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 .map-editor-field--compact input {
   width: 100%;
 }
