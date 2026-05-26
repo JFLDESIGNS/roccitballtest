@@ -1622,12 +1622,16 @@ export function Player({
   const characterMesh = (
     <group renderOrder={CHARACTER_MESH_RENDER_ORDER}>
       <PlayerAvatar rotationY={0} team={localTeam} />
-      <PlayerJumpHat
-        bodyRef={bodyRef}
-        visualRef={visualRef}
-        groundedRef={grounded}
-      />
     </group>
+  );
+
+  const playerCrown = (
+    <PlayerJumpHat
+      bodyRef={bodyRef}
+      visualRef={visualRef}
+      bobRef={bobRef}
+      groundedRef={grounded}
+    />
   );
 
   const playerThrusters = (
@@ -1651,6 +1655,7 @@ export function Player({
           bobRef={bobRef}
           groundedRef={grounded}
           thrusters={playerThrusters}
+          overlay={playerCrown}
         >
           {characterMesh}
         </PlayerVisualProxy>

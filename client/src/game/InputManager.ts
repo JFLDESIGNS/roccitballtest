@@ -297,16 +297,18 @@ class InputManager {
         if (tuningStore.getState().showMenu) return;
         const phase = gameStore.getState().phase;
         if (phase === 'playing' || phase === 'countdown') {
+          gameStore.toggleColliderDebug();
+        }
+      }
+      if (e.code === 'KeyH' && !e.repeat) {
+        if (tuningStore.getState().showMenu) return;
+        const phase = gameStore.getState().phase;
+        if (phase === 'playing' || phase === 'countdown') {
           import('./stadiumRectLightDebugStore').then(
             ({ stadiumRectLightDebugStore }) =>
               stadiumRectLightDebugStore.toggleWireframe(),
           );
         }
-      }
-      if (e.code === 'KeyH' && !e.repeat) {
-        import('./gameStore').then(({ gameStore }) =>
-          gameStore.toggleColliderDebug(),
-        );
       }
       if (e.code === 'Digit1') {
         e.preventDefault();

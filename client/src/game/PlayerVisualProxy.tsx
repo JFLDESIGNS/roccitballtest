@@ -16,6 +16,8 @@ type PlayerVisualProxyProps = {
   children: ReactNode;
   /** Thrusters inside bob/tilt so they pitch and bob with the avatar */
   thrusters?: ReactNode;
+  /** Rendered under visual yaw but outside tilt — stays upright during forward flip */
+  overlay?: ReactNode;
 };
 
 /** Display-only avatar root — smooth follow on physics capsule (reduces jitter) */
@@ -28,6 +30,7 @@ export function PlayerVisualProxy({
   groundedRef,
   children,
   thrusters,
+  overlay,
 }: PlayerVisualProxyProps) {
   const rootRef = useRef<THREE.Group>(null);
   const displayPos = useRef(new THREE.Vector3());
@@ -72,6 +75,7 @@ export function PlayerVisualProxy({
             {thrusters}
           </group>
         </group>
+        {overlay}
       </group>
     </group>
   );

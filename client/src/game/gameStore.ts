@@ -284,7 +284,12 @@ export const gameStore = {
     }
   },
   toggleColliderDebug: () => {
-    state = { ...state, showColliderDebug: !state.showColliderDebug };
+    const next = !state.showColliderDebug;
+    state = {
+      ...state,
+      showColliderDebug: next,
+      showGoalZoneDebug: next,
+    };
     notify();
   },
   setShowGoalZoneDebug: (show: boolean) => {
