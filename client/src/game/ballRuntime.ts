@@ -2,8 +2,10 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import { ARENA, BALL, SUPERBALL } from '../shared/Constants';
 import { clampToHex, hexSlackToBoundary } from './arenaHex';
 import { sanitizeFanGlassBallBounce } from './ballFanGlassBounce';
+import { tickGoalRimBallBounce } from './goalRingBounce';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
+import * as THREE from 'three';
 
 function ballMaxSpeed(): number {
   return tuningStore.getState().ballType === 'superball'
@@ -21,11 +23,25 @@ const playRadius = ARENA.hexRadius - 0.35;
 const wallPenetrationMin = BALL.radius + 1.25;
 const floorPenetrationMin = 0.22;
 
+const _ballFrom = new THREE.Vector3();
+const _ballTo = new THREE.Vector3();
+const goalRimBounceCooldown = { current: 0 };
+
 /**
  * After Rapier step: rare unstick only. Wall bounces stay on Rapier materials.
  */
-export function stepBallPhysics(body: RapierRigidBody): void {
+export function stepBallPhysics(
+  body: RapierRigidBody,
+  prev?: THREE.Vector3,
+  dt = 1 / 60,
+): void {
   sanitizeFanGlassBallBounce(body);
+  if (prev) {
+    const t = body.translation();
+    _ballFrom.copy(prev);
+    _ballTo.set(t.x, t.y, t.z);
+    tickGoalRimBallBounce(body, _ballFrom, _ballTo, goalRimBounceCooldown, dt);
+  }
   applyBallFloorAssist(body);
   applyBallWallUnstick(body);
   clampBallSpeed(body);

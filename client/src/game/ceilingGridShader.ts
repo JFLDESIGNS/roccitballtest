@@ -50,7 +50,7 @@ export function createCeilingGridShaderMaterial(): CeilingGridShaderMaterial {
     uniforms: {
       uPulse: { value: 0 },
       uTime: { value: 0 },
-      uGridCells: { value: 14 },
+      uGridCells: { value: 28 },
     },
     vertexShader,
     fragmentShader,

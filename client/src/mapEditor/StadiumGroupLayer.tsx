@@ -9,6 +9,7 @@ import { RocccitLogoStamp } from '../game/RocccitLogoStamp';
 import type { MapGroup } from './mapEditorTypes';
 import { parseStadiumKey } from './stadiumLayout';
 import { StadiumGoalVisual, StadiumPillarVisual } from './StadiumPieceVisuals';
+import { StadiumGroupPhysics } from './stadiumPiecePhysics';
 
 function StadiumGroupVisual({ stadiumKey }: { stadiumKey: string }) {
   const parsed = parseStadiumKey(stadiumKey);
@@ -138,6 +139,7 @@ export function StadiumGroupLayer({
           scale={group.scale}
         >
           {group.stadiumKey && <StadiumGroupVisual stadiumKey={group.stadiumKey} />}
+          {group.stadiumKey && <StadiumGroupPhysics stadiumKey={group.stadiumKey} />}
           {group.stadiumKey && onSelect && (
             <StadiumGroupPickMesh
               stadiumKey={group.stadiumKey}

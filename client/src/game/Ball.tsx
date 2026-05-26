@@ -290,7 +290,8 @@ const hasPrevBallPos = useRef(false);
     }
 
     const from = prevBallPos.current;
-    if (hasPrevBallPos.current) {
+    const hadPrevPos = hasPrevBallPos.current;
+    if (hadPrevPos) {
       if (
         tryBallGoalScore(
           { x: from.x, y: from.y, z: from.z },
@@ -310,7 +311,7 @@ const hasPrevBallPos = useRef(false);
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;
 
-    stepBallPhysics(body);
+    stepBallPhysics(body, hadPrevPos ? from : undefined, 1 / 60);
   });
 
   // Release timer + goal-suck overrides; loose proxy handles bot carry + loose display.
