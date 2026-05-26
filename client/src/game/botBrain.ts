@@ -367,6 +367,8 @@ export type TeammateBallChaseState = {
   response: TeammateBallChaseResponse | null;
   /** performance.now() deadline for the brief center dash */
   centerUntilMs: number;
+  /** performance.now() deadline for short "wait for pass" offense loiter */
+  offenseUntilMs: number;
 };
 
 const CHASE_RESPONSE_MODE: Record<
@@ -403,6 +405,7 @@ export function applyTeammateBallChaseMode(
     state.chaserId = null;
     state.response = null;
     state.centerUntilMs = 0;
+    state.offenseUntilMs = 0;
     return picked;
   }
 
@@ -410,6 +413,7 @@ export function applyTeammateBallChaseMode(
     state.chaserId = chaserId;
     state.response = rollTeammateBallChaseResponse();
     state.centerUntilMs = 0;
+    state.offenseUntilMs = 0;
   }
 
   if (!state.response) return picked;
@@ -420,6 +424,13 @@ export function applyTeammateBallChaseMode(
         nowMs + BOT.teammateBallChaseCenterSec * 1000;
     }
     if (nowMs < state.centerUntilMs) return 'teamCenter';
+    return 'runToBall';
+  }
+
+  // "Wait for pass" support: only loiter briefly, then rejoin normal ball chase.
+  if (state.response === 'offense') {
+    if (state.offenseUntilMs === 0) state.offenseUntilMs = nowMs + 5000;
+    if (nowMs < state.offenseUntilMs) return 'teamOffense';
     return 'runToBall';
   }
 
@@ -835,7 +846,8 @@ export function pickLookTarget(
   if (mode === 'attractBall' || mode === 'runToBall') {
     return out.copy(input.ballPos);
   }
-  if (mode === 'teamOffense') return out.copy(input.goal);
+  // Wait-for-pass offense: keep eyes on the ball (better for pass reads).
+  if (mode === 'teamOffense') return out.copy(input.ballPos);
   if (mode === 'teamDefense') return getOwnGoalAnchor(input.team, out);
   if (mode === 'teamCenter') return pickFieldCenterTarget(input.id, moveTarget.y, out);
   return out.copy(moveTarget);

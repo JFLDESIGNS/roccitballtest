@@ -966,6 +966,7 @@ function BotAvatar({
     chaserId: null,
     response: null,
     centerUntilMs: 0,
+    offenseUntilMs: 0,
   });
   const botZoneScratch = useRef<BotZonePosition[]>([]);
   const carryLookState = useRef<CarryLookState>({
