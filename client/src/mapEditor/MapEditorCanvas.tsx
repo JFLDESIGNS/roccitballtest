@@ -163,7 +163,7 @@ function EditableGroup({
       <group ref={groupRef}>
         {isStadium && group.stadiumKey && (
           <>
-            <StadiumGroupVisual stadiumKey={group.stadiumKey} />
+            <StadiumGroupVisual stadiumKey={group.stadiumKey} physics={false} />
             <StadiumGroupPickMesh
               stadiumKey={group.stadiumKey}
               selected={selected}

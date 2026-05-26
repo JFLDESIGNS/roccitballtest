@@ -11,7 +11,14 @@ import type { MapGroup } from './mapEditorTypes';
 import { parseStadiumKey } from './stadiumLayout';
 import { StadiumGoalVisual, StadiumPillarVisual } from './StadiumPieceVisuals';
 
-function StadiumGroupVisual({ stadiumKey }: { stadiumKey: string }) {
+function StadiumGroupVisual({
+  stadiumKey,
+  physics = true,
+}: {
+  stadiumKey: string;
+  /** Map editor previews must not mount Rapier bodies outside `<Physics />`. */
+  physics?: boolean;
+}) {
   const parsed = parseStadiumKey(stadiumKey);
   const content = useMemo(() => {
     if (!parsed) return null;
@@ -23,7 +30,7 @@ function StadiumGroupVisual({ stadiumKey }: { stadiumKey: string }) {
     if (parsed.kind === 'platform') {
       return (
         <>
-          <OctagonPlatform x={0} z={0} sizeScale={1} />
+          <OctagonPlatform x={0} z={0} sizeScale={1} physics={false} />
           {parsed.index === 0 && (
             <group
               position={[0, ARENA.platformTopHeight + 0.04, 0]}
