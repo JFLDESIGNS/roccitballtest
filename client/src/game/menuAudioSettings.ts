@@ -1,6 +1,7 @@
 import { MENU_MUSIC_VOLUME_DEFAULT } from './menuOptionDefaults';
 
-const STORAGE_KEY = 'rocketball-menu-music-volume';
+const STORAGE_KEY = 'rocketball-menu-music-volume-v2';
+const LEGACY_STORAGE_KEY = 'rocketball-menu-music-volume';
 const DEFAULT_VOLUME = MENU_MUSIC_VOLUME_DEFAULT;
 
 let menuMusicVolume = loadMenuMusicVolume();
@@ -8,10 +9,20 @@ let menuMusicVolume = loadMenuMusicVolume();
 function loadMenuMusicVolume(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return DEFAULT_VOLUME;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return DEFAULT_VOLUME;
-    return Math.max(0, Math.min(1, n));
+    if (raw !== null) {
+      const n = Number(raw);
+      if (Number.isFinite(n)) return Math.max(0, Math.min(1, n));
+    }
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy !== null) {
+      const n = Number(legacy);
+      if (Number.isFinite(n)) {
+        const halved = Math.max(0, Math.min(1, n * 0.5));
+        localStorage.setItem(STORAGE_KEY, String(halved));
+        return halved;
+      }
+    }
+    return DEFAULT_VOLUME;
   } catch {
     return DEFAULT_VOLUME;
   }

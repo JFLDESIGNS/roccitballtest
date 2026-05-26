@@ -44,7 +44,7 @@ export const MAP_LIGHT_GLOW_PROXIMITY_FADE_M =
   MAP_LIGHT_GLOW_PROXIMITY_FADE_FT * 0.3048;
 
 /**
- * 0 at the light, 1 at MAP_LIGHT_GLOW_PROXIMITY_FADE_FT or farther (camera distance).
+ * 0 at the light, 1 at MAP_LIGHT_GLOW_PROXIMITY_FADE_FT or farther (listener distance).
  */
 export function mapLightGlowProximityFactor(distM: number): number {
   if (distM >= MAP_LIGHT_GLOW_PROXIMITY_FADE_M) return 1;

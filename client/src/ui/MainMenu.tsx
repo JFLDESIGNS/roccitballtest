@@ -139,15 +139,12 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           </div>
 
           <footer className="main-menu-bottom">
-            <div
-              className="main-menu-action-strip"
-              aria-label="Menu options — scroll sideways"
-            >
-              <div className="main-menu-action-strip-track">
-                <section
-                  className="main-menu-strip-card"
-                  aria-label="Player profile"
-                >
+            <div className="main-menu-panels" aria-label="Menu options">
+              <section
+                className="main-menu-strip-card main-menu-panel main-menu-panel--setup"
+                aria-label="Play setup"
+              >
+                <div className="main-menu-setup-grid">
                   <div className="menu-profile menu-profile--strip">
                     <label className="menu-field">
                       <span>Your name</span>
@@ -177,64 +174,64 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                       </span>
                     </label>
                   </div>
-                </section>
-
-                <section className="main-menu-strip-card main-menu-strip-card--compact">
-                  <label className="menu-option menu-option--strip">
-                    <input
-                      type="checkbox"
-                      checked={botsEnabled}
-                      onChange={(e) =>
-                        gameStore.setBotsEnabled(e.target.checked)
-                      }
-                    />
-                    <span>Practice bots</span>
-                  </label>
-                </section>
-
-                <section className="main-menu-strip-card">
-                  <label className="menu-field menu-field--range">
-                    <span>
-                      Menu music
-                      <em className="menu-range-val">
-                        {Math.round(menuMusicVolume * 100)}%
-                      </em>
-                    </span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={Math.round(menuMusicVolume * 100)}
-                      onChange={(e) => {
-                        const v = Number(e.target.value) / 100;
-                        setMenuMusicVolumeState(v);
-                        setMenuBackgroundMusicVolume(v);
-                      }}
-                    />
-                  </label>
-                </section>
-
-                <section className="main-menu-strip-card">
-                  <label className="menu-field menu-map-picker">
-                    <span>Arena map</span>
-                    <select
-                      value={activeMapId}
-                      onChange={(e) =>
-                        mapRegistryStore.setActiveMapId(e.target.value)
-                      }
-                    >
-                      <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
-                      {customMaps.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
+                  <div className="main-menu-setup-options">
+                    <label className="menu-option menu-option--strip">
+                      <input
+                        type="checkbox"
+                        checked={botsEnabled}
+                        onChange={(e) =>
+                          gameStore.setBotsEnabled(e.target.checked)
+                        }
+                      />
+                      <span>Practice bots</span>
+                    </label>
+                    <label className="menu-field menu-map-picker">
+                      <span>Arena map</span>
+                      <select
+                        value={activeMapId}
+                        onChange={(e) =>
+                          mapRegistryStore.setActiveMapId(e.target.value)
+                        }
+                      >
+                        <option value={DEFAULT_MAP_ID}>
+                          {DEFAULT_MAP_NAME}
                         </option>
-                      ))}
-                    </select>
-                  </label>
-                </section>
+                        {customMaps.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="menu-field menu-field--range">
+                      <span>
+                        Menu music
+                        <em className="menu-range-val">
+                          {Math.round(menuMusicVolume * 100)}%
+                        </em>
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={Math.round(menuMusicVolume * 100)}
+                        onChange={(e) => {
+                          const v = Number(e.target.value) / 100;
+                          setMenuMusicVolumeState(v);
+                          setMenuBackgroundMusicVolume(v);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </section>
 
-                <section className="main-menu-strip-card main-menu-strip-card--wide">
+              <div className="main-menu-panels-row">
+                <section
+                  className="main-menu-strip-card main-menu-panel main-menu-panel--premium"
+                  aria-label="Premium ball"
+                >
                   <div className="premium-ball-offer premium-ball-offer--strip">
                     {premium8Ball ? (
                       <p className="premium-ball-equipped">
@@ -247,7 +244,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                           className="btn-premium-ball"
                           onClick={() => setShowPremiumModal(true)}
                         >
-                          <span className="premium-ball-btn-icons" aria-hidden>
+                          <span
+                            className="premium-ball-btn-icons"
+                            aria-hidden
+                          >
                             <span className="premium-ball-icon">🎁</span>
                             <span className="premium-ball-icon">💵</span>
                           </span>
@@ -264,7 +264,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                   </div>
                 </section>
 
-                <section className="main-menu-strip-card main-menu-strip-card--actions">
+                <section
+                  className="main-menu-strip-card main-menu-panel main-menu-panel--actions"
+                  aria-label="More"
+                >
                   <button
                     type="button"
                     className="btn-secondary"

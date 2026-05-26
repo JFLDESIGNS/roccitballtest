@@ -3,4 +3,4 @@
  * Used when localStorage has no saved value yet.
  */
 export const MENU_BOTS_ENABLED_DEFAULT = true;
-export const MENU_MUSIC_VOLUME_DEFAULT = 1;
+export const MENU_MUSIC_VOLUME_DEFAULT = 0.5;

@@ -7,6 +7,7 @@ import {
   MAP_LIGHT_GLOW_DEFAULT_OPACITY,
   mapLightGlowProximityFactor,
 } from '../game/mapLightGlowBlend';
+import { copyLightGlowProximityListener } from '../game/lightGlowProximityAnchor';
 import { graphicsStore } from '../game/graphicsStore';
 
 type LightGlowBillboardProps = {
@@ -20,10 +21,11 @@ export const LIGHT_GLOW_DEFAULT_SIZE = 49.5;
 const RECT_GLOW_SIZE_MUL = 9;
 
 const _worldPos = new THREE.Vector3();
+const _listener = new THREE.Vector3();
 
 /**
  * Camera-facing radial glow for map lights in play mode.
- * Fades out within 20 ft of the camera so blobs do not wash the view up close.
+ * Fades out within 20 ft of the player (or camera on menus) so blobs vanish up close.
  */
 export function LightGlowBillboard({
   color,
@@ -98,10 +100,9 @@ export function LightGlowBillboard({
     const mesh = meshRef.current;
     if (!mesh) return;
     mesh.getWorldPosition(_worldPos);
-    const dx = camera.position.x - _worldPos.x;
-    const dz = camera.position.z - _worldPos.z;
-    const distHoriz = Math.hypot(dx, dz);
-    const proximity = mapLightGlowProximityFactor(distHoriz);
+    copyLightGlowProximityListener(_listener, camera.position);
+    const distM = _listener.distanceTo(_worldPos);
+    const proximity = mapLightGlowProximityFactor(distM);
     material.uniforms.uOpacity.value = glowOpacity * proximity;
   });
 

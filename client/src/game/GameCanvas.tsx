@@ -21,6 +21,10 @@ import { BeamVisual } from './BeamVisual';
 import { gameStore } from './gameStore';
 import { isMatchOver } from './matchEnd';
 import { setFanGlassListenerPosition } from './fanGlassHit';
+import {
+  clearLightGlowProximityAnchor,
+  setLightGlowProximityAnchor,
+} from './lightGlowProximityAnchor';
 import { inputManager } from './InputManager';
 import { DebugFreelook } from './DebugFreelook';
 import { Player } from './Player';
@@ -328,9 +332,12 @@ function Scene({
       playerPosRef.current.copy(pos);
       playerChestRef.current.copy(chest);
       setFanGlassListenerPosition(pos.x, pos.y, pos.z);
+      setLightGlowProximityAnchor(pos);
     },
     [],
   );
+
+  useEffect(() => () => clearLightGlowProximityAnchor(), []);
 
   const onPlayerBodyReady = useCallback((body: RapierRigidBody) => {
     playerBodyRef.current = body;
