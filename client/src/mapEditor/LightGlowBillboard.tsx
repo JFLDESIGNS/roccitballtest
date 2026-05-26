@@ -1,9 +1,11 @@
 import { Billboard } from '@react-three/drei';
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import {
   applyMapLightGlowBlend,
   MAP_LIGHT_GLOW_DEFAULT_OPACITY,
+  mapLightGlowProximityFactor,
 } from '../game/mapLightGlowBlend';
 import { graphicsStore } from '../game/graphicsStore';
 
@@ -17,14 +19,18 @@ export const LIGHT_GLOW_DEFAULT_SIZE = 49.5;
 
 const RECT_GLOW_SIZE_MUL = 9;
 
+const _worldPos = new THREE.Vector3();
+
 /**
  * Camera-facing radial glow for map lights in play mode.
- * Opacity, size, and blend come from the Brightness menu (press 1).
+ * Fades out within 20 ft of the camera so blobs do not wash the view up close.
  */
 export function LightGlowBillboard({
   color,
   size = LIGHT_GLOW_DEFAULT_SIZE,
 }: LightGlowBillboardProps) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const { camera } = useThree();
   const gfx = useSyncExternalStore(
     graphicsStore.subscribe,
     graphicsStore.getState,
@@ -85,16 +91,28 @@ export function LightGlowBillboard({
   }, [color, material]);
 
   useEffect(() => {
-    material.uniforms.uOpacity.value = glowOpacity;
-  }, [glowOpacity, material]);
-
-  useEffect(() => {
     applyMapLightGlowBlend(material, glowBlend);
   }, [glowBlend, material]);
 
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.getWorldPosition(_worldPos);
+    const dx = camera.position.x - _worldPos.x;
+    const dz = camera.position.z - _worldPos.z;
+    const distHoriz = Math.hypot(dx, dz);
+    const proximity = mapLightGlowProximityFactor(distHoriz);
+    material.uniforms.uOpacity.value = glowOpacity * proximity;
+  });
+
   return (
     <Billboard renderOrder={180}>
-      <mesh geometry={geometry} material={material} frustumCulled={false} />
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        material={material}
+        frustumCulled={false}
+      />
     </Billboard>
   );
 }

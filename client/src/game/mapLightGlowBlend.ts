@@ -38,6 +38,20 @@ export function isMapLightGlowBlendMode(v: string): v is MapLightGlowBlendMode {
 /** Default peak opacity (40% lower than the previous 0.5 default). */
 export const MAP_LIGHT_GLOW_DEFAULT_OPACITY = 0.3;
 
+/** Full opacity at/ beyond this horizontal distance from the glow (feet). */
+export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 20;
+export const MAP_LIGHT_GLOW_PROXIMITY_FADE_M =
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT * 0.3048;
+
+/**
+ * 0 at the light, 1 at MAP_LIGHT_GLOW_PROXIMITY_FADE_FT or farther (camera distance).
+ */
+export function mapLightGlowProximityFactor(distM: number): number {
+  if (distM >= MAP_LIGHT_GLOW_PROXIMITY_FADE_M) return 1;
+  if (distM <= 0) return 0;
+  return distM / MAP_LIGHT_GLOW_PROXIMITY_FADE_M;
+}
+
 export function applyMapLightGlowBlend(
   material: THREE.ShaderMaterial,
   mode: MapLightGlowBlendMode,
