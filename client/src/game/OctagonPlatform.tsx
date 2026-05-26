@@ -79,6 +79,8 @@ export function OctagonPlatform({
             rotation={[-Math.PI / 2, 0, 0]}
             geometry={topRingGeo}
             material={arenaPlatformTopMaterial}
+            castShadow
+            receiveShadow
           />
         </group>
       </RigidBody>

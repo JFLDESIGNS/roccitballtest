@@ -162,7 +162,8 @@ export const mapEditorStore = {
       : null;
     if (selectedGroup && !selectedGroup.stadiumKey) {
       obj.groupId = selectedGroup.id;
-      obj.position = [0, 1.5, 0];
+      obj.position =
+        kind === 'alphaShadow' ? [0, 0.08, 0] : [0, 1.5, 0];
     }
     suppressPointerMissUntil = performance.now() + 80;
     patch({

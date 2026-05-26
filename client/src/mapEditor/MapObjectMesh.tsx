@@ -1,6 +1,10 @@
 import { useLayoutEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { MapLight, MapObject } from './mapEditorTypes';
+import {
+  ALPHA_SHADOW_RENDER_ORDER,
+  createAlphaShadowMaterial,
+} from './alphaShadowMaterial';
 import { getMapObjectMaterial } from './mapEditorMaterials';
 import { LightGlowBillboard, lightGlowSizeForRect } from './LightGlowBillboard';
 import { initStadiumRectAreaLights } from '../game/stadiumRectAreaLightInit';
@@ -13,9 +17,14 @@ type MapObjectMeshProps = {
 };
 
 export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps) {
+  const isAlphaShadow = object.kind === 'alphaShadow';
+
   const material = useMemo(
-    () => getMapObjectMaterial(object.textureId, object.color),
-    [object.textureId, object.color],
+    () =>
+      isAlphaShadow
+        ? createAlphaShadowMaterial()
+        : getMapObjectMaterial(object.textureId, object.color),
+    [isAlphaShadow, object.textureId, object.color],
   );
 
   const geometry = useMemo(() => {
@@ -25,6 +34,7 @@ export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps
       case 'cylinder':
         return new THREE.CylinderGeometry(0.5, 0.5, 1, 24);
       case 'plane':
+      case 'alphaShadow':
         return new THREE.PlaneGeometry(1, 1);
       default:
         return new THREE.BoxGeometry(1, 1, 1);
@@ -38,8 +48,9 @@ export function MapObjectMesh({ object, selected, onSelect }: MapObjectMeshProps
       position={object.position}
       rotation={object.rotation}
       scale={object.scale}
-      castShadow
-      receiveShadow
+      renderOrder={isAlphaShadow ? ALPHA_SHADOW_RENDER_ORDER : undefined}
+      castShadow={!isAlphaShadow}
+      receiveShadow={!isAlphaShadow}
       onClick={(e) => {
         e.stopPropagation();
         onSelect?.();

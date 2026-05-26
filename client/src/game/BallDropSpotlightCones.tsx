@@ -6,6 +6,7 @@ import { MATCH } from '../shared/Constants';
 import type { Team } from '../shared/Types';
 import { teamGoalColor } from './goals';
 import { gameStore } from './gameStore';
+import { isBallDropShaking } from './visualShake';
 
 const DEFAULT_CORE = new THREE.Color('#8ec8ff');
 const DEFAULT_GLOW = new THREE.Color('#5aa8e8');
@@ -120,6 +121,8 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
   const sparkVel = useRef<Float32Array>(new Float32Array(48 * 3));
   const sparkLife = useRef<Float32Array>(new Float32Array(48));
   const sparkAttrRef = useRef<THREE.BufferAttribute | null>(null);
+  const sparksRef = useRef<THREE.Points>(null);
+  const wasShakingRef = useRef(false);
 
   const goalCelebration = useSyncExternalStore(
     gameStore.subscribe,
@@ -182,6 +185,22 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     const frenzy = performance.now() < ballDropSpotFrenzyUntilMs;
+    const shaking = isBallDropShaking();
+
+    if (wasShakingRef.current && !shaking) {
+      let cleared = false;
+      for (let i = 0; i < 48; i++) {
+        if (sparkLife.current[i] > 0) {
+          sparkLife.current[i] = 0;
+          cleared = true;
+        }
+      }
+      if (cleared && sparkAttrRef.current) {
+        sparkAttrRef.current.needsUpdate = true;
+      }
+    }
+    wasShakingRef.current = shaking;
+    if (sparksRef.current) sparksRef.current.visible = shaking;
 
     if (
       goalCelebration &&
@@ -257,7 +276,7 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       }
     }
 
-    if (frenzy) {
+    if (shaking) {
       for (let c = 0; c < 4; c++) {
         if (Math.random() > 0.45) continue;
         for (let k = 0; k < 2; k++) {
@@ -284,26 +303,28 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       }
     }
 
-    let any = false;
-    for (let i = 0; i < 48; i++) {
-      const life = sparkLife.current[i];
-      if (life <= 0) continue;
-      any = true;
-      const base = i * 3;
-      sparkLife.current[i] = Math.max(0, life - 0.016);
-      sparkVel.current[base + 1] -= 0.38;
-      sparkPos.current[base] += sparkVel.current[base] * 0.016;
-      sparkPos.current[base + 1] += sparkVel.current[base + 1] * 0.016;
-      sparkPos.current[base + 2] += sparkVel.current[base + 2] * 0.016;
-    }
-    if (any && sparkAttrRef.current) {
-      sparkAttrRef.current.needsUpdate = true;
+    if (shaking) {
+      let any = false;
+      for (let i = 0; i < 48; i++) {
+        const life = sparkLife.current[i];
+        if (life <= 0) continue;
+        any = true;
+        const base = i * 3;
+        sparkLife.current[i] = Math.max(0, life - 0.016);
+        sparkVel.current[base + 1] -= 0.38;
+        sparkPos.current[base] += sparkVel.current[base] * 0.016;
+        sparkPos.current[base + 1] += sparkVel.current[base + 1] * 0.016;
+        sparkPos.current[base + 2] += sparkVel.current[base + 2] * 0.016;
+      }
+      if (any && sparkAttrRef.current) {
+        sparkAttrRef.current.needsUpdate = true;
+      }
     }
   });
 
   return (
     <group renderOrder={12}>
-      <points renderOrder={14} frustumCulled={false}>
+      <points ref={sparksRef} renderOrder={14} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute
             ref={(a) => {

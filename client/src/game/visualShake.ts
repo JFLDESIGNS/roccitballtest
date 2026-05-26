@@ -150,6 +150,16 @@ export function triggerBallDropShake(intensity = 1): void {
   triggerVisualShake('ballDrop', intensity, BALL_DROP_SHAKE_MS);
 }
 
+export function isBallDropShaking(): boolean {
+  const entry = shakes.get('ballDrop');
+  if (!entry) return false;
+  if (performance.now() >= entry.until) {
+    shakes.delete('ballDrop');
+    return false;
+  }
+  return true;
+}
+
 export function getBallDropShake(seed = 0): { tiltX: number; tiltY: number; tiltZ: number } {
   const entry = shakes.get('ballDrop');
   if (!entry) return { tiltX: 0, tiltY: 0, tiltZ: 0 };

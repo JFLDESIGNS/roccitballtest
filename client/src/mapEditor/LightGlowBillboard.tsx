@@ -1,13 +1,17 @@
 import { Billboard } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
   applyMapLightGlowBlend,
   MAP_LIGHT_GLOW_DEFAULT_OPACITY,
-  mapLightGlowProximityFactor,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
 } from '../game/mapLightGlowBlend';
-import { copyLightGlowProximityListener } from '../game/lightGlowProximityAnchor';
+import {
+  isLightGlowProximityAnchorActive,
+  mapLightGlowProximityOpacity,
+} from '../game/lightGlowProximityAnchor';
+import { reportLightGlowProximity } from '../game/lightGlowProximityDebug';
 import { graphicsStore } from '../game/graphicsStore';
 
 type LightGlowBillboardProps = {
@@ -21,33 +25,21 @@ export const LIGHT_GLOW_DEFAULT_SIZE = 49.5;
 const RECT_GLOW_SIZE_MUL = 9;
 
 const _worldPos = new THREE.Vector3();
-const _listener = new THREE.Vector3();
+const FT_PER_M = 1 / 0.3048;
 
 /**
  * Camera-facing radial glow for map lights in play mode.
- * Fades out within 20 ft of the player (or camera on menus) so blobs vanish up close.
+ * Fades out near the player using distance to the glow disk edge (not just the light center).
  */
 export function LightGlowBillboard({
   color,
   size = LIGHT_GLOW_DEFAULT_SIZE,
 }: LightGlowBillboardProps) {
+  const worldRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
-  const gfx = useSyncExternalStore(
-    graphicsStore.subscribe,
-    graphicsStore.getState,
-  );
 
-  const glowOpacity = gfx.mapLightGlowOpacity ?? MAP_LIGHT_GLOW_DEFAULT_OPACITY;
-  const glowSizeScale = gfx.mapLightGlowSizeScale ?? 1;
-  const glowBlend = gfx.mapLightGlowBlendMode ?? 'normal';
-  const scaledSize = size * glowSizeScale;
-
-  const geometry = useMemo(
-    () => new THREE.PlaneGeometry(scaledSize, scaledSize),
-    [scaledSize],
-  );
-
+  const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
   const material = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
       transparent: true,
@@ -55,7 +47,7 @@ export function LightGlowBillboard({
       toneMapped: false,
       uniforms: {
         uColor: { value: new THREE.Color(color) },
-        uOpacity: { value: glowOpacity },
+        uOpacity: { value: MAP_LIGHT_GLOW_DEFAULT_OPACITY },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -84,37 +76,68 @@ export function LightGlowBillboard({
         }
       `,
     });
-    applyMapLightGlowBlend(mat, glowBlend);
+    applyMapLightGlowBlend(mat, 'normal');
     return mat;
-  }, []);
+  }, [color]);
 
   useEffect(() => {
     material.uniforms.uColor.value.set(color);
   }, [color, material]);
 
-  useEffect(() => {
-    applyMapLightGlowBlend(material, glowBlend);
-  }, [glowBlend, material]);
+  useFrame((state) => {
+    const root = worldRef.current;
+    if (!root) return;
 
-  useFrame(() => {
+    const gfx = graphicsStore.getState();
+    const peakOpacity = gfx.mapLightGlowOpacity ?? MAP_LIGHT_GLOW_DEFAULT_OPACITY;
+    const sizeScale = gfx.mapLightGlowSizeScale ?? 1;
+    const fadeFt = gfx.mapLightGlowProximityFadeFt ?? MAP_LIGHT_GLOW_PROXIMITY_FADE_FT;
+    const glowDiameter = size * sizeScale;
+
+    root.getWorldPosition(_worldPos);
+    const { effectiveDistM, factor, opacity } = mapLightGlowProximityOpacity(
+      _worldPos,
+      glowDiameter,
+      camera.position,
+      peakOpacity,
+      fadeFt,
+    );
+
+    material.uniforms.uOpacity.value = opacity;
+
+    const blend = gfx.mapLightGlowBlendMode ?? 'normal';
+    if (material.userData.glowBlend !== blend) {
+      applyMapLightGlowBlend(material, blend);
+      material.userData.glowBlend = blend;
+    }
+
     const mesh = meshRef.current;
-    if (!mesh) return;
-    mesh.getWorldPosition(_worldPos);
-    copyLightGlowProximityListener(_listener, camera.position);
-    const distM = _listener.distanceTo(_worldPos);
-    const proximity = mapLightGlowProximityFactor(distM);
-    material.uniforms.uOpacity.value = glowOpacity * proximity;
+    if (mesh) {
+      mesh.scale.set(glowDiameter, glowDiameter, 1);
+    }
+
+    if (gfx.mapLightGlowProximityDebug) {
+      reportLightGlowProximity(
+        Math.floor(state.clock.elapsedTime * 60),
+        effectiveDistM * FT_PER_M,
+        factor,
+        opacity,
+        isLightGlowProximityAnchorActive(),
+      );
+    }
   });
 
   return (
-    <Billboard renderOrder={180}>
-      <mesh
-        ref={meshRef}
-        geometry={geometry}
-        material={material}
-        frustumCulled={false}
-      />
-    </Billboard>
+    <group ref={worldRef}>
+      <Billboard renderOrder={180}>
+        <mesh
+          ref={meshRef}
+          geometry={geometry}
+          material={material}
+          frustumCulled={false}
+        />
+      </Billboard>
+    </group>
   );
 }
 

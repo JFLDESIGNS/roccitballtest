@@ -38,7 +38,7 @@ export function GraphicsControls({ compact }: { compact?: boolean }) {
       ) : null}
       <GfxToggle
         label="Ambient occlusion"
-        checked={gfx.ao ?? true}
+        checked={gfx.ao ?? false}
         onChange={graphicsStore.setAo}
       />
       {gfx.ao !== false ? (

@@ -38,18 +38,40 @@ export function isMapLightGlowBlendMode(v: string): v is MapLightGlowBlendMode {
 /** Default peak opacity (40% lower than the previous 0.5 default). */
 export const MAP_LIGHT_GLOW_DEFAULT_OPACITY = 0.3;
 
-/** Full opacity at/ beyond this horizontal distance from the glow (feet). */
-export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 20;
-export const MAP_LIGHT_GLOW_PROXIMITY_FADE_M =
-  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT * 0.3048;
+/** Default fade band beyond the glow disk edge (feet). */
+export const MAP_LIGHT_GLOW_PROXIMITY_FADE_FT = 40;
+
+const FT_TO_M = 0.3048;
+
+export function mapLightGlowFadeRadiusM(fadeFt: number): number {
+  return Math.max(1, fadeFt) * FT_TO_M;
+}
 
 /**
- * 0 at the light, 1 at MAP_LIGHT_GLOW_PROXIMITY_FADE_FT or farther (listener distance).
+ * Horizontal distance from listener to the glow disk edge (0 when standing inside the blob).
  */
-export function mapLightGlowProximityFactor(distM: number): number {
-  if (distM >= MAP_LIGHT_GLOW_PROXIMITY_FADE_M) return 1;
-  if (distM <= 0) return 0;
-  return distM / MAP_LIGHT_GLOW_PROXIMITY_FADE_M;
+export function mapLightGlowEffectiveHorizontalDistM(
+  centerX: number,
+  centerZ: number,
+  listenerX: number,
+  listenerZ: number,
+  glowDiameterM: number,
+): number {
+  const horiz = Math.hypot(listenerX - centerX, listenerZ - centerZ);
+  const innerRadius = glowDiameterM * 0.5 * 0.9;
+  return Math.max(0, horiz - innerRadius);
+}
+
+/**
+ * 0 at the glow edge, 1 at fadeRadiusM or farther beyond the edge.
+ */
+export function mapLightGlowProximityFactor(
+  effectiveDistM: number,
+  fadeRadiusM: number = mapLightGlowFadeRadiusM(MAP_LIGHT_GLOW_PROXIMITY_FADE_FT),
+): number {
+  if (effectiveDistM >= fadeRadiusM) return 1;
+  if (effectiveDistM <= 0) return 0;
+  return effectiveDistM / fadeRadiusM;
 }
 
 export function applyMapLightGlowBlend(

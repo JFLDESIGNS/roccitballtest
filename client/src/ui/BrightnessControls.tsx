@@ -1,6 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { graphicsStore } from '../game/graphicsStore';
 import { MAP_LIGHT_GLOW_BLEND_OPTIONS } from '../game/mapLightGlowBlend';
+import {
+  getLightGlowProximityDebug,
+  subscribeLightGlowProximityDebug,
+} from '../game/lightGlowProximityDebug';
 import { GfxColorInput, GfxSelect, GfxSlider, GfxToggle } from './gfxMenuFields';
 
 /** Stadium ceiling strips + scene exposure — press 1, Brightness tab */
@@ -8,6 +12,10 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
   const gfx = useSyncExternalStore(
     graphicsStore.subscribe,
     graphicsStore.getState,
+  );
+  const glowDebug = useSyncExternalStore(
+    subscribeLightGlowProximityDebug,
+    getLightGlowProximityDebug,
   );
 
   return (
@@ -123,7 +131,8 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
       <h4 className="menu-section-title">Map light glow (custom maps)</h4>
       <p className="tuning-sub">
         Soft radial halos on placed point, spot, and rect lights in play mode
-        (not the editor bulb mesh).
+        (not the editor bulb mesh). Fade uses your distance to the glow edge,
+        not the light center — walk into the bright blob to test.
       </p>
       <GfxSlider
         label="Glow opacity"
@@ -157,6 +166,34 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
           )?.hint
         }
       />
+      <GfxSlider
+        label="Proximity fade (ft past edge)"
+        value={gfx.mapLightGlowProximityFadeFt ?? 40}
+        min={6}
+        max={80}
+        step={1}
+        onChange={graphicsStore.setMapLightGlowProximityFadeFt}
+        format={(v) => `${Math.round(v)} ft`}
+      />
+      <GfxToggle
+        label="Show proximity debug (nearest glow)"
+        checked={gfx.mapLightGlowProximityDebug ?? false}
+        onChange={graphicsStore.setMapLightGlowProximityDebug}
+      />
+      {gfx.mapLightGlowProximityDebug ? (
+        <p className="tuning-sub tuning-sub--debug">
+          Nearest glow edge:{' '}
+          <strong>
+            {glowDebug.distFt >= 900
+              ? '— (enter match / custom map with lights)'
+              : `${glowDebug.distFt.toFixed(1)} ft`}
+          </strong>
+          {' · '}
+          fade {Math.round(glowDebug.opacityFactor * 100)}% · applied{' '}
+          {Math.round(glowDebug.appliedOpacity * 100)}%
+          {glowDebug.listenerUsesPlayer ? ' · player' : ' · camera'}
+        </p>
+      ) : null}
 
       <h4 className="menu-section-title">Highlights</h4>
       <GfxToggle

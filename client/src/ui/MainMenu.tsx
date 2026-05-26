@@ -131,161 +131,151 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
       ) : (
         <div className="main-menu-layout">
           <header className="main-menu-hero">
+            <div className="main-menu-bot-overlay" aria-hidden>
+              <MenuBotPreview team="blue" />
+            </div>
             <MenuLogoTilt />
           </header>
 
-          <div className="main-menu-bot-overlay" aria-hidden>
-            <MenuBotPreview team="blue" />
-          </div>
+          <div className="main-menu-dock" aria-label="Menu options">
+            <section
+              className="main-menu-strip-card main-menu-dock-setup"
+              aria-label="Play setup"
+            >
+              <div className="main-menu-setup-compact">
+                <label className="menu-field menu-field--dock-name">
+                  <span>Your name</span>
+                  <input
+                    type="text"
+                    maxLength={18}
+                    value={playerName}
+                    placeholder={DEFAULT_LOCAL_NAME}
+                    onChange={(e) => setPlayerName(e.target.value)}
+                    onBlur={commitProfile}
+                  />
+                </label>
+                <label className="menu-field menu-field--number menu-field--dock-jersey">
+                  <span>Jersey #</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    value={jerseyNumber}
+                    onChange={(e) =>
+                      setJerseyNumber(clampJersey(Number(e.target.value)))
+                    }
+                    onBlur={commitProfile}
+                  />
+                  <span className="menu-jersey-preview">
+                    {formatJersey(jerseyNumber)}
+                  </span>
+                </label>
+                <label className="menu-option menu-option--dock-bots">
+                  <input
+                    type="checkbox"
+                    checked={botsEnabled}
+                    onChange={(e) =>
+                      gameStore.setBotsEnabled(e.target.checked)
+                    }
+                  />
+                  <span>Practice bots</span>
+                </label>
+                <label className="menu-field menu-map-picker menu-field--dock-map">
+                  <span>Arena map</span>
+                  <select
+                    value={activeMapId}
+                    onChange={(e) =>
+                      mapRegistryStore.setActiveMapId(e.target.value)
+                    }
+                  >
+                    <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
+                    {customMaps.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="menu-field menu-field--range menu-field--dock-music">
+                  <span>
+                    Menu music
+                    <em className="menu-range-val">
+                      {Math.round(menuMusicVolume * 100)}%
+                    </em>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(menuMusicVolume * 100)}
+                    onChange={(e) => {
+                      const v = Number(e.target.value) / 100;
+                      setMenuMusicVolumeState(v);
+                      setMenuBackgroundMusicVolume(v);
+                    }}
+                  />
+                </label>
+              </div>
+            </section>
 
-          <footer className="main-menu-bottom">
-            <div className="main-menu-panels" aria-label="Menu options">
+            <div className="main-menu-dock-row">
               <section
-                className="main-menu-strip-card main-menu-panel main-menu-panel--setup"
-                aria-label="Play setup"
+                className="main-menu-strip-card main-menu-dock-premium"
+                aria-label="Premium ball"
               >
-                <div className="main-menu-setup-grid">
-                  <div className="menu-profile menu-profile--strip">
-                    <label className="menu-field">
-                      <span>Your name</span>
-                      <input
-                        type="text"
-                        maxLength={18}
-                        value={playerName}
-                        placeholder={DEFAULT_LOCAL_NAME}
-                        onChange={(e) => setPlayerName(e.target.value)}
-                        onBlur={commitProfile}
-                      />
-                    </label>
-                    <label className="menu-field menu-field--number">
-                      <span>Jersey #</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={99}
-                        value={jerseyNumber}
-                        onChange={(e) =>
-                          setJerseyNumber(clampJersey(Number(e.target.value)))
-                        }
-                        onBlur={commitProfile}
-                      />
-                      <span className="menu-jersey-preview">
-                        {formatJersey(jerseyNumber)}
-                      </span>
-                    </label>
-                  </div>
-                  <div className="main-menu-setup-options">
-                    <label className="menu-option menu-option--strip">
-                      <input
-                        type="checkbox"
-                        checked={botsEnabled}
-                        onChange={(e) =>
-                          gameStore.setBotsEnabled(e.target.checked)
-                        }
-                      />
-                      <span>Practice bots</span>
-                    </label>
-                    <label className="menu-field menu-map-picker">
-                      <span>Arena map</span>
-                      <select
-                        value={activeMapId}
-                        onChange={(e) =>
-                          mapRegistryStore.setActiveMapId(e.target.value)
-                        }
+                <div className="premium-ball-offer premium-ball-offer--dock">
+                  {premium8Ball ? (
+                    <p className="premium-ball-equipped">
+                      Premium 8-Ball equipped
+                    </p>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-premium-ball"
+                        onClick={() => setShowPremiumModal(true)}
                       >
-                        <option value={DEFAULT_MAP_ID}>
-                          {DEFAULT_MAP_NAME}
-                        </option>
-                        {customMaps.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="menu-field menu-field--range">
-                      <span>
-                        Menu music
-                        <em className="menu-range-val">
-                          {Math.round(menuMusicVolume * 100)}%
-                        </em>
-                      </span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={Math.round(menuMusicVolume * 100)}
-                        onChange={(e) => {
-                          const v = Number(e.target.value) / 100;
-                          setMenuMusicVolumeState(v);
-                          setMenuBackgroundMusicVolume(v);
-                        }}
-                      />
-                    </label>
-                  </div>
+                        <span className="premium-ball-btn-icons" aria-hidden>
+                          <span className="premium-ball-icon">🎁</span>
+                          <span className="premium-ball-icon">💵</span>
+                        </span>
+                        Buy Premium Ball
+                      </button>
+                      <ul className="premium-ball-stats premium-ball-stats--dock">
+                        <li>+30 extra power on ball</li>
+                        <li>+18% magnetic grip strength</li>
+                        <li>Pro-grade billiards resin finish</li>
+                        <li>VIP chalk pocket (cosmetic)</li>
+                      </ul>
+                    </>
+                  )}
                 </div>
               </section>
 
-              <div className="main-menu-panels-row">
-                <section
-                  className="main-menu-strip-card main-menu-panel main-menu-panel--premium"
-                  aria-label="Premium ball"
+              <section
+                className="main-menu-strip-card main-menu-dock-actions"
+                aria-label="More"
+              >
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={openEditor}
                 >
-                  <div className="premium-ball-offer premium-ball-offer--strip">
-                    {premium8Ball ? (
-                      <p className="premium-ball-equipped">
-                        Premium 8-Ball equipped
-                      </p>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-premium-ball"
-                          onClick={() => setShowPremiumModal(true)}
-                        >
-                          <span
-                            className="premium-ball-btn-icons"
-                            aria-hidden
-                          >
-                            <span className="premium-ball-icon">🎁</span>
-                            <span className="premium-ball-icon">💵</span>
-                          </span>
-                          Buy Premium Ball
-                        </button>
-                        <ul className="premium-ball-stats">
-                          <li>+30 extra power on ball</li>
-                          <li>+18% magnetic grip strength</li>
-                          <li>Pro-grade billiards resin finish</li>
-                          <li>VIP chalk pocket (cosmetic)</li>
-                        </ul>
-                      </>
-                    )}
-                  </div>
-                </section>
-
-                <section
-                  className="main-menu-strip-card main-menu-panel main-menu-panel--actions"
-                  aria-label="More"
+                  Edit Map
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowHowToPlay(true)}
                 >
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={openEditor}
-                  >
-                    Edit Map
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setShowHowToPlay(true)}
-                  >
-                    How to Play
-                  </button>
-                </section>
-              </div>
+                  How to Play
+                </button>
+              </section>
             </div>
+          </div>
 
+          <footer className="main-menu-play">
             <button type="button" className="btn-play-now" onClick={enterArena}>
               Play Now
             </button>

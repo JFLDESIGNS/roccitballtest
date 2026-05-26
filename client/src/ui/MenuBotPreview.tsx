@@ -37,6 +37,7 @@ export function MenuBotPreview({ team = 'blue' }: { team?: Team }) {
   return (
     <div className="main-menu-bot-canvas" aria-hidden>
       <Canvas
+        style={{ pointerEvents: 'none' }}
         dpr={[1, 1.5]}
         gl={{
           alpha: true,

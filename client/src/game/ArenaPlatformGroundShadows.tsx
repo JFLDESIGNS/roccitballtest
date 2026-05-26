@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { ARENA } from '../shared/Constants';
+import { mapRegistryStore } from '../mapEditor/mapEditorStore';
 import { listArenaPlatforms } from './arenaSpawn';
 import {
   GROUND_BLOB_SHADOW_LIFT,
@@ -20,7 +21,14 @@ export function ArenaPlatformGroundShadows() {
     [],
   );
 
-  const placements = useMemo(() => listArenaPlatforms(), []);
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
+  const placements = useMemo(
+    () => listArenaPlatforms(),
+    [activeMapId],
+  );
 
   return (
     <group renderOrder={GROUND_BLOB_SHADOW_RENDER_ORDER}>

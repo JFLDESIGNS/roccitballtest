@@ -3,6 +3,7 @@ import { mapRegistryStore } from '../mapEditor/mapEditorStore';
 import { DRONE_TEXTURE_URLS } from './droneMaterials';
 import { preloadCrownMaterialMaps } from './playerCrownModel';
 import { EIGHT_BALL_TEXTURE_URLS } from './eightBallTextures';
+import alphaShadowUrl from '../assets/images/alphashadow.jpg';
 import explosionSheetUrl from '../assets/images/explosion.png';
 import glassCrackUrl from '../assets/images/glasscrack.png';
 import { preloadGameAudioSamples } from './audio';
@@ -42,7 +43,7 @@ function collectEightBallTextureUrls(): string[] {
   return [...urls];
 }
 
-const UI_TEXTURE_URLS = [explosionSheetUrl, glassCrackUrl];
+const UI_TEXTURE_URLS = [explosionSheetUrl, glassCrackUrl, alphaShadowUrl];
 
 async function preloadTexturesChunked(
   onSlice: (progress: number) => void,

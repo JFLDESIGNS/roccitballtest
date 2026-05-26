@@ -1,6 +1,11 @@
 export type MapTextureId = 'concrete' | 'metal' | 'darkMetal' | 'flat';
 
-export type MapPrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'plane';
+export type MapPrimitiveKind =
+  | 'box'
+  | 'sphere'
+  | 'cylinder'
+  | 'plane'
+  | 'alphaShadow';
 
 export type MapObject = {
   id: string;
@@ -89,19 +94,26 @@ export function createMapObject(kind: MapPrimitiveKind): MapObject {
     sphere: 'Sphere',
     cylinder: 'Cylinder',
     plane: 'Plane',
+    alphaShadow: 'Alpha shadow',
   };
   const scale: [number, number, number] =
     kind === 'plane'
       ? [6, 1, 6]
-      : kind === 'sphere'
-        ? [2, 2, 2]
-        : [2, 2, 2];
+      : kind === 'alphaShadow'
+        ? [10, 10, 1]
+        : kind === 'sphere'
+          ? [2, 2, 2]
+          : [2, 2, 2];
   return {
     id,
     kind,
     name: names[kind],
-    position: [0, 3, 0],
-    rotation: kind === 'plane' ? [-Math.PI / 2, 0, 0] : [0, 0, 0],
+    position:
+      kind === 'alphaShadow' ? [0, 0.08, 0] : kind === 'plane' ? [0, 0, 0] : [0, 3, 0],
+    rotation:
+      kind === 'plane' || kind === 'alphaShadow'
+        ? [-Math.PI / 2, 0, 0]
+        : [0, 0, 0],
     scale,
     textureId: 'concrete',
     color: '#b8bec6',

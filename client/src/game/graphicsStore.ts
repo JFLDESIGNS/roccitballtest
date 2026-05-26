@@ -1,6 +1,7 @@
 import {
   isMapLightGlowBlendMode,
   MAP_LIGHT_GLOW_DEFAULT_OPACITY,
+  MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
   type MapLightGlowBlendMode,
 } from './mapLightGlowBlend';
 import {
@@ -16,7 +17,7 @@ function isAoQualityId(v: string): v is AoQualityId {
   return (AO_QUALITIES as string[]).includes(v);
 }
 
-const STORAGE_KEY = 'rocketball-graphics-v22';
+const STORAGE_KEY = 'rocketball-graphics-v23';
 
 function normalizeHexColor(raw: string | undefined, fallback: string): string {
   if (!raw || !/^#[0-9a-fA-F]{6}$/.test(raw)) return fallback;
@@ -95,6 +96,15 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
       isMapLightGlowBlendMode(raw.mapLightGlowBlendMode)
         ? raw.mapLightGlowBlendMode
         : defaults.mapLightGlowBlendMode,
+    mapLightGlowProximityFadeFt: Math.max(
+      6,
+      Math.min(
+        80,
+        raw.mapLightGlowProximityFadeFt ?? defaults.mapLightGlowProximityFadeFt,
+      ),
+    ),
+    mapLightGlowProximityDebug:
+      raw.mapLightGlowProximityDebug ?? defaults.mapLightGlowProximityDebug,
   };
 }
 
@@ -148,6 +158,10 @@ export type GraphicsSettings = {
   mapLightGlowSizeScale: number;
   /** How glow billboards composite over the scene */
   mapLightGlowBlendMode: MapLightGlowBlendMode;
+  /** Fade band beyond glow edge (feet) — full opacity beyond this */
+  mapLightGlowProximityFadeFt: number;
+  /** Live nearest-glow readout in Brightness menu */
+  mapLightGlowProximityDebug: boolean;
 };
 
 type GraphicsState = GraphicsSettings;
@@ -157,7 +171,7 @@ const defaults: GraphicsSettings = {
   shadowMapType: 'basic',
   bloom: true,
   bloomIntensity: 0.42,
-  ao: true,
+  ao: false,
   aoIntensity: 1.05,
   aoRadius: 10,
   aoDistanceFalloff: 0.8,
@@ -193,6 +207,8 @@ const defaults: GraphicsSettings = {
   mapLightGlowOpacity: MAP_LIGHT_GLOW_DEFAULT_OPACITY,
   mapLightGlowSizeScale: 1,
   mapLightGlowBlendMode: 'normal',
+  mapLightGlowProximityFadeFt: MAP_LIGHT_GLOW_PROXIMITY_FADE_FT,
+  mapLightGlowProximityDebug: false,
 };
 
 const listeners = new Set<() => void>();
@@ -301,6 +317,12 @@ export const graphicsStore = {
     patch({ mapLightGlowSizeScale: Math.max(0.25, Math.min(2.5, v)) }),
   setMapLightGlowBlendMode: (v: MapLightGlowBlendMode) =>
     patch({ mapLightGlowBlendMode: v }),
+  setMapLightGlowProximityFadeFt: (v: number) =>
+    patch({
+      mapLightGlowProximityFadeFt: Math.max(6, Math.min(80, Math.round(v))),
+    }),
+  setMapLightGlowProximityDebug: (v: boolean) =>
+    patch({ mapLightGlowProximityDebug: v }),
   resetBrightnessDefaults: () => {
     patch({
       arenaBrightness: defaults.arenaBrightness,
@@ -320,6 +342,8 @@ export const graphicsStore = {
       mapLightGlowOpacity: defaults.mapLightGlowOpacity,
       mapLightGlowSizeScale: defaults.mapLightGlowSizeScale,
       mapLightGlowBlendMode: defaults.mapLightGlowBlendMode,
+      mapLightGlowProximityFadeFt: defaults.mapLightGlowProximityFadeFt,
+      mapLightGlowProximityDebug: defaults.mapLightGlowProximityDebug,
     });
   },
   resetDefaults: () => {

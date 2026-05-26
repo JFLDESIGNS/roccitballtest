@@ -208,6 +208,7 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 ['sphere', 'Sphere'],
                 ['cylinder', 'Cylinder'],
                 ['plane', 'Plane'],
+                ['alphaShadow', 'Alpha shadow'],
               ] as [MapPrimitiveKind, string][]
             ).map(([kind, label]) => (
               <button
@@ -345,36 +346,46 @@ export function MapEditorUI({ onExit }: MapEditorUIProps) {
                 }
               />
             </label>
-            <label className="map-editor-field">
-              <span>Texture</span>
-              <select
-                value={selectedObject.textureId}
-                onChange={(e) =>
-                  mapEditorStore.setObjectTexture(
-                    selectedObject.id,
-                    e.target.value as typeof selectedObject.textureId,
-                  )
-                }
-              >
-                {MAP_TEXTURE_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="map-editor-field">
-              <span>Color tint</span>
-              <input
-                type="color"
-                value={selectedObject.color}
-                onChange={(e) =>
-                  mapEditorStore.updateObject(selectedObject.id, {
-                    color: e.target.value,
-                  })
-                }
-              />
-            </label>
+            {selectedObject.kind !== 'alphaShadow' && (
+              <>
+                <label className="map-editor-field">
+                  <span>Texture</span>
+                  <select
+                    value={selectedObject.textureId}
+                    onChange={(e) =>
+                      mapEditorStore.setObjectTexture(
+                        selectedObject.id,
+                        e.target.value as typeof selectedObject.textureId,
+                      )
+                    }
+                  >
+                    {MAP_TEXTURE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="map-editor-field">
+                  <span>Color tint</span>
+                  <input
+                    type="color"
+                    value={selectedObject.color}
+                    onChange={(e) =>
+                      mapEditorStore.updateObject(selectedObject.id, {
+                        color: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
+            {selectedObject.kind === 'alphaShadow' && (
+              <p className="map-editor-muted">
+                Black octagon decal — uses alphashadow.jpg for shape. Scale and move
+                like other primitives.
+              </p>
+            )}
             <ScaleInputs object={selectedObject} />
             {!selectedObject.groupId && (
               <button
