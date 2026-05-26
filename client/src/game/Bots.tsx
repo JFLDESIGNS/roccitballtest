@@ -178,15 +178,7 @@ import {
 import { isInsideNetFinishZone, isInsideShootZone } from './botShootZone';
 import {
   getKickoffBallAimPoint,
-  beginKickoffAllyOopReturnHome,
-  clearKickoffAllyOopReturnHome,
-  endKickoffAllyOopForBot,
-  getKickoffAllyOopReturnCenter,
-  isKickoffAllyOopBot,
-  isKickoffAllyOopReturningHome,
   isKickoffContestPhase,
-  kickoffAllyOopPassWaitExceeded,
-  noteKickoffAllyOopAtRim,
   kickoffContestHorizDistToAim,
   kickoffContestJumpForce,
   kickoffContestShouldDoubleJump,
@@ -196,23 +188,16 @@ import {
   pickKickoffContestMoveTarget,
   tickKickoffState,
 } from './botKickoff';
-import { isBotTeamAllyDunkPoster } from './botAllyDunkRole';
 import {
-  clampAllyDunkMoveTarget,
   dunkPitchOffsetRad,
-  getHolderDistGoal,
-  isBallPassingToAlly,
-  isFriendlyHolderNearGoal,
-  isHolderSettingUpShot,
   getDistToBottomRingMouth,
-  pickAllyDunkSpot,
   pickBotGoalOffenseMoveTarget,
   pickBotStyledLaunchTarget,
   rollBotShotStyle,
   rollNetFinishShotStyle,
   type BotShotStyle,
 } from './botGoalOffense';
-import { gameStore, type BallHolderId } from './gameStore';
+import { gameStore } from './gameStore';
 import { writeLookDirection } from './CameraController';
 import { BeamPullTrace } from './BeamPullTrace';
 
@@ -742,30 +727,6 @@ function executeBotHoldRelease(
   recordBotTeamRelease(bot.team, bot.id, teamKind);
 }
 
-function getFriendlyHolderChest(
-  holder: BallHolderId,
-  bot: BotRuntime,
-  allBots: BotRuntime[],
-  localTeam: Team,
-  playerChest: THREE.Vector3,
-  out: THREE.Vector3,
-): THREE.Vector3 | null {
-  if (!holder || holder === bot.id) return null;
-  if (holder === 'local') {
-    if (bot.team !== localTeam) return null;
-    return out.copy(playerChest);
-  }
-  for (const other of allBots) {
-    if (other.id !== holder) continue;
-    if (other.team !== bot.team) return null;
-    const body = other.bodyRef.current;
-    if (!body) return null;
-    const t = body.translation();
-    return out.set(t.x, t.y + BEAM.chestHeight, t.z);
-  }
-  return null;
-}
-
 function collectBotZonePositions(
   allBots: BotRuntime[],
   out: BotZonePosition[],
@@ -940,14 +901,9 @@ function BotAvatar({
   const setupDoubleJumped = useRef(false);
   const setupEnterSec = useRef(0);
   const modeRef = useRef<BotMode>('runToBall');
-  const allyDunkCatchHold = useRef(false);
-  const allyDunkPostWaitSince = useRef(0);
   const groundJumpTimer = useRef(staggerTimer(bot.id, BOT.groundJumpIntervalSec));
   const kickoffContestJumpTimer = useRef(
     staggerTimer(bot.id, BOT.kickoffContestJumpIntervalSec),
-  );
-  const kickoffOopJumpTimer = useRef(
-    staggerTimer(bot.id, BOT.kickoffAllyOopJumpIntervalSec),
   );
   const postIdleWander = useRef(createBotIdleWanderState(0, 0));
   const rocketFireCooldownUntil = useRef(0);
@@ -1326,252 +1282,11 @@ function BotAvatar({
       allBots.map((b) => ({ id: b.id, team: b.team })),
     );
 
-    if (phase === 'playing' && isKickoffAllyOopReturningHome(bot.id)) {
-      beamPullActive.current = false;
-      getKickoffAllyOopReturnCenter(feetY, _moveTarget);
-      _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
-      const distHome = _wish.length();
-      if (distHome > 0.05) _wish.normalize();
-
-      const linvelHome = body.linvel();
-      updateBotGrounded(
-        _pos.y,
-        linvelHome.y,
-        airGrace.current,
-        grounded,
-        jumpsLeft,
-        wasGrounded,
-      );
-
-      const homeSpeed = BOT.sprintSpeed * tune.botWalkSpeedScale;
-      velocity.current.x = THREE.MathUtils.lerp(
-        velocity.current.x,
-        _wish.x * homeSpeed,
-        BOT.groundAccel * dt,
-      );
-      velocity.current.z = THREE.MathUtils.lerp(
-        velocity.current.z,
-        _wish.z * homeSpeed,
-        BOT.groundAccel * dt,
-      );
-
-      getKickoffBallAimPoint(_kickoffAim);
-      smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt);
-      writeLookDirection(yaw.current, pitch.current, _lookDir);
-
-      let vyHome = linvelHome.y;
-      vyHome = tuningStore.integrateGravity(vyHome, dt);
-      velocity.current.y = vyHome;
-      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
-      body.setLinvel(
-        {
-          x: velocity.current.x,
-          y: velocity.current.y,
-          z: velocity.current.z,
-        },
-        true,
-      );
-      applyBotVisual(linvelHome, dt);
-
-      if (distHome <= BOT.kickoffAllyOopReturnArriveDist) {
-        clearKickoffAllyOopReturnHome(bot.id);
-      }
-      return;
-    }
-
-    if (
-      phase === 'playing' &&
-      isKickoffAllyOopBot(bot.id, nowSecKick) &&
-      gs.ballHolderId !== bot.id
-    ) {
-      beamPullActive.current = false;
-      const holderOop = gs.ballHolderId;
-      pickAllyDunkSpot(bot.team, _pos, _moveTarget);
-      clampAllyDunkMoveTarget(_moveTarget, bot.team);
-      clampMoveTargetFromBackWall(_moveTarget, bot.team);
-      clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
-      _wish.set(_moveTarget.x - _pos.x, 0, _moveTarget.z - _pos.z);
-      const distSpot = _wish.length();
-      if (distSpot > 0.05) _wish.normalize();
-
-      const linvelOop = body.linvel();
-      updateBotGrounded(
-        _pos.y,
-        linvelOop.y,
-        airGrace.current,
-        grounded,
-        jumpsLeft,
-        wasGrounded,
-      );
-
-      const holderChestOop = getFriendlyHolderChest(
-        holderOop,
-        bot,
-        allBots,
-        gs.localTeam,
-        _playerChest,
-        _opponentChest,
-      );
-      const teammateHasBall =
-        holderChestOop !== null && holderOop !== null && holderOop !== bot.id;
-      const playerPassToRim =
-        holderOop === 'local' && teammateHasBall;
-      const atOopPost = distSpot <= BOT.kickoffAllyOopArriveDist;
-
-      if (atOopPost) {
-        noteKickoffAllyOopAtRim(bot.id, nowSecKick);
-      }
-      if (kickoffAllyOopPassWaitExceeded(bot.id, nowSecKick)) {
-        beginKickoffAllyOopReturnHome(bot.id);
-        return;
-      }
-
-      if (atOopPost) {
-        applyBotIdleWanderNudge(
-          postIdleWander.current,
-          _pos.x,
-          _pos.z,
-          feetY,
-          _moveTarget,
-          dt,
-        );
-      }
-
-      const oopSpeed =
-        (atOopPost && teammateHasBall ? BOT.walkSpeed * 0.85 : BOT.sprintSpeed) *
-        tune.botWalkSpeedScale;
-      velocity.current.x = THREE.MathUtils.lerp(
-        velocity.current.x,
-        _wish.x * oopSpeed,
-        BOT.groundAccel * dt,
-      );
-      velocity.current.z = THREE.MathUtils.lerp(
-        velocity.current.z,
-        _wish.z * oopSpeed,
-        BOT.groundAccel * dt,
-      );
-
-      const ballOopBody = ballBodyRef.current;
-      if (ballOopBody) {
-        const bt = ballOopBody.translation();
-        _kickoffAim.set(bt.x, bt.y, bt.z);
-      } else {
-        getKickoffBallAimPoint(_kickoffAim);
-      }
-      if (teammateHasBall && holderChestOop) {
-        _kickoffAim.lerp(holderChestOop, 0.35);
-        _kickoffAim.y = holderChestOop.y + 1.2;
-      }
-      smoothAimToward(yaw, pitch, _chest, _kickoffAim, dt, BOT.aimSmoothing * 1.1);
-      writeLookDirection(yaw.current, pitch.current, _lookDir);
-
-      const oopJumpState: BotJumpState = {
-        grounded,
-        jumpsLeft,
-        airGrace,
-        velocity,
-        groundJumpTimer: kickoffOopJumpTimer,
-        doubleJumpDelay,
-        doubleJumpPending,
-      };
-      const ballHigh = _kickoffAim.y > _chest.y + 1.5;
-      let vyOop = linvelOop.y;
-      const oopHopVy = tickBotJumpCycle(
-        dt,
-        body,
-        feetY,
-        linvelOop,
-        tune,
-        BOT.kickoffAllyOopJumpIntervalSec,
-        oopJumpState,
-        atOopPost || distSpot < 4,
-        atOopPost ? BOT.kickoffAllyOopJumpChance : BOT.kickoffAllyOopJumpChance * 0.45,
-      );
-      if (oopHopVy !== null) vyOop = oopHopVy;
-
-      if (
-        grounded.current &&
-        jumpsLeft.current > 0 &&
-        atOopPost &&
-        (playerPassToRim ||
-          ballHigh ||
-          Math.random() < BOT.allyDunkPreJumpChance * dt * 2.5)
-      ) {
-        const jumpScale = playerPassToRim
-          ? BOT.allyDunkCatchJumpScale
-          : ballHigh
-            ? BOT.dunkJumpForceScale * 1.05
-            : BOT.dunkJumpForceScale;
-        vyOop = botApplyJump(
-          body,
-          feetY,
-          tune.jumpForce * jumpScale,
-          linvelOop,
-          velocity,
-          airGrace,
-          grounded,
-          jumpsLeft,
-        );
-        doubleJumpPending.current =
-          jumpsLeft.current > 0 &&
-          (playerPassToRim || ballHigh || Math.random() < 0.7);
-        if (doubleJumpPending.current) {
-          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.5;
-        }
-      }
-
-      if (doubleJumpPending.current && airGrace.current > 0.1) {
-        doubleJumpDelay.current -= dt;
-        if (
-          doubleJumpDelay.current <= 0 &&
-          jumpsLeft.current > 0 &&
-          (_kickoffAim.y > _chest.y + 1.2 || playerPassToRim)
-        ) {
-          doubleJumpPending.current = false;
-          vyOop = botApplyJump(
-            body,
-            feetY,
-            tuningStore.getDoubleJumpForce() *
-              (playerPassToRim ? BOT.allyDunkCatchJumpScale : 1),
-            linvelOop,
-            velocity,
-            airGrace,
-            grounded,
-            jumpsLeft,
-          );
-        }
-      }
-
-      vyOop = tuningStore.integrateGravity(vyOop, dt);
-      velocity.current.y = vyOop;
-      tryBotPads(body, velocity.current, tune.gravity, tune.trampolineStrength);
-      body.setLinvel(
-        {
-          x: velocity.current.x,
-          y: velocity.current.y,
-          z: velocity.current.z,
-        },
-        true,
-      );
-      applyBotVisual(linvelOop, dt);
-      return;
-    }
-
-    if (
-      phase === 'playing' &&
-      gs.ballHolderId === bot.id &&
-      (isKickoffAllyOopBot(bot.id, nowSecKick) ||
-        isKickoffAllyOopReturningHome(bot.id))
-    ) {
-      endKickoffAllyOopForBot(bot.id);
-    }
-
     if (
       phase === 'playing' &&
       gs.countdown > 0 &&
       !gs.ballFrozen &&
-      gs.lastScoringTeam === bot.team &&
-      !isKickoffAllyOopBot(bot.id, nowSecKick)
+      gs.lastScoringTeam === bot.team
     ) {
       beamPullActive.current = false;
       _center.set(BOT.celebrateCenterX, _pos.y, BOT.celebrateCenterZ);
@@ -1633,10 +1348,7 @@ function BotAvatar({
       return;
     }
 
-    if (
-      isKickoffContestPhase(phase, gs.countdown, gs.ballFrozen) &&
-      !isKickoffAllyOopBot(bot.id, nowSecKick)
-    ) {
+    if (isKickoffContestPhase(phase, gs.countdown, gs.ballFrozen)) {
       beamPullActive.current = false;
       getKickoffBallAimPoint(_kickoffAim);
       pickKickoffContestMoveTarget(bot.id, feetY, _kickoffAim, _moveTarget);
@@ -1828,7 +1540,6 @@ function BotAvatar({
       isBeamDenied(_ballPos.x, _ballPos.y, _ballPos.z);
 
     if (!iHold) {
-      allyDunkCatchHold.current = false;
       resetCarryLookState(carryLookState.current);
       holdSocketSmoothReady.current = false;
       holdFarAction.current = null;
@@ -1903,15 +1614,10 @@ function BotAvatar({
         shotStyle.current = rollNetFinishShotStyle();
       }
 
-      if (modeRef.current === 'allyDunk') {
-        allyDunkCatchHold.current = true;
-      }
-
       holdReleasePlan.current = ensureHoldReleasePlan(
         holdTimer.current,
         hasTeammate,
         holdReleasePlan.current,
-        allyDunkCatchHold.current,
         inNetFinish,
       );
 
@@ -2320,34 +2026,6 @@ function BotAvatar({
         dt,
       );
 
-    const holderChest = getFriendlyHolderChest(
-      holder,
-      bot,
-      allBots,
-      localTeam,
-      _playerChest,
-      _opponentChest,
-    );
-    const holderNearGoal =
-      holderChest !== null &&
-      isFriendlyHolderNearGoal(holderChest.x, holderChest.z, bot.team);
-    const holderAimX = holderChest?.x ?? _playerChest.x;
-    const holderAimZ = holderChest?.z ?? _playerChest.z;
-    const teamAllyDunkPoster = isBotTeamAllyDunkPoster(
-      bot.id,
-      bot.team,
-      holder,
-      localTeam,
-      allBots,
-      holderAimX,
-      holderAimZ,
-    );
-    const selfNearGoal = distGoal <= BOT.allyDunkPrepDist;
-    const holderDistGoal =
-      holderChest !== null
-        ? getHolderDistGoal(holderChest.x, holderChest.z, bot.team)
-        : Infinity;
-
     const think = {
       id: bot.id,
       role,
@@ -2372,8 +2050,6 @@ function BotAvatar({
       teammateReleaseKind: teammateRelease?.kind ?? null,
       waitForTeammateShot,
       deferPlayerCarrierShot,
-      holderNearGoal,
-      selfNearGoal,
     };
 
     const nowSec = performance.now() / 1000;
@@ -2394,29 +2070,6 @@ function BotAvatar({
     }
     if (ballGrabLocked && !iHold && holder === null && isBallGrabMode(mode)) {
       mode = stunnedBallFallbackMode(isEnemyBot, holder);
-    }
-    if (mode === 'allyDunk' && !teamAllyDunkPoster) {
-      mode = holderNearGoal ? 'allyReceive' : 'allySupport';
-    }
-    if (mode === 'allyDunk' && !iHold && !holder) {
-      const distPost = Math.hypot(
-        _moveTarget.x - _pos.x,
-        _moveTarget.z - _pos.z,
-      );
-      if (distPost <= BOT.allyDunkPostArriveM) {
-        if (allyDunkPostWaitSince.current <= 0) {
-          allyDunkPostWaitSince.current = nowSec;
-        } else if (
-          nowSec - allyDunkPostWaitSince.current >= BOT.allyDunkPassWaitSec
-        ) {
-          mode = 'allyReceive';
-          allyDunkPostWaitSince.current = 0;
-        }
-      } else {
-        allyDunkPostWaitSince.current = 0;
-      }
-    } else {
-      allyDunkPostWaitSince.current = 0;
     }
     if (
       isEnemyBot &&
@@ -2439,10 +2092,6 @@ function BotAvatar({
       isEnemyBot && isBallChaseBroadcastMode(mode),
     );
     pickMoveTarget(mode, think, _moveTarget);
-    if (mode === 'allyDunk') {
-      pickAllyDunkSpot(bot.team, _pos, _moveTarget);
-      clampAllyDunkMoveTarget(_moveTarget, bot.team);
-    }
     clampMoveTargetFromBackWall(_moveTarget, bot.team);
     clampMoveTargetFromGoalBottomPit(_moveTarget, bot.team);
     if (giveShootZoneSpace && shootZoneMagnetState.current.shooterId) {
@@ -2745,9 +2394,7 @@ function BotAvatar({
       if (_wish.lengthSq() > 0.01) _wish.normalize();
     }
     if (
-      (mode === 'attractBall' ||
-        mode === 'runToBall' ||
-        mode === 'allyDunk') &&
+      (mode === 'attractBall' || mode === 'runToBall') &&
       !holder &&
       !iHold
     ) {
@@ -2755,13 +2402,9 @@ function BotAvatar({
         _moveTarget.x - _pos.x,
         _moveTarget.z - _pos.z,
       );
-      const arriveM =
-        mode === 'allyDunk'
-          ? BOT.allyDunkPostArriveM
-          : BOT.ballApproachArriveM;
       if (
-        (mode === 'attractBall' || mode === 'allyDunk') &&
-        distApproach < arriveM &&
+        mode === 'attractBall' &&
+        distApproach < BOT.ballApproachArriveM &&
         !closeLooseBall
       ) {
         _wish.set(0, 0, 0);
@@ -2803,60 +2446,6 @@ function BotAvatar({
     velocity.current.z = THREE.MathUtils.lerp(velocity.current.z, targetVel.z, accel * dt);
 
     let vy = linvel.y;
-    const passToMe =
-      teammateRelease?.kind === 'pass' &&
-      nowSec - teammateRelease.at < 1.35;
-    const lobIncoming =
-      !holder &&
-      mode === 'allyDunk' &&
-      isBallPassingToAlly(_ballPos, _ballVel, _chest);
-    const holderSettingUp =
-      holderNearGoal &&
-      holder !== null &&
-      holder !== bot.id &&
-      isHolderSettingUpShot(
-        holderChest !== null &&
-          isInsideShootZone(holderChest.x, holderChest.z, bot.team),
-        holderDistGoal,
-      );
-    const playerLobToPoster =
-      holder === 'local' && (lobIncoming || passToMe);
-    const allyDunkLeap =
-      mode === 'allyDunk' &&
-      jumpsLeft.current > 0 &&
-      (lobIncoming ||
-        passToMe ||
-        (holderSettingUp && grounded.current));
-    if (
-      allyDunkLeap &&
-      grounded.current &&
-      (playerLobToPoster ||
-        lobIncoming ||
-        passToMe ||
-        Math.random() < BOT.allyDunkPreJumpChance * dt * 2.8)
-    ) {
-      const leapChance =
-        lobIncoming || passToMe ? BOT.allyDunkLeapOnPassChance : 1;
-      if (playerLobToPoster || Math.random() < leapChance) {
-        const jumpScale = playerLobToPoster
-          ? BOT.allyDunkCatchJumpScale
-          : BOT.dunkJumpForceScale;
-        vy = botApplyJump(
-          body,
-          feetY,
-          tune.jumpForce * jumpScale,
-          linvel,
-          velocity,
-          airGrace,
-          grounded,
-          jumpsLeft,
-        );
-        if (lobIncoming || passToMe) {
-          doubleJumpPending.current = jumpsLeft.current > 0;
-          doubleJumpDelay.current = BOT.doubleJumpDelaySec * 0.55;
-        }
-      }
-    }
 
     const ballAbove =
       grounded.current &&

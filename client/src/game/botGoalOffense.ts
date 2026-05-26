@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { BOT } from '../shared/Constants';
-import { ARENA_GOALS, goalEndFaceX } from './goals';
+import { ARENA_GOALS } from './goals';
 import type { GoalSize, Team } from '../shared/Types';
-import { getEnemyGoalTarget, pickBotGoalLaunchTarget } from './botGoals';
+import { pickBotGoalLaunchTarget } from './botGoals';
 import { clampMoveTargetFromGoalBottomPit } from './botGoalBottomPit';
-import { getShootZoneCenter, isInsideShootZone } from './botShootZone';
+import { getShootZoneCenter } from './botShootZone';
 import type { BotHoldPhase } from './botBrain';
 
 const _scratch = new THREE.Vector3();
@@ -105,45 +105,7 @@ export function rollBotShotStyle(
 }
 
 export function isNearEnemyGoal(distGoal: number): boolean {
-  return distGoal <= BOT.allyDunkPrepDist;
-}
-
-export function isFriendlyHolderNearGoal(
-  holderX: number,
-  holderZ: number,
-  team: Team,
-): boolean {
-  if (isInsideShootZone(holderX, holderZ, team)) return true;
-  const g = getEnemyGoalTarget(team, _scratch);
-  const dx = holderX - g.x;
-  const dz = holderZ - g.z;
-  return dx * dx + dz * dz <= BOT.allyDunkPrepDist * BOT.allyDunkPrepDist;
-}
-
-const FT = 0.3048;
-
-/** Spot in front of the bottom ring — alley-oop post (~20 ft from the mouth) */
-export function pickAllyDunkSpot(
-  team: Team,
-  selfPos: THREE.Vector3,
-  out = _scratch,
-): THREE.Vector3 {
-  const inset = BOT.allyDunkPostStandoffFt * FT;
-  return pickBotRingApproachTarget(team, 'large', selfPos.y, out, inset);
-}
-
-/** Keep alley-oop path targets out of the bottom goal wall volume */
-export function clampAllyDunkMoveTarget(
-  target: THREE.Vector3,
-  _team: Team,
-): void {
-  const face = goalEndFaceX();
-  const keep =
-    BOT.backWallKeepOutFromWallM + BOT.allyDunkWallStandoffFt * 0.3048;
-  const minX = -face + keep;
-  const maxX = face - keep;
-  if (target.x < minX) target.x = minX;
-  if (target.x > maxX) target.x = maxX;
+  return distGoal <= Math.max(BOT.goalDunkMaxDist, BOT.goalJamMaxDist);
 }
 
 /** @deprecated use pickBotRingApproachTarget */
@@ -171,7 +133,7 @@ export function pickBotJamLaunchTarget(
   return out;
 }
 
-/** High arc at top / medium ring — alley-oop finish */
+/** High arc at top / medium ring */
 export function pickBotDunkLaunchTarget(
   team: Team,
   _shotIndex: number,
@@ -221,34 +183,6 @@ export function dunkPitchOffsetRad(style: BotShotStyle): number {
     return THREE.MathUtils.degToRad(BOT.jamPitchOffsetDeg);
   }
   return 0;
-}
-
-/** Teammate is posting up for a lob */
-export function shouldBotPrepAllyDunk(
-  holderNearGoal: boolean,
-  selfDistGoal: number,
-  giveShootZoneSpace: boolean,
-): boolean {
-  return (
-    holderNearGoal &&
-    selfDistGoal <= BOT.allyDunkPrepDist &&
-    !giveShootZoneSpace
-  );
-}
-
-export function isBallPassingToAlly(
-  ballPos: THREE.Vector3,
-  ballVel: THREE.Vector3,
-  catchChest: THREE.Vector3,
-): boolean {
-  _scratch.subVectors(catchChest, ballPos);
-  const toCatch = _scratch.lengthSq();
-  if (toCatch < 0.5) return true;
-  _scratch.normalize();
-  const vel = ballVel.lengthSq();
-  if (vel < 9) return false;
-  const align = ballVel.dot(_scratch);
-  return align > 0 && ballPos.y > catchChest.y - 1.2;
 }
 
 export function isHolderSettingUpShot(

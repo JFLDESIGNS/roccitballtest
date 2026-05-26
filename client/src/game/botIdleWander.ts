@@ -13,13 +13,13 @@ export function createBotIdleWanderState(x: number, z: number): BotIdleWanderSta
   return { stillSec: 0, lastX: x, lastZ: z, phase: Math.random() * Math.PI * 2 };
 }
 
-/** Ally oop / receive / give-space — never stand still longer than maxStillSec */
+/** Ally receive / give-space — never stand still longer than maxStillSec */
 export function botModeUsesIdleWander(
   mode: BotMode,
   giveShootZoneSpace: boolean,
 ): boolean {
   if (giveShootZoneSpace) return true;
-  return mode === 'allyDunk' || mode === 'allySupport' || mode === 'allyReceive';
+  return mode === 'allySupport' || mode === 'allyReceive';
 }
 
 export function applyBotIdleWanderNudge(

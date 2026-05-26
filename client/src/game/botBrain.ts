@@ -20,7 +20,6 @@ export type BotFieldMode =
   | 'moveAndShoot'
   | 'allySupport'
   | 'allyReceive'
-  | 'allyDunk'
   | 'teamCenter'
   | 'teamOffense'
   | 'teamDefense';
@@ -96,10 +95,6 @@ export type BotThinkInput = {
   waitForTeammateShot?: boolean;
   /** Enemy + local carries — timed pause on player-targeted rockets only */
   deferPlayerCarrierShot?: boolean;
-  /** Friendly carrier is in shoot zone or near the rim */
-  holderNearGoal?: boolean;
-  /** This bot is close enough to post for an alley-oop */
-  selfNearGoal?: boolean;
 };
 
 const _flank = new THREE.Vector3();
@@ -594,7 +589,6 @@ function pickFieldMode(input: BotThinkInput): BotFieldMode {
     ballHolder !== id
   ) {
     if (input.giveShootZoneSpace) return 'allySupport';
-    if (input.holderNearGoal && input.selfNearGoal) return 'allyDunk';
     return 'allyReceive';
   }
 
@@ -774,8 +768,6 @@ export function pickMoveTarget(
       return out.setY(Math.max(out.y, playerChest.y));
     case 'allyReceive':
       return out.copy(ballPos);
-    case 'allyDunk':
-      return out.lerpVectors(input.goal, ballPos, 0.2);
     case 'carryToGoal':
     case 'setupShot':
     case 'shootGoal':
@@ -809,7 +801,6 @@ export function pickLookTarget(
   }
   if (mode === 'allySupport') return out.copy(input.ballPos);
   if (mode === 'allyReceive') return out.lerpVectors(input.ballPos, input.goal, 0.2);
-  if (mode === 'allyDunk') return out.copy(input.ballPos);
   if (mode === 'attractBall' || mode === 'runToBall') {
     return out.copy(input.ballPos);
   }
@@ -1095,16 +1086,11 @@ export function pickBotHoldCarryFocus(
 /** One-third each: shoot, keep carrying, pass (no teammate → shoot vs carry). */
 export function pickBotHoldReleasePlan(
   hasTeammate: boolean,
-  afterAllyDunkCatch = false,
   inNetFinishZone = false,
 ): BotHoldReleasePlan {
   if (inNetFinishZone) return 'shoot';
   if (!hasTeammate) {
     return Math.random() < 0.5 ? 'shoot' : 'carry';
-  }
-  if (afterAllyDunkCatch) {
-    if (Math.random() < BOT.allyDunkHoldPassChance) return 'pass';
-    return Math.random() < 0.62 ? 'shoot' : 'carry';
   }
   const r = Math.random();
   if (r < BOT.holdReleaseShootChance) return 'shoot';
@@ -1118,12 +1104,11 @@ export function ensureHoldReleasePlan(
   holdSec: number,
   hasTeammate: boolean,
   plan: BotHoldReleasePlan | null,
-  afterAllyDunkCatch = false,
   inNetFinishZone = false,
 ): BotHoldReleasePlan | null {
   if (inNetFinishZone) return 'shoot';
   if (holdSec < BOT.holdCarryMinSec) return null;
-  return plan ?? pickBotHoldReleasePlan(hasTeammate, afterAllyDunkCatch, false);
+  return plan ?? pickBotHoldReleasePlan(hasTeammate, false);
 }
 
 /**

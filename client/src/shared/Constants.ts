@@ -240,8 +240,6 @@ export const BOT = {
   holdReleaseShootChance: 0.58,
   holdReleaseCarryChance: 0.14,
   holdReleasePassChance: 0.28,
-  /** After alley-oop catch at rim — prefer jam/shoot over passing back */
-  allyDunkHoldPassChance: 0.14,
   /** Max seconds to attempt a dunk/jam hold before forcing a shot */
   dunkTryMaxSec: 3,
   /** Absolute max seconds holding (forces shoot if still carrying) */
@@ -354,31 +352,6 @@ export const BOT = {
   dunkTargetLiftY: 2.6,
   dunkLaunchUpMult: 1.55,
   dunkJumpForceScale: 1.14,
-  /** Teammate without ball — post under rim for alley-oop */
-  allyDunkPrepDist: 28,
-  /** Stop this many feet in front of the bottom ring (alley-oop post) */
-  allyDunkPostStandoffFt: 20,
-  /** @deprecated — use allyDunkPostStandoffFt */
-  allyDunkSpotInset: 5.5,
-  /** Extra keep-out from goal back wall for alley-oop posts (feet) */
-  allyDunkWallStandoffFt: 10,
-  /** Close enough to the post spot to wait for a lob (m) */
-  allyDunkPostArriveM: 2.8,
-  /** No lob received — leave the post after this many seconds */
-  allyDunkPassWaitSec: 5,
-  /** Jump scale when catching a lob at the rim */
-  allyDunkCatchJumpScale: 1.28,
-  allyDunkPreJumpChance: 0.42,
-  allyDunkLeapOnPassChance: 0.88,
-  /** Kickoff — chance one bot runs alley-oop under the rim for ~15s */
-  kickoffAllyOopChance: 0.3,
-  kickoffAllyOopDurationSec: 15,
-  /** At the rim — abandon alley-oop if no pass to this bot within this window */
-  kickoffAllyOopPassWaitSec: 5,
-  /** Stop this far from the alley-oop post point (m) */
-  kickoffAllyOopArriveDist: 2.8,
-  /** After abort — sprint here before normal bot brain resumes */
-  kickoffAllyOopReturnArriveDist: 5.5,
   /** Countdown + flap hold — sprint under the drop and jump for the ball */
   kickoffContestSprintMult: 1.22,
   kickoffContestJumpForceScale: 1.38,
@@ -387,10 +360,6 @@ export const BOT = {
   kickoffContestJumpChance: 0.55,
   kickoffContestDoubleJumpChance: 0.85,
   kickoffContestArriveRadius: 6.5,
-  kickoffAllyOopSpotRadius: 9,
-  kickoffAllyOopJumpChance: 0.52,
-  /** Alley-oop post — hop cadence while watching the ball */
-  kickoffAllyOopJumpIntervalSec: 0.4,
   /** Teammate in shoot zone with ball — only this often beam-steal (else give space) */
   allyShootZoneMagnetChance: 0.3,
   /** After a teammate's goal shot, wait before beaming the ball */
