@@ -149,19 +149,21 @@ export function ArenaRetractableRoof() {
           receiveShadow={false}
         />
       </group>
-      <RigidBody
-        ref={nearBodyRef}
-        type="kinematicPosition"
-        colliders={false}
-        position={[0, layout.centerY, layout.closedNearZ]}
-      >
-        <CuboidCollider
-          args={[layout.spanX / 2, layout.thickness / 2, layout.halfZ / 2]}
-          friction={0.2}
-          restitution={0.55}
-          collisionGroups={ROOF_COLLISION}
-        />
-      </RigidBody>
+      {!visualOnly && (
+        <RigidBody
+          ref={nearBodyRef}
+          type="kinematicPosition"
+          colliders={false}
+          position={[0, layout.centerY, layout.closedNearZ]}
+        >
+          <CuboidCollider
+            args={[layout.spanX / 2, layout.thickness / 2, layout.halfZ / 2]}
+            friction={0.2}
+            restitution={0.55}
+            collisionGroups={ROOF_COLLISION}
+          />
+        </RigidBody>
+      )}
 
       <group
         ref={farMeshRef}

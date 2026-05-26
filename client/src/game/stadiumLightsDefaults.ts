@@ -1,17 +1,5 @@
 import { arenaPillarTopWorldY } from './arenaPillarConfig';
-import {
-  STADIUM_CEILING_STRIP_LENGTH_M,
-  stadiumCeilingStripWorldY,
-} from './stadiumCeilingStripLayout';
 import type { StadiumLightDef } from './stadiumLightTypes';
-
-const FT = 0.3048;
-const stripLengthM = STADIUM_CEILING_STRIP_LENGTH_M;
-const stripYM = stadiumCeilingStripWorldY();
-const stripGapM = 34 * FT;
-const stripWidthM = 150 * FT;
-const centerOffsetZ = stripGapM * 0.5 + stripWidthM * 0.5;
-const stripXs = [-stripLengthM * 0.32, 0, stripLengthM * 0.32];
 
 function keyMountY(): number {
   return arenaPillarTopWorldY() - 8.5;
@@ -94,27 +82,6 @@ export function buildDefaultStadiumLights(): StadiumLightDef[] {
       linkGroup: 'key3',
     },
   ];
-
-  const stripZ = [-centerOffsetZ, centerOffsetZ];
-  stripZ.forEach((z, stripIdx) => {
-    stripXs.forEach((x, i) => {
-      lights.push({
-        id: `strip-${stripIdx}-${i}`,
-        name: `Ceiling strip ${stripIdx + 1} · ${i + 1}`,
-        kind: 'point',
-        position: [x, stripYM, z],
-        rotation: [0, 0, 0],
-        color: '#f0f2f4',
-        intensity: 0.2,
-        distance: stripYM * 2.6,
-        decay: 1.6,
-        castShadow: false,
-        enabled: true,
-        roofGated: true,
-        stripMenu: true,
-      });
-    });
-  });
 
   return lights;
 }

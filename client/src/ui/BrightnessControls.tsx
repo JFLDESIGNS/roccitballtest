@@ -61,7 +61,7 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
       />
       <GfxToggle
         label="Key 2 omni shadow"
-        checked={gfx.keyLight2CastShadow ?? true}
+        checked={gfx.keyLight2CastShadow ?? false}
         onChange={graphicsStore.setKeyLight2CastShadow}
       />
 
@@ -82,7 +82,7 @@ export function BrightnessControls({ compact }: { compact?: boolean }) {
       />
       <GfxToggle
         label="Key 3 omni shadow"
-        checked={gfx.keyLight3CastShadow ?? true}
+        checked={gfx.keyLight3CastShadow ?? false}
         onChange={graphicsStore.setKeyLight3CastShadow}
       />
 

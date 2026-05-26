@@ -11,6 +11,7 @@ import type {
 const STORAGE_KEY = 'rocketball-stadium-lights-v1';
 const MIGRATION_KEY = 'rocketball-stadium-lights-migration-v2';
 const MIGRATION_KEY_V3 = 'rocketball-stadium-lights-migration-v3';
+const MIGRATION_KEY_V4 = 'rocketball-stadium-lights-migration-v4';
 const FT = 0.3048;
 const LEGACY_STRIP_Y = ARENA.platformTopHeight + 132 * FT;
 
@@ -131,6 +132,18 @@ function loadStored(): StadiumLightDef[] {
       persist(lights);
       try {
         localStorage.setItem(MIGRATION_KEY_V3, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!localStorage.getItem(MIGRATION_KEY_V4)) {
+      const filtered = lights.filter((l) => !l.stripMenu);
+      if (filtered.length !== lights.length) {
+        lights = filtered;
+        persist(lights);
+      }
+      try {
+        localStorage.setItem(MIGRATION_KEY_V4, '1');
       } catch {
         /* ignore */
       }

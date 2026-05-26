@@ -1,8 +1,8 @@
 import { OrbitControls, TransformControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
-import { Physics } from '@react-three/rapier';
 import {
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,6 +13,7 @@ import {
 import * as THREE from 'three';
 import { useSyncExternalStore } from 'react';
 import { RENDER } from '../shared/Constants';
+import { ArenaVisualOnlyContext } from '../game/arenaVisualOnly';
 import { EditorOrbitContext } from './EditorOrbitContext';
 import {
   forceUnlockEditorOrbit,
@@ -595,6 +596,9 @@ export function MapEditorCanvas() {
         frameloop="always"
         camera={{ position: [0, 24, 44], fov: 58, near: 0.5, far: 320 }}
         gl={{ antialias: RENDER.antialias, alpha: false, powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.setClearColor('#3a4a62', 1);
+        }}
         onPointerMissed={() => {
           if (mapEditorStore.shouldSuppressPointerMiss()) return;
           mapEditorStore.select(null);
@@ -604,9 +608,11 @@ export function MapEditorCanvas() {
         <color attach="background" args={['#3a4a62']} />
         <fog attach="fog" args={['#3a4a62', 90, 240]} />
         <MapEditorSceneSetup />
-        <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
-          <EditorSceneContent />
-        </Physics>
+        <ArenaVisualOnlyContext.Provider value={true}>
+          <Suspense fallback={null}>
+            <EditorSceneContent />
+          </Suspense>
+        </ArenaVisualOnlyContext.Provider>
       </Canvas>
     </div>
   );

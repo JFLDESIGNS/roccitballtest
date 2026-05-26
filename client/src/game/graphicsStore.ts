@@ -22,6 +22,7 @@ function isAoQualityId(v: string): v is AoQualityId {
 }
 
 const STORAGE_KEY = 'rocketball-graphics-v23';
+const KEY_OMNI_SHADOW_OFF_MIGRATION = 'rocketball-key-omni-shadow-off-v1';
 
 function normalizeHexColor(raw: string | undefined, fallback: string): string {
   if (!raw || !/^#[0-9a-fA-F]{6}$/.test(raw)) return fallback;
@@ -205,8 +206,8 @@ const defaults: GraphicsSettings = {
   keyLight2Brightness: 120,
   keyLight3Color: '#dfe8f5',
   keyLight3Brightness: 100,
-  keyLight2CastShadow: true,
-  keyLight3CastShadow: true,
+  keyLight2CastShadow: false,
+  keyLight3CastShadow: false,
   keyLightWireframe: true,
   mapLightGlowOpacity: MAP_LIGHT_GLOW_DEFAULT_OPACITY,
   mapLightGlowSizeScale: 1,
@@ -241,6 +242,20 @@ function persist(v: GraphicsSettings) {
 }
 
 let state: GraphicsState = normalizeSettings(loadStored());
+
+if (!localStorage.getItem(KEY_OMNI_SHADOW_OFF_MIGRATION)) {
+  state = normalizeSettings({
+    ...state,
+    keyLight2CastShadow: false,
+    keyLight3CastShadow: false,
+  });
+  persist(state);
+  try {
+    localStorage.setItem(KEY_OMNI_SHADOW_OFF_MIGRATION, '1');
+  } catch {
+    /* ignore */
+  }
+}
 
 function patch(partial: Partial<GraphicsSettings>) {
   state = normalizeSettings({ ...state, ...partial });

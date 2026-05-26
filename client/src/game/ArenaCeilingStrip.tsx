@@ -79,42 +79,6 @@ export function ArenaCeilingStrip() {
         <planeGeometry args={[lightLength, LED_STRIP_WIDTH]} />
         <primitive object={stripLightMaterial} attach="material" />
       </mesh>
-
-      <CeilingStripPointLights lengthX={lengthX} y={-STRIP_DROP_Y / 2} />
     </group>
-  );
-}
-
-function CeilingStripPointLights({
-  lengthX,
-  y,
-}: {
-  lengthX: number;
-  y: number;
-}) {
-  const xs = useMemo(() => {
-    const count = 9;
-    const span = lengthX * 0.82;
-    const out: number[] = [];
-    for (let i = 0; i < count; i++) {
-      const t = i / (count - 1);
-      out.push(-span / 2 + t * span);
-    }
-    return out;
-  }, [lengthX]);
-
-  return (
-    <>
-      {xs.map((x) => (
-        <pointLight
-          key={x}
-          position={[x, y - 0.4, 0]}
-          color="#b8a890"
-          intensity={14}
-          distance={40}
-          decay={2}
-        />
-      ))}
-    </>
   );
 }

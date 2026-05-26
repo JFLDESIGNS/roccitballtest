@@ -24,6 +24,9 @@ const SWEEP_IDLE = 0.55;
 const SWEEP_SCORE = 3.1;
 /** Multiplier on cone shader uStrength (0.608 ≈ 24% more transparent than prior 0.8) */
 const CONE_BEAM_OPACITY_MUL = 0.608;
+/** Real Three.js lights — steady (no goal / ball-drop frenzy strobing) */
+const REAL_SPOT_INTENSITY = 680;
+const REAL_POINT_INTENSITY = 220;
 
 type BallDropSpotlightConesProps = {
   /** Half-extent of jumbotron cube (local Y up at structure center) */
@@ -290,7 +293,6 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       rig.rotation.set(pitch, yaw, 0, 'YXZ');
     });
 
-    const flicker = frenzy ? 0.55 + Math.abs(Math.sin(t * 48.0)) * 0.7 : 1;
     const pulse = celebrating
       ? 1.05 + Math.sin(t * 11) * 0.18
       : 0.9 + Math.sin(t * 2.4) * 0.1;
@@ -300,18 +302,16 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
     glowMat.uniforms.uStrength.value = glowStr * pulse * CONE_BEAM_OPACITY_MUL;
     cornerLampMat.emissiveIntensity = celebrating ? 7.5 : 4.5;
 
-    const spotI = (celebrating ? 1180 : 680) * (frenzy ? (0.65 + flicker) : 1);
-    const pointI = (celebrating ? 380 : 220) * (frenzy ? (0.55 + flicker) : 1);
     for (let i = 0; i < 4; i++) {
       const spot = spotRefs.current[i];
       const point = pointRefs.current[i];
       if (spot) {
-        spot.color.copy(colorScratch.light);
-        spot.intensity = spotI;
+        spot.color.copy(DEFAULT_LIGHT);
+        spot.intensity = REAL_SPOT_INTENSITY;
       }
       if (point) {
-        point.color.copy(colorScratch.light);
-        point.intensity = pointI;
+        point.color.copy(DEFAULT_LIGHT);
+        point.intensity = REAL_POINT_INTENSITY;
       }
     }
 
