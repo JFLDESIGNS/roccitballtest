@@ -1,6 +1,7 @@
 import type { MatchScore, Team, Vec3 } from '../shared/Types';
 import type { ActorProfile } from '../game/playerRoster';
 import { gameStore, type GamePhase } from '../game/gameStore';
+import { applyNetworkGoalScore } from '../game/goalScoreHandler';
 
 export type MultiplayerStatus = 'offline' | 'connecting' | 'online' | 'error';
 
@@ -99,6 +100,19 @@ type ServerMessage =
       type: 'ballAction';
       serverTime: number;
       action: NetworkBallAction;
+    }
+  | {
+      type: 'goalScored';
+      serverTime: number;
+      goal: {
+        id: string;
+        points: number;
+        scoringTeam: Team;
+        goalTeam: Team;
+        goalId: string;
+        goalPos: Vec3;
+        score: MatchScore;
+      };
     };
 
 type LocalPlayerUpdate = {
@@ -139,6 +153,12 @@ function emit() {
 
 function patch(next: Partial<MultiplayerState>) {
   state = { ...state, ...next };
+  (
+    window as unknown as {
+      __roccitballMultiplayerOnline?: boolean;
+    }
+  ).__roccitballMultiplayerOnline =
+    state.enabled && state.status === 'online';
   emit();
 }
 
@@ -205,6 +225,16 @@ function handleMessage(raw: string) {
   if (msg.type === 'ballAction') {
     patch({
       remoteBallActions: [...state.remoteBallActions, msg.action].slice(-24),
+    });
+    return;
+  }
+
+  if (msg.type === 'goalScored') {
+    applyNetworkGoalScore({
+      points: msg.goal.points,
+      scoringTeam: msg.goal.scoringTeam,
+      goalPos: msg.goal.goalPos,
+      score: msg.goal.score,
     });
   }
 }

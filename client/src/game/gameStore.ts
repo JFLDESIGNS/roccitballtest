@@ -386,6 +386,40 @@ export const gameStore = {
     };
     notify();
   },
+  applyNetworkGoal: (goal: {
+    points: number;
+    scoringTeam: Team;
+    goalPos: { x: number; y: number; z: number };
+    score: MatchScore;
+  }) => {
+    const nextStats = { ...state.matchStats };
+    if (goal.scoringTeam === state.localTeam) {
+      nextStats.goals += 1;
+      nextStats.pointsScored += goal.points;
+    }
+    state = {
+      ...state,
+      score: {
+        red: Math.max(0, Math.floor(goal.score.red)),
+        blue: Math.max(0, Math.floor(goal.score.blue)),
+      },
+      lastScorePopup: { points: goal.points, team: goal.scoringTeam },
+      goalCelebration: {
+        id: ++celebrationId,
+        ...goal.goalPos,
+        team: goal.scoringTeam,
+      },
+      lastScoringTeam: goal.scoringTeam,
+      ballFrozen: true,
+      ballHolderId: null,
+      isHoldingBall: false,
+      ballState: 'loose',
+      ballCombo: 0,
+      ballComboExpiresAt: 0,
+      matchStats: nextStats,
+    };
+    notify();
+  },
   addScore: (team: Team, points: number, goalPos?: { x: number; y: number; z: number }) => {
     const nextStats = { ...state.matchStats };
     if (team === state.localTeam) {

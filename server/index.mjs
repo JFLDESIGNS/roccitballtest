@@ -30,6 +30,53 @@ const BALL_DROP_DRUM_SCALE = 0.6;
 const BALL_DROP_DRUM_RADIUS = 10.2;
 const BALL_DROP_DRUM_HEIGHT = 9.6;
 const BALL_DROP_DRUM_OFFSET_FT = 10;
+const GOAL_POINTS = { large: 1, medium: 2, small: 5 };
+const GOAL_RINGS = {
+  baseRadius: 7.6,
+  tierScale: 0.7,
+  backRingScale: 1.32,
+  backRingWallOffsetM: 1.75,
+  midTopBackRingWallExtraFt: 0.75,
+  topRingWallStandoffFt: 15,
+  topRingLitWallPullBackFt: 0,
+  topRingExtraHeightFt: 3,
+  midRingExtraHeightFt: 3,
+  midRingWallStandoffFt: 6,
+  midRingBackWallOffsetM: 1.75,
+  topRingBackWallOffsetM: 1.75,
+  scoringVolumeTopLiftFt: 2,
+  bottomRingWallStandoffFt: 15,
+  ringTiltBottomDeg: -20,
+  ringTiltMidDeg: 0,
+  ringTiltTopDeg: 20,
+  scoringVolumeRadiusScale: 0.25,
+  scoringVolumeWallPullbackFt: 6,
+  scoringVolumeWallPullbackBottomExtraFt: 1.5,
+  scoringVolumeWallPullbackMidTopExtraFt: 1.5,
+  scoringVolumeWallPullbackMidExtraFt: 0.6,
+  goalBallSuckStickOutFt: 3,
+  scoringVolumeMidTopRadiusMult: 0.4,
+  scoringVolumeStickOutM: 0.95,
+  scoringVolumeStickOutMidM: 1.95,
+  scoringVolumeArenaForwardMidM: 0.5,
+  scoringVolumeRadiusScaleMidMult: 2.55,
+  scoringVolumeStickOutTopM: 1.85,
+  scoringVolumeArenaForwardTopM: 0.4,
+  scoringVolumeRadiusScaleTopMult: 2.75,
+  scoringVolumeRadiusScaleBottomMult: 2.243,
+  centerScoreRadiusScale: 0.74,
+  centerScoreRadiusScaleMid: 0.86,
+  centerScoreRadiusScaleTop: 0.82,
+  midScoringSensorDepth: 3.85,
+  ringGap: 0.75,
+  floorClearance: 3.75,
+  tubeScale: 0.14,
+  tubeMin: 0.24,
+  torusRadialSegments: 8,
+  torusTubularSegments: 8,
+  faceInsetFromWall: 1.6,
+  sensorDepth: 2.75,
+};
 const GRAVITY_Y = -11;
 const BALL_LINEAR_DAMPING = 0.014;
 const BALL_RESTITUTION = 0.58;
@@ -43,6 +90,7 @@ const BEAM_PULL_ACCEL = 39;
 const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
+const GOAL_SCORE_COOLDOWN_MS = 5700;
 const FT_TO_M = 0.3048;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
@@ -171,6 +219,315 @@ function buildOctagonPlatformBuffers(topRadius, slopeRadius, topY, bottomY) {
   };
 }
 
+function ringRadiusForTier(tier) {
+  return GOAL_RINGS.baseRadius * GOAL_RINGS.tierScale ** tier;
+}
+
+function stackedRingCenters() {
+  const r0 = ringRadiusForTier(0);
+  const r1 = ringRadiusForTier(1);
+  const r2 = ringRadiusForTier(2);
+  const gap = GOAL_RINGS.ringGap;
+  const bottomY = r0 + GOAL_RINGS.floorClearance;
+  const midY = bottomY + r0 + r1 + gap + GOAL_RINGS.midRingExtraHeightFt * FT_TO_M;
+  const topY =
+    bottomY +
+    r0 +
+    r1 +
+    gap +
+    r1 +
+    r2 +
+    gap +
+    GOAL_RINGS.topRingExtraHeightFt * FT_TO_M;
+  return { bottomY, midY, topY };
+}
+
+function goalEndFaceX() {
+  return (ARENA_HEX_RADIUS * Math.sqrt(3)) / 2;
+}
+
+function goalWallPositions() {
+  const face = goalEndFaceX();
+  const inset = GOAL_RINGS.faceInsetFromWall;
+  return { red: -face + inset, blue: face - inset };
+}
+
+function goalRingWallStandoffM(tier) {
+  if (tier === 2) return GOAL_RINGS.topRingWallStandoffFt * FT_TO_M;
+  if (tier === 1) return GOAL_RINGS.midRingWallStandoffFt * FT_TO_M;
+  return GOAL_RINGS.bottomRingWallStandoffFt * FT_TO_M;
+}
+
+function goalRingCenterX(team, wallX, tier) {
+  const standoff = goalRingWallStandoffM(tier);
+  return team === 'red' ? wallX + standoff : wallX - standoff;
+}
+
+function goalRingDisplayX(centerX, team, size) {
+  if (size === 'small') {
+    const pullBack = GOAL_RINGS.topRingLitWallPullBackFt * FT_TO_M;
+    return team === 'red' ? centerX - pullBack : centerX + pullBack;
+  }
+  return centerX;
+}
+
+function buildWallRings(team, wallX) {
+  const { bottomY, midY, topY } = stackedRingCenters();
+  const tiers = [
+    { size: 'large', tier: 0, y: bottomY, points: GOAL_POINTS.large },
+    { size: 'medium', tier: 1, y: midY, points: GOAL_POINTS.medium },
+    { size: 'small', tier: 2, y: topY, points: GOAL_POINTS.small },
+  ];
+  return tiers.map((t) => {
+    const x = goalRingCenterX(team, wallX, t.tier);
+    return {
+      id: `${team}-ring-${t.size}`,
+      team,
+      size: t.size,
+      points: t.points,
+      center: { x: goalRingDisplayX(x, team, t.size), y: t.y, z: 0 },
+      ringRadius: ringRadiusForTier(t.tier),
+    };
+  });
+}
+
+function buildGoals() {
+  const { red, blue } = goalWallPositions();
+  return [...buildWallRings('red', red), ...buildWallRings('blue', blue)];
+}
+
+const ARENA_GOALS = buildGoals();
+
+function ringTube(radius) {
+  return Math.max(GOAL_RINGS.tubeMin, radius * GOAL_RINGS.tubeScale);
+}
+
+function ringTiltX(team, size) {
+  const deg =
+    size === 'large'
+      ? GOAL_RINGS.ringTiltBottomDeg
+      : size === 'medium'
+        ? GOAL_RINGS.ringTiltMidDeg
+        : GOAL_RINGS.ringTiltTopDeg;
+  const rad = (deg * Math.PI) / 180;
+  return team === 'red' ? rad : -rad;
+}
+
+function goalScoreHoleRadius(ringRadius, size = 'large') {
+  const scale =
+    size === 'small'
+      ? GOAL_RINGS.centerScoreRadiusScaleTop
+      : size === 'medium'
+        ? GOAL_RINGS.centerScoreRadiusScaleMid
+        : GOAL_RINGS.centerScoreRadiusScale;
+  return ringRadius * scale;
+}
+
+function goalScoringSensorDepth(size) {
+  if (size === 'medium') return GOAL_RINGS.midScoringSensorDepth;
+  return GOAL_RINGS.sensorDepth;
+}
+
+function goalScoringStickOutM(size) {
+  if (size === 'medium') return GOAL_RINGS.scoringVolumeStickOutMidM;
+  if (size === 'small') return GOAL_RINGS.scoringVolumeStickOutTopM;
+  return GOAL_RINGS.scoringVolumeStickOutM;
+}
+
+function goalScoringArenaForwardM(size) {
+  if (size === 'medium') return GOAL_RINGS.scoringVolumeArenaForwardMidM;
+  if (size === 'small') return GOAL_RINGS.scoringVolumeArenaForwardTopM;
+  return 0;
+}
+
+function goalScoringWallInsetM(size) {
+  const half = goalScoringSensorDepth(size) / 2;
+  return Math.max(0, half - goalScoringStickOutM(size));
+}
+
+function goalScoringWallPullbackM(size) {
+  const bottomExtra =
+    size === 'large' ? GOAL_RINGS.scoringVolumeWallPullbackBottomExtraFt : 0;
+  const midTopExtra =
+    size === 'large' ? 0 : GOAL_RINGS.scoringVolumeWallPullbackMidTopExtraFt;
+  const midOnlyExtra =
+    size === 'medium' ? GOAL_RINGS.scoringVolumeWallPullbackMidExtraFt : 0;
+  return (
+    (GOAL_RINGS.scoringVolumeWallPullbackFt +
+      bottomExtra +
+      midTopExtra +
+      midOnlyExtra) *
+    FT_TO_M
+  );
+}
+
+function goalScoringCenter(goal) {
+  const inset = goalScoringWallInsetM(goal.size);
+  const forward = goalScoringArenaForwardM(goal.size);
+  const pullBack = goalScoringWallPullbackM(goal.size);
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  const yLiftFt = goal.size === 'small' ? GOAL_RINGS.scoringVolumeTopLiftFt : 0;
+  return {
+    x:
+      goal.center.x +
+      (goal.team === 'red' ? -inset : inset) +
+      towardCourt * (forward - pullBack),
+    y: goal.center.y + yLiftFt * FT_TO_M,
+    z: goal.center.z,
+  };
+}
+
+function goalScoringCylinderParams(goal) {
+  const holeR = goalScoreHoleRadius(goal.ringRadius, goal.size);
+  const pad =
+    goal.size === 'small'
+      ? BALL_RADIUS * 0.52
+      : goal.size === 'medium'
+        ? BALL_RADIUS * 0.58
+        : BALL_RADIUS * 0.45;
+  const baseRadius = holeR + pad;
+  const radiusScale =
+    goal.size === 'large'
+      ? GOAL_RINGS.scoringVolumeRadiusScale *
+        GOAL_RINGS.scoringVolumeRadiusScaleBottomMult
+      : goal.size === 'medium'
+        ? GOAL_RINGS.scoringVolumeRadiusScale *
+          GOAL_RINGS.scoringVolumeRadiusScaleMidMult *
+          GOAL_RINGS.scoringVolumeMidTopRadiusMult
+        : GOAL_RINGS.scoringVolumeRadiusScale *
+          GOAL_RINGS.scoringVolumeRadiusScaleTopMult *
+          GOAL_RINGS.scoringVolumeMidTopRadiusMult;
+  return { radius: baseRadius * radiusScale, halfHeight: goalScoringSensorDepth(goal.size) / 2 };
+}
+
+function goalScoringSlack(size, speed = 0) {
+  const speedPad = Math.min(BALL_RADIUS * 3.2, speed * 0.032);
+  if (size === 'small') return { plane: BALL_RADIUS * 0.85 + speedPad, hole: BALL_RADIUS * 0.95 + speedPad * 0.5 };
+  if (size === 'medium') return { plane: BALL_RADIUS * 1.05 + speedPad, hole: BALL_RADIUS * 1.1 + speedPad * 0.65 };
+  return { plane: BALL_RADIUS * 0.75 + speedPad, hole: BALL_RADIUS * 0.85 + speedPad * 0.55 };
+}
+
+function ballToGoalScoringLocal(ballPos, goal) {
+  const c = goalScoringCenter(goal);
+  const px = ballPos.x - c.x;
+  const py = ballPos.y - c.y;
+  const pz = ballPos.z - c.z;
+  const tilt = ringTiltX(goal.team, goal.size);
+  const cosT = Math.cos(tilt);
+  const sinT = Math.sin(tilt);
+  const lx = pz;
+  const ly = py;
+  const lz = -px;
+  const lyRing = ly * cosT + lz * sinT;
+  const lzRing = -ly * sinT + lz * cosT;
+  return { lx, lyRing, lzRing };
+}
+
+function volumeBounds(goal, speed) {
+  const slack = goalScoringSlack(goal.size, speed);
+  const { radius, halfHeight } = goalScoringCylinderParams(goal);
+  const rScale = GOAL_RINGS.scoringVolumeRadiusScale;
+  return {
+    radius: radius + (slack.hole + BALL_RADIUS * 0.42) * rScale,
+    halfDepth: halfHeight + slack.plane + BALL_RADIUS * 0.35,
+  };
+}
+
+function pointInsideGoalCylinder(local, radius, halfDepth) {
+  return Math.hypot(local.lx, local.lyRing) <= radius && Math.abs(local.lzRing) <= halfDepth;
+}
+
+function segmentIntersectsGoalCylinder(a, b, radius, halfDepth) {
+  if (pointInsideGoalCylinder(a, radius, halfDepth)) return true;
+  if (pointInsideGoalCylinder(b, radius, halfDepth)) return true;
+  const dlx = b.lx - a.lx;
+  const dly = b.lyRing - a.lyRing;
+  const dlz = b.lzRing - a.lzRing;
+  for (const lzPlane of [-halfDepth, halfDepth]) {
+    if (Math.abs(dlz) < 1e-8) continue;
+    const s = (lzPlane - a.lzRing) / dlz;
+    if (s < 0 || s > 1) continue;
+    const lx = a.lx + dlx * s;
+    const ly = a.lyRing + dly * s;
+    if (Math.hypot(lx, ly) <= radius) return true;
+  }
+  const dd = dlx * dlx + dly * dly;
+  let s = 0;
+  if (dd > 1e-8) s = Math.max(0, Math.min(1, -(a.lx * dlx + a.lyRing * dly) / dd));
+  const cx = a.lx + dlx * s;
+  const cy = a.lyRing + dly * s;
+  const cz = a.lzRing + dlz * s;
+  return Math.hypot(cx, cy) <= radius && Math.abs(cz) <= halfDepth;
+}
+
+function goalHitFromGoal(goal) {
+  const scoringTeam = goal.team === 'red' ? 'blue' : 'red';
+  return {
+    points: goal.points,
+    scoringTeam,
+    goalTeam: goal.team,
+    goalId: goal.id,
+    goalPos: { ...goal.center },
+  };
+}
+
+function checkGoalScoreSegment(from, to, speed = 0) {
+  let best = null;
+  for (const goal of ARENA_GOALS) {
+    const a = ballToGoalScoringLocal(from, goal);
+    const b = ballToGoalScoringLocal(to, goal);
+    const { radius, halfDepth } = volumeBounds(goal, speed);
+    if (!segmentIntersectsGoalCylinder(a, b, radius, halfDepth)) continue;
+    const planeDist = Math.min(Math.abs(a.lzRing), Math.abs(b.lzRing));
+    const hit = { ...goalHitFromGoal(goal), planeDist };
+    if (!best || hit.planeDist < best.planeDist) best = hit;
+  }
+  if (!best) return null;
+  const { planeDist: _planeDist, ...hit } = best;
+  return hit;
+}
+
+function multiplyQuat(a, b) {
+  return {
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  };
+}
+
+function quatFromAxisAngle(axis, angle) {
+  const half = angle * 0.5;
+  const s = Math.sin(half);
+  return { x: axis.x * s, y: axis.y * s, z: axis.z * s, w: Math.cos(half) };
+}
+
+function buildTorusTrimesh(majorRadius, tubeRadius, radialSegments, tubularSegments) {
+  const positions = [];
+  const indices = [];
+  for (let j = 0; j <= radialSegments; j += 1) {
+    for (let i = 0; i <= tubularSegments; i += 1) {
+      const u = (i / tubularSegments) * Math.PI * 2;
+      const v = (j / radialSegments) * Math.PI * 2;
+      positions.push(
+        (majorRadius + tubeRadius * Math.cos(v)) * Math.cos(u),
+        (majorRadius + tubeRadius * Math.cos(v)) * Math.sin(u),
+        tubeRadius * Math.sin(v),
+      );
+    }
+  }
+  for (let j = 1; j <= radialSegments; j += 1) {
+    for (let i = 1; i <= tubularSegments; i += 1) {
+      const a = (tubularSegments + 1) * j + i - 1;
+      const b = (tubularSegments + 1) * (j - 1) + i - 1;
+      const c = (tubularSegments + 1) * (j - 1) + i;
+      const d = (tubularSegments + 1) * j + i;
+      indices.push(a, b, d, b, c, d);
+    }
+  }
+  return { vertices: new Float32Array(positions), indices: new Uint32Array(indices) };
+}
+
 function addArenaStructureColliders(world) {
   const topBase = ARENA_OCTAGON_TOP_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
   const slopeBase = ARENA_OCTAGON_SLOPE_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
@@ -216,6 +573,24 @@ function addArenaStructureColliders(world) {
         .setRotation({ x: 0, y: Math.sin(halfAngle), z: 0, w: Math.cos(halfAngle) })
         .setRestitution(BALL_RESTITUTION * 0.8)
         .setFriction(BALL_FRICTION),
+    );
+  }
+
+  for (const goal of ARENA_GOALS) {
+    const { vertices, indices } = buildTorusTrimesh(
+      goal.ringRadius,
+      ringTube(goal.ringRadius),
+      GOAL_RINGS.torusRadialSegments,
+      GOAL_RINGS.torusTubularSegments,
+    );
+    const qY = quatFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 2);
+    const qX = quatFromAxisAngle({ x: 1, y: 0, z: 0 }, ringTiltX(goal.team, goal.size));
+    world.createCollider(
+      RAPIER.ColliderDesc.trimesh(vertices, indices)
+        .setTranslation(goal.center.x, goal.center.y, goal.center.z)
+        .setRotation(multiplyQuat(qY, qX))
+        .setRestitution(BALL_RESTITUTION * 1.12)
+        .setFriction(0.12),
     );
   }
 }
@@ -294,6 +669,8 @@ function getRoom(roomId) {
       ball: createServerBall(),
       match: null,
       physics: createRoomPhysics(),
+      lastBallPosition: { ...BALL_SPAWN },
+      goalLockedUntil: 0,
     };
     rooms.set(id, room);
   }
@@ -497,6 +874,13 @@ function syncBallFromPhysics(room, now) {
   };
 }
 
+function broadcastRoom(room, msg) {
+  const packet = JSON.stringify(msg);
+  for (const [socket, client] of clients) {
+    if (client.roomId === room.id) sendFrame(socket, packet);
+  }
+}
+
 function clampPhysicsBallSpeed(room) {
   const body = room.physics.ballBody;
   const v = body.linvel();
@@ -634,7 +1018,64 @@ function tickRoomBall(room, dt, now) {
     room.physics.accumulator -= SERVER_PHYSICS_STEP;
   }
   clampPhysicsBallSpeed(room);
+  const t = room.physics.ballBody.translation();
+  const v = room.physics.ballBody.linvel();
+  const speed = Math.hypot(v.x, v.y, v.z);
+  const hit =
+    now >= (room.goalLockedUntil ?? 0) &&
+    !room.match?.ballFrozen &&
+    room.match?.phase !== 'intro' &&
+    room.match?.phase !== 'loading'
+      ? checkGoalScoreSegment(
+          room.lastBallPosition ?? { x: t.x, y: t.y, z: t.z },
+          { x: t.x, y: t.y, z: t.z },
+          speed,
+        )
+      : null;
   syncBallFromPhysics(room, now);
+  room.lastBallPosition = { ...room.ball.position };
+  if (hit) registerServerGoal(room, hit, now);
+}
+
+function registerServerGoal(room, hit, now) {
+  const score = {
+    red: room.match?.score?.red ?? 0,
+    blue: room.match?.score?.blue ?? 0,
+  };
+  score[hit.scoringTeam] += hit.points;
+  room.goalLockedUntil = now + GOAL_SCORE_COOLDOWN_MS;
+  room.match = {
+    ...(room.match ?? {
+      phase: 'playing',
+      timeLeft: 0,
+      countdown: 0,
+      arenaSettleCountdown: 0,
+      loadCountdown: 0,
+    }),
+    score,
+    ballFrozen: true,
+  };
+  setPhysicsBall(
+    room,
+    BALL_DROP_SPAWN,
+    { x: 0, y: 0, z: 0 },
+    { x: 0, y: 0, z: 0 },
+  );
+  syncBallFromPhysics(room, now);
+  room.lastBallPosition = { ...room.ball.position };
+  broadcastRoom(room, {
+    type: 'goalScored',
+    serverTime: now,
+    goal: {
+      id: crypto.randomUUID(),
+      points: hit.points,
+      scoringTeam: hit.scoringTeam,
+      goalTeam: hit.goalTeam,
+      goalId: hit.goalId,
+      goalPos: hit.goalPos,
+      score,
+    },
+  });
 }
 
 function handleClientMessage(socket, raw) {
@@ -708,6 +1149,10 @@ function handleClientMessage(socket, raw) {
     if (!room.ball) room.ball = createServerBall();
     const previousFrozen = room.match?.ballFrozen;
     const nextMatch = sanitizeMatchState(msg.match);
+    if (Date.now() < (room.goalLockedUntil ?? 0) && room.match) {
+      nextMatch.score = room.match.score;
+      nextMatch.ballFrozen = true;
+    }
     room.match = nextMatch;
     if (!previousFrozen && nextMatch.ballFrozen) {
       setPhysicsBall(

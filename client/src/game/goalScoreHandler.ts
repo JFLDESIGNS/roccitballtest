@@ -39,11 +39,37 @@ export function tickGoalScoreRuntime(dt: number) {
 }
 
 function canRegisterGoalScore(): boolean {
+  const multiplayerOnline =
+    typeof window !== 'undefined' &&
+    (
+      window as unknown as {
+        __roccitballMultiplayerOnline?: boolean;
+      }
+    ).__roccitballMultiplayerOnline;
+  if (multiplayerOnline) return false;
   const state = gameStore.getState();
   if (state.phase === 'intro' || state.phase === 'loading') return false;
   if (isGoalBallSuckActive()) return false;
   if (goalScoreRuntime.scoreCooldownSec > 0 || state.ballFrozen) return false;
   return true;
+}
+
+export function applyNetworkGoalScore(hit: {
+  points: number;
+  scoringTeam: Team;
+  goalPos: { x: number; y: number; z: number };
+  score: { red: number; blue: number };
+}): void {
+  goalScoreRuntime.scoreCooldownSec =
+    MATCH.scorePauseSec +
+    MATCH.postScoreCountdownDelaySec +
+    MATCH.resetCountdownSec +
+    1;
+  goalScoreRuntime.postScoreDelaySec = MATCH.postScoreCountdownDelaySec;
+  gameStore.applyNetworkGoal(hit);
+  playGoalCelebration();
+  resetBeamContest();
+  suppressBallBounceForMs(2500);
 }
 
 function registerGoalScore(
