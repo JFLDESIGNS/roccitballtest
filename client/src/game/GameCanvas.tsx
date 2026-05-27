@@ -16,6 +16,7 @@ import { CustomMapOverlay } from '../mapEditor/CustomMapOverlay';
 import { mapRegistryStore } from '../mapEditor/mapEditorStore';
 import { getHiddenStadiumPieces, getPlayModeStadiumGroups } from '../mapEditor/stadiumLayout';
 import { ArenaLighting } from './ArenaLighting';
+import { LowPowerArenaShell } from './LowPowerArenaShell';
 import { Ball, type BallHandle } from './Ball';
 import { BeamVisual } from './BeamVisual';
 import { gameStore } from './gameStore';
@@ -848,6 +849,12 @@ function Scene({
         hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
         hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
       />
+      {badPuter && (
+        <LowPowerArenaShell
+          hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
+          hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
+        />
+      )}
       <CustomMapOverlay />
       <Ball
         ref={ballRef}
@@ -1105,7 +1112,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        <ArenaSky lowPower={gfx.badPuter} />
+        {!gfx.badPuter && <ArenaSky />}
         <ArenaLighting />
         {!gfx.badPuter && <ArenaAtmosphere />}
         <Suspense fallback={null}>
