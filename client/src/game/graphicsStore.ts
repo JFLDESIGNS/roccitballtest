@@ -250,7 +250,7 @@ function applyBadPuterSettings(v: GraphicsSettings): GraphicsSettings {
   return {
     ...v,
     shadows: false,
-    bloom: false,
+    bloom: true,
     ao: false,
     chromaticAberration: false,
     fisheye: false,
@@ -297,7 +297,7 @@ export const graphicsStore = {
         ? {
             badPuter: true,
             shadows: false,
-            bloom: false,
+            bloom: true,
             ao: false,
             chromaticAberration: false,
             fisheye: false,
