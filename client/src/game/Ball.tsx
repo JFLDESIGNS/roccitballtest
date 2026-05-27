@@ -153,6 +153,13 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     tuningStore.subscribe,
     () => tuningStore.getState().ballType,
   );
+  const networkBallVisible = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => {
+      const s = multiplayerStore.getState();
+      return !(s.enabled && s.status === 'online' && s.ball?.visible === false);
+    },
+  );
   const isSuperball = ballType === 'superball';
   const wasHeldRef = useRef(false);
   const lastBounceAt = useRef(0);
@@ -401,7 +408,7 @@ const hasPrevBallPos = useRef(false);
     if (isGoalBallSuckActive()) {
       tickGoalBallSuck(dt);
       const body = bodyRef.current;
-      const alpha = getGoalBallSuckVisualAlpha();
+      const alpha = getGoalBallSuckVisualAlpha() * (networkBallVisible ? 1 : 0);
       const visible = alpha > 0.03;
       if (body) {
         const t = body.translation();
@@ -425,6 +432,21 @@ const hasPrevBallPos = useRef(false);
         applyAlpha(looseVisualMatRef.current);
         setEightBallAuraAlpha(looseVisualRef.current, alpha);
       }
+      return;
+    }
+
+    if (!networkBallVisible) {
+      if (ballMatRef.current) {
+        ballMatRef.current.transparent = true;
+        ballMatRef.current.opacity = 0;
+      }
+      if (looseVisualMatRef.current) {
+        looseVisualMatRef.current.transparent = true;
+        looseVisualMatRef.current.opacity = 0;
+      }
+      if (looseVisualRef.current) looseVisualRef.current.visible = false;
+      if (physicsBallVisualRef.current) physicsBallVisualRef.current.visible = false;
+      setEightBallAuraAlpha(looseVisualRef.current, 0);
       return;
     }
 

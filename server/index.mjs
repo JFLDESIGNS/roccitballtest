@@ -83,15 +83,31 @@ const BALL_RESTITUTION = 0.58;
 const BALL_FRICTION = 0.26;
 const BALL_ANGULAR_DAMPING = 0.06;
 const BALL_MAX_SPEED = 85;
+const FT_TO_M = 0.3048;
 const ROCKET_BALL_HIT_DELTA_V = 22;
 const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
+const TRAMPOLINE_BOUNCE_LAUNCH_HEIGHT_FT = 28;
+const TRAMPOLINE_BOUNCE_PAD_RADIUS_M = (7 * FT_TO_M) / 2;
+const TRAMPOLINE_BOUNCE_PAD_HEIGHT_M = 2 * FT_TO_M;
+const TRAMPOLINE_BOUNCE_PAD_WIDTH_SCALE = 4;
+const TRAMPOLINE_BOUNCE_PAD_SIZE_SCALE = 1.575;
+const TRAMPOLINE_PAD_PLATFORM_HEIGHT_M = 1.4;
+const TRAMPOLINE_PAD_PLATFORM_RAISE_FT = 15;
+const TRAMPOLINE_DECK_RAISE_M = 0.25;
+const TRAMPOLINE_PILLAR_CLEARANCE_M = 8;
+const TRAMPOLINE_MID_WALL_PAD_CENTER_INSET_M = 8 + 15 * FT_TO_M;
+const TRAMPOLINE_STRENGTH = 3.5;
+const TRAMPOLINE_PAD_XZ_SCALE = 1.08;
+const TRAMPOLINE_PAD_MAX_ABOVE_DECK_M = 4.5;
+const TRAMPOLINE_BALL_COOLDOWN_MS = 200;
+const ARENA_PILLAR_HEX_INSET = 1.8;
+const GOAL_BALL_HIDE_RESET_MS = 950;
 const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
 const GOAL_SCORE_COOLDOWN_MS = 5700;
-const FT_TO_M = 0.3048;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
 const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
@@ -133,6 +149,7 @@ function createServerBall() {
     position: { ...BALL_SPAWN },
     velocity: { x: 0, y: 0, z: 0 },
     angularVelocity: { x: 0, y: 0, z: 0 },
+    visible: true,
     updatedAt: Date.now(),
   };
 }
@@ -193,6 +210,85 @@ function listOctagonPlatformPlacements() {
         Math.abs(corner.x) <= 0.5 ? ARENA_MID_WALL_OCTAGON_SIZE_SCALE : 1,
     })),
   ];
+}
+
+function getArenaCornerPillarLayouts() {
+  return hexVertices(ARENA_HEX_RADIUS - ARENA_PILLAR_HEX_INSET).map((corner) => ({
+    x: corner.x,
+    z: corner.z,
+  }));
+}
+
+function trampolinePlatformTopY() {
+  return (
+    ARENA_FLOOR_Y +
+    TRAMPOLINE_PAD_PLATFORM_HEIGHT_M +
+    TRAMPOLINE_PAD_PLATFORM_RAISE_FT * FT_TO_M +
+    TRAMPOLINE_DECK_RAISE_M
+  );
+}
+
+function trampolinePadRadius() {
+  return (
+    TRAMPOLINE_BOUNCE_PAD_RADIUS_M *
+    TRAMPOLINE_BOUNCE_PAD_WIDTH_SCALE *
+    TRAMPOLINE_BOUNCE_PAD_SIZE_SCALE
+  );
+}
+
+function goalFlankPillarPositions(team) {
+  const face = goalEndFaceX();
+  const pillars = getArenaCornerPillarLayouts()
+    .filter((p) => (team === 'red' ? p.x < -20 : p.x > 20))
+    .filter((p) => Math.abs(p.z) > 16)
+    .sort((a, b) => b.z - a.z);
+  const x = team === 'red' ? -face + 10 : face - 10;
+  if (pillars.length >= 2) return pillars.map((p) => ({ x, z: p.z }));
+  return [
+    { x, z: 28 },
+    { x, z: -28 },
+  ];
+}
+
+function getBounceTrampolinePads() {
+  const radius = trampolinePadRadius();
+  const platformTopY = trampolinePlatformTopY();
+  const pads = [];
+  for (const team of ['red', 'blue']) {
+    for (const p of goalFlankPillarPositions(team)) {
+      pads.push({
+        x:
+          p.x +
+          (team === 'red'
+            ? TRAMPOLINE_PILLAR_CLEARANCE_M
+            : -TRAMPOLINE_PILLAR_CLEARANCE_M),
+        z: p.z,
+        radius,
+        platformTopY,
+      });
+    }
+  }
+  for (const p of getArenaCornerPillarLayouts().filter((pillar) => Math.abs(pillar.x) <= 0.5)) {
+    const towardCenterZ = -Math.sign(p.z || 1);
+    pads.push({
+      x: p.x,
+      z: p.z + towardCenterZ * TRAMPOLINE_MID_WALL_PAD_CENTER_INSET_M,
+      radius,
+      platformTopY,
+    });
+  }
+  return pads;
+}
+
+const TRAMPOLINE_PADS = getBounceTrampolinePads();
+
+function trampolineDeckSurfaceY(pad) {
+  return pad.platformTopY + TRAMPOLINE_BOUNCE_PAD_HEIGHT_M;
+}
+
+function trampolineLaunchSpeedY() {
+  const height = TRAMPOLINE_BOUNCE_LAUNCH_HEIGHT_FT * FT_TO_M;
+  return Math.sqrt(2 * Math.abs(GRAVITY_Y) * height) * TRAMPOLINE_STRENGTH;
 }
 
 function buildOctagonPlatformBuffers(topRadius, slopeRadius, topY, bottomY) {
@@ -593,6 +689,30 @@ function addArenaStructureColliders(world) {
         .setFriction(0.12),
     );
   }
+
+  for (const pad of TRAMPOLINE_PADS) {
+    const stemHeight = Math.max(0.1, pad.platformTopY - ARENA_FLOOR_Y);
+    const stemRadius = pad.radius * 1.15 * 1.05;
+    world.createCollider(
+      RAPIER.ColliderDesc.cylinder(stemHeight * 0.5, stemRadius)
+        .setTranslation(pad.x, ARENA_FLOOR_Y + stemHeight * 0.5, pad.z)
+        .setRestitution(0.35)
+        .setFriction(0.55),
+    );
+    world.createCollider(
+      RAPIER.ColliderDesc.cylinder(
+        TRAMPOLINE_BOUNCE_PAD_HEIGHT_M * 0.5,
+        pad.radius,
+      )
+        .setTranslation(
+          pad.x,
+          pad.platformTopY + TRAMPOLINE_BOUNCE_PAD_HEIGHT_M * 0.5,
+          pad.z,
+        )
+        .setRestitution(0.35)
+        .setFriction(0.55),
+    );
+  }
 }
 
 function createRoomPhysics() {
@@ -671,6 +791,8 @@ function getRoom(roomId) {
       physics: createRoomPhysics(),
       lastBallPosition: { ...BALL_SPAWN },
       goalLockedUntil: 0,
+      ballHiddenUntil: 0,
+      ballPadUntil: 0,
     };
     rooms.set(id, room);
   }
@@ -870,8 +992,39 @@ function syncBallFromPhysics(room, now) {
     position: { x: t.x, y: t.y, z: t.z },
     velocity: { x: v.x, y: v.y, z: v.z },
     angularVelocity: { x: av.x, y: av.y, z: av.z },
+    visible: now >= (room.ballHiddenUntil ?? 0),
     updatedAt: now,
   };
+}
+
+function findServerTrampolinePad(x, z) {
+  for (const pad of TRAMPOLINE_PADS) {
+    if (Math.hypot(x - pad.x, z - pad.z) <= pad.radius * TRAMPOLINE_PAD_XZ_SCALE) {
+      return pad;
+    }
+  }
+  return null;
+}
+
+function applyServerTrampolinePads(room, now) {
+  if (!room.physics || now < (room.ballPadUntil ?? 0)) return;
+  const body = room.physics.ballBody;
+  const t = body.translation();
+  const pad = findServerTrampolinePad(t.x, t.z);
+  if (!pad) return;
+
+  const deckY = trampolineDeckSurfaceY(pad);
+  if (t.y > deckY + TRAMPOLINE_PAD_MAX_ABOVE_DECK_M) return;
+  if (t.y < pad.platformTopY - 2.5) return;
+
+  const v = body.linvel();
+  const launchVy = trampolineLaunchSpeedY();
+  body.setTranslation(
+    { x: t.x, y: Math.max(t.y, deckY + BALL_RADIUS + 0.1), z: t.z },
+    true,
+  );
+  body.setLinvel({ x: v.x, y: Math.max(v.y, launchVy), z: v.z }, true);
+  room.ballPadUntil = now + TRAMPOLINE_BALL_COOLDOWN_MS;
 }
 
 function broadcastRoom(room, msg) {
@@ -1015,6 +1168,7 @@ function tickRoomBall(room, dt, now) {
   room.physics.accumulator = Math.min(0.1, room.physics.accumulator + dt);
   while (room.physics.accumulator >= SERVER_PHYSICS_STEP) {
     room.physics.world.step();
+    applyServerTrampolinePads(room, now);
     room.physics.accumulator -= SERVER_PHYSICS_STEP;
   }
   clampPhysicsBallSpeed(room);
@@ -1044,6 +1198,7 @@ function registerServerGoal(room, hit, now) {
   };
   score[hit.scoringTeam] += hit.points;
   room.goalLockedUntil = now + GOAL_SCORE_COOLDOWN_MS;
+  room.ballHiddenUntil = now + GOAL_BALL_HIDE_RESET_MS;
   room.match = {
     ...(room.match ?? {
       phase: 'playing',

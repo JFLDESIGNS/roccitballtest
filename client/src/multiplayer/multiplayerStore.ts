@@ -25,6 +25,7 @@ export type NetworkBallState = {
   position: Vec3;
   velocity: Vec3;
   angularVelocity: Vec3;
+  visible?: boolean;
   updatedAt: number;
 };
 

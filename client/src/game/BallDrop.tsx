@@ -41,6 +41,7 @@ const SCREEN_LOWER_Y = -ARENA.ballDropScreenLowerFt * FT;
 const HOLD_SEC = ARENA.ballDropFlapHoldSec;
 const OPEN_SEC = ARENA.ballDropFlapOpenSec;
 const CLOSE_SEC = ARENA.ballDropFlapCloseSec;
+const BALL_RELEASE_OPEN_PROGRESS = 0.22;
 
 const SLICE_CLOSED = new THREE.Color('#06080c');
 const SLICE_OPEN = new THREE.Color('#141820');
@@ -221,9 +222,14 @@ export function BallDrop() {
       case 'opening': {
         phaseTimer.current += dt;
         doorOpenRef.current = Math.min(1, phaseTimer.current / OPEN_SEC);
-        if (doorOpenRef.current >= 1 && !ballReleased.current) {
+        if (
+          doorOpenRef.current >= BALL_RELEASE_OPEN_PROGRESS &&
+          !ballReleased.current
+        ) {
           ballReleased.current = true;
           triggerKickoffBallRelease();
+        }
+        if (doorOpenRef.current >= 1) {
           flapPhase.current = 'closing';
           phaseTimer.current = 0;
         }
