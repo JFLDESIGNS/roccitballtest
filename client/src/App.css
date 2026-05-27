@@ -142,8 +142,7 @@ body,
   grid-template-columns: minmax(320px, 0.95fr) minmax(430px, 1.35fr);
   gap: 0.45rem;
   align-items: stretch;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
   align-self: end;
 }
 

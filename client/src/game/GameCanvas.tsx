@@ -364,6 +364,7 @@ function Scene({
     multiplayerStore.drainRemoteBallActions();
     const ballForNetwork = ballBodyRef.current;
     if (online && ballForNetwork) {
+      const isLocalHoldingBall = gameStore.getState().ballHolderId === 'local';
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
         if (hostStateSendTimer.current <= 0) {
@@ -390,7 +391,9 @@ function Scene({
           });
         }
       }
-      if (
+      if (isLocalHoldingBall) {
+        networkBallReady.current = false;
+      } else if (
         network.ball &&
         network.ball.updatedAt !== lastAppliedNetworkBallAt.current
       ) {
@@ -409,7 +412,6 @@ function Scene({
           networkSpeed >= localBallPredictionMinSpeed.current &&
           networkTravelFromRelease >= 1.2;
         if (
-          !isNetworkHost &&
           nowMs < localBallPredictionUntil.current &&
           !hostShotLooksCaughtUp
         ) {
@@ -441,6 +443,7 @@ function Scene({
         }
       }
       if (
+        !isLocalHoldingBall &&
         networkBallReady.current &&
         nowMs >= localBallPredictionUntil.current
       ) {
@@ -762,7 +765,7 @@ function Scene({
           holdingBallRef.current = v;
         }}
         onBallReleased={(release) => {
-          if (!multiplayerStore.isHost()) {
+          if (multiplayerStore.getState().enabled) {
             localBallPredictionUntil.current = performance.now() + 650;
             localBallPredictionReleasePos.current.set(
               release.position.x,

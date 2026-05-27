@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import RAPIER from '@dimforge/rapier3d-compat';
+
+await RAPIER.init();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
@@ -17,10 +20,14 @@ const ARENA_FLOOR_Y = 0;
 const GRAVITY_Y = -11;
 const BALL_LINEAR_DAMPING = 0.014;
 const BALL_RESTITUTION = 0.58;
+const BALL_FRICTION = 0.26;
+const BALL_ANGULAR_DAMPING = 0.06;
 const BALL_MAX_SPEED = 85;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
 const SERVER_STEP_MAX = 1 / 30;
+const SERVER_PHYSICS_STEP = 1 / 60;
+const POST_RELEASE_HOLD_BLOCK_MS = 700;
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -50,11 +57,83 @@ function createServerBall() {
   };
 }
 
+function createRoomPhysics() {
+  const world = new RAPIER.World({ x: 0, y: GRAVITY_Y, z: 0 });
+  world.integrationParameters.dt = SERVER_PHYSICS_STEP;
+
+  const ballBody = world.createRigidBody(
+    RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(BALL_SPAWN.x, BALL_SPAWN.y, BALL_SPAWN.z)
+      .setLinearDamping(BALL_LINEAR_DAMPING)
+      .setAngularDamping(BALL_ANGULAR_DAMPING)
+      .setCcdEnabled(true),
+  );
+  world.createCollider(
+    RAPIER.ColliderDesc.ball(BALL_RADIUS)
+      .setDensity(3.5)
+      .setRestitution(BALL_RESTITUTION)
+      .setFriction(BALL_FRICTION),
+    ballBody,
+  );
+
+  const floorThickness = 0.25;
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(
+      ARENA_HEX_RADIUS + 8,
+      floorThickness,
+      ARENA_HEX_RADIUS + 8,
+    )
+      .setTranslation(0, ARENA_FLOOR_Y - floorThickness, 0)
+      .setRestitution(BALL_RESTITUTION)
+      .setFriction(BALL_FRICTION),
+  );
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(
+      ARENA_HEX_RADIUS + 8,
+      floorThickness,
+      ARENA_HEX_RADIUS + 8,
+    )
+      .setTranslation(0, ARENA_WALL_HEIGHT + floorThickness, 0)
+      .setRestitution(BALL_RESTITUTION)
+      .setFriction(BALL_FRICTION),
+  );
+
+  const apothem = ARENA_HEX_RADIUS * Math.cos(Math.PI / 6);
+  const halfSide = ARENA_HEX_RADIUS * 0.5;
+  const halfHeight = ARENA_WALL_HEIGHT * 0.5;
+  const halfThickness = 0.75;
+  for (let i = 0; i < 6; i += 1) {
+    const normalAngle = i * (Math.PI / 3);
+    const yaw = normalAngle;
+    const halfYaw = yaw * 0.5;
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(halfSide, halfHeight, halfThickness)
+        .setTranslation(
+          Math.cos(normalAngle) * apothem,
+          ARENA_WALL_HEIGHT * 0.5,
+          Math.sin(normalAngle) * apothem,
+        )
+        .setRotation({ x: 0, y: Math.sin(halfYaw), z: 0, w: Math.cos(halfYaw) })
+        .setRestitution(BALL_RESTITUTION)
+        .setFriction(BALL_FRICTION),
+    );
+  }
+
+  return { world, ballBody, accumulator: 0 };
+}
+
 function getRoom(roomId) {
   const id = typeof roomId === 'string' && roomId.trim() ? roomId.trim() : 'main';
   let room = rooms.get(id);
   if (!room) {
-    room = { id, players: new Map(), hostId: null, ball: createServerBall(), match: null };
+    room = {
+      id,
+      players: new Map(),
+      hostId: null,
+      ball: createServerBall(),
+      match: null,
+      physics: createRoomPhysics(),
+    };
     rooms.set(id, room);
   }
   return room;
@@ -228,97 +307,117 @@ function clampBallSpeed(ball) {
   ball.velocity.z *= scale;
 }
 
+function setPhysicsBall(room, position, velocity, angularVelocity = null) {
+  if (!room.physics) room.physics = createRoomPhysics();
+  const body = room.physics.ballBody;
+  body.setTranslation(position, true);
+  body.setLinvel(velocity, true);
+  body.setAngvel(
+    angularVelocity ?? {
+      x: velocity.z / BALL_RADIUS,
+      y: 0,
+      z: -velocity.x / BALL_RADIUS,
+    },
+    true,
+  );
+}
+
+function syncBallFromPhysics(room, now) {
+  if (!room.physics) room.physics = createRoomPhysics();
+  const body = room.physics.ballBody;
+  const t = body.translation();
+  const v = body.linvel();
+  const av = body.angvel();
+  room.ball = {
+    position: { x: t.x, y: t.y, z: t.z },
+    velocity: { x: v.x, y: v.y, z: v.z },
+    angularVelocity: { x: av.x, y: av.y, z: av.z },
+    updatedAt: now,
+  };
+}
+
+function clampPhysicsBallSpeed(room) {
+  const body = room.physics.ballBody;
+  const v = body.linvel();
+  const speed = Math.hypot(v.x, v.y, v.z);
+  if (speed <= BALL_MAX_SPEED || speed <= 0.0001) return;
+  const scale = BALL_MAX_SPEED / speed;
+  body.setLinvel({ x: v.x * scale, y: v.y * scale, z: v.z * scale }, true);
+}
+
 function tickRoomBall(room, dt, now) {
   if (!room.ball) room.ball = createServerBall();
-  const ball = room.ball;
+  if (!room.physics) room.physics = createRoomPhysics();
   const match = room.match;
 
   if (match?.ballFrozen) {
+    const frozenPosition = { ...room.ball.position };
     if (match.countdown > 0 || match.arenaSettleCountdown > 0 || match.loadCountdown > 0) {
-      ball.position = { ...BALL_SPAWN };
+      frozenPosition.x = BALL_SPAWN.x;
+      frozenPosition.y = BALL_SPAWN.y;
+      frozenPosition.z = BALL_SPAWN.z;
     }
-    ball.velocity = { x: 0, y: 0, z: 0 };
-    ball.angularVelocity = { x: 0, y: 0, z: 0 };
-    ball.updatedAt = now;
+    setPhysicsBall(
+      room,
+      frozenPosition,
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: 0, z: 0 },
+    );
+    syncBallFromPhysics(room, now);
     return;
   }
 
   const holder = [...room.players.values()].find(
-    (player) => player.isHoldingBall && player.holdPosition,
+    (player) =>
+      player.isHoldingBall &&
+      player.holdPosition &&
+      (!player.releasedBallUntil || now >= player.releasedBallUntil),
   );
   if (holder) {
-    ball.position = sanitizeVec3(holder.holdPosition, ball.position);
-    ball.velocity = sanitizeVec3(holder.velocity, ball.velocity);
-    ball.angularVelocity = { x: 0, y: 0, z: 0 };
-    ball.updatedAt = now;
+    setPhysicsBall(
+      room,
+      sanitizeVec3(holder.holdPosition, room.ball.position),
+      sanitizeVec3(holder.velocity, room.ball.velocity),
+      { x: 0, y: 0, z: 0 },
+    );
+    syncBallFromPhysics(room, now);
     return;
   }
 
-  ball.velocity.y += GRAVITY_Y * dt;
-
   for (const player of room.players.values()) {
     if (!player.isBeaming) continue;
+    const body = room.physics.ballBody;
+    const ballPosition = body.translation();
+    const ballVelocity = body.linvel();
     const chest = {
       x: player.position.x,
       y: player.position.y + 1.2,
       z: player.position.z,
     };
-    const dx = chest.x - ball.position.x;
-    const dy = chest.y - ball.position.y;
-    const dz = chest.z - ball.position.z;
+    const dx = chest.x - ballPosition.x;
+    const dy = chest.y - ballPosition.y;
+    const dz = chest.z - ballPosition.z;
     const dist = Math.hypot(dx, dy, dz);
     if (dist <= 0.001 || dist > BEAM_RANGE) continue;
     const closeBoost = 1 + Math.max(0, 1 - dist / BEAM_RANGE) * 0.9;
     const accel = BEAM_PULL_ACCEL * closeBoost;
-    ball.velocity.x += (dx / dist) * accel * dt;
-    ball.velocity.y += (dy / dist) * accel * dt;
-    ball.velocity.z += (dz / dist) * accel * dt;
+    body.setLinvel(
+      {
+        x: ballVelocity.x + (dx / dist) * accel * dt,
+        y: ballVelocity.y + (dy / dist) * accel * dt,
+        z: ballVelocity.z + (dz / dist) * accel * dt,
+      },
+      true,
+    );
   }
 
-  const damping = Math.exp(-BALL_LINEAR_DAMPING * 60 * dt);
-  ball.velocity.x *= damping;
-  ball.velocity.y *= damping;
-  ball.velocity.z *= damping;
-  clampBallSpeed(ball);
-
-  ball.position.x += ball.velocity.x * dt;
-  ball.position.y += ball.velocity.y * dt;
-  ball.position.z += ball.velocity.z * dt;
-
-  const floorY = ARENA_FLOOR_Y + BALL_RADIUS;
-  if (ball.position.y < floorY) {
-    ball.position.y = floorY;
-    if (ball.velocity.y < 0) ball.velocity.y = -ball.velocity.y * BALL_RESTITUTION;
-    ball.velocity.x *= 0.96;
-    ball.velocity.z *= 0.96;
+  room.physics.accumulator = Math.min(0.1, room.physics.accumulator + dt);
+  while (room.physics.accumulator >= SERVER_PHYSICS_STEP) {
+    room.physics.world.step();
+    room.physics.accumulator -= SERVER_PHYSICS_STEP;
   }
-
-  const ceilingY = ARENA_WALL_HEIGHT - BALL_RADIUS;
-  if (ball.position.y > ceilingY) {
-    ball.position.y = ceilingY;
-    if (ball.velocity.y > 0) ball.velocity.y = -ball.velocity.y * BALL_RESTITUTION;
-  }
-
-  const maxPlanar = ARENA_HEX_RADIUS - BALL_RADIUS;
-  const planarDist = Math.hypot(ball.position.x, ball.position.z);
-  if (planarDist > maxPlanar && planarDist > 0.001) {
-    const nx = ball.position.x / planarDist;
-    const nz = ball.position.z / planarDist;
-    ball.position.x = nx * maxPlanar;
-    ball.position.z = nz * maxPlanar;
-    const outwardSpeed = ball.velocity.x * nx + ball.velocity.z * nz;
-    if (outwardSpeed > 0) {
-      ball.velocity.x -= (1 + BALL_RESTITUTION) * outwardSpeed * nx;
-      ball.velocity.z -= (1 + BALL_RESTITUTION) * outwardSpeed * nz;
-    }
-  }
-
-  ball.angularVelocity = {
-    x: ball.velocity.z / BALL_RADIUS,
-    y: 0,
-    z: -ball.velocity.x / BALL_RADIUS,
-  };
-  ball.updatedAt = now;
+  clampPhysicsBallSpeed(room);
+  syncBallFromPhysics(room, now);
 }
 
 function handleClientMessage(socket, raw) {
@@ -377,6 +476,7 @@ function handleClientMessage(socket, raw) {
     player.holdPosition = msg.holdPosition
       ? sanitizeVec3(msg.holdPosition, player.position)
       : null;
+    if (!player.isHoldingBall) player.releasedBallUntil = 0;
     player.updatedAt = Date.now();
     return;
   }
@@ -433,6 +533,9 @@ function handleClientMessage(socket, raw) {
       velocity: sanitizeVec3(msg.action?.velocity),
       ballState: msg.action?.ballState === 'loose' ? 'loose' : 'launched',
     };
+    player.isHoldingBall = false;
+    player.holdPosition = null;
+    player.releasedBallUntil = Date.now() + POST_RELEASE_HOLD_BLOCK_MS;
     room.ball.position = action.position;
     room.ball.velocity = action.velocity;
     room.ball.angularVelocity = {
@@ -442,6 +545,7 @@ function handleClientMessage(socket, raw) {
     };
     clampBallSpeed(room.ball);
     room.ball.updatedAt = Date.now();
+    setPhysicsBall(room, room.ball.position, room.ball.velocity, room.ball.angularVelocity);
     const packet = {
       type: 'ballAction',
       serverTime: Date.now(),
