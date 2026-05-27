@@ -1082,10 +1082,14 @@ export const GOAL_RINGS = {
   midRingBackWallOffsetM: 1.75,
   /** @deprecated visuals follow collider rigidbody — kept at 0 */
   midRingBackVisualExtraFt: 0,
-  /** Middle ring back-cap square — pull toward court (feet) */
-  midRingBackCapCourtOffsetFt: 1,
+  /** Middle (2 pt) backup cap square — out from black disc toward court (feet) */
+  midRingBackCapCourtOffsetFt: 2.75,
+  /** Top (5 pt) backup cap square — out from black disc toward court (feet) */
+  topRingBackCapCourtOffsetFt: 2.75,
   /** Middle ring back-cap square — extra push toward wall (feet) */
   midRingCapWallOffsetFt: 0,
+  /** Top (5 pt) scoring cylinder — lift toward ring center (feet) */
+  scoringVolumeTopLiftFt: 2,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */
   bottomRingWallStandoffFt: 15,
   /**

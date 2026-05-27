@@ -132,12 +132,15 @@ export function goalScoringCenter(
   const forward = goalScoringArenaForwardM(goal.size);
   const pullBack = goalScoringWallPullbackM(goal.size);
   const towardCourt = goal.team === 'red' ? 1 : -1;
+  const yLiftFt =
+    goal.size === 'small' ? GOAL_RINGS.scoringVolumeTopLiftFt : 0;
+
   return {
     x:
       goal.center.x +
       (goal.team === 'red' ? -inset : inset) +
       towardCourt * (forward - pullBack),
-    y: goal.center.y,
+    y: goal.center.y + yLiftFt * FT,
     z: goal.center.z,
   };
 }
@@ -223,29 +226,42 @@ export function goalBackCapColliderRadius(
   return goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
 }
 
-/** World center of the black back cap disc (matches GoalRingBackplate) */
+/** World center of the black back cap disc (flush on back ring — not the backup square). */
 export function goalBackCapDiscCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
   const backX = goalBackRingCenterX(goal);
   return {
-    x: backX + goalBackCapArenaNudgeM(goal.team, goal.size),
+    x: backX,
     y: goal.center.y,
     z: goal.center.z,
   };
 }
 
-/** Local X nudge for middle backup cap square / hole disc (matches GoalRingBackplate) */
+/** World center of the square backup cap collider (in front of the black disc). */
+export function goalBackCapSquareCenter(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  const disc = goalBackCapDiscCenter(goal);
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  return {
+    x: disc.x + towardCourt * goalBackCapArenaNudgeM(goal.team, goal.size),
+    y: disc.y,
+    z: disc.z,
+  };
+}
+
+/** Local +X nudge for backup cap square along hole axis (after ring tilt). */
 export function goalBackCapArenaNudgeM(team: Team, size: GoalSize): number {
-  const capNudgeScale = size === 'medium' ? 0.22 : 0.15;
-  const wallFt = size === 'medium' ? GOAL_RINGS.midRingCapWallOffsetFt : 0;
-  const courtFt =
-    size === 'medium' ? GOAL_RINGS.midRingBackCapCourtOffsetFt : 0;
   const towardCourt = team === 'red' ? 1 : -1;
-  return (
-    towardCourt *
-    (GOAL_RINGS.backRingWallOffsetM * capNudgeScale + (wallFt - courtFt) * FT)
-  );
+  if (size === 'medium') {
+    return towardCourt * GOAL_RINGS.midRingBackCapCourtOffsetFt * FT;
+  }
+  if (size === 'small') {
+    return towardCourt * GOAL_RINGS.topRingBackCapCourtOffsetFt * FT;
+  }
+  const capNudgeScale = 0.15;
+  return towardCourt * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
 }
 
 function buildWallRings(team: Team, wallX: number): GoalDef[] {

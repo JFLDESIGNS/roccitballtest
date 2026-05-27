@@ -48,7 +48,7 @@ import {
   findArenaPillarSegmentHit,
 } from './arenaPillars';
 import { tryTriggerBillboardImpact } from './interactableHits';
-import { punchLightGlowAlongBallSegment } from './lightGlowHits';
+import { punchLightGlowForBall } from './lightGlowHits';
 import type { WallMount } from './arenaPadLayout';
 import {
   triggerArenaPillarShake,
@@ -328,6 +328,15 @@ const hasPrevBallPos = useRef(false);
     }
 
     const t = body.translation();
+    _ballTo.current.set(t.x, t.y, t.z);
+    const from = prevBallPos.current;
+    const hadPrevPos = hasPrevBallPos.current;
+    if (hadPrevPos) {
+      punchLightGlowForBall(from, _ballTo.current, BALL.radius);
+    } else {
+      punchLightGlowForBall(_ballTo.current, _ballTo.current, BALL.radius);
+    }
+
     if (gameStore.getState().ballHolderId) {
       tryBallGoalScoreAtPoint({ x: t.x, y: t.y, z: t.z }, body);
       prevBallPos.current.set(t.x, t.y, t.z);
@@ -341,8 +350,6 @@ const hasPrevBallPos = useRef(false);
       applyBallSpinBounce(body, spinBounce);
     }
 
-    const from = prevBallPos.current;
-    const hadPrevPos = hasPrevBallPos.current;
     if (hadPrevPos) {
       if (
         tryBallGoalScore(
@@ -368,7 +375,6 @@ const hasPrevBallPos = useRef(false);
         triggerArenaPillarShake(sweepPillar.x, sweepPillar.z);
       }
       tryTriggerBillboardImpact(from, _ballTo.current);
-      punchLightGlowAlongBallSegment(from, _ballTo.current);
     }
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;

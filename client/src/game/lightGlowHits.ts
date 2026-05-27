@@ -1,9 +1,16 @@
 import * as THREE from 'three';
 import {
+  lightGlowPunchNowSec,
+  LIGHT_GLOW_BALL_PUNCH_REGEN_S,
   LIGHT_GLOW_BALL_RADIUS_MULTIPLIER,
+  LIGHT_GLOW_ROCKET_PUNCH_REGEN_S,
+  LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER,
   punchLightGlowHoleAtWorld,
 } from './lightGlowHoles';
-import { intersectLightGlowScreenSegment } from './lightGlowScreenRegistry';
+import {
+  findLightGlowBallContact,
+  intersectLightGlowScreenSegment,
+} from './lightGlowScreenRegistry';
 import type { ActiveRocket } from './rocketSystem';
 
 export type LightGlowSegmentHit = {
@@ -13,6 +20,19 @@ export type LightGlowSegmentHit = {
   u: number;
   v: number;
 };
+
+const _segFrom = new THREE.Vector3();
+const _segTo = new THREE.Vector3();
+
+const lastBallPunchByGlow = new Map<
+  string,
+  { x: number; y: number; z: number; at: number }
+>();
+
+/** New crater while rolling; resting contact can repeat on a slower cadence. */
+const BALL_PUNCH_MIN_INTERVAL_S = 0.1;
+const BALL_PUNCH_MIN_MOVE_M = 0.5;
+const BALL_PUNCH_RESTING_INTERVAL_S = 0.22;
 
 export function findLightGlowSegmentHit(
   from: THREE.Vector3,
@@ -39,20 +59,106 @@ export function punchLightGlowAlongRocketSegment(
   if (!hit) return;
   if (rocket.punchedGlowIds.has(hit.glowId)) return;
   rocket.punchedGlowIds.add(hit.glowId);
-  punchLightGlowHoleAtWorld(hit.glowId, hit.point, rocket.explosive);
+  const radiusMul = rocket.explosive
+    ? LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER * 1.2
+    : LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER;
+  punchLightGlowHoleAtWorld(
+    hit.glowId,
+    hit.point,
+    rocket.explosive,
+    radiusMul,
+    LIGHT_GLOW_ROCKET_PUNCH_REGEN_S,
+  );
 }
 
-/** Ball sweep punch — larger crater, does not block movement. */
-export function punchLightGlowAlongBallSegment(
-  from: THREE.Vector3,
-  to: THREE.Vector3,
+function shouldAddBallPunch(
+  glowId: string,
+  point: THREE.Vector3,
+  allowRestingRepeat: boolean,
+): boolean {
+  const now = lightGlowPunchNowSec();
+  const prev = lastBallPunchByGlow.get(glowId);
+  if (!prev) return true;
+
+  const minInterval = allowRestingRepeat
+    ? BALL_PUNCH_RESTING_INTERVAL_S
+    : BALL_PUNCH_MIN_INTERVAL_S;
+  if (now - prev.at < minInterval) return false;
+
+  const dx = point.x - prev.x;
+  const dy = point.y - prev.y;
+  const dz = point.z - prev.z;
+  const moveSq = dx * dx + dy * dy + dz * dz;
+  if (moveSq >= BALL_PUNCH_MIN_MOVE_M * BALL_PUNCH_MIN_MOVE_M) return true;
+
+  return allowRestingRepeat;
+}
+
+function recordBallPunch(glowId: string, point: THREE.Vector3): void {
+  lastBallPunchByGlow.set(glowId, {
+    x: point.x,
+    y: point.y,
+    z: point.z,
+    at: lightGlowPunchNowSec(),
+  });
+}
+
+function punchLightGlowFromBallHit(
+  hit: LightGlowSegmentHit,
+  allowRestingRepeat: boolean,
 ): void {
-  const hit = findLightGlowSegmentHit(from, to);
-  if (!hit) return;
+  if (!shouldAddBallPunch(hit.glowId, hit.point, allowRestingRepeat)) return;
+  recordBallPunch(hit.glowId, hit.point);
   punchLightGlowHoleAtWorld(
     hit.glowId,
     hit.point,
     false,
     LIGHT_GLOW_BALL_RADIUS_MULTIPLIER,
+    LIGHT_GLOW_BALL_PUNCH_REGEN_S,
   );
+}
+
+function punchSegmentSample(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  ballRadius: number,
+): void {
+  const hit = findLightGlowSegmentHit(from, to);
+  if (hit) punchLightGlowFromBallHit(hit, false);
+  const contact = findLightGlowBallContact(to, ballRadius);
+  if (contact) punchLightGlowFromBallHit(contact, true);
+}
+
+/**
+ * Ball vs glow — segment sweep (fast travel) + sphere contact (touch / roll / held).
+ * Each punch heals out over {@link LIGHT_GLOW_BALL_PUNCH_REGEN_S}.
+ */
+export function punchLightGlowForBall(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  ballRadius: number,
+): void {
+  const dist = from.distanceTo(to);
+  const step = Math.max(ballRadius * 0.75, 0.35);
+  if (dist <= step) {
+    punchSegmentSample(from, to, ballRadius);
+    return;
+  }
+
+  const steps = Math.min(12, Math.ceil(dist / step));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const t0 = (i - 1) / steps;
+    _segTo.lerpVectors(from, to, t);
+    _segFrom.lerpVectors(from, to, t0);
+    punchSegmentSample(_segFrom, _segTo, ballRadius);
+  }
+}
+
+/** @deprecated Use {@link punchLightGlowForBall} */
+export function punchLightGlowAlongBallSegment(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+): void {
+  punchLightGlowForBall(from, to, 1.6);
 }

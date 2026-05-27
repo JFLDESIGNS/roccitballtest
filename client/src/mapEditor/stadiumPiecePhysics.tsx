@@ -6,7 +6,15 @@ import {
   RigidBody,
 } from '@react-three/rapier';
 import { useMemo } from 'react';
-import { ARENA_GOALS, buildTorusTrimesh, goalBackRingCenterX, goalScoreHoleRadius, ringTiltX, ringTube } from '../game/goals';
+import {
+  ARENA_GOALS,
+  buildTorusTrimesh,
+  goalBackCapArenaNudgeM,
+  goalBackRingCenterX,
+  goalScoreHoleRadius,
+  ringTiltX,
+  ringTube,
+} from '../game/goals';
 import { ARENA_PILLAR } from '../game/arenaPillars';
 import { GOAL_RINGS, BALL } from '../shared/Constants';
 import type { GoalDef } from '../shared/Types';
@@ -27,6 +35,7 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
   const backTube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
   const capColliderR = goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
+  const capArenaNudge = goalBackCapArenaNudgeM(goal.team, goal.size);
 
   const litTorusCollider = useMemo(
     () => buildTorusTrimesh(goal.ringRadius, tube, radial, tubular),
@@ -60,12 +69,14 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
               restitution={GOAL_RING_RESTITUTION}
               collisionGroups={GOAL_BLACK_RING_COLLISION}
             />
-            <CuboidCollider
-              args={[capColliderR, capColliderR, 0.05]}
-              friction={0.2}
-              restitution={0.82}
-              collisionGroups={interactionGroups(2, [0, 2])}
-            />
+            <group position={[capArenaNudge, 0, 0]}>
+              <CuboidCollider
+                args={[capColliderR, capColliderR, 0.05]}
+                friction={0.2}
+                restitution={0.82}
+                collisionGroups={interactionGroups(2, [0, 2])}
+              />
+            </group>
           </group>
         </group>
       </RigidBody>

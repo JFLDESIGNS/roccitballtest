@@ -5,7 +5,6 @@ import { GOAL_RINGS } from '../shared/Constants';
 import type { GoalDef } from '../shared/Types';
 import { ARENA_PILLAR } from '../game/arenaPillars';
 import {
-  goalBackCapArenaNudgeM,
   goalBackRingCenterX,
   goalScoreHoleRadius,
   ringTiltX,
@@ -128,27 +127,12 @@ function GoalRingBackplateVisual({
     return m;
   }, []);
 
-  const capArenaNudge = goalBackCapArenaNudgeM(goal.team, goal.size);
-  const capTiltX =
-    goal.size === 'medium'
-      ? 0.2
-      : goal.size === 'small'
-        ? ringTiltX(goal.team, goal.size) * 0.35
-        : 0;
-
   return (
     <group position={[backX, 0, 0]}>
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
           <mesh geometry={torusGeo} castShadow receiveShadow material={goalBackRingMaterial} />
-          <mesh
-            geometry={capGeo}
-            castShadow
-            receiveShadow
-            material={capMat}
-            position={[capArenaNudge, 0, 0]}
-            rotation={[capTiltX, 0, 0]}
-          />
+          <mesh geometry={capGeo} castShadow receiveShadow material={capMat} />
         </group>
       </group>
     </group>

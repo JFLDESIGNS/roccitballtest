@@ -15,6 +15,7 @@ const _hitLocal = new THREE.Vector3();
 const _hitWorld = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _rayDir = new THREE.Vector3();
+const _worldScale = new THREE.Vector3();
 
 export function registerLightGlowScreen(
   entry: RegisteredLightGlowScreen,
@@ -83,6 +84,58 @@ export function intersectLightGlowScreenSegment(
     }
 
     bestT = t;
+    best = {
+      glowId: screen.glowId,
+      point: _hitWorld.clone(),
+      normal: _normal.clone(),
+      u: THREE.MathUtils.clamp(u, 0, 1),
+      v: THREE.MathUtils.clamp(v, 0, 1),
+    };
+  }
+
+  return best;
+}
+
+/**
+ * Ball sphere overlapping a glow plane (resting contact, held ball, slow rolls).
+ */
+export function findLightGlowBallContact(
+  center: THREE.Vector3,
+  ballRadius: number,
+): LightGlowScreenHit | null {
+  let bestPlaneDist = Infinity;
+  let best: LightGlowScreenHit | null = null;
+
+  for (const screen of screens) {
+    screen.mesh.updateWorldMatrix(true, false);
+    _inv.copy(screen.mesh.matrixWorld).invert();
+    _hitLocal.copy(center).applyMatrix4(_inv);
+
+    const planeDist = Math.abs(_hitLocal.z);
+    screen.mesh.getWorldScale(_worldScale);
+    const maxScale = Math.max(_worldScale.x, _worldScale.y, 1e-3);
+    const maxDepth = ballRadius + 0.9;
+    if (planeDist > maxDepth) continue;
+
+    const localBallPad = (ballRadius + 0.25) / maxScale;
+    const hw = 0.5 + localBallPad * 0.58;
+    const hh = 0.5 + localBallPad * 0.58;
+    const lx = _hitLocal.x;
+    const ly = _hitLocal.y;
+    if (Math.abs(lx) > hw || Math.abs(ly) > hh) continue;
+
+    const u = lx + 0.5;
+    const v = ly + 0.5;
+    const dist = Math.hypot(u - 0.5, v - 0.5) * 2;
+    if (dist > 1.02 + localBallPad * 0.32) continue;
+
+    if (planeDist >= bestPlaneDist) continue;
+    bestPlaneDist = planeDist;
+
+    _hitLocal.z = 0;
+    _hitWorld.copy(_hitLocal).applyMatrix4(screen.mesh.matrixWorld);
+    _normal.set(0, 0, 1).transformDirection(screen.mesh.matrixWorld).normalize();
+
     best = {
       glowId: screen.glowId,
       point: _hitWorld.clone(),

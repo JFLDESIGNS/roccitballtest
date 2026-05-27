@@ -3,14 +3,24 @@ import * as THREE from 'three';
 /** Max rocket craters per lamp glow (shader loop size). */
 export const LIGHT_GLOW_MAX_PUNCHES = 24;
 
-/** Time for a punched hole to fully heal (s). */
-export const LIGHT_GLOW_PUNCH_REGEN_S = 2.65;
+/** Rocket crater heal time (s). */
+export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25;
+
+/** Rocket smoke-ring trail diameter multiplier (normal rockets). */
+export const LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER = 0.64;
+
+/** Ball crater heal — faster than legacy 2× rocket duration. */
+export const LIGHT_GLOW_BALL_PUNCH_REGEN_S =
+  LIGHT_GLOW_ROCKET_PUNCH_REGEN_S * 2 * 0.7;
+
+/** @deprecated Use LIGHT_GLOW_ROCKET_PUNCH_REGEN_S */
+export const LIGHT_GLOW_PUNCH_REGEN_S = LIGHT_GLOW_ROCKET_PUNCH_REGEN_S;
 
 const HOLE_RADIUS_M = 3.2 * 0.7 * 0.72 * 1.2;
 const HOLE_RADIUS_EXPLOSIVE_M = 5.8 * 0.7 * 0.72 * 1.2;
 
-/** Ball craters are 2× rocket punch radius. */
-export const LIGHT_GLOW_BALL_RADIUS_MULTIPLIER = 2;
+/** Ball punch radius vs base hole (was 2×; now 75% of that). */
+export const LIGHT_GLOW_BALL_RADIUS_MULTIPLIER = 2 * 0.75;
 
 type WorldPunch = {
   x: number;
@@ -18,6 +28,7 @@ type WorldPunch = {
   z: number;
   radius: number;
   bornAt: number;
+  regenS: number;
 };
 
 const punchesByGlow = new Map<string, WorldPunch[]>();
@@ -39,9 +50,12 @@ export function lightGlowPunchNowSec(): number {
 }
 
 /** 1 = full cutout, 0 = fully healed. */
-export function lightGlowPunchStrength(ageSec: number): number {
-  if (ageSec >= LIGHT_GLOW_PUNCH_REGEN_S) return 0;
-  return 1 - ageSec / LIGHT_GLOW_PUNCH_REGEN_S;
+export function lightGlowPunchStrength(
+  ageSec: number,
+  regenS = LIGHT_GLOW_ROCKET_PUNCH_REGEN_S,
+): number {
+  if (ageSec >= regenS) return 0;
+  return 1 - ageSec / regenS;
 }
 
 export function getLightGlowPunchRevision(): number {
@@ -63,9 +77,8 @@ function getPunchList(glowId: string): WorldPunch[] {
 }
 
 function pruneExpired(list: WorldPunch[], nowSec: number): void {
-  const maxAge = LIGHT_GLOW_PUNCH_REGEN_S;
   for (let i = list.length - 1; i >= 0; i--) {
-    if (nowSec - list[i].bornAt >= maxAge) list.splice(i, 1);
+    if (nowSec - list[i].bornAt >= list[i].regenS) list.splice(i, 1);
   }
 }
 
@@ -83,6 +96,7 @@ export function punchLightGlowHoleAtWorld(
   worldPoint: THREE.Vector3,
   explosive = false,
   radiusMultiplier = 1,
+  regenS = LIGHT_GLOW_ROCKET_PUNCH_REGEN_S,
 ): void {
   const nowSec = lightGlowPunchNowSec();
   const list = getPunchList(glowId);
@@ -92,6 +106,7 @@ export function punchLightGlowHoleAtWorld(
     z: worldPoint.z,
     radius: lightGlowHoleRadius(explosive, radiusMultiplier),
     bornAt: nowSec,
+    regenS,
   });
   while (list.length > LIGHT_GLOW_MAX_PUNCHES) list.shift();
   notify();
@@ -113,7 +128,7 @@ export function getLightGlowPunchUniforms(
 
   const active: { p: WorldPunch; strength: number }[] = [];
   for (const p of list) {
-    const strength = lightGlowPunchStrength(nowSec - p.bornAt);
+    const strength = lightGlowPunchStrength(nowSec - p.bornAt, p.regenS);
     if (strength <= 0.001) continue;
     active.push({ p, strength });
   }

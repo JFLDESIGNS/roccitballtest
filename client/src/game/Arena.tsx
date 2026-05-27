@@ -197,8 +197,6 @@ function GoalRingBackplate({
   }, []);
 
   const capArenaNudge = goalBackCapArenaNudgeM(team, size);
-  const capTiltX =
-    size === 'medium' ? 0.2 : size === 'small' ? ringTiltX(team, size) * 0.35 : 0;
 
   return (
     <MaybeRigidBody
@@ -229,8 +227,6 @@ function GoalRingBackplate({
             castShadow={false}
             receiveShadow
             material={capMat}
-            position={[capArenaNudge, 0, 0]}
-            rotation={[capTiltX, 0, 0]}
             renderOrder={1}
           />
         </group>

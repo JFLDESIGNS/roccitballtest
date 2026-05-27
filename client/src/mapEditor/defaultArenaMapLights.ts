@@ -30,55 +30,46 @@ const CENTER_GLOW_COLOR = saturateHexColor('#b0d8ff', 1.3);
 const RED_GLOW_COLOR = '#ff1d18';
 const BLUE_GLOW_COLOR = '#184eff';
 
+const GLOW_LAMP = {
+  kind: 'point' as const,
+  rotation: [-Math.PI / 4, 0, 0] as [number, number, number],
+  angle: Math.PI / 5,
+  penumbra: 0.35,
+  rectWidth: 14,
+  rectHeight: 8,
+  castShadow: false,
+};
+
 /**
- * Built-in map lights for Default Arena (point lamps + play-mode glow billboards).
- * Baked from the Newbie map layout: light-blue center + red/blue side fills.
+ * Default Arena ceiling glows — center + one per goal end (smoke billboards).
  */
 export const DEFAULT_ARENA_MAP_LIGHTS: MapLight[] = [
   normalizeMapLight({
     id: 'default-light-center',
     name: 'Center glow',
-    kind: 'point',
+    ...GLOW_LAMP,
     position: [0, GLOW_Y, 0],
-    rotation: [-Math.PI / 4, 0, 0],
     color: CENTER_GLOW_COLOR,
     intensity: 8,
     distance: 80,
-    angle: Math.PI / 5,
-    penumbra: 0.35,
-    rectWidth: 14,
-    rectHeight: 8,
-    castShadow: false,
   }),
   normalizeMapLight({
     id: 'default-light-red',
     name: 'Red side glow',
-    kind: 'point',
+    ...GLOW_LAMP,
     position: [RED_GLOW_X, GLOW_Y - 1.2, 0],
-    rotation: [-Math.PI / 4, 0, 0],
     color: RED_GLOW_COLOR,
     intensity: 6.5,
     distance: 72,
-    angle: Math.PI / 5,
-    penumbra: 0.35,
-    rectWidth: 14,
-    rectHeight: 8,
-    castShadow: false,
   }),
   normalizeMapLight({
     id: 'default-light-blue',
     name: 'Blue side glow',
-    kind: 'point',
+    ...GLOW_LAMP,
     position: [BLUE_GLOW_X, GLOW_Y - 1.2, 0],
-    rotation: [-Math.PI / 4, 0, 0],
     color: BLUE_GLOW_COLOR,
     intensity: 6.5,
     distance: 72,
-    angle: Math.PI / 5,
-    penumbra: 0.35,
-    rectWidth: 14,
-    rectHeight: 8,
-    castShadow: false,
   }),
 ];
 
