@@ -25,7 +25,6 @@ export const ROCKET_HIT_WIRE_COLOR = '#bb55ff';
 const ROCKET_PLAY_R = ARENA.hexRadius - 0.6;
 const ROCKET_FLOOR_HIT_Y = 0.35;
 const ROCKET_CEILING_HIT_Y = ARENA.wallHeight - 0.35;
-const ROCKET_ENTITY_R = 0.55;
 const ROCKET_PILLAR_PAD = 0.45;
 
 function makeWireMaterial(color: string): THREE.LineBasicMaterial {
@@ -292,10 +291,10 @@ function TrampolineRocketWire({
 
 function GoalRimRocketWire({ goal }: { goal: (typeof ARENA_GOALS)[0] }) {
   const litMajor = goal.ringRadius;
-  const litTube = ringTube(litMajor) + ROCKET_ENTITY_R;
+  // Match visible/Rapier torus geometry (tube radius), not inflated rocket radius.
+  const litTube = ringTube(litMajor);
   const backMajor = goal.ringRadius * GOAL_RINGS.backRingScale;
-  const backTube =
-    ringTube(backMajor) * GOAL_RINGS.backRingTubeScale + ROCKET_ENTITY_R;
+  const backTube = ringTube(backMajor) * GOAL_RINGS.backRingTubeScale;
   const tiltX = ringTiltX(goal.team, goal.size);
   const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
 
