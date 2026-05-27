@@ -13,6 +13,9 @@ export type RemoteMultiplayerPlayer = {
   velocity: Vec3;
   rotation: { yaw: number; pitch: number };
   energy: number;
+  isBeaming: boolean;
+  isHoldingBall: boolean;
+  holdPosition: Vec3 | null;
   updatedAt: number;
 };
 
@@ -35,6 +38,15 @@ export type NetworkRocketState = {
   explosive: boolean;
 };
 
+export type NetworkBallAction = {
+  id: string;
+  ownerId: string;
+  kind: 'release';
+  position: Vec3;
+  velocity: Vec3;
+  ballState: 'loose' | 'launched';
+};
+
 type NetworkMatchState = {
   score: MatchScore;
   timeLeft: number;
@@ -53,6 +65,7 @@ type MultiplayerState = {
   ball: NetworkBallState | null;
   match: NetworkMatchState | null;
   remoteRockets: NetworkRocketState[];
+  remoteBallActions: NetworkBallAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
@@ -70,6 +83,11 @@ type ServerMessage =
       type: 'rocketFire';
       serverTime: number;
       rocket: NetworkRocketState;
+    }
+  | {
+      type: 'ballAction';
+      serverTime: number;
+      action: NetworkBallAction;
     };
 
 type LocalPlayerUpdate = {
@@ -77,6 +95,9 @@ type LocalPlayerUpdate = {
   velocity: Vec3;
   rotation: { yaw: number; pitch: number };
   energy: number;
+  isBeaming: boolean;
+  isHoldingBall: boolean;
+  holdPosition: Vec3 | null;
 };
 
 const listeners = new Set<() => void>();
@@ -97,6 +118,7 @@ let state: MultiplayerState = {
   ball: null,
   match: null,
   remoteRockets: [],
+  remoteBallActions: [],
   remotePlayers: [],
 };
 
@@ -166,6 +188,13 @@ function handleMessage(raw: string) {
     patch({
       remoteRockets: [...state.remoteRockets, msg.rocket].slice(-24),
     });
+    return;
+  }
+
+  if (msg.type === 'ballAction') {
+    patch({
+      remoteBallActions: [...state.remoteBallActions, msg.action].slice(-24),
+    });
   }
 }
 
@@ -203,6 +232,7 @@ export const multiplayerStore = {
       ball: null,
       match: null,
       remoteRockets: [],
+      remoteBallActions: [],
       remotePlayers: [],
     });
 
@@ -243,6 +273,7 @@ export const multiplayerStore = {
           ball: null,
           match: null,
           remoteRockets: [],
+          remoteBallActions: [],
           remotePlayers: [],
         });
       }
@@ -261,6 +292,7 @@ export const multiplayerStore = {
       ball: null,
       match: null,
       remoteRockets: [],
+      remoteBallActions: [],
       remotePlayers: [],
     });
   },
@@ -303,11 +335,30 @@ export const multiplayerStore = {
     });
   },
 
+  sendBallAction(action: Omit<NetworkBallAction, 'id' | 'ownerId'>): void {
+    if (!state.enabled || state.status !== 'online') return;
+    sendJson({
+      type: 'ballAction',
+      action: {
+        id: crypto.randomUUID(),
+        ...action,
+      },
+    });
+  },
+
   drainRemoteRockets(): NetworkRocketState[] {
     const rockets = state.remoteRockets;
     if (rockets.length === 0) return [];
     state = { ...state, remoteRockets: [] };
     emit();
     return rockets;
+  },
+
+  drainRemoteBallActions(): NetworkBallAction[] {
+    const actions = state.remoteBallActions;
+    if (actions.length === 0) return [];
+    state = { ...state, remoteBallActions: [] };
+    emit();
+    return actions;
   },
 };

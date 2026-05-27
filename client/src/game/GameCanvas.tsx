@@ -29,12 +29,15 @@ import { inputManager } from './InputManager';
 import { DebugFreelook } from './DebugFreelook';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
+import { applyBeamAttraction } from './beamPhysics';
+import { applyBallLaunchImpulse } from './ballPhysics';
 import { RocketRecoilFx } from './RocketRecoilFx';
 import { RocketTrailSmoke } from './RocketTrailSmoke';
 import {
   goalScoreRuntime,
   registerGoalScoreBotProvider,
   tickGoalScoreRuntime,
+  tryBallGoalScoreAtPoint,
 } from './goalScoreHandler';
 import type { ActiveRocket } from './rocketSystem';
 import {
@@ -82,6 +85,7 @@ import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
 import {
   multiplayerStore,
+  type NetworkBallAction,
   type NetworkRocketState,
 } from '../multiplayer/multiplayerStore';
 import { RemotePlayers } from './RemotePlayers';
@@ -126,6 +130,23 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
     explosive: r.explosive,
     punchedGlowIds: new Set(),
   };
+}
+
+function applyNetworkBallAction(
+  body: RapierRigidBody,
+  action: NetworkBallAction,
+): void {
+  body.setTranslation(action.position, true);
+  applyBallLaunchImpulse(
+    body,
+    new THREE.Vector3(
+      action.velocity.x,
+      action.velocity.y,
+      action.velocity.z,
+    ),
+  );
+  gameStore.clearBallHolder(true);
+  gameStore.setBallState(action.ballState);
 }
 
 function MatchLoop({
@@ -286,6 +307,8 @@ function Scene({
   const networkBallTargetAngVel = useRef(new THREE.Vector3());
   const networkBallSmoothedPos = useRef(new THREE.Vector3());
   const networkBallPredictedPos = useRef(new THREE.Vector3());
+  const remoteBeamBallPos = useRef(new THREE.Vector3());
+  const remoteBeamChestPos = useRef(new THREE.Vector3());
   const lastExplosionSfxAt = useRef(0);
   const { gl } = useThree();
   const beamLowEnergy = useSyncExternalStore(
@@ -357,7 +380,48 @@ function Scene({
         ...rocketsRef.current,
       ].slice(0, ROCKET.maxActive);
     }
+    const remoteBallActions = multiplayerStore.drainRemoteBallActions();
     const ballForNetwork = ballBodyRef.current;
+    if (isNetworkHost && ballForNetwork) {
+      for (const action of remoteBallActions) {
+        if (action.ownerId === network.selfId) continue;
+        applyNetworkBallAction(ballForNetwork, action);
+      }
+
+      const store = gameStore.getState();
+      if (!store.ballFrozen && store.ballHolderId === null) {
+        for (const remote of network.remotePlayers) {
+          if (remote.isHoldingBall && remote.holdPosition) {
+            ballForNetwork.setTranslation(remote.holdPosition, true);
+            ballForNetwork.setLinvel(remote.velocity, true);
+            ballForNetwork.setAngvel({ x: 0, y: 0, z: 0 }, true);
+            gameStore.setBallState('held');
+            tryBallGoalScoreAtPoint(remote.holdPosition, ballForNetwork);
+            break;
+          }
+
+          if (!remote.isBeaming) continue;
+          const t = ballForNetwork.translation();
+          remoteBeamBallPos.current.set(t.x, t.y, t.z);
+          remoteBeamChestPos.current.set(
+            remote.position.x,
+            remote.position.y + BEAM.chestHeight,
+            remote.position.z,
+          );
+          if (remoteBeamChestPos.current.distanceTo(remoteBeamBallPos.current) >= BEAM.range) {
+            continue;
+          }
+          const pull = applyBeamAttraction(
+            ballForNetwork,
+            remoteBeamBallPos.current,
+            remoteBeamChestPos.current,
+            dt,
+            tuningStore.getState().pullStrength,
+          );
+          if (pull.applied) gameStore.setBallState('pulled');
+        }
+      }
+    }
     if (online && ballForNetwork) {
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
@@ -484,6 +548,9 @@ function Scene({
         yaw: number;
         pitch: number;
         velocity: { x: number; y: number; z: number };
+        isBeaming: boolean;
+        isHoldingBall: boolean;
+        holdPosition: { x: number; y: number; z: number } | null;
       },
     ) => {
       playerPosRef.current.copy(pos);
@@ -495,6 +562,9 @@ function Scene({
         velocity: pose.velocity,
         rotation: { yaw: pose.yaw, pitch: pose.pitch },
         energy: gameStore.getState().energy,
+        isBeaming: pose.isBeaming,
+        isHoldingBall: pose.isHoldingBall,
+        holdPosition: pose.holdPosition,
       });
     },
     [],
@@ -718,6 +788,14 @@ function Scene({
         onBallHeldChange={(v) => {
           holdingBallRef.current = v;
           holdingBallRef.current = v;
+        }}
+        onBallReleased={(release) => {
+          multiplayerStore.sendBallAction({
+            kind: 'release',
+            position: release.position,
+            velocity: release.velocity,
+            ballState: release.ballState,
+          });
         }}
         onBeamBreak={() => {
           holdingBallRef.current = false;

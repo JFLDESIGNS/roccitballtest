@@ -192,6 +192,11 @@ type PlayerProps = {
   ballBodyRef: React.RefObject<RapierRigidBody | null>;
   onRocketFired: (rocket: ReturnType<typeof createRocket>) => void;
   onBallHeldChange: (held: boolean) => void;
+  onBallReleased?: (release: {
+    position: { x: number; y: number; z: number };
+    velocity: { x: number; y: number; z: number };
+    ballState: 'loose' | 'launched';
+  }) => void;
   onBeamBreak: () => void;
   onPositionUpdate: (
     pos: THREE.Vector3,
@@ -200,6 +205,9 @@ type PlayerProps = {
       yaw: number;
       pitch: number;
       velocity: { x: number; y: number; z: number };
+      isBeaming: boolean;
+      isHoldingBall: boolean;
+      holdPosition: { x: number; y: number; z: number } | null;
     },
   ) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
@@ -213,6 +221,7 @@ export function Player({
   ballBodyRef,
   onRocketFired,
   onBallHeldChange,
+  onBallReleased,
   onBeamBreak,
   onPositionUpdate,
   onPlayerBodyReady,
@@ -668,6 +677,9 @@ export function Player({
         yaw: rot.yaw,
         pitch: inputManager.getAimPitch(),
         velocity: { x: lv.x, y: lv.y, z: lv.z },
+        isBeaming: gameStore.getState().isBeaming,
+        isHoldingBall: false,
+        holdPosition: null,
       });
       updateThirdPersonCamera(
         camera,
@@ -721,6 +733,17 @@ export function Player({
       yaw: rot.yaw,
       pitch: inputManager.getAimPitch(),
       velocity: { x: linvel.x, y: linvel.y, z: linvel.z },
+      isBeaming: gameStore.getState().isBeaming,
+      isHoldingBall:
+        holdingBall.current || gameStore.getState().ballHolderId === 'local',
+      holdPosition:
+        holdingBall.current || gameStore.getState().ballHolderId === 'local'
+          ? {
+              x: holdSocketSmoothed.current.x,
+              y: holdSocketSmoothed.current.y,
+              z: holdSocketSmoothed.current.z,
+            }
+          : null,
     });
     const moveSpeed = Math.hypot(linvel.x, linvel.z);
     const goalEjectMoveLocked = isPlayerGoalEjectMoveLocked();
@@ -1209,6 +1232,15 @@ export function Player({
         true,
       );
       applyBallLaunchImpulse(ball, velocity, swingVel);
+      onBallReleased?.({
+        position: {
+          x: _holdSocket.current.x,
+          y: _holdSocket.current.y,
+          z: _holdSocket.current.z,
+        },
+        velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+        ballState,
+      });
       gameStore.setBallState(ballState);
     };
 

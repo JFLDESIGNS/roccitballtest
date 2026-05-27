@@ -211,6 +211,9 @@ function handleClientMessage(socket, raw) {
       velocity: { x: 0, y: 0, z: 0 },
       rotation: { yaw: 0, pitch: 0 },
       energy: 100,
+      isBeaming: false,
+      isHoldingBall: false,
+      holdPosition: null,
       updatedAt: Date.now(),
     };
     clients.set(socket, { id, roomId: room.id });
@@ -236,6 +239,11 @@ function handleClientMessage(socket, raw) {
     player.energy = Number.isFinite(msg.energy)
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;
+    player.isBeaming = Boolean(msg.isBeaming);
+    player.isHoldingBall = Boolean(msg.isHoldingBall);
+    player.holdPosition = msg.holdPosition
+      ? sanitizeVec3(msg.holdPosition, player.position)
+      : null;
     player.updatedAt = Date.now();
     return;
   }
@@ -269,6 +277,31 @@ function handleClientMessage(socket, raw) {
       type: 'rocketFire',
       serverTime: Date.now(),
       rocket,
+    };
+    for (const [peerSocket, peerClient] of clients) {
+      if (peerSocket !== socket && peerClient.roomId === room.id) {
+        sendJson(peerSocket, packet);
+      }
+    }
+    return;
+  }
+
+  if (msg.type === 'ballAction') {
+    const action = {
+      id:
+        typeof msg.action?.id === 'string'
+          ? msg.action.id.slice(0, 64)
+          : crypto.randomUUID(),
+      ownerId: client.id,
+      kind: 'release',
+      position: sanitizeVec3(msg.action?.position),
+      velocity: sanitizeVec3(msg.action?.velocity),
+      ballState: msg.action?.ballState === 'loose' ? 'loose' : 'launched',
+    };
+    const packet = {
+      type: 'ballAction',
+      serverTime: Date.now(),
+      action,
     };
     for (const [peerSocket, peerClient] of clients) {
       if (peerSocket !== socket && peerClient.roomId === room.id) {
