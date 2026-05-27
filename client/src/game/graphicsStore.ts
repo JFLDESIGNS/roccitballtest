@@ -245,7 +245,23 @@ function persist(v: GraphicsSettings) {
   }
 }
 
+function applyBadPuterSettings(v: GraphicsSettings): GraphicsSettings {
+  if (!v.badPuter) return v;
+  return {
+    ...v,
+    shadows: false,
+    bloom: false,
+    ao: false,
+    chromaticAberration: false,
+    fisheye: false,
+    lensFlare: false,
+    keyLight2CastShadow: false,
+    keyLight3CastShadow: false,
+  };
+}
+
 let state: GraphicsState = normalizeSettings(loadStored());
+state = applyBadPuterSettings(state);
 
 if (!localStorage.getItem(KEY_OMNI_SHADOW_OFF_MIGRATION)) {
   state = normalizeSettings({
@@ -263,6 +279,7 @@ if (!localStorage.getItem(KEY_OMNI_SHADOW_OFF_MIGRATION)) {
 
 function patch(partial: Partial<GraphicsSettings>) {
   state = normalizeSettings({ ...state, ...partial });
+  state = applyBadPuterSettings(state);
   persist(state);
   notify();
 }
@@ -274,7 +291,22 @@ export const graphicsStore = {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
-  setBadPuter: (v: boolean) => patch({ badPuter: v }),
+  setBadPuter: (v: boolean) =>
+    patch(
+      v
+        ? {
+            badPuter: true,
+            shadows: false,
+            bloom: false,
+            ao: false,
+            chromaticAberration: false,
+            fisheye: false,
+            lensFlare: false,
+            keyLight2CastShadow: false,
+            keyLight3CastShadow: false,
+          }
+        : { badPuter: false },
+    ),
   setShadows: (v: boolean) => patch({ shadows: v }),
   setShadowMapType: (v: ShadowMapTypeId) => patch({ shadowMapType: v }),
   setBloom: (v: boolean) => patch({ bloom: v }),
