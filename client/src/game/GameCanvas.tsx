@@ -29,15 +29,12 @@ import { inputManager } from './InputManager';
 import { DebugFreelook } from './DebugFreelook';
 import { Player } from './Player';
 import { Rockets } from './Rockets';
-import { applyBeamAttraction } from './beamPhysics';
-import { applyBallLaunchImpulse } from './ballPhysics';
 import { RocketRecoilFx } from './RocketRecoilFx';
 import { RocketTrailSmoke } from './RocketTrailSmoke';
 import {
   goalScoreRuntime,
   registerGoalScoreBotProvider,
   tickGoalScoreRuntime,
-  tryBallGoalScoreAtPoint,
 } from './goalScoreHandler';
 import type { ActiveRocket } from './rocketSystem';
 import {
@@ -85,7 +82,6 @@ import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
 import {
   multiplayerStore,
-  type NetworkBallAction,
   type NetworkRocketState,
 } from '../multiplayer/multiplayerStore';
 import { RemotePlayers } from './RemotePlayers';
@@ -130,23 +126,6 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
     explosive: r.explosive,
     punchedGlowIds: new Set(),
   };
-}
-
-function applyNetworkBallAction(
-  body: RapierRigidBody,
-  action: NetworkBallAction,
-): void {
-  body.setTranslation(action.position, true);
-  applyBallLaunchImpulse(
-    body,
-    new THREE.Vector3(
-      action.velocity.x,
-      action.velocity.y,
-      action.velocity.z,
-    ),
-  );
-  gameStore.clearBallHolder(true);
-  gameStore.setBallState(action.ballState);
 }
 
 function MatchLoop({
@@ -310,8 +289,6 @@ function Scene({
   const localBallPredictionUntil = useRef(0);
   const localBallPredictionReleasePos = useRef(new THREE.Vector3());
   const localBallPredictionMinSpeed = useRef(0);
-  const remoteBeamBallPos = useRef(new THREE.Vector3());
-  const remoteBeamChestPos = useRef(new THREE.Vector3());
   const lastExplosionSfxAt = useRef(0);
   const { gl } = useThree();
   const beamLowEnergy = useSyncExternalStore(
@@ -384,48 +361,8 @@ function Scene({
         ...rocketsRef.current,
       ].slice(0, ROCKET.maxActive);
     }
-    const remoteBallActions = multiplayerStore.drainRemoteBallActions();
+    multiplayerStore.drainRemoteBallActions();
     const ballForNetwork = ballBodyRef.current;
-    if (isNetworkHost && ballForNetwork) {
-      for (const action of remoteBallActions) {
-        if (action.ownerId === network.selfId) continue;
-        applyNetworkBallAction(ballForNetwork, action);
-      }
-
-      const store = gameStore.getState();
-      if (!store.ballFrozen && store.ballHolderId === null) {
-        for (const remote of network.remotePlayers) {
-          if (remote.isHoldingBall && remote.holdPosition) {
-            ballForNetwork.setTranslation(remote.holdPosition, true);
-            ballForNetwork.setLinvel(remote.velocity, true);
-            ballForNetwork.setAngvel({ x: 0, y: 0, z: 0 }, true);
-            gameStore.setBallState('held');
-            tryBallGoalScoreAtPoint(remote.holdPosition, ballForNetwork);
-            break;
-          }
-
-          if (!remote.isBeaming) continue;
-          const t = ballForNetwork.translation();
-          remoteBeamBallPos.current.set(t.x, t.y, t.z);
-          remoteBeamChestPos.current.set(
-            remote.position.x,
-            remote.position.y + BEAM.chestHeight,
-            remote.position.z,
-          );
-          if (remoteBeamChestPos.current.distanceTo(remoteBeamBallPos.current) >= BEAM.range) {
-            continue;
-          }
-          const pull = applyBeamAttraction(
-            ballForNetwork,
-            remoteBeamBallPos.current,
-            remoteBeamChestPos.current,
-            dt,
-            tuningStore.getState().pullStrength,
-          );
-          if (pull.applied) gameStore.setBallState('pulled');
-        }
-      }
-    }
     if (online && ballForNetwork) {
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
@@ -452,7 +389,8 @@ function Scene({
             },
           });
         }
-      } else if (
+      }
+      if (
         network.ball &&
         network.ball.updatedAt !== lastAppliedNetworkBallAt.current
       ) {
@@ -471,38 +409,38 @@ function Scene({
           networkSpeed >= localBallPredictionMinSpeed.current &&
           networkTravelFromRelease >= 1.2;
         if (
+          !isNetworkHost &&
           nowMs < localBallPredictionUntil.current &&
           !hostShotLooksCaughtUp
         ) {
-          // Keep the follower's local release prediction alive until the host
+          // Keep the follower's local release prediction alive until the server
           // sends a ball state that actually looks like the shot took over.
-          return;
+        } else {
+          lastAppliedNetworkBallAt.current = b.updatedAt;
+          networkBallTargetPos.current.set(
+            b.position.x,
+            b.position.y,
+            b.position.z,
+          );
+          networkBallTargetVel.current.set(
+            b.velocity.x,
+            b.velocity.y,
+            b.velocity.z,
+          );
+          networkBallTargetAngVel.current.set(
+            b.angularVelocity.x,
+            b.angularVelocity.y,
+            b.angularVelocity.z,
+          );
+          if (!networkBallReady.current) {
+            networkBallSmoothedPos.current.copy(networkBallTargetPos.current);
+            networkBallReady.current = true;
+          }
+          localBallPredictionUntil.current = 0;
+          localBallPredictionMinSpeed.current = 0;
         }
-        lastAppliedNetworkBallAt.current = b.updatedAt;
-        networkBallTargetPos.current.set(
-          b.position.x,
-          b.position.y,
-          b.position.z,
-        );
-        networkBallTargetVel.current.set(
-          b.velocity.x,
-          b.velocity.y,
-          b.velocity.z,
-        );
-        networkBallTargetAngVel.current.set(
-          b.angularVelocity.x,
-          b.angularVelocity.y,
-          b.angularVelocity.z,
-        );
-        if (!networkBallReady.current) {
-          networkBallSmoothedPos.current.copy(networkBallTargetPos.current);
-          networkBallReady.current = true;
-        }
-        localBallPredictionUntil.current = 0;
-        localBallPredictionMinSpeed.current = 0;
       }
       if (
-        !isNetworkHost &&
         networkBallReady.current &&
         nowMs >= localBallPredictionUntil.current
       ) {

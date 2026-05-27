@@ -9,6 +9,18 @@ const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'client', 'dist');
 const port = Number(process.env.PORT || 3000);
 const snapshotHz = Number(process.env.SNAPSHOT_HZ || 30);
+const BALL_RADIUS = 1.6;
+const BALL_SPAWN = { x: 0, y: 2.05, z: 0 };
+const ARENA_HEX_RADIUS = 64;
+const ARENA_WALL_HEIGHT = 43.7;
+const ARENA_FLOOR_Y = 0;
+const GRAVITY_Y = -11;
+const BALL_LINEAR_DAMPING = 0.014;
+const BALL_RESTITUTION = 0.58;
+const BALL_MAX_SPEED = 85;
+const BEAM_RANGE = 42 * 0.6;
+const BEAM_PULL_ACCEL = 39;
+const SERVER_STEP_MAX = 1 / 30;
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -29,11 +41,20 @@ const mimeTypes = new Map([
 const rooms = new Map();
 const clients = new Map();
 
+function createServerBall() {
+  return {
+    position: { ...BALL_SPAWN },
+    velocity: { x: 0, y: 0, z: 0 },
+    angularVelocity: { x: 0, y: 0, z: 0 },
+    updatedAt: Date.now(),
+  };
+}
+
 function getRoom(roomId) {
   const id = typeof roomId === 'string' && roomId.trim() ? roomId.trim() : 'main';
   let room = rooms.get(id);
   if (!room) {
-    room = { id, players: new Map(), hostId: null, ball: null, match: null };
+    room = { id, players: new Map(), hostId: null, ball: createServerBall(), match: null };
     rooms.set(id, room);
   }
   return room;
@@ -133,7 +154,6 @@ function removeClient(socket) {
   room?.players.delete(client.id);
   if (room?.hostId === client.id) {
     room.hostId = [...room.players.keys()][0] ?? null;
-    room.ball = null;
     room.match = null;
   }
   if (room && room.players.size === 0) rooms.delete(room.id);
@@ -197,6 +217,108 @@ function sanitizeMatchState(match = {}) {
       : 0,
     ballFrozen: Boolean(match.ballFrozen),
   };
+}
+
+function clampBallSpeed(ball) {
+  const speed = Math.hypot(ball.velocity.x, ball.velocity.y, ball.velocity.z);
+  if (speed <= BALL_MAX_SPEED || speed <= 0.0001) return;
+  const scale = BALL_MAX_SPEED / speed;
+  ball.velocity.x *= scale;
+  ball.velocity.y *= scale;
+  ball.velocity.z *= scale;
+}
+
+function tickRoomBall(room, dt, now) {
+  if (!room.ball) room.ball = createServerBall();
+  const ball = room.ball;
+  const match = room.match;
+
+  if (match?.ballFrozen) {
+    if (match.countdown > 0 || match.arenaSettleCountdown > 0 || match.loadCountdown > 0) {
+      ball.position = { ...BALL_SPAWN };
+    }
+    ball.velocity = { x: 0, y: 0, z: 0 };
+    ball.angularVelocity = { x: 0, y: 0, z: 0 };
+    ball.updatedAt = now;
+    return;
+  }
+
+  const holder = [...room.players.values()].find(
+    (player) => player.isHoldingBall && player.holdPosition,
+  );
+  if (holder) {
+    ball.position = sanitizeVec3(holder.holdPosition, ball.position);
+    ball.velocity = sanitizeVec3(holder.velocity, ball.velocity);
+    ball.angularVelocity = { x: 0, y: 0, z: 0 };
+    ball.updatedAt = now;
+    return;
+  }
+
+  ball.velocity.y += GRAVITY_Y * dt;
+
+  for (const player of room.players.values()) {
+    if (!player.isBeaming) continue;
+    const chest = {
+      x: player.position.x,
+      y: player.position.y + 1.2,
+      z: player.position.z,
+    };
+    const dx = chest.x - ball.position.x;
+    const dy = chest.y - ball.position.y;
+    const dz = chest.z - ball.position.z;
+    const dist = Math.hypot(dx, dy, dz);
+    if (dist <= 0.001 || dist > BEAM_RANGE) continue;
+    const closeBoost = 1 + Math.max(0, 1 - dist / BEAM_RANGE) * 0.9;
+    const accel = BEAM_PULL_ACCEL * closeBoost;
+    ball.velocity.x += (dx / dist) * accel * dt;
+    ball.velocity.y += (dy / dist) * accel * dt;
+    ball.velocity.z += (dz / dist) * accel * dt;
+  }
+
+  const damping = Math.exp(-BALL_LINEAR_DAMPING * 60 * dt);
+  ball.velocity.x *= damping;
+  ball.velocity.y *= damping;
+  ball.velocity.z *= damping;
+  clampBallSpeed(ball);
+
+  ball.position.x += ball.velocity.x * dt;
+  ball.position.y += ball.velocity.y * dt;
+  ball.position.z += ball.velocity.z * dt;
+
+  const floorY = ARENA_FLOOR_Y + BALL_RADIUS;
+  if (ball.position.y < floorY) {
+    ball.position.y = floorY;
+    if (ball.velocity.y < 0) ball.velocity.y = -ball.velocity.y * BALL_RESTITUTION;
+    ball.velocity.x *= 0.96;
+    ball.velocity.z *= 0.96;
+  }
+
+  const ceilingY = ARENA_WALL_HEIGHT - BALL_RADIUS;
+  if (ball.position.y > ceilingY) {
+    ball.position.y = ceilingY;
+    if (ball.velocity.y > 0) ball.velocity.y = -ball.velocity.y * BALL_RESTITUTION;
+  }
+
+  const maxPlanar = ARENA_HEX_RADIUS - BALL_RADIUS;
+  const planarDist = Math.hypot(ball.position.x, ball.position.z);
+  if (planarDist > maxPlanar && planarDist > 0.001) {
+    const nx = ball.position.x / planarDist;
+    const nz = ball.position.z / planarDist;
+    ball.position.x = nx * maxPlanar;
+    ball.position.z = nz * maxPlanar;
+    const outwardSpeed = ball.velocity.x * nx + ball.velocity.z * nz;
+    if (outwardSpeed > 0) {
+      ball.velocity.x -= (1 + BALL_RESTITUTION) * outwardSpeed * nx;
+      ball.velocity.z -= (1 + BALL_RESTITUTION) * outwardSpeed * nz;
+    }
+  }
+
+  ball.angularVelocity = {
+    x: ball.velocity.z / BALL_RADIUS,
+    y: 0,
+    z: -ball.velocity.x / BALL_RADIUS,
+  };
+  ball.updatedAt = now;
 }
 
 function handleClientMessage(socket, raw) {
@@ -266,12 +388,7 @@ function handleClientMessage(socket, raw) {
   }
 
   if (msg.type === 'hostState' && client.id === room.hostId) {
-    room.ball = {
-      position: sanitizeVec3(msg.ball?.position),
-      velocity: sanitizeVec3(msg.ball?.velocity),
-      angularVelocity: sanitizeVec3(msg.ball?.angularVelocity),
-      updatedAt: Date.now(),
-    };
+    if (!room.ball) room.ball = createServerBall();
     room.match = sanitizeMatchState(msg.match);
     return;
   }
@@ -304,6 +421,7 @@ function handleClientMessage(socket, raw) {
   }
 
   if (msg.type === 'ballAction') {
+    if (!room.ball) room.ball = createServerBall();
     const action = {
       id:
         typeof msg.action?.id === 'string'
@@ -315,6 +433,15 @@ function handleClientMessage(socket, raw) {
       velocity: sanitizeVec3(msg.action?.velocity),
       ballState: msg.action?.ballState === 'loose' ? 'loose' : 'launched',
     };
+    room.ball.position = action.position;
+    room.ball.velocity = action.velocity;
+    room.ball.angularVelocity = {
+      x: action.velocity.z / BALL_RADIUS,
+      y: 0,
+      z: -action.velocity.x / BALL_RADIUS,
+    };
+    clampBallSpeed(room.ball);
+    room.ball.updatedAt = Date.now();
     const packet = {
       type: 'ballAction',
       serverTime: Date.now(),
@@ -344,6 +471,15 @@ function broadcastSnapshots() {
       if (client.roomId === room.id) sendFrame(socket, packet);
     }
   }
+}
+
+let lastServerStepAt = Date.now();
+function tickServer() {
+  const now = Date.now();
+  const dt = Math.min(SERVER_STEP_MAX, Math.max(0, (now - lastServerStepAt) / 1000));
+  lastServerStepAt = now;
+  for (const room of rooms.values()) tickRoomBall(room, dt, now);
+  broadcastSnapshots();
 }
 
 function serveStatic(req, res) {
@@ -404,7 +540,7 @@ server.on('upgrade', (req, socket) => {
   socket.on('error', () => removeClient(socket));
 });
 
-setInterval(broadcastSnapshots, Math.max(16, Math.round(1000 / snapshotHz)));
+setInterval(tickServer, Math.max(16, Math.round(1000 / snapshotHz)));
 
 server.listen(port, () => {
   console.log(`RocccitBall server listening on ${port}`);
