@@ -9,7 +9,44 @@ This file is a living log of gameplay/editor changes and where to find the code.
 - **Gameplay code**: `client/src/game/`
 - **Map editor code**: `client/src/mapEditor/`
 
+## New notes & ideas
+
+Scratchpad for follow-ups, experiments, and things to try next. Add bullets here as they come up; promote finished work into **Recent gameplay changes** below.
+
+### Ideas (backlog)
+
+- *(add ideas here)*
+
+### In progress / watch
+
+- *(add active threads here)*
+
+### Done recently (promote to Recent gameplay changes when stable)
+
+- Rocket collision on jump pad **stone stems** (not just cyan deck) — `arenaPadLayout.ts`, `rocketSystem.ts`, `RocketCollisionDebug.tsx`
+- Purple **G-key** rocket hit wireframes for platforms, trampolines, pillars, goals, billboards, fan glass
+- Platform rocket scale fix — `resolvePlatformWorldScale()` uses group scale only (`arenaSpawn.ts`)
+- Bounce pad deck + stem Rapier colliders + swept logical hits for rockets
+
 ## Recent gameplay changes
+
+### Rockets: collision debug + jump pad hits
+
+- **G key** toggles Rapier colliders plus **purple wireframes** for logical rocket surfaces (`RocketCollisionDebug.tsx`, `gameStore.ts`, `InputManager.ts`).
+- Rockets use swept segment tests (not Rapier) — platforms, bounce/trampoline **deck + stone stem**, pillars, ball drop, goal rims, billboards, fan glass, floor/ceiling/hex bounds.
+- **Jump pads**: deck hits → trampoline launch; stem hits → wall bounce off cylinder (`segmentHitsBounceTrampoline` in `arenaPadLayout.ts`, `tryPlatformBounce` in `rocketSystem.ts`).
+- **Platform scale fix**: rocket hit radii match visible mesh — `resolvePlatformWorldScale()` no longer double-applies `sizeScale` (`arenaSpawn.ts`).
+- **Deduped stadium groups** so moved platforms don’t leave ghost colliders (`stadiumLayout.ts` → `getPlayModeStadiumGroups`).
+
+### Crown forward flip (E / triple jump)
+
+- One forward somersault on emote/triple jump; crown pitch independent of body tilt; 2× faster flip timing.
+- **Files**: `PlayerJumpHat.tsx`, `forwardFlipEmote.ts`, `PlayerVisualProxy.tsx` (crown in overlay slot).
+
+### Audio: menu + in-match music quieter
+
+- Halved base volumes for menu and gameplay background music.
+- **File**: `audio.ts` (`BG_MUSIC_MENU_BASE`, `BG_MUSIC_GAME_BASE`).
 
 ### Bots: look targets + smooth aim (`botLook.ts`)
 
@@ -264,6 +301,8 @@ Frame/screen colors: `BILLBOARD_FRAME`, `BILLBOARD_SCREEN` in that file.
 
 - Not Rapier bodies — manual integration each frame.
 - Wall/floor/ceiling bounce, hex bounds, ball hit, **goal ring** segment contact, fan glass, billboards, explosions.
+- **Platform + pad hits**: `getMaxPlatformSurfaceY`, `segmentHitsBounceTrampoline` (deck + stem), downward-crossing test for octagon tops.
+- **Debug**: `RocketCollisionDebug.tsx` — purple wireframes when **G** collider debug is on.
 
 ---
 
@@ -289,7 +328,7 @@ Frame/screen colors: `BILLBOARD_FRAME`, `BILLBOARD_SCREEN` in that file.
 4. **Rim feel** → `rimBounceRestitution`, `rimOutwardSpeed`, torus colliders in `Arena.tsx`.
 5. **Sounds** → `client/user/sounds/` + `audio.ts` constants; preload in `preloadSamples()`.
 6. **Fan clipping** → `fanFacadeGlassForwardM`, `fanGlassFanClearanceM`.
-7. **Debug colliders** → default on in `gameStore`; **G** toggles.
+7. **Debug colliders** → default on in `gameStore`; **G** toggles Rapier + rocket logical surfaces (purple).
 
 ---
 
@@ -308,6 +347,9 @@ Ball.tsx              — ball sim + score + glass
 Player.tsx            — local player
 GameCanvas.tsx        — wires scene + physics + listener pos
 ArenaBillboardFans.tsx — crowd booths
+RocketCollisionDebug.tsx — purple rocket hit wireframes (G key)
+arenaPadLayout.ts       — bounce/trampoline pad layout + rocket segment hits
+arenaSpawn.ts           — platform world scale for rocket collisions
 ```
 
 ---
@@ -374,4 +416,4 @@ Default density was ~4200 blades at scale 1.0; preheat builds grid async on load
 
 ---
 
-*Last updated May 2026 — see **Recent review** for latest handoff.*
+*Last updated May 2026 — see **New notes & ideas** and **Recent gameplay changes** for latest.*
