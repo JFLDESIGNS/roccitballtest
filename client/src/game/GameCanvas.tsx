@@ -111,6 +111,8 @@ function rocketToNetwork(r: ActiveRocket): Omit<NetworkRocketState, 'ownerId'> {
 
 function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
   const position = new THREE.Vector3(r.position.x, r.position.y, r.position.z);
+  const spawnTime =
+    performance.now() / 1000 - ROCKET.ownerGraceSec - 0.08;
   return {
     id: `${r.ownerId}:${r.id}`,
     position,
@@ -122,7 +124,7 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
       r.segmentStart.z,
     ),
     ownerId: r.ownerId,
-    spawnTime: performance.now() / 1000,
+    spawnTime,
     bouncesLeft: r.bouncesLeft,
     explosive: r.explosive,
     punchedGlowIds: new Set(),
@@ -1103,7 +1105,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        {!gfx.badPuter && <ArenaSky />}
+        <ArenaSky lowPower={gfx.badPuter} />
         <ArenaLighting />
         {!gfx.badPuter && <ArenaAtmosphere />}
         <Suspense fallback={null}>

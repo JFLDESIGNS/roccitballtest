@@ -32,10 +32,11 @@ export function SceneEnvironment() {
   useEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
     /** Blue backdrop only — does not drive PBR (see neutral env map + low env intensity) */
-    const skyDisplay = gfx.badPuter
-      ? new THREE.Color('#161d28')
-      : new THREE.Color('#4a9ee8').lerp(new THREE.Color('#8fd4ff'), 0.4);
-    gl.toneMappingExposure = gfx.exposure * brightness;
+    const skyDisplay = new THREE.Color('#4a9ee8').lerp(
+      new THREE.Color('#8fd4ff'),
+      gfx.badPuter ? 0.22 : 0.4,
+    );
+    gl.toneMappingExposure = gfx.exposure * brightness * (gfx.badPuter ? 1.08 : 1);
     scene.background = skyDisplay;
     /** Dark neutral fog — avoids cyan wash on the court */
     const fogColor = new THREE.Color('#1e2630');
@@ -63,8 +64,8 @@ export function SceneEnvironment() {
   }, [gfx.badPuter, gfx.shadows, gfx.shadowMapType, gl]);
 
   useFrame(() => {
-    gl.toneMappingExposure = gfx.exposure * brightness;
-    scene.environmentIntensity = 0.26;
+    gl.toneMappingExposure = gfx.exposure * brightness * (gfx.badPuter ? 1.08 : 1);
+    scene.environmentIntensity = gfx.badPuter ? 0.56 : 0.26;
     if (!gfx.badPuter && gfx.fog && scene.fog instanceof THREE.FogExp2) {
       scene.fog.density = gfx.fogDensity / Math.max(0.85, brightness);
     }

@@ -179,15 +179,16 @@ function CloudCluster({
 }
 
 /** Open sky — gradient dome + sparse distant cloud clumps */
-export function ArenaSky() {
+export function ArenaSky({ lowPower = false }: { lowPower?: boolean }) {
   const domeGeo = useMemo(() => new THREE.SphereGeometry(920, 32, 24), []);
 
   return (
     <group frustumCulled={false} renderOrder={-20}>
       <mesh geometry={domeGeo} material={skyDomeMaterial} frustumCulled={false} />
-      {CLOUD_CLUSTERS.map((cluster, i) => (
-        <CloudCluster key={i} {...cluster} />
-      ))}
+      {!lowPower &&
+        CLOUD_CLUSTERS.map((cluster, i) => (
+          <CloudCluster key={i} {...cluster} />
+        ))}
     </group>
   );
 }

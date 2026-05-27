@@ -446,7 +446,7 @@ export function Rockets({
       if (canHitPlayer && leftMuzzle && r.ownerId !== 'local') {
         segTo.current.copy(r.position);
         segFrom.current.copy(segTo.current).addScaledVector(r.velocity, -dt);
-        const playerHitRadius = ROCKET.playerHitRadius + 0.6;
+        const playerHitRadius = ROCKET.playerHitRadius + 0.9;
         const hitPlayer =
           segmentHitsSphere(
             segFrom.current,
