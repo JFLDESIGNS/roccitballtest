@@ -250,6 +250,44 @@ function MatchLoop({
   return null;
 }
 
+function PreMatchArenaFlyover() {
+  const { camera } = useThree();
+  const startedAt = useRef(0);
+  const snapped = useRef(false);
+  const target = useRef(new THREE.Vector3(0, 13, 0));
+  const desired = useRef(new THREE.Vector3());
+
+  useFrame(({ clock }, dt) => {
+    const state = gameStore.getState();
+    const active = state.phase === 'playing' && state.arenaSettleCountdown > 0;
+    if (!active) {
+      startedAt.current = 0;
+      snapped.current = false;
+      return;
+    }
+
+    if (startedAt.current === 0) startedAt.current = clock.elapsedTime;
+    const duration = Math.max(0.1, MATCH.arenaSettleCountdownSec);
+    const t = Math.min(1, (clock.elapsedTime - startedAt.current) / duration);
+    const ease = t * t * (3 - 2 * t);
+    const angle = -Math.PI * 0.82 + ease * Math.PI * 1.64;
+    const radius = 58 - Math.sin(ease * Math.PI) * 10;
+    const y = 24 + Math.sin(ease * Math.PI) * 9;
+
+    desired.current.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    if (!snapped.current) {
+      camera.position.copy(desired.current);
+      snapped.current = true;
+    } else {
+      camera.position.lerp(desired.current, 1 - Math.exp(-dt * 5.5));
+    }
+    camera.lookAt(target.current);
+    camera.updateMatrixWorld();
+  }, 10);
+
+  return null;
+}
+
 function Scene({
   onExit,
   rocketsRef,
@@ -923,6 +961,7 @@ function Scene({
         ballVel={ballVel}
       />
       <MatchLoop ballRef={ballRef} botsRef={botsRef} />
+      <PreMatchArenaFlyover />
     </>
   );
 }

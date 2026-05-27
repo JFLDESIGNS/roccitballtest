@@ -14,6 +14,7 @@ import { MainMenu } from './ui/MainMenu';
 import { TuningMenu } from './ui/TuningMenu';
 import { GamePreloadHost } from './game/GamePreloadHost';
 import { gamePreloadStore } from './game/gamePreloadStore';
+import { multiplayerStore } from './multiplayer/multiplayerStore';
 import './App.css';
 
 type AppMode = 'menu' | 'game' | 'editor';
@@ -63,6 +64,7 @@ function App() {
 
   const exitGame = () => {
     document.exitPointerLock();
+    multiplayerStore.sendPlayReady(false);
     gameStore.setPhase('menu');
     returnToMenuAudio();
     setMode('menu');

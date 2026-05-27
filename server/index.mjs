@@ -84,7 +84,7 @@ const BALL_FRICTION = 0.26;
 const BALL_ANGULAR_DAMPING = 0.06;
 const BALL_MAX_SPEED = 85;
 const FT_TO_M = 0.3048;
-const ROCKET_BALL_HIT_DELTA_V = 22;
+const ROCKET_BALL_HIT_DELTA_V = 33;
 const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
@@ -103,7 +103,9 @@ const TRAMPOLINE_PAD_XZ_SCALE = 1.08;
 const TRAMPOLINE_PAD_MAX_ABOVE_DECK_M = 4.5;
 const TRAMPOLINE_BALL_COOLDOWN_MS = 200;
 const ARENA_PILLAR_HEX_INSET = 1.8;
+const ARENA_PILLAR_COLLIDER_RADIUS = 2.95 * 3;
 const GOAL_BALL_HIDE_RESET_MS = 950;
+const BALL_DROP_COLLISION_GRACE_MS = 5000;
 const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
@@ -625,6 +627,7 @@ function buildTorusTrimesh(majorRadius, tubeRadius, radialSegments, tubularSegme
 }
 
 function addArenaStructureColliders(world) {
+  const ballDropColliders = [];
   const topBase = ARENA_OCTAGON_TOP_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
   const slopeBase = ARENA_OCTAGON_SLOPE_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
   for (const placement of listOctagonPlatformPlacements()) {
@@ -642,7 +645,7 @@ function addArenaStructureColliders(world) {
     );
   }
 
-  world.createCollider(
+  const ballDropCube = world.createCollider(
     RAPIER.ColliderDesc.cuboid(
       BALL_DROP_CUBE_HALF,
       BALL_DROP_CUBE_HALF,
@@ -652,6 +655,7 @@ function addArenaStructureColliders(world) {
       .setRestitution(BALL_RESTITUTION * 0.8)
       .setFriction(BALL_FRICTION),
   );
+  ballDropColliders.push(ballDropCube);
 
   const drumRadius = BALL_DROP_DRUM_RADIUS * BALL_DROP_DRUM_SCALE;
   const drumHeightHalf = BALL_DROP_DRUM_HEIGHT_M * 0.5;
@@ -659,7 +663,7 @@ function addArenaStructureColliders(world) {
   for (let i = 0; i < 8; i += 1) {
     const angle = (Math.PI * 2 * i) / 8;
     const halfAngle = angle * 0.5;
-    world.createCollider(
+    const drumPanel = world.createCollider(
       RAPIER.ColliderDesc.cuboid(drumRadius * 0.42, drumHeightHalf, 0.35)
         .setTranslation(
           Math.cos(angle) * drumRadius * 0.86,
@@ -670,6 +674,7 @@ function addArenaStructureColliders(world) {
         .setRestitution(BALL_RESTITUTION * 0.8)
         .setFriction(BALL_FRICTION),
     );
+    ballDropColliders.push(drumPanel);
   }
 
   for (const goal of ARENA_GOALS) {
@@ -713,6 +718,17 @@ function addArenaStructureColliders(world) {
         .setFriction(0.55),
     );
   }
+
+  for (const pillar of getArenaCornerPillarLayouts()) {
+    world.createCollider(
+      RAPIER.ColliderDesc.cylinder(ARENA_WALL_HEIGHT * 0.5, ARENA_PILLAR_COLLIDER_RADIUS)
+        .setTranslation(pillar.x, ARENA_FLOOR_Y + ARENA_WALL_HEIGHT * 0.5, pillar.z)
+        .setRestitution(BALL_RESTITUTION)
+        .setFriction(BALL_FRICTION),
+    );
+  }
+
+  return { ballDropColliders };
 }
 
 function createRoomPhysics() {
@@ -773,9 +789,14 @@ function createRoomPhysics() {
         .setFriction(BALL_FRICTION),
     );
   }
-  addArenaStructureColliders(world);
+  const structures = addArenaStructureColliders(world);
 
-  return { world, ballBody, accumulator: 0 };
+  return {
+    world,
+    ballBody,
+    accumulator: 0,
+    ballDropColliders: structures.ballDropColliders,
+  };
 }
 
 function getRoom(roomId) {
@@ -793,6 +814,7 @@ function getRoom(roomId) {
       goalLockedUntil: 0,
       ballHiddenUntil: 0,
       ballPadUntil: 0,
+      ballDropCollisionDisabledUntil: 0,
     };
     rooms.set(id, room);
   }
@@ -997,6 +1019,25 @@ function syncBallFromPhysics(room, now) {
   };
 }
 
+function setBallDropCollisionEnabled(room, enabled) {
+  if (!room.physics) room.physics = createRoomPhysics();
+  for (const collider of room.physics.ballDropColliders ?? []) {
+    if (typeof collider.setEnabled === 'function') collider.setEnabled(enabled);
+  }
+}
+
+function disableBallDropCollisionForRelease(room, now) {
+  room.ballDropCollisionDisabledUntil = now + BALL_DROP_COLLISION_GRACE_MS;
+  setBallDropCollisionEnabled(room, false);
+}
+
+function updateBallDropCollisionGate(room, now) {
+  if (!room.ballDropCollisionDisabledUntil) return;
+  if (now < room.ballDropCollisionDisabledUntil) return;
+  room.ballDropCollisionDisabledUntil = 0;
+  setBallDropCollisionEnabled(room, true);
+}
+
 function findServerTrampolinePad(x, z) {
   for (const pad of TRAMPOLINE_PADS) {
     if (Math.hypot(x - pad.x, z - pad.z) <= pad.radius * TRAMPOLINE_PAD_XZ_SCALE) {
@@ -1102,6 +1143,7 @@ function applyRocketImpactToServerBall(room, impact, now) {
 function tickRoomBall(room, dt, now) {
   if (!room.ball) room.ball = createServerBall();
   if (!room.physics) room.physics = createRoomPhysics();
+  updateBallDropCollisionGate(room, now);
   const match = room.match;
 
   if (match?.ballFrozen) {
@@ -1258,6 +1300,7 @@ function handleClientMessage(socket, raw) {
       isBeaming: false,
       isHoldingBall: false,
       holdPosition: null,
+      playReady: false,
       loadReady: false,
       updatedAt: Date.now(),
     };
@@ -1295,13 +1338,22 @@ function handleClientMessage(socket, raw) {
   }
 
   if (msg.type === 'loadReady') {
-    player.loadReady = Boolean(msg.ready);
+    player.loadReady = player.playReady && Boolean(msg.ready);
+    player.updatedAt = Date.now();
+    return;
+  }
+
+  if (msg.type === 'playReady') {
+    player.playReady = Boolean(msg.ready);
+    player.loadReady = false;
     player.updatedAt = Date.now();
     return;
   }
 
   if (msg.type === 'hostState' && client.id === room.hostId) {
     if (!room.ball) room.ball = createServerBall();
+    const players = [...room.players.values()];
+    if (players.length < 2 || players.some((p) => !p.playReady)) return;
     const previousFrozen = room.match?.ballFrozen;
     const nextMatch = sanitizeMatchState(msg.match);
     if (Date.now() < (room.goalLockedUntil ?? 0) && room.match) {
@@ -1318,13 +1370,15 @@ function handleClientMessage(socket, raw) {
       );
       syncBallFromPhysics(room, Date.now());
     } else if (previousFrozen && !nextMatch.ballFrozen) {
+      const now = Date.now();
+      disableBallDropCollisionForRelease(room, now);
       setPhysicsBall(
         room,
         BALL_DROP_RELEASE,
         { x: 0, y: -0.2, z: 0 },
         { x: 0, y: 0, z: 0 },
       );
-      syncBallFromPhysics(room, Date.now());
+      syncBallFromPhysics(room, now);
     }
     return;
   }

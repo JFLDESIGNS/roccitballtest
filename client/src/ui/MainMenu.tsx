@@ -103,14 +103,24 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
       return;
     }
     if (multiplayer.status !== 'online') return;
-    if (multiplayer.remotePlayers.length === 0) return;
+    if (!multiplayer.playReady) {
+      multiplayerStore.sendPlayReady(true);
+      return;
+    }
+    const allReady =
+      multiplayer.playReady &&
+      multiplayer.remotePlayers.length > 0 &&
+      multiplayer.remotePlayers.every((player) => player.playReady === true);
+    if (!allReady) return;
     setWaitingForOnlinePlayer(false);
     resumeAudio();
     stopBackgroundMusic();
     onPlay();
   }, [
     multiplayer.enabled,
+    multiplayer.playReady,
     multiplayer.remotePlayers.length,
+    multiplayer.remotePlayers,
     multiplayer.status,
     onPlay,
     waitingForOnlinePlayer,
@@ -131,9 +141,13 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     setLocalProfile(playerName, jerseyNumber);
     multiplayerStore.updateProfile(getLocalProfile());
     if (multiplayer.enabled) {
+      if (multiplayer.status === 'online') {
+        multiplayerStore.sendPlayReady(true);
+      }
       if (
         multiplayer.status !== 'online' ||
-        multiplayer.remotePlayers.length === 0
+        multiplayer.remotePlayers.length === 0 ||
+        !multiplayer.remotePlayers.every((player) => player.playReady === true)
       ) {
         setWaitingForOnlinePlayer(true);
         return;
@@ -150,6 +164,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     const profile = getLocalProfile();
     if (multiplayer.enabled) {
       setWaitingForOnlinePlayer(false);
+      multiplayerStore.sendPlayReady(false);
       multiplayerStore.disconnect();
     } else {
       gameStore.setBotsEnabled(false);
@@ -368,10 +383,9 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           {waitingForOnlinePlayer && (
             <div className="main-menu-waiting-backdrop" role="status">
               <div className="main-menu-waiting-panel">
-                <strong>Waiting for another player</strong>
+                <strong>Waiting for players</strong>
                 <span>
-                  Open this same Railway URL in another browser and turn Online
-                  Multiplayer on.
+                  The match starts after each connected player presses Play Now.
                 </span>
                 <em>
                   Room {multiplayer.roomId} ·{' '}
@@ -381,7 +395,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setWaitingForOnlinePlayer(false)}
+                  onClick={() => {
+                    multiplayerStore.sendPlayReady(false);
+                    setWaitingForOnlinePlayer(false);
+                  }}
                 >
                   Cancel Wait
                 </button>

@@ -300,7 +300,7 @@ const hasPrevBallPos = useRef(false);
       const { releaseY } = getBallDropLayout();
       body.setTranslation({ x: BALL_SPAWN.x, y: releaseY, z: BALL_SPAWN.z }, true);
       body.setLinvel({ x: 0, y: -5.5, z: 0 }, true);
-      armBallDropCollisionGrace(3);
+      armBallDropCollisionGrace(5);
       syncBallLooseCollision(body);
     } else {
       parkBallAtDropSpawn(body);

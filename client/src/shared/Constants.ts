@@ -845,7 +845,7 @@ export const SUPERBALL = {
   /** Rocket impulse multiplier vs original ball */
   knockScale: 1.02,
   /** Superball rocket knock — stronger than original */
-  hitImpulse: 36,
+  hitImpulse: 54,
   knockMinFalloff: 0.52,
   /** Fan-glass wall bounce — lower than arena walls to avoid pinball ricochets */
   fanGlassRestitution: 0.34,
@@ -1002,7 +1002,7 @@ export const ROCKET = {
   /** Direct rocket body hit on local player */
   playerDirectKnock: 26,
   /** Velocity change applied via Rapier impulse on ball hits (× ballKnockStrength) */
-  ballHitImpulse: 22,
+  ballHitImpulse: 33,
   ballSplashMinFalloff: 0.52,
   playerHitRadius: 1.4,
   energyDamageDirect: 35,

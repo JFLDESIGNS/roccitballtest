@@ -45,8 +45,11 @@ export function MapLoadTimer() {
         if (multiplayer.selfId !== multiplayer.hostId) return;
 
         const allPlayersReady =
+          multiplayer.playReady &&
           multiplayer.remotePlayers.length > 0 &&
-          multiplayer.remotePlayers.every((player) => player.loadReady === true);
+          multiplayer.remotePlayers.every(
+            (player) => player.playReady === true && player.loadReady === true,
+          );
         if (localReady && allPlayersReady) {
           gameStore.finishMapLoad();
         }

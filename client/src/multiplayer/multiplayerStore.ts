@@ -17,6 +17,7 @@ export type RemoteMultiplayerPlayer = {
   isBeaming: boolean;
   isHoldingBall: boolean;
   holdPosition: Vec3 | null;
+  playReady?: boolean;
   loadReady?: boolean;
   updatedAt: number;
 };
@@ -77,6 +78,7 @@ type MultiplayerState = {
   error: string | null;
   ball: NetworkBallState | null;
   match: NetworkMatchState | null;
+  playReady: boolean;
   remoteRockets: NetworkRocketState[];
   remoteBallActions: NetworkBallAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
@@ -143,6 +145,7 @@ let state: MultiplayerState = {
   error: null,
   ball: null,
   match: null,
+  playReady: false,
   remoteRockets: [],
   remoteBallActions: [],
   remotePlayers: [],
@@ -273,6 +276,7 @@ export const multiplayerStore = {
       error: null,
       ball: null,
       match: null,
+      playReady: false,
       remoteRockets: [],
       remoteBallActions: [],
       remotePlayers: [],
@@ -314,6 +318,7 @@ export const multiplayerStore = {
           team: null,
           ball: null,
           match: null,
+          playReady: false,
           remoteRockets: [],
           remoteBallActions: [],
           remotePlayers: [],
@@ -333,6 +338,7 @@ export const multiplayerStore = {
       error: null,
       ball: null,
       match: null,
+      playReady: false,
       remoteRockets: [],
       remoteBallActions: [],
       remotePlayers: [],
@@ -360,6 +366,16 @@ export const multiplayerStore = {
       type: 'loadReady',
       ready,
     });
+  },
+
+  sendPlayReady(ready: boolean): void {
+    if (!state.enabled || state.status !== 'online') return;
+    patch({ playReady: ready });
+    sendJson({
+      type: 'playReady',
+      ready,
+    });
+    if (!ready) multiplayerStore.sendLoadReady(false);
   },
 
   isHost(): boolean {

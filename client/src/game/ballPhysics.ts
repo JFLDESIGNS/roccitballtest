@@ -12,7 +12,7 @@ const BALL_HELD_COLLISION = interactionGroups(1, [2]);
 
 let ballDropGraceUntilMs = 0;
 
-export function armBallDropCollisionGrace(seconds = 3): void {
+export function armBallDropCollisionGrace(seconds = 5): void {
   ballDropGraceUntilMs = performance.now() + seconds * 1000;
 }
 
