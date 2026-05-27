@@ -137,7 +137,7 @@ function forwardFlipCrownPopOffset(progress: number): number {
   return CROWN_FLIP_POP_PEAK * settle;
 }
 
-/** One forward somersault (2π) — slow ease, lands upright */
+/** One backward somersault (2π) — opposite the body forward flip, slow ease, lands upright */
 function crownSomersaultPitch(u: number): number {
   if (u <= 0 || u >= 1) return 0;
 
@@ -147,7 +147,7 @@ function crownSomersaultPitch(u: number): number {
 
   const t = (u - flipStart) / (flipEnd - flipStart);
   const eased = t * t * (3 - 2 * t);
-  return -eased * Math.PI * 2;
+  return eased * Math.PI * 2;
 }
 
 type PlayerJumpHatProps = {
