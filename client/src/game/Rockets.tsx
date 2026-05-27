@@ -507,7 +507,7 @@ export function Rockets({
           ) ||
           segTo.current.distanceTo(ballCenter.current) < ballDetectRadius;
         if (hitBall) {
-          const ownerId = r.ownerId as ActorId;
+          const ownerId = r.ownerId;
           announceRocketBallHit(ownerId, ballCenter.current.y);
           if (ownerId === 'local') {
             const bv = ballVel?.();
