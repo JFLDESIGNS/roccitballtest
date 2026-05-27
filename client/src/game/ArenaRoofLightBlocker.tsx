@@ -1,19 +1,13 @@
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
-import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { arenaRoofStore } from './arenaRoofStore';
 import { arenaRoofLayout } from './ArenaRetractableRoof';
-import { graphicsStore } from './graphicsStore';
 
 /** Solid cap above the roof — blocks outdoor sky / key light leak while closed; gone when roof opens */
 const BLOCKER_HEIGHT_M = 28;
 
 export function ArenaRoofLightBlocker() {
-  const badPuter = useSyncExternalStore(
-    graphicsStore.subscribe,
-    () => graphicsStore.getState().badPuter,
-  );
   const groupRef = useRef<THREE.Group>(null);
   const visibleRef = useRef<boolean | null>(null);
   const layout = useMemo(() => arenaRoofLayout(), []);
@@ -39,7 +33,7 @@ export function ArenaRoofLightBlocker() {
   useFrame(() => {
     const group = groupRef.current;
     if (!group) return;
-    const show = !badPuter && arenaRoofStore.getState().open < 0.06;
+    const show = arenaRoofStore.getState().open < 0.06;
     if (visibleRef.current === show) return;
     visibleRef.current = show;
     group.visible = show;

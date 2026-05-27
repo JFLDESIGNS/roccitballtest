@@ -15,8 +15,8 @@ export function ArenaLighting() {
   const b = gfx.arenaBrightness ?? 1;
 
   const hemiSky = INDOOR_HEMI_SKY;
-  const hemiIntensity = (gfx.badPuter ? 1.45 : 0.24) * b;
-  const ambIntensity = (gfx.badPuter ? 0.72 : 0.058) * b;
+  const hemiIntensity = 0.24 * b;
+  const ambIntensity = 0.058 * b;
 
   return (
     <>
@@ -28,22 +28,6 @@ export function ArenaLighting() {
         intensity={ambIntensity}
         color={new THREE.Color('#7a756c')}
       />
-      {gfx.badPuter && (
-        <>
-          <directionalLight
-            position={[24, 52, 18]}
-            intensity={1.65 * b}
-            color="#fff2dc"
-            castShadow={false}
-          />
-          <directionalLight
-            position={[-30, 28, -24]}
-            intensity={0.88 * b}
-            color="#9fcaff"
-            castShadow={false}
-          />
-        </>
-      )}
       <StadiumLightsRuntime />
     </>
   );

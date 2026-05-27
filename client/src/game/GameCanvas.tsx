@@ -16,7 +16,6 @@ import { CustomMapOverlay } from '../mapEditor/CustomMapOverlay';
 import { mapRegistryStore } from '../mapEditor/mapEditorStore';
 import { getHiddenStadiumPieces, getPlayModeStadiumGroups } from '../mapEditor/stadiumLayout';
 import { ArenaLighting } from './ArenaLighting';
-import { LowPowerArenaShell } from './LowPowerArenaShell';
 import { Ball, type BallHandle } from './Ball';
 import { BeamVisual } from './BeamVisual';
 import { gameStore } from './gameStore';
@@ -390,10 +389,6 @@ function Scene({
   const localTeam = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().localTeam,
-  );
-  const badPuter = useSyncExternalStore(
-    graphicsStore.subscribe,
-    () => graphicsStore.getState().badPuter,
   );
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
@@ -849,12 +844,6 @@ function Scene({
         hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
         hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
       />
-      {badPuter && (
-        <LowPowerArenaShell
-          hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
-          hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
-        />
-      )}
       <CustomMapOverlay />
       <Ball
         ref={ballRef}
@@ -942,15 +931,15 @@ function Scene({
         team={localTeam}
       />
       <RemoteBeamVisuals ballPosition={ballPos} />
-      {!badPuter && <RocketExplosionSprites poolRef={splashFxRef} />}
-      {!badPuter && <FanGlassCrackFx />}
-      {!badPuter && <PillarShakeSmoke />}
-      {!badPuter && <ImpactSparks />}
+      <RocketExplosionSprites poolRef={splashFxRef} />
+      <FanGlassCrackFx />
+      <PillarShakeSmoke />
+      <ImpactSparks />
       <GameplayCollisionDebug />
-      {!badPuter && <RocketWallImpactFx poolRef={wallImpactFxRef} />}
-      {!badPuter && <BotRagdollBurstFx poolRef={botRagdollFxRef} />}
+      <RocketWallImpactFx poolRef={wallImpactFxRef} />
+      <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
-      {!badPuter && <GoalFireworks />}
+      <GoalFireworks />
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
       <FallRecoveryMonitor
         playerBodyRef={playerBodyRef}
@@ -962,8 +951,8 @@ function Scene({
         }}
         onRecoverBall={() => gameStore.clearBallHolder()}
       />
-      {!badPuter && <RocketRecoilFx />}
-      {!badPuter && <RocketTrailSmoke />}
+      <RocketRecoilFx />
+      <RocketTrailSmoke />
       <Rockets
         rocketsRef={rocketsRef}
         onExplosion={handleExplosion}
@@ -1082,9 +1071,9 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
       <Canvas
         style={{ background: '#181c22' }}
         camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
-        dpr={gfx.badPuter ? [1, 1] : [RENDER.dprMin, RENDER.dprMax]}
+        dpr={[RENDER.dprMin, RENDER.dprMax]}
         gl={{
-          antialias: gfx.badPuter ? false : RENDER.antialias,
+          antialias: RENDER.antialias,
           powerPreference: 'high-performance',
           alpha: false,
           stencil: false,
@@ -1112,9 +1101,9 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        {!gfx.badPuter && <ArenaSky />}
+        <ArenaSky />
         <ArenaLighting />
-        {!gfx.badPuter && <ArenaAtmosphere />}
+        <ArenaAtmosphere />
         <Suspense fallback={null}>
           <Physics
             gravity={[0, tune.gravity, 0]}
