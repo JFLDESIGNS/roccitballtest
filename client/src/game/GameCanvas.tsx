@@ -411,9 +411,15 @@ function Scene({
         const hostShotLooksCaughtUp =
           networkSpeed >= localBallPredictionMinSpeed.current &&
           networkTravelFromRelease >= 1.2;
+        const currentBallPosition = ballForNetwork.translation();
+        const serverDistanceFromLocal = Math.hypot(
+          b.position.x - currentBallPosition.x,
+          b.position.y - currentBallPosition.y,
+          b.position.z - currentBallPosition.z,
+        );
         if (
           nowMs < localBallPredictionUntil.current &&
-          !hostShotLooksCaughtUp
+          (!hostShotLooksCaughtUp || serverDistanceFromLocal > 4)
         ) {
           // Keep the follower's local release prediction alive until the server
           // sends a ball state that actually looks like the shot took over.
@@ -766,7 +772,7 @@ function Scene({
         }}
         onBallReleased={(release) => {
           if (multiplayerStore.getState().enabled) {
-            localBallPredictionUntil.current = performance.now() + 650;
+            localBallPredictionUntil.current = performance.now() + 900;
             localBallPredictionReleasePos.current.set(
               release.position.x,
               release.position.y,

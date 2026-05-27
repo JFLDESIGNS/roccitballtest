@@ -17,6 +17,19 @@ const BALL_SPAWN = { x: 0, y: 2.05, z: 0 };
 const ARENA_HEX_RADIUS = 64;
 const ARENA_WALL_HEIGHT = 43.7;
 const ARENA_FLOOR_Y = 0;
+const ARENA_WALL_THICKNESS = 1.2;
+const ARENA_OCTAGON_TOP_RADIUS = 11;
+const ARENA_OCTAGON_SLOPE_RADIUS = 28;
+const ARENA_OCTAGON_PLATFORM_SIZE_MUL = 0.9;
+const ARENA_PLATFORM_TOP_HEIGHT = 4.575;
+const ARENA_MID_WALL_OCTAGON_SIZE_SCALE = 2;
+const BALL_DROP_CENTER_Y = 42.2;
+const BALL_DROP_CUBE_SIZE = 15.6;
+const BALL_DROP_SPAWN_INSET = 3.3;
+const BALL_DROP_DRUM_SCALE = 0.6;
+const BALL_DROP_DRUM_RADIUS = 10.2;
+const BALL_DROP_DRUM_HEIGHT = 9.6;
+const BALL_DROP_DRUM_OFFSET_FT = 10;
 const GRAVITY_Y = -11;
 const BALL_LINEAR_DAMPING = 0.014;
 const BALL_RESTITUTION = 0.58;
@@ -28,6 +41,23 @@ const BEAM_PULL_ACCEL = 39;
 const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
+const FT_TO_M = 0.3048;
+
+const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
+const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
+const BALL_DROP_DRUM_TOP_Y =
+  BALL_DROP_CENTER_Y - BALL_DROP_CUBE_HALF + BALL_DROP_DRUM_OFFSET_FT * FT_TO_M;
+const BALL_DROP_DRUM_BOTTOM_Y = BALL_DROP_DRUM_TOP_Y - BALL_DROP_DRUM_HEIGHT_M;
+const BALL_DROP_SPAWN = {
+  x: BALL_SPAWN.x,
+  y: BALL_DROP_CENTER_Y + BALL_DROP_CUBE_HALF - BALL_DROP_SPAWN_INSET,
+  z: BALL_SPAWN.z,
+};
+const BALL_DROP_RELEASE = {
+  x: BALL_SPAWN.x,
+  y: BALL_DROP_DRUM_BOTTOM_Y - BALL_RADIUS - 2.2,
+  z: BALL_SPAWN.z,
+};
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -55,6 +85,137 @@ function createServerBall() {
     angularVelocity: { x: 0, y: 0, z: 0 },
     updatedAt: Date.now(),
   };
+}
+
+function octagonVertices(radius) {
+  const vertices = [];
+  for (let i = 0; i < 8; i += 1) {
+    const angle = (Math.PI / 4) * i - Math.PI / 8;
+    vertices.push({ x: radius * Math.cos(angle), z: radius * Math.sin(angle) });
+  }
+  return vertices;
+}
+
+function hexVertices(radius) {
+  const vertices = [];
+  for (let i = 0; i < 6; i += 1) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    vertices.push({ x: radius * Math.cos(angle), z: radius * Math.sin(angle) });
+  }
+  return vertices;
+}
+
+function buildHexWallSegments(radius, wallThickness) {
+  const vertices = hexVertices(radius);
+  return vertices.map((a, i) => {
+    const b = vertices[(i + 1) % vertices.length];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    const dirX = dx / length;
+    const dirZ = dz / length;
+    const midX = (a.x + b.x) / 2;
+    const midZ = (a.z + b.z) / 2;
+    let nx = dirZ;
+    let nz = -dirX;
+    if (midX * nx + midZ * nz < 0) {
+      nx = -nx;
+      nz = -nz;
+    }
+    const offset = wallThickness / 2 + 0.05;
+    return {
+      x: midX + nx * offset,
+      z: midZ + nz * offset,
+      y: ARENA_WALL_HEIGHT / 2,
+      yaw: Math.atan2(-dirZ, dirX),
+      length,
+    };
+  });
+}
+
+function listOctagonPlatformPlacements() {
+  return [
+    { x: 0, z: 0, sizeScale: 1 },
+    ...hexVertices(ARENA_HEX_RADIUS).map((corner) => ({
+      x: corner.x,
+      z: corner.z,
+      sizeScale:
+        Math.abs(corner.x) <= 0.5 ? ARENA_MID_WALL_OCTAGON_SIZE_SCALE : 1,
+    })),
+  ];
+}
+
+function buildOctagonPlatformBuffers(topRadius, slopeRadius, topY, bottomY) {
+  const top = octagonVertices(topRadius);
+  const bottom = octagonVertices(slopeRadius);
+  const positions = [];
+  const indices = [];
+  const addVertex = (x, y, z) => {
+    positions.push(x, y, z);
+    return positions.length / 3 - 1;
+  };
+  const centerTop = addVertex(0, topY, 0);
+  const topIdx = top.map((v) => addVertex(v.x, topY, v.z));
+  const bottomIdx = bottom.map((v) => addVertex(v.x, bottomY, v.z));
+  for (let i = 0; i < 8; i += 1) {
+    const next = (i + 1) % 8;
+    indices.push(centerTop, topIdx[next], topIdx[i]);
+    indices.push(topIdx[i], topIdx[next], bottomIdx[next]);
+    indices.push(topIdx[i], bottomIdx[next], bottomIdx[i]);
+  }
+  return {
+    vertices: new Float32Array(positions),
+    indices: new Uint32Array(indices),
+  };
+}
+
+function addArenaStructureColliders(world) {
+  const topBase = ARENA_OCTAGON_TOP_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
+  const slopeBase = ARENA_OCTAGON_SLOPE_RADIUS * ARENA_OCTAGON_PLATFORM_SIZE_MUL;
+  for (const placement of listOctagonPlatformPlacements()) {
+    const { vertices, indices } = buildOctagonPlatformBuffers(
+      topBase * placement.sizeScale,
+      slopeBase * placement.sizeScale,
+      ARENA_PLATFORM_TOP_HEIGHT,
+      ARENA_FLOOR_Y,
+    );
+    world.createCollider(
+      RAPIER.ColliderDesc.trimesh(vertices, indices)
+        .setTranslation(placement.x, 0, placement.z)
+        .setRestitution(BALL_RESTITUTION * 0.85)
+        .setFriction(0.55),
+    );
+  }
+
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(
+      BALL_DROP_CUBE_HALF,
+      BALL_DROP_CUBE_HALF,
+      BALL_DROP_CUBE_HALF,
+    )
+      .setTranslation(0, BALL_DROP_CENTER_Y, 0)
+      .setRestitution(BALL_RESTITUTION * 0.8)
+      .setFriction(BALL_FRICTION),
+  );
+
+  const drumRadius = BALL_DROP_DRUM_RADIUS * BALL_DROP_DRUM_SCALE;
+  const drumHeightHalf = BALL_DROP_DRUM_HEIGHT_M * 0.5;
+  const drumCenterY = BALL_DROP_DRUM_BOTTOM_Y + drumHeightHalf;
+  for (let i = 0; i < 8; i += 1) {
+    const angle = (Math.PI * 2 * i) / 8;
+    const halfAngle = angle * 0.5;
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(drumRadius * 0.42, drumHeightHalf, 0.35)
+        .setTranslation(
+          Math.cos(angle) * drumRadius * 0.86,
+          drumCenterY,
+          Math.sin(angle) * drumRadius * 0.86,
+        )
+        .setRotation({ x: 0, y: Math.sin(halfAngle), z: 0, w: Math.cos(halfAngle) })
+        .setRestitution(BALL_RESTITUTION * 0.8)
+        .setFriction(BALL_FRICTION),
+    );
+  }
 }
 
 function createRoomPhysics() {
@@ -98,26 +259,24 @@ function createRoomPhysics() {
       .setFriction(BALL_FRICTION),
   );
 
-  const apothem = ARENA_HEX_RADIUS * Math.cos(Math.PI / 6);
-  const halfSide = ARENA_HEX_RADIUS * 0.5;
   const halfHeight = ARENA_WALL_HEIGHT * 0.5;
-  const halfThickness = 0.75;
-  for (let i = 0; i < 6; i += 1) {
-    const normalAngle = i * (Math.PI / 3);
-    const yaw = normalAngle;
+  const halfThickness = ARENA_WALL_THICKNESS * 0.5;
+  for (const wall of buildHexWallSegments(ARENA_HEX_RADIUS, ARENA_WALL_THICKNESS)) {
+    const yaw = wall.yaw;
     const halfYaw = yaw * 0.5;
     world.createCollider(
-      RAPIER.ColliderDesc.cuboid(halfSide, halfHeight, halfThickness)
+      RAPIER.ColliderDesc.cuboid(wall.length * 0.5, halfHeight, halfThickness)
         .setTranslation(
-          Math.cos(normalAngle) * apothem,
-          ARENA_WALL_HEIGHT * 0.5,
-          Math.sin(normalAngle) * apothem,
+          wall.x,
+          wall.y,
+          wall.z,
         )
         .setRotation({ x: 0, y: Math.sin(halfYaw), z: 0, w: Math.cos(halfYaw) })
         .setRestitution(BALL_RESTITUTION)
         .setFriction(BALL_FRICTION),
     );
   }
+  addArenaStructureColliders(world);
 
   return { world, ballBody, accumulator: 0 };
 }
@@ -353,9 +512,9 @@ function tickRoomBall(room, dt, now) {
   if (match?.ballFrozen) {
     const frozenPosition = { ...room.ball.position };
     if (match.countdown > 0 || match.arenaSettleCountdown > 0 || match.loadCountdown > 0) {
-      frozenPosition.x = BALL_SPAWN.x;
-      frozenPosition.y = BALL_SPAWN.y;
-      frozenPosition.z = BALL_SPAWN.z;
+      frozenPosition.x = BALL_DROP_SPAWN.x;
+      frozenPosition.y = BALL_DROP_SPAWN.y;
+      frozenPosition.z = BALL_DROP_SPAWN.z;
     }
     setPhysicsBall(
       room,
@@ -489,7 +648,26 @@ function handleClientMessage(socket, raw) {
 
   if (msg.type === 'hostState' && client.id === room.hostId) {
     if (!room.ball) room.ball = createServerBall();
-    room.match = sanitizeMatchState(msg.match);
+    const previousFrozen = room.match?.ballFrozen;
+    const nextMatch = sanitizeMatchState(msg.match);
+    room.match = nextMatch;
+    if (!previousFrozen && nextMatch.ballFrozen) {
+      setPhysicsBall(
+        room,
+        BALL_DROP_SPAWN,
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0 },
+      );
+      syncBallFromPhysics(room, Date.now());
+    } else if (previousFrozen && !nextMatch.ballFrozen) {
+      setPhysicsBall(
+        room,
+        BALL_DROP_RELEASE,
+        { x: 0, y: -0.2, z: 0 },
+        { x: 0, y: 0, z: 0 },
+      );
+      syncBallFromPhysics(room, Date.now());
+    }
     return;
   }
 
