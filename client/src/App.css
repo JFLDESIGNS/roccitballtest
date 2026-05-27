@@ -1825,6 +1825,36 @@ body,
   backdrop-filter: blur(6px);
 }
 
+.hud-online-status {
+  position: fixed;
+  left: 1rem;
+  top: 0.8rem;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid rgba(96, 255, 197, 0.42);
+  border-radius: 7px;
+  background: rgba(4, 18, 25, 0.72);
+  color: #dffff6;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  backdrop-filter: blur(7px);
+  box-shadow: 0 0 18px rgba(71, 255, 190, 0.13);
+}
+
+.hud-online-status strong {
+  color: #5dffbf;
+}
+
+.hud-online-status span {
+  color: #b8d4e8;
+  font-weight: 700;
+  text-transform: none;
+}
+
 .hud-top {
   position: relative;
   display: flex;

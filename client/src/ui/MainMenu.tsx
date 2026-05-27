@@ -152,6 +152,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
       setWaitingForOnlinePlayer(false);
       multiplayerStore.disconnect();
     } else {
+      gameStore.setBotsEnabled(false);
       multiplayerStore.connect(profile);
     }
   };
@@ -223,12 +224,15 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                 <label className="menu-option menu-option--dock-bots">
                   <input
                     type="checkbox"
-                    checked={botsEnabled}
+                    checked={multiplayer.enabled ? false : botsEnabled}
+                    disabled={multiplayer.enabled}
                     onChange={(e) =>
                       gameStore.setBotsEnabled(e.target.checked)
                     }
                   />
-                  <span>Practice bots</span>
+                  <span>
+                    {multiplayer.enabled ? 'Bots off online' : 'Practice bots'}
+                  </span>
                 </label>
                 <label className="menu-field menu-map-picker menu-field--dock-map">
                   <span>Arena map</span>

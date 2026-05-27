@@ -16,6 +16,7 @@ import { matchStatRows } from './matchStats';
 import { resumeAudio, warmAudio } from './audio';
 import { MatchScoreboard } from './MatchScoreboard';
 import { StadiumLightEditorPanel } from './StadiumLightEditorPanel';
+import { multiplayerStore } from '../multiplayer/multiplayerStore';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -29,6 +30,10 @@ type HUDProps = {
 
 export function HUD({ onMainMenu }: HUDProps) {
   const state = useSyncExternalStore(gameStore.subscribe, gameStore.getState);
+  const multiplayer = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    multiplayerStore.getState,
+  );
   const bouncy = useSyncExternalStore(
     tuningStore.subscribe,
     () => tuningStore.getState().bouncyRocketsEnabled,
@@ -75,6 +80,15 @@ export function HUD({ onMainMenu }: HUDProps) {
   return (
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
       <FpsCounter />
+      {multiplayer.enabled && (
+        <div className="hud-online-status">
+          <strong>Online</strong>
+          <span>
+            Room {multiplayer.roomId} · {multiplayer.remotePlayers.length + 1}{' '}
+            player{multiplayer.remotePlayers.length === 0 ? '' : 's'}
+          </span>
+        </div>
+      )}
       <BallBoundaryHelpBadge />
       {state.debugFreelook && (
         <div className="debug-freelook-hint" role="status">

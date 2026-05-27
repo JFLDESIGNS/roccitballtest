@@ -244,7 +244,11 @@ function Scene({
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
   );
-  const showBots = botsEnabled;
+  const multiplayerEnabled = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().enabled,
+  );
+  const showBots = botsEnabled && !multiplayerEnabled;
 
   useEffect(() => {
     ballBodyRef.current = ballRef.current?.getBody() ?? null;
