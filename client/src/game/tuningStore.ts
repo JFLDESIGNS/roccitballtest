@@ -1,5 +1,6 @@
 import { BALL, BOT, MOVEMENT, ROCKET, type BallTypeId, type ReleaseSystemId } from '../shared/Constants';
 import { integrateFallGravity } from './movementGravity';
+import { inputManager } from './InputManager';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
 const STORAGE_KEY = 'rocketball-tuning-v22';
@@ -252,10 +253,8 @@ export const tuningStore = {
     if (opening) {
       document.exitPointerLock();
     } else {
-      void import('./InputManager').then(({ inputManager }) => {
-        inputManager.onGameplayResume();
-        inputManager.refreshPointerLockState();
-      });
+      inputManager.onGameplayResume();
+      inputManager.refreshPointerLockState();
     }
     notify();
   },

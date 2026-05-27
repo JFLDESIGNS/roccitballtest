@@ -11,6 +11,8 @@ import type { Team } from '../shared/Types';
 import { arenaRoofStore } from './arenaRoofStore';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
+import { stadiumLightStore } from './stadiumLightStore';
+import { stadiumRectLightDebugStore } from './stadiumRectLightDebugStore';
 import { getLookDirection } from './CameraController';
 import { triggerThrowFlipEmotes } from './forwardFlipEmote';
 import { shouldIgnoreGameplayKeys } from './uiFocus';
@@ -261,9 +263,7 @@ class InputManager {
   private registerGlobalListeners(): void {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape' && gameStore.getState().debugFreelook) {
-        import('./stadiumLightStore').then(({ stadiumLightStore }) =>
-          stadiumLightStore.deselect(),
-        );
+        stadiumLightStore.deselect();
       }
       if (shouldIgnoreGameplayKeys()) return;
 
@@ -304,25 +304,18 @@ class InputManager {
         if (tuningStore.getState().showMenu) return;
         const phase = gameStore.getState().phase;
         if (phase === 'playing' || phase === 'countdown') {
-          import('./stadiumRectLightDebugStore').then(
-            ({ stadiumRectLightDebugStore }) =>
-              stadiumRectLightDebugStore.toggleWireframe(),
-          );
+          stadiumRectLightDebugStore.toggleWireframe();
         }
       }
       if (e.code === 'Digit1') {
         e.preventDefault();
-        import('./tuningStore').then(({ tuningStore }) => tuningStore.toggleMenu());
+        tuningStore.toggleMenu();
       }
       if (e.code === 'Digit2') {
-        import('./gameStore').then(({ gameStore }) =>
-          gameStore.toggleShowPhysicsBall(),
-        );
+        gameStore.toggleShowPhysicsBall();
       }
       if (e.code === 'Digit4') {
-        import('./gameStore').then(({ gameStore }) =>
-          gameStore.togglePlayerVisualProxy(),
-        );
+        gameStore.togglePlayerVisualProxy();
       }
       if (e.code === 'KeyU' && !e.repeat) {
         if (tuningStore.getState().showMenu) return;
