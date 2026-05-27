@@ -176,12 +176,14 @@ function MapLightContent({
         >
           {light.kind === 'rectArea' ? (
             <LightGlowBillboard
+              glowId={light.id}
               color={light.color}
               size={lightGlowSizeForRect(light.rectWidth, light.rectHeight)}
               editorPreview={editorGlowPreview}
             />
           ) : (
             <LightGlowBillboard
+              glowId={light.id}
               color={light.color}
               editorPreview={editorGlowPreview}
             />

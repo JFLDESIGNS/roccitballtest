@@ -6,7 +6,11 @@ import concreteUrl from '../assets/images/textures/concrete.png';
 export const ARENA_CONCRETE_TILE_M = 8.5;
 
 let baseConcrete: THREE.Texture | null = null;
+let baseConcreteRoughness: THREE.Texture | null = null;
 const loadListeners = new Set<() => void>();
+
+/** Boost so roughness map shows clear shiny vs matte patches */
+const ROUGHNESS_MAP_CONTRAST = 2.2;
 
 /** Shared repeating concrete albedo (loads once). */
 export function getArenaConcreteTexture(): THREE.Texture | null {
@@ -141,11 +145,66 @@ export function cloneArenaConcreteMap(
   return map;
 }
 
+export function cloneArenaConcreteRoughnessMap(
+  repeatX: number,
+  repeatY: number,
+): THREE.Texture | null {
+  if (!baseConcreteRoughness) return null;
+  const map = baseConcreteRoughness.clone();
+  map.repeat.set(repeatX, repeatY);
+  map.needsUpdate = true;
+  return map;
+}
+
+function buildRoughnessMapFromAlbedo(
+  img: CanvasImageSource & { width: number; height: number },
+): THREE.CanvasTexture {
+  const w = img.width;
+  const h = img.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2d canvas unavailable');
+  ctx.drawImage(img, 0, 0, w, h);
+  const data = ctx.getImageData(0, 0, w, h);
+  const mid = 0.5;
+  for (let i = 0; i < data.data.length; i += 4) {
+    const lum =
+      (data.data[i] * 0.299 +
+        data.data[i + 1] * 0.587 +
+        data.data[i + 2] * 0.114) /
+      255;
+    // Dark grout / pores → rougher; lighter flats → smoother (more specular catch).
+    let rough = 1 - lum;
+    rough = (rough - mid) * ROUGHNESS_MAP_CONTRAST + mid;
+    rough = Math.max(0.1, Math.min(0.98, rough * 0.9 + 0.06));
+    const v = Math.round(rough * 255);
+    data.data[i] = v;
+    data.data[i + 1] = v;
+    data.data[i + 2] = v;
+    data.data[i + 3] = 255;
+  }
+  ctx.putImageData(data, 0, 0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 new THREE.TextureLoader().load(
   concreteUrl,
   (tex) => {
     configureBase(tex);
     baseConcrete = tex;
+    const img = tex.image;
+    if (img && typeof img === 'object' && 'width' in img && 'height' in img) {
+      baseConcreteRoughness = buildRoughnessMapFromAlbedo(
+        img as CanvasImageSource & { width: number; height: number },
+      );
+      baseConcreteRoughness.repeat.copy(tex.repeat);
+    }
     notifyLoaded();
   },
   undefined,

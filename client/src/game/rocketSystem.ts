@@ -38,6 +38,7 @@ import {
   tryTriggerOctagonImpactAt,
 } from './interactableHits';
 import { findGoalRimSegmentContact } from './goalRingBounce';
+import { punchLightGlowAlongRocketSegment } from './lightGlowHits';
 
 export type RocketTrailSegment = {
   from: THREE.Vector3;
@@ -57,6 +58,8 @@ export type ActiveRocket = {
   bouncesLeft: number;
   /** Detonates on first contact — no ricochet */
   explosive: boolean;
+  /** Lamp glow volumes already punched this flight (passthrough) */
+  punchedGlowIds: Set<string>;
 };
 
 let nextId = 0;
@@ -101,6 +104,7 @@ export function createRocket(
     spawnTime: performance.now() / 1000,
     bouncesLeft: explosive ? 0 : ROCKET.surfaceBounces,
     explosive,
+    punchedGlowIds: new Set(),
   };
 }
 
@@ -677,6 +681,8 @@ export function updateRockets(
       remaining.push(r);
       continue;
     }
+
+    punchLightGlowAlongRocketSegment(r, _stepPrev, pos);
 
     if (
       tryBillboardRocketHit(

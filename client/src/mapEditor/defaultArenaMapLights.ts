@@ -1,20 +1,38 @@
+import * as THREE from 'three';
 import { ARENA } from '../shared/Constants';
-import { goalEndFaceX } from '../game/goals';
+import { goalWallPositions } from '../game/goals';
 import { normalizeMapLight } from './mapLightDefaults';
 import type { MapDocument, MapLight } from './mapEditorTypes';
 import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from './mapEditorTypes';
 import { ensureDocumentGroups } from './stadiumLayout';
 
-/** Just under the ceiling — matches where ceiling strip / glow blobs read best. */
-const GLOW_Y = ARENA.wallHeight + ARENA.ceilingOverlapM - 3.2;
+const FT = 0.3048;
 
-const FACE_X = goalEndFaceX();
-/** Midfield X — between center and each goal wall (classic 3-point fill). */
-const SIDE_X = FACE_X * 0.42;
+/** Default glow height — 70 ft below ceiling lip so blobs sit lower in the bowl. */
+const GLOW_Y =
+  ARENA.wallHeight + ARENA.ceilingOverlapM - 3.2 - 70 * FT;
+
+const { red: redGoalX, blue: blueGoalX } = goalWallPositions();
+/** Side glows sit this far infield from each goal end wall. */
+const GLOW_WALL_STANDOFF_M = 43 * FT;
+const RED_GLOW_X = redGoalX + GLOW_WALL_STANDOFF_M;
+const BLUE_GLOW_X = blueGoalX - GLOW_WALL_STANDOFF_M;
+
+function saturateHexColor(hex: string, saturationMul: number): string {
+  const color = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  color.getHSL(hsl);
+  color.setHSL(hsl.h, Math.min(1, hsl.s * saturationMul), hsl.l);
+  return `#${color.getHexString()}`;
+}
+
+const CENTER_GLOW_COLOR = saturateHexColor('#b0d8ff', 1.3);
+const RED_GLOW_COLOR = '#ff1d18';
+const BLUE_GLOW_COLOR = '#184eff';
 
 /**
  * Built-in map lights for Default Arena (point lamps + play-mode glow billboards).
- * Baked from the Newbie map layout: warm center + red/blue side fills.
+ * Baked from the Newbie map layout: light-blue center + red/blue side fills.
  */
 export const DEFAULT_ARENA_MAP_LIGHTS: MapLight[] = [
   normalizeMapLight({
@@ -23,7 +41,7 @@ export const DEFAULT_ARENA_MAP_LIGHTS: MapLight[] = [
     kind: 'point',
     position: [0, GLOW_Y, 0],
     rotation: [-Math.PI / 4, 0, 0],
-    color: '#ffe8cc',
+    color: CENTER_GLOW_COLOR,
     intensity: 8,
     distance: 80,
     angle: Math.PI / 5,
@@ -36,9 +54,9 @@ export const DEFAULT_ARENA_MAP_LIGHTS: MapLight[] = [
     id: 'default-light-red',
     name: 'Red side glow',
     kind: 'point',
-    position: [-SIDE_X, GLOW_Y - 1.2, 0],
+    position: [RED_GLOW_X, GLOW_Y - 1.2, 0],
     rotation: [-Math.PI / 4, 0, 0],
-    color: '#ff9977',
+    color: RED_GLOW_COLOR,
     intensity: 6.5,
     distance: 72,
     angle: Math.PI / 5,
@@ -51,9 +69,9 @@ export const DEFAULT_ARENA_MAP_LIGHTS: MapLight[] = [
     id: 'default-light-blue',
     name: 'Blue side glow',
     kind: 'point',
-    position: [SIDE_X, GLOW_Y - 1.2, 0],
+    position: [BLUE_GLOW_X, GLOW_Y - 1.2, 0],
     rotation: [-Math.PI / 4, 0, 0],
-    color: '#77bbff',
+    color: BLUE_GLOW_COLOR,
     intensity: 6.5,
     distance: 72,
     angle: Math.PI / 5,

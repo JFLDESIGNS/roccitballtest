@@ -20,3 +20,8 @@ export const MAP_LIGHT_GLOW_ALPHA_HOLE_CUTOFF = 0.5;
 export const MAP_LIGHT_GLOW_ALPHA_HOLE_SOFT = 0.24;
 /** Fade alpha from floor Y over this height (m) — hides ground seam */
 export const MAP_LIGHT_GLOW_GROUND_FADE_M = 2.4;
+
+/** Distance where glow billboards start to shimmer/distort (full strength at lamp). */
+export const MAP_LIGHT_GLOW_WOBBLE_RADIUS_FT = 30;
+/** Peak shader distortion strength at the lamp core (smoke warp + ripple). */
+export const MAP_LIGHT_GLOW_WOBBLE_STRENGTH = 1.35;

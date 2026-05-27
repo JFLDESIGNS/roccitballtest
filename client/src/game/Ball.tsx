@@ -48,6 +48,7 @@ import {
   findArenaPillarSegmentHit,
 } from './arenaPillars';
 import { tryTriggerBillboardImpact } from './interactableHits';
+import { punchLightGlowAlongBallSegment } from './lightGlowHits';
 import type { WallMount } from './arenaPadLayout';
 import {
   triggerArenaPillarShake,
@@ -367,6 +368,7 @@ const hasPrevBallPos = useRef(false);
         triggerArenaPillarShake(sweepPillar.x, sweepPillar.z);
       }
       tryTriggerBillboardImpact(from, _ballTo.current);
+      punchLightGlowAlongBallSegment(from, _ballTo.current);
     }
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;

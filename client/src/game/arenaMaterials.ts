@@ -7,6 +7,7 @@ import { ARENA_PILLAR } from './arenaPillarConfig';
 import {
   ARENA_CONCRETE_TILE_M,
   cloneArenaConcreteMap,
+  cloneArenaConcreteRoughnessMap,
   onArenaConcreteReady,
 } from './arenaConcreteTexture';
 
@@ -72,12 +73,12 @@ const darkDeckMetalMap = makeRepeatingCanvas(256, 256, (ctx, w, h) => {
 });
 darkDeckMetalMap.repeat.set(3, 3);
 
-/** Sealed concrete — walls/floor: darker base, more specular catch on arena lights */
-const ARENA_CONCRETE_ROUGHNESS = 0.56;
-const ARENA_CONCRETE_METALNESS = 0.12;
-const ARENA_CONCRETE_ENV_INTENSITY = 0.44;
-/** Shared albedo for hex perimeter walls + main floor */
-const ARENA_WALL_FLOOR_CONCRETE_COLOR = '#3a4149';
+/** Base scalar — variation comes from roughnessMap (concrete albedo-derived). */
+const ARENA_CONCRETE_ROUGHNESS = 1;
+const ARENA_CONCRETE_METALNESS = 0.1;
+const ARENA_CONCRETE_ENV_INTENSITY = 0.48;
+/** Shared wall + floor concrete (same maps and color) */
+const ARENA_WALL_FLOOR_CONCRETE_COLOR = '#2a3038';
 
 function createArenaConcreteSurfaceMaterial(
   color: string,
@@ -96,6 +97,31 @@ function createArenaConcreteSurfaceMaterial(
   });
 }
 
+function bindWallFloorConcrete(
+  mat: THREE.MeshStandardMaterial,
+  repeatX: number,
+  repeatY: number,
+): void {
+  const map = cloneArenaConcreteMap(repeatX, repeatY);
+  if (!map) return;
+  mat.map = map;
+  const roughMap = cloneArenaConcreteRoughnessMap(repeatX, repeatY);
+  if (roughMap) {
+    mat.roughnessMap = roughMap;
+    mat.roughness = ARENA_CONCRETE_ROUGHNESS;
+  } else {
+    mat.roughnessMap = null;
+    mat.roughness = 0.62;
+  }
+  mat.envMap = arenaMetalEnv;
+  mat.envMapIntensity = ARENA_CONCRETE_ENV_INTENSITY;
+  mat.metalness = ARENA_CONCRETE_METALNESS;
+  mat.emissive.set('#000000');
+  mat.emissiveIntensity = 0;
+  mat.needsUpdate = true;
+}
+
+/** Pillars / pads — albedo only (no roughness map). */
 function bindConcrete(
   mat: THREE.MeshStandardMaterial,
   repeatX: number,
@@ -104,9 +130,10 @@ function bindConcrete(
   const map = cloneArenaConcreteMap(repeatX, repeatY);
   if (!map) return;
   mat.map = map;
+  mat.roughnessMap = null;
   mat.envMap = arenaMetalEnv;
   mat.envMapIntensity = ARENA_CONCRETE_ENV_INTENSITY;
-  mat.roughness = ARENA_CONCRETE_ROUGHNESS;
+  mat.roughness = 0.56;
   mat.metalness = ARENA_CONCRETE_METALNESS;
   mat.emissive.set('#000000');
   mat.emissiveIntensity = 0;
@@ -247,9 +274,9 @@ function applyAllConcreteMaps(): void {
     ARENA_PADS.trampolineDeckRaiseM;
   const padRep = cylinderConcreteRepeat(padStemR, padStemR * 1.22, padStemH);
 
-  bindConcrete(arenaWallMaterial, 1, 1);
+  bindWallFloorConcrete(arenaWallMaterial, 1, 1);
   /** Floor UVs are already meter-tiled in createArenaHexFloorGeometry — repeat must stay 1× */
-  bindConcrete(arenaHexFloorMaterial, 1, 1);
+  bindWallFloorConcrete(arenaHexFloorMaterial, 1, 1);
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
 }

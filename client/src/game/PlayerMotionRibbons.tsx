@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { BEAM } from '../shared/Constants';
+import { gameStore } from './gameStore';
 import { VelocityPathRibbon } from './VelocityPathRibbon';
 
 const RIBBON_WHITE = '#ffffff';
@@ -96,6 +97,10 @@ export function PlayerMotionRibbons({
   bodyRef,
   hidden,
 }: PlayerMotionRibbonsProps) {
+  const isSprinting = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().isSprinting,
+  );
   const sampleOut = useRef(
     RIBBON_LAYERS.map(() => new THREE.Vector3()),
   );
@@ -105,7 +110,7 @@ export function PlayerMotionRibbons({
       {RIBBON_LAYERS.map((layer, i) => (
         <VelocityPathRibbon
           key={`${layer.lateral}-${layer.y}`}
-          hidden={hidden}
+          hidden={hidden || !isSprinting}
           color={RIBBON_WHITE}
           opacity={layer.opacity}
           maxPoints={layer.maxPoints}
