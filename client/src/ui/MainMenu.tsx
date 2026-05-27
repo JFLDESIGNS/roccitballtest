@@ -63,6 +63,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     () => getMenuMusicVolume(),
   );
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [waitingForOnlinePlayer, setWaitingForOnlinePlayer] = useState(false);
   const premium8Ball = useSyncExternalStore(
     subscribePremium8Ball,
     getPremium8Ball,
@@ -95,6 +96,26 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     startMenuBackgroundMusic();
   }, []);
 
+  useEffect(() => {
+    if (!waitingForOnlinePlayer) return;
+    if (!multiplayer.enabled || multiplayer.status === 'offline') {
+      setWaitingForOnlinePlayer(false);
+      return;
+    }
+    if (multiplayer.status !== 'online') return;
+    if (multiplayer.remotePlayers.length === 0) return;
+    setWaitingForOnlinePlayer(false);
+    resumeAudio();
+    stopBackgroundMusic();
+    onPlay();
+  }, [
+    multiplayer.enabled,
+    multiplayer.remotePlayers.length,
+    multiplayer.status,
+    onPlay,
+    waitingForOnlinePlayer,
+  ]);
+
   const commitProfile = () => {
     const profile = getLocalProfile();
     try {
@@ -109,6 +130,15 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     commitProfile();
     setLocalProfile(playerName, jerseyNumber);
     multiplayerStore.updateProfile(getLocalProfile());
+    if (multiplayer.enabled) {
+      if (
+        multiplayer.status !== 'online' ||
+        multiplayer.remotePlayers.length === 0
+      ) {
+        setWaitingForOnlinePlayer(true);
+        return;
+      }
+    }
     resumeAudio();
     stopBackgroundMusic();
     onPlay();
@@ -119,6 +149,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     setLocalProfile(playerName, jerseyNumber);
     const profile = getLocalProfile();
     if (multiplayer.enabled) {
+      setWaitingForOnlinePlayer(false);
       multiplayerStore.disconnect();
     } else {
       multiplayerStore.connect(profile);
@@ -253,7 +284,11 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                   ) : (
                     <small>
                       {multiplayer.selfId
-                        ? `Room ${multiplayer.roomId}`
+                        ? `Room ${multiplayer.roomId} · ${
+                            multiplayer.remotePlayers.length + 1
+                          } player${
+                            multiplayer.remotePlayers.length === 0 ? '' : 's'
+                          } online`
                         : 'Connect before Play Now'}
                     </small>
                   )}
@@ -322,8 +357,21 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
 
           <footer className="main-menu-play">
             <button type="button" className="btn-play-now" onClick={enterArena}>
-              Play Now
+              {waitingForOnlinePlayer ? 'Waiting for Player' : 'Play Now'}
             </button>
+            {waitingForOnlinePlayer && (
+              <div className="main-menu-waiting" role="status">
+                <strong>Waiting for another player...</strong>
+                <span>Open this same Railway URL in another browser and turn Online Multiplayer on.</span>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setWaitingForOnlinePlayer(false)}
+                >
+                  Cancel Wait
+                </button>
+              </div>
+            )}
           </footer>
         </div>
       )}
