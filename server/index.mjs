@@ -248,6 +248,33 @@ function handleClientMessage(socket, raw) {
       updatedAt: Date.now(),
     };
     room.match = sanitizeMatchState(msg.match);
+    return;
+  }
+
+  if (msg.type === 'rocketFire') {
+    const rocket = {
+      id: typeof msg.rocket?.id === 'string' ? msg.rocket.id.slice(0, 64) : crypto.randomUUID(),
+      ownerId: client.id,
+      position: sanitizeVec3(msg.rocket?.position),
+      velocity: sanitizeVec3(msg.rocket?.velocity),
+      spawnPos: sanitizeVec3(msg.rocket?.spawnPos),
+      segmentStart: sanitizeVec3(msg.rocket?.segmentStart),
+      spawnTime: Number.isFinite(msg.rocket?.spawnTime) ? msg.rocket.spawnTime : 0,
+      bouncesLeft: Number.isFinite(msg.rocket?.bouncesLeft)
+        ? Math.max(0, Math.floor(msg.rocket.bouncesLeft))
+        : 0,
+      explosive: Boolean(msg.rocket?.explosive),
+    };
+    const packet = {
+      type: 'rocketFire',
+      serverTime: Date.now(),
+      rocket,
+    };
+    for (const [peerSocket, peerClient] of clients) {
+      if (peerSocket !== socket && peerClient.roomId === room.id) {
+        sendJson(peerSocket, packet);
+      }
+    }
   }
 }
 

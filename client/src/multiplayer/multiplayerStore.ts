@@ -23,6 +23,18 @@ export type NetworkBallState = {
   updatedAt: number;
 };
 
+export type NetworkRocketState = {
+  id: string;
+  ownerId: string;
+  position: Vec3;
+  velocity: Vec3;
+  spawnPos: Vec3;
+  segmentStart: Vec3;
+  spawnTime: number;
+  bouncesLeft: number;
+  explosive: boolean;
+};
+
 type NetworkMatchState = {
   score: MatchScore;
   timeLeft: number;
@@ -40,6 +52,7 @@ type MultiplayerState = {
   error: string | null;
   ball: NetworkBallState | null;
   match: NetworkMatchState | null;
+  remoteRockets: NetworkRocketState[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
@@ -52,6 +65,11 @@ type ServerMessage =
       ball: NetworkBallState | null;
       match: NetworkMatchState | null;
       players: RemoteMultiplayerPlayer[];
+    }
+  | {
+      type: 'rocketFire';
+      serverTime: number;
+      rocket: NetworkRocketState;
     };
 
 type LocalPlayerUpdate = {
@@ -76,6 +94,7 @@ let state: MultiplayerState = {
   error: null,
   ball: null,
   match: null,
+  remoteRockets: [],
   remotePlayers: [],
 };
 
@@ -138,6 +157,13 @@ function handleMessage(raw: string) {
       match: msg.match,
       remotePlayers: msg.players.filter((player) => player.id !== selfId),
     });
+    return;
+  }
+
+  if (msg.type === 'rocketFire') {
+    patch({
+      remoteRockets: [...state.remoteRockets, msg.rocket].slice(-24),
+    });
   }
 }
 
@@ -174,6 +200,7 @@ export const multiplayerStore = {
       error: null,
       ball: null,
       match: null,
+      remoteRockets: [],
       remotePlayers: [],
     });
 
@@ -213,6 +240,7 @@ export const multiplayerStore = {
           team: null,
           ball: null,
           match: null,
+          remoteRockets: [],
           remotePlayers: [],
         });
       }
@@ -230,6 +258,7 @@ export const multiplayerStore = {
       error: null,
       ball: null,
       match: null,
+      remoteRockets: [],
       remotePlayers: [],
     });
   },
@@ -262,5 +291,21 @@ export const multiplayerStore = {
       type: 'hostState',
       ...update,
     });
+  },
+
+  sendRocketFire(rocket: Omit<NetworkRocketState, 'ownerId'>): void {
+    if (!state.enabled || state.status !== 'online') return;
+    sendJson({
+      type: 'rocketFire',
+      rocket,
+    });
+  },
+
+  drainRemoteRockets(): NetworkRocketState[] {
+    const rockets = state.remoteRockets;
+    if (rockets.length === 0) return [];
+    state = { ...state, remoteRockets: [] };
+    emit();
+    return rockets;
   },
 };

@@ -1,9 +1,9 @@
 import { Html } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
 import {
   CapsuleCollider,
   interactionGroups,
   RigidBody,
+  useBeforePhysicsStep,
   type RapierRigidBody,
 } from '@react-three/rapier';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
@@ -32,6 +32,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const smoothedYaw = useRef(player.rotation.yaw);
   const rotationQuat = useRef(new THREE.Quaternion());
   const ready = useRef(false);
+  const lastStepAt = useRef(performance.now());
 
   useEffect(() => {
     targetPos.current.set(
@@ -42,9 +43,12 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     targetYaw.current = player.rotation.yaw;
   }, [player.position.x, player.position.y, player.position.z, player.rotation.yaw]);
 
-  useFrame((_, dt) => {
+  useBeforePhysicsStep(() => {
     const body = bodyRef.current;
     if (!body) return;
+    const now = performance.now();
+    const dt = Math.min(0.08, Math.max(0.001, (now - lastStepAt.current) / 1000));
+    lastStepAt.current = now;
     if (!ready.current) {
       smoothedPos.current.copy(targetPos.current);
       smoothedYaw.current = targetYaw.current;

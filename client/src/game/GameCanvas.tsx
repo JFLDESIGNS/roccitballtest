@@ -80,13 +80,53 @@ import {
 import { FallRecoveryMonitor } from './FallRecoveryMonitor';
 import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
-import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import {
+  multiplayerStore,
+  type NetworkRocketState,
+} from '../multiplayer/multiplayerStore';
 import { RemotePlayers } from './RemotePlayers';
 import {
   announceBotDestroyed,
   announceRocketPlayerHit,
 } from './announcements';
 import { setKickoffBallReleaseHandler } from './kickoffDrop';
+
+function rocketToNetwork(r: ActiveRocket): Omit<NetworkRocketState, 'ownerId'> {
+  return {
+    id: r.id,
+    position: { x: r.position.x, y: r.position.y, z: r.position.z },
+    velocity: { x: r.velocity.x, y: r.velocity.y, z: r.velocity.z },
+    spawnPos: { x: r.spawnPos.x, y: r.spawnPos.y, z: r.spawnPos.z },
+    segmentStart: {
+      x: r.segmentStart.x,
+      y: r.segmentStart.y,
+      z: r.segmentStart.z,
+    },
+    spawnTime: r.spawnTime,
+    bouncesLeft: r.bouncesLeft,
+    explosive: r.explosive,
+  };
+}
+
+function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
+  const position = new THREE.Vector3(r.position.x, r.position.y, r.position.z);
+  return {
+    id: `${r.ownerId}:${r.id}`,
+    position,
+    velocity: new THREE.Vector3(r.velocity.x, r.velocity.y, r.velocity.z),
+    spawnPos: new THREE.Vector3(r.spawnPos.x, r.spawnPos.y, r.spawnPos.z),
+    segmentStart: new THREE.Vector3(
+      r.segmentStart.x,
+      r.segmentStart.y,
+      r.segmentStart.z,
+    ),
+    ownerId: r.ownerId,
+    spawnTime: performance.now() / 1000,
+    bouncesLeft: r.bouncesLeft,
+    explosive: r.explosive,
+    punchedGlowIds: new Set(),
+  };
+}
 
 function MatchLoop({
   ballRef,
@@ -304,6 +344,13 @@ function Scene({
     const network = multiplayerStore.getState();
     const online = network.enabled && network.status === 'online';
     const isNetworkHost = online && network.selfId === network.hostId;
+    const remoteRockets = multiplayerStore.drainRemoteRockets();
+    if (remoteRockets.length > 0) {
+      rocketsRef.current = [
+        ...remoteRockets.map(rocketFromNetwork),
+        ...rocketsRef.current,
+      ].slice(0, ROCKET.maxActive);
+    }
     const ballForNetwork = ballBodyRef.current;
     if (online && ballForNetwork) {
       if (isNetworkHost) {
@@ -620,6 +667,7 @@ function Scene({
             0,
             ROCKET.maxActive,
           );
+          multiplayerStore.sendRocketFire(rocketToNetwork(r));
         }}
         onBallHeldChange={(v) => {
           holdingBallRef.current = v;
