@@ -307,6 +307,7 @@ function Scene({
   const networkBallTargetAngVel = useRef(new THREE.Vector3());
   const networkBallSmoothedPos = useRef(new THREE.Vector3());
   const networkBallPredictedPos = useRef(new THREE.Vector3());
+  const localBallPredictionUntil = useRef(0);
   const remoteBeamBallPos = useRef(new THREE.Vector3());
   const remoteBeamChestPos = useRef(new THREE.Vector3());
   const lastExplosionSfxAt = useRef(0);
@@ -371,6 +372,7 @@ function Scene({
 
   useFrame((_, dt) => {
     const network = multiplayerStore.getState();
+    const nowMs = performance.now();
     const online = network.enabled && network.status === 'online';
     const isNetworkHost = online && network.selfId === network.hostId;
     const remoteRockets = multiplayerStore.drainRemoteRockets();
@@ -447,6 +449,7 @@ function Scene({
         }
       } else if (
         network.ball &&
+        nowMs >= localBallPredictionUntil.current &&
         network.ball.updatedAt !== lastAppliedNetworkBallAt.current
       ) {
         const b = network.ball;
@@ -471,7 +474,11 @@ function Scene({
           networkBallReady.current = true;
         }
       }
-      if (!isNetworkHost && networkBallReady.current) {
+      if (
+        !isNetworkHost &&
+        networkBallReady.current &&
+        nowMs >= localBallPredictionUntil.current
+      ) {
         networkBallPredictedPos.current
           .copy(networkBallTargetPos.current)
           .addScaledVector(networkBallTargetVel.current, 0.075);
@@ -790,6 +797,10 @@ function Scene({
           holdingBallRef.current = v;
         }}
         onBallReleased={(release) => {
+          if (!multiplayerStore.isHost()) {
+            localBallPredictionUntil.current = performance.now() + 260;
+            networkBallReady.current = false;
+          }
           multiplayerStore.sendBallAction({
             kind: 'release',
             position: release.position,
