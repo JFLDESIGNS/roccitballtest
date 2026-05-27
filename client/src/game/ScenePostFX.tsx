@@ -41,7 +41,6 @@ export function ScenePostFX() {
   const showLensFlare = gfx.lensFlare;
 
   if (
-    gfx.badPuter ||
     menuOpen ||
     (!gfx.bloom && !gfx.ao && !showChromatic && !showFisheye && !showLensFlare)
   ) {

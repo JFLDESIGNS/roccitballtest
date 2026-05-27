@@ -1023,7 +1023,7 @@ function Scene({
 export function GameCanvas({ onExit }: { onExit: () => void }) {
   const tune = useSyncExternalStore(tuningStore.subscribe, tuningStore.getState);
   const gfx = useSyncExternalStore(graphicsStore.subscribe, graphicsStore.getState);
-  const effectiveShadows = gfx.shadows && !gfx.badPuter;
+  const effectiveShadows = gfx.shadows;
   const showColliderDebug = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().showColliderDebug,
@@ -1113,7 +1113,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
             <Scene onExit={onExit} rocketsRef={rocketsRef} />
           </Physics>
         </Suspense>
-        {!gfx.badPuter && <ScenePostFX />}
+        <ScenePostFX />
       </Canvas>
     </div>
   );

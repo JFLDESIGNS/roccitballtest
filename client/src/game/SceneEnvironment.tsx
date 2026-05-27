@@ -55,13 +55,13 @@ export function SceneEnvironment() {
   }, [gfx.exposure, gfx.fog, gfx.fogDensity, brightness, gl, scene]);
 
   useEffect(() => {
-    const shadowsOn = gfx.shadows && !gfx.badPuter;
+    const shadowsOn = gfx.shadows;
     gl.shadowMap.enabled = shadowsOn;
     if (shadowsOn) {
       gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
       gl.shadowMap.needsUpdate = true;
     }
-  }, [gfx.badPuter, gfx.shadows, gfx.shadowMapType, gl]);
+  }, [gfx.shadows, gfx.shadowMapType, gl]);
 
   useFrame(() => {
     gl.toneMappingExposure = gfx.exposure * brightness;
