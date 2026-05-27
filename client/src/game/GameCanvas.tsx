@@ -308,6 +308,8 @@ function Scene({
   const networkBallSmoothedPos = useRef(new THREE.Vector3());
   const networkBallPredictedPos = useRef(new THREE.Vector3());
   const localBallPredictionUntil = useRef(0);
+  const localBallPredictionReleasePos = useRef(new THREE.Vector3());
+  const localBallPredictionMinSpeed = useRef(0);
   const remoteBeamBallPos = useRef(new THREE.Vector3());
   const remoteBeamChestPos = useRef(new THREE.Vector3());
   const lastExplosionSfxAt = useRef(0);
@@ -452,10 +454,30 @@ function Scene({
         }
       } else if (
         network.ball &&
-        nowMs >= localBallPredictionUntil.current &&
         network.ball.updatedAt !== lastAppliedNetworkBallAt.current
       ) {
         const b = network.ball;
+        const networkSpeed = Math.hypot(
+          b.velocity.x,
+          b.velocity.y,
+          b.velocity.z,
+        );
+        const networkTravelFromRelease = Math.hypot(
+          b.position.x - localBallPredictionReleasePos.current.x,
+          b.position.y - localBallPredictionReleasePos.current.y,
+          b.position.z - localBallPredictionReleasePos.current.z,
+        );
+        const hostShotLooksCaughtUp =
+          networkSpeed >= localBallPredictionMinSpeed.current &&
+          networkTravelFromRelease >= 1.2;
+        if (
+          nowMs < localBallPredictionUntil.current &&
+          !hostShotLooksCaughtUp
+        ) {
+          // Keep the follower's local release prediction alive until the host
+          // sends a ball state that actually looks like the shot took over.
+          return;
+        }
         lastAppliedNetworkBallAt.current = b.updatedAt;
         networkBallTargetPos.current.set(
           b.position.x,
@@ -476,6 +498,8 @@ function Scene({
           networkBallSmoothedPos.current.copy(networkBallTargetPos.current);
           networkBallReady.current = true;
         }
+        localBallPredictionUntil.current = 0;
+        localBallPredictionMinSpeed.current = 0;
       }
       if (
         !isNetworkHost &&
@@ -801,7 +825,20 @@ function Scene({
         }}
         onBallReleased={(release) => {
           if (!multiplayerStore.isHost()) {
-            localBallPredictionUntil.current = performance.now() + 260;
+            localBallPredictionUntil.current = performance.now() + 650;
+            localBallPredictionReleasePos.current.set(
+              release.position.x,
+              release.position.y,
+              release.position.z,
+            );
+            localBallPredictionMinSpeed.current = Math.max(
+              6,
+              Math.hypot(
+                release.velocity.x,
+                release.velocity.y,
+                release.velocity.z,
+              ) * 0.55,
+            );
             networkBallReady.current = false;
           }
           multiplayerStore.sendBallAction({
