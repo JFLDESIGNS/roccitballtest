@@ -1,4 +1,4 @@
-import type { Team, Vec3 } from '../shared/Types';
+import type { MatchScore, Team, Vec3 } from '../shared/Types';
 import type { ActorProfile } from '../game/playerRoster';
 import { gameStore } from '../game/gameStore';
 
@@ -16,21 +16,41 @@ export type RemoteMultiplayerPlayer = {
   updatedAt: number;
 };
 
+export type NetworkBallState = {
+  position: Vec3;
+  velocity: Vec3;
+  angularVelocity: Vec3;
+  updatedAt: number;
+};
+
+type NetworkMatchState = {
+  score: MatchScore;
+  timeLeft: number;
+  countdown: number;
+  ballFrozen: boolean;
+};
+
 type MultiplayerState = {
   enabled: boolean;
   status: MultiplayerStatus;
   selfId: string | null;
+  hostId: string | null;
   roomId: string;
   team: Team | null;
   error: string | null;
+  ball: NetworkBallState | null;
+  match: NetworkMatchState | null;
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
 type ServerMessage =
-  | { type: 'welcome'; id: string; roomId: string; team: Team }
+  | { type: 'welcome'; id: string; roomId: string; team: Team; hostId?: string }
   | {
       type: 'snapshot';
       serverTime: number;
+      hostId: string | null;
+      ball: NetworkBallState | null;
+      match: NetworkMatchState | null;
       players: RemoteMultiplayerPlayer[];
     };
 
@@ -50,9 +70,12 @@ let state: MultiplayerState = {
   enabled: false,
   status: 'offline',
   selfId: null,
+  hostId: null,
   roomId: 'main',
   team: null,
   error: null,
+  ball: null,
+  match: null,
   remotePlayers: [],
 };
 
@@ -96,6 +119,7 @@ function handleMessage(raw: string) {
     patch({
       status: 'online',
       selfId: msg.id,
+      hostId: msg.hostId ?? msg.id,
       roomId: msg.roomId,
       team: msg.team,
       error: null,
@@ -105,7 +129,13 @@ function handleMessage(raw: string) {
 
   if (msg.type === 'snapshot') {
     const selfId = state.selfId;
+    if (msg.match && selfId !== msg.hostId) {
+      gameStore.syncNetworkMatch(msg.match);
+    }
     patch({
+      hostId: msg.hostId,
+      ball: msg.ball,
+      match: msg.match,
       remotePlayers: msg.players.filter((player) => player.id !== selfId),
     });
   }
@@ -138,9 +168,12 @@ export const multiplayerStore = {
       enabled: true,
       status: 'connecting',
       selfId: null,
+      hostId: null,
       roomId,
       team: null,
       error: null,
+      ball: null,
+      match: null,
       remotePlayers: [],
     });
 
@@ -173,7 +206,15 @@ export const multiplayerStore = {
     socket.onclose = () => {
       socket = null;
       if (state.enabled) {
-        patch({ status: 'offline', selfId: null, team: null, remotePlayers: [] });
+        patch({
+          status: 'offline',
+          selfId: null,
+          hostId: null,
+          team: null,
+          ball: null,
+          match: null,
+          remotePlayers: [],
+        });
       }
     };
   },
@@ -184,8 +225,11 @@ export const multiplayerStore = {
       enabled: false,
       status: 'offline',
       selfId: null,
+      hostId: null,
       team: null,
       error: null,
+      ball: null,
+      match: null,
       remotePlayers: [],
     });
   },
@@ -201,6 +245,21 @@ export const multiplayerStore = {
     lastSendAt = now;
     sendJson({
       type: 'playerUpdate',
+      ...update,
+    });
+  },
+
+  isHost(): boolean {
+    return Boolean(state.enabled && state.selfId && state.selfId === state.hostId);
+  },
+
+  sendHostState(update: {
+    ball: Omit<NetworkBallState, 'updatedAt'>;
+    match: NetworkMatchState;
+  }): void {
+    if (!state.enabled || state.status !== 'online' || !multiplayerStore.isHost()) return;
+    sendJson({
+      type: 'hostState',
       ...update,
     });
   },

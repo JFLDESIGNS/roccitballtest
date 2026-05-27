@@ -33,7 +33,7 @@ function getRoom(roomId) {
   const id = typeof roomId === 'string' && roomId.trim() ? roomId.trim() : 'main';
   let room = rooms.get(id);
   if (!room) {
-    room = { id, players: new Map() };
+    room = { id, players: new Map(), hostId: null, ball: null, match: null };
     rooms.set(id, room);
   }
   return room;
@@ -131,6 +131,11 @@ function removeClient(socket) {
   clients.delete(socket);
   const room = rooms.get(client.roomId);
   room?.players.delete(client.id);
+  if (room?.hostId === client.id) {
+    room.hostId = [...room.players.keys()][0] ?? null;
+    room.ball = null;
+    room.match = null;
+  }
   if (room && room.players.size === 0) rooms.delete(room.id);
 }
 
@@ -164,6 +169,26 @@ function sanitizeVec3(value, fallback = { x: 0, y: 0, z: 0 }) {
   };
 }
 
+function sanitizeMatchState(match = {}) {
+  return {
+    score: {
+      red: Number.isFinite(match.score?.red)
+        ? Math.max(0, Math.floor(match.score.red))
+        : 0,
+      blue: Number.isFinite(match.score?.blue)
+        ? Math.max(0, Math.floor(match.score.blue))
+        : 0,
+    },
+    timeLeft: Number.isFinite(match.timeLeft)
+      ? Math.max(0, Math.ceil(match.timeLeft))
+      : 0,
+    countdown: Number.isFinite(match.countdown)
+      ? Math.max(0, Math.ceil(match.countdown))
+      : 0,
+    ballFrozen: Boolean(match.ballFrozen),
+  };
+}
+
 function handleClientMessage(socket, raw) {
   let msg;
   try {
@@ -190,7 +215,8 @@ function handleClientMessage(socket, raw) {
     };
     clients.set(socket, { id, roomId: room.id });
     room.players.set(id, player);
-    sendJson(socket, { type: 'welcome', id, roomId: room.id, team });
+    if (!room.hostId) room.hostId = id;
+    sendJson(socket, { type: 'welcome', id, roomId: room.id, team, hostId: room.hostId });
     return;
   }
 
@@ -211,6 +237,17 @@ function handleClientMessage(socket, raw) {
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;
     player.updatedAt = Date.now();
+    return;
+  }
+
+  if (msg.type === 'hostState' && client.id === room.hostId) {
+    room.ball = {
+      position: sanitizeVec3(msg.ball?.position),
+      velocity: sanitizeVec3(msg.ball?.velocity),
+      angularVelocity: sanitizeVec3(msg.ball?.angularVelocity),
+      updatedAt: Date.now(),
+    };
+    room.match = sanitizeMatchState(msg.match);
   }
 }
 
@@ -221,6 +258,9 @@ function broadcastSnapshots() {
     const packet = JSON.stringify({
       type: 'snapshot',
       serverTime: now,
+      hostId: room.hostId,
+      ball: room.ball,
+      match: room.match,
       players,
     });
     for (const [socket, client] of clients) {

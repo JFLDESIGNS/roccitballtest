@@ -67,6 +67,7 @@ import { LooseBallVisual } from './LooseBallVisual';
 import { getPremium8Ball } from './premiumBall';
 import type { ActorId } from './playerRoster';
 import { tryBallGoalScore, tryBallGoalScoreAtPoint } from './goalScoreHandler';
+import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import {
   isGoalBallSuckActive,
   getGoalBallSuckVisualAlpha,
@@ -324,6 +325,18 @@ const hasPrevBallPos = useRef(false);
     if (gameStore.getState().ballFrozen) {
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      return;
+    }
+
+    const multiplayer = multiplayerStore.getState();
+    if (
+      multiplayer.enabled &&
+      multiplayer.status === 'online' &&
+      multiplayer.selfId !== multiplayer.hostId
+    ) {
+      const t = body.translation();
+      prevBallPos.current.set(t.x, t.y, t.z);
+      hasPrevBallPos.current = true;
       return;
     }
 

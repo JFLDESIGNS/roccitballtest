@@ -123,6 +123,14 @@ function MatchLoop({
 
   useFrame((_, dt) => {
     const state = gameStore.getState();
+    const multiplayer = multiplayerStore.getState();
+    if (
+      multiplayer.enabled &&
+      multiplayer.status === 'online' &&
+      multiplayer.selfId !== multiplayer.hostId
+    ) {
+      return;
+    }
 
     tickGoalScoreRuntime(dt);
 
@@ -230,6 +238,8 @@ function Scene({
   );
   const ballSpawnCooldown = useRef(0);
   const botEnergySyncTimer = useRef(0);
+  const hostStateSendTimer = useRef(0);
+  const lastAppliedNetworkBallAt = useRef(0);
   const lastExplosionSfxAt = useRef(0);
   const { gl } = useThree();
   const beamLowEnergy = useSyncExternalStore(
@@ -291,6 +301,45 @@ function Scene({
   }, [matchGeneration]);
 
   useFrame((_, dt) => {
+    const network = multiplayerStore.getState();
+    const online = network.enabled && network.status === 'online';
+    const isNetworkHost = online && network.selfId === network.hostId;
+    const ballForNetwork = ballBodyRef.current;
+    if (online && ballForNetwork) {
+      if (isNetworkHost) {
+        hostStateSendTimer.current -= dt;
+        if (hostStateSendTimer.current <= 0) {
+          hostStateSendTimer.current = 0.05;
+          const t = ballForNetwork.translation();
+          const v = ballForNetwork.linvel();
+          const av = ballForNetwork.angvel();
+          const match = gameStore.getState();
+          multiplayerStore.sendHostState({
+            ball: {
+              position: { x: t.x, y: t.y, z: t.z },
+              velocity: { x: v.x, y: v.y, z: v.z },
+              angularVelocity: { x: av.x, y: av.y, z: av.z },
+            },
+            match: {
+              score: match.score,
+              timeLeft: match.timeLeft,
+              countdown: match.countdown,
+              ballFrozen: match.ballFrozen,
+            },
+          });
+        }
+      } else if (
+        network.ball &&
+        network.ball.updatedAt !== lastAppliedNetworkBallAt.current
+      ) {
+        const b = network.ball;
+        lastAppliedNetworkBallAt.current = b.updatedAt;
+        ballForNetwork.setTranslation(b.position, true);
+        ballForNetwork.setLinvel(b.velocity, true);
+        ballForNetwork.setAngvel(b.angularVelocity, true);
+      }
+    }
+
     if (showBots) {
       botEnergySyncTimer.current -= dt;
       if (botEnergySyncTimer.current <= 0) {

@@ -338,6 +338,36 @@ export const gameStore = {
     state = { ...state, timeLeft: t };
     notify();
   },
+  syncNetworkMatch: (match: {
+    score: MatchScore;
+    timeLeft: number;
+    countdown: number;
+    ballFrozen: boolean;
+  }) => {
+    const nextScore = {
+      red: Math.max(0, Math.floor(match.score.red)),
+      blue: Math.max(0, Math.floor(match.score.blue)),
+    };
+    const nextTimeLeft = Math.max(0, Math.ceil(match.timeLeft));
+    const nextCountdown = Math.max(0, Math.ceil(match.countdown));
+    if (
+      state.score.red === nextScore.red &&
+      state.score.blue === nextScore.blue &&
+      state.timeLeft === nextTimeLeft &&
+      state.countdown === nextCountdown &&
+      state.ballFrozen === match.ballFrozen
+    ) {
+      return;
+    }
+    state = {
+      ...state,
+      score: nextScore,
+      timeLeft: nextTimeLeft,
+      countdown: nextCountdown,
+      ballFrozen: match.ballFrozen,
+    };
+    notify();
+  },
   addScore: (team: Team, points: number, goalPos?: { x: number; y: number; z: number }) => {
     const nextStats = { ...state.matchStats };
     if (team === state.localTeam) {

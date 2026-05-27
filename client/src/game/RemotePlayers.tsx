@@ -1,5 +1,11 @@
 import { Html } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
+import {
+  CapsuleCollider,
+  interactionGroups,
+  RigidBody,
+  type RapierRigidBody,
+} from '@react-three/rapier';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { MOVEMENT } from '../shared/Constants';
@@ -13,7 +19,7 @@ const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
 
 function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
-  const rootRef = useRef<THREE.Group>(null);
+  const bodyRef = useRef<RapierRigidBody>(null);
   const targetPos = useRef(
     new THREE.Vector3(
       player.position.x,
@@ -21,7 +27,10 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       player.position.z,
     ),
   );
+  const smoothedPos = useRef(targetPos.current.clone());
   const targetYaw = useRef(player.rotation.yaw);
+  const smoothedYaw = useRef(player.rotation.yaw);
+  const rotationQuat = useRef(new THREE.Quaternion());
   const ready = useRef(false);
 
   useEffect(() => {
@@ -34,21 +43,40 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   }, [player.position.x, player.position.y, player.position.z, player.rotation.yaw]);
 
   useFrame((_, dt) => {
-    const root = rootRef.current;
-    if (!root) return;
+    const body = bodyRef.current;
+    if (!body) return;
     if (!ready.current) {
-      root.position.copy(targetPos.current);
-      root.rotation.y = targetYaw.current;
+      smoothedPos.current.copy(targetPos.current);
+      smoothedYaw.current = targetYaw.current;
       ready.current = true;
-      return;
+    } else {
+      const alpha = 1 - Math.exp(-dt * 14);
+      smoothedPos.current.lerp(targetPos.current, alpha);
+      smoothedYaw.current = THREE.MathUtils.lerp(
+        smoothedYaw.current,
+        targetYaw.current,
+        alpha,
+      );
     }
-    const alpha = 1 - Math.exp(-dt * 14);
-    root.position.lerp(targetPos.current, alpha);
-    root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, targetYaw.current, alpha);
+    rotationQuat.current.setFromEuler(new THREE.Euler(0, smoothedYaw.current, 0));
+    body.setNextKinematicTranslation(smoothedPos.current);
+    body.setNextKinematicRotation(rotationQuat.current);
   });
 
   return (
-    <group ref={rootRef}>
+    <RigidBody
+      ref={bodyRef}
+      type="kinematicPosition"
+      colliders={false}
+      position={[player.position.x, player.position.y, player.position.z]}
+      userData={{ character: true, hitTarget: true, actorId: player.id }}
+    >
+      <CapsuleCollider
+        args={[capHalfH, MOVEMENT.capsuleRadius]}
+        position={[0, capCenterY, 0]}
+        friction={0.65}
+        collisionGroups={interactionGroups(0, [0, 1, 2, 4])}
+      />
       <group position={[0, capCenterY, 0]}>
         <PlayerAvatar team={player.team} />
       </group>
@@ -58,7 +86,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
           <small>#{player.jerseyNumber.toString().padStart(2, '0')}</small>
         </div>
       </Html>
-    </group>
+    </RigidBody>
   );
 }
 
