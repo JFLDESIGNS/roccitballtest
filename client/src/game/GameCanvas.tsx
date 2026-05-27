@@ -1051,7 +1051,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        <ArenaSky />
+        {!gfx.badPuter && <ArenaSky />}
         <ArenaLighting />
         {!gfx.badPuter && <ArenaAtmosphere />}
         <Suspense fallback={null}>

@@ -32,10 +32,9 @@ export function SceneEnvironment() {
   useEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
     /** Blue backdrop only — does not drive PBR (see neutral env map + low env intensity) */
-    const skyDisplay = new THREE.Color('#4a9ee8').lerp(
-      new THREE.Color('#8fd4ff'),
-      0.4,
-    );
+    const skyDisplay = gfx.badPuter
+      ? new THREE.Color('#161d28')
+      : new THREE.Color('#4a9ee8').lerp(new THREE.Color('#8fd4ff'), 0.4);
     gl.toneMappingExposure = gfx.exposure * brightness;
     scene.background = skyDisplay;
     /** Dark neutral fog — avoids cyan wash on the court */
