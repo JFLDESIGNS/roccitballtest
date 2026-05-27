@@ -585,6 +585,31 @@ export function Player({
     if (tuningStore.getState().showMenu) return;
 
     const tune = tuningStore.getState();
+    if (gameStore.getState().arenaSettleCountdown > 0) {
+      const t = body.translation();
+      const pos = _posScratch.current.set(t.x, t.y, t.z);
+      const rot = inputManager.getRotation();
+      syncPreGamePresentation(rot.yaw);
+      chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
+      pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
+      onPositionUpdate(pos, chestPos.current, {
+        yaw: rot.yaw,
+        pitch: inputManager.getAimPitch(),
+        velocity: { x: 0, y: 0, z: 0 },
+        isBeaming: false,
+        isHoldingBall: false,
+        holdPosition: null,
+      });
+      updateThirdPersonCamera(
+        camera,
+        pivotRef.current,
+        rot.yaw,
+        inputManager.getAimPitch(),
+        dt,
+        true,
+      );
+      return;
+    }
 
     const knockTick = tickPlayerKnockStun(body);
     const rotEarly = inputManager.getRotation();

@@ -1,6 +1,6 @@
 import type { MatchScore, Team, Vec3 } from '../shared/Types';
 import type { ActorProfile } from '../game/playerRoster';
-import { gameStore } from '../game/gameStore';
+import { gameStore, type GamePhase } from '../game/gameStore';
 
 export type MultiplayerStatus = 'offline' | 'connecting' | 'online' | 'error';
 
@@ -16,6 +16,7 @@ export type RemoteMultiplayerPlayer = {
   isBeaming: boolean;
   isHoldingBall: boolean;
   holdPosition: Vec3 | null;
+  loadReady?: boolean;
   updatedAt: number;
 };
 
@@ -48,9 +49,12 @@ export type NetworkBallAction = {
 };
 
 type NetworkMatchState = {
+  phase: GamePhase;
   score: MatchScore;
   timeLeft: number;
   countdown: number;
+  arenaSettleCountdown: number;
+  loadCountdown: number;
   ballFrozen: boolean;
 };
 
@@ -309,6 +313,14 @@ export const multiplayerStore = {
     sendJson({
       type: 'playerUpdate',
       ...update,
+    });
+  },
+
+  sendLoadReady(ready: boolean): void {
+    if (!state.enabled || state.status !== 'online') return;
+    sendJson({
+      type: 'loadReady',
+      ready,
     });
   },
 

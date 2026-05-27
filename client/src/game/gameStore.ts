@@ -339,9 +339,12 @@ export const gameStore = {
     notify();
   },
   syncNetworkMatch: (match: {
+    phase?: GamePhase;
     score: MatchScore;
     timeLeft: number;
     countdown: number;
+    arenaSettleCountdown?: number;
+    loadCountdown?: number;
     ballFrozen: boolean;
   }) => {
     const nextScore = {
@@ -350,20 +353,35 @@ export const gameStore = {
     };
     const nextTimeLeft = Math.max(0, Math.ceil(match.timeLeft));
     const nextCountdown = Math.max(0, Math.ceil(match.countdown));
+    const nextArenaSettleCountdown = Math.max(
+      0,
+      Math.ceil(match.arenaSettleCountdown ?? state.arenaSettleCountdown),
+    );
+    const nextLoadCountdown = Math.max(
+      0,
+      Math.ceil(match.loadCountdown ?? state.loadCountdown),
+    );
+    const nextPhase = match.phase ?? state.phase;
     if (
+      state.phase === nextPhase &&
       state.score.red === nextScore.red &&
       state.score.blue === nextScore.blue &&
       state.timeLeft === nextTimeLeft &&
       state.countdown === nextCountdown &&
+      state.arenaSettleCountdown === nextArenaSettleCountdown &&
+      state.loadCountdown === nextLoadCountdown &&
       state.ballFrozen === match.ballFrozen
     ) {
       return;
     }
     state = {
       ...state,
+      phase: nextPhase,
       score: nextScore,
       timeLeft: nextTimeLeft,
       countdown: nextCountdown,
+      arenaSettleCountdown: nextArenaSettleCountdown,
+      loadCountdown: nextLoadCountdown,
       ballFrozen: match.ballFrozen,
     };
     notify();

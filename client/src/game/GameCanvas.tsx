@@ -440,9 +440,12 @@ function Scene({
               angularVelocity: { x: av.x, y: av.y, z: av.z },
             },
             match: {
+              phase: match.phase,
               score: match.score,
               timeLeft: match.timeLeft,
               countdown: match.countdown,
+              arenaSettleCountdown: match.arenaSettleCountdown,
+              loadCountdown: match.loadCountdown,
               ballFrozen: match.ballFrozen,
             },
           });

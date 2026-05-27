@@ -171,6 +171,10 @@ function sanitizeVec3(value, fallback = { x: 0, y: 0, z: 0 }) {
 
 function sanitizeMatchState(match = {}) {
   return {
+    phase:
+      ['intro', 'loading', 'playing', 'paused', 'countdown'].includes(match.phase)
+        ? match.phase
+        : 'playing',
     score: {
       red: Number.isFinite(match.score?.red)
         ? Math.max(0, Math.floor(match.score.red))
@@ -184,6 +188,12 @@ function sanitizeMatchState(match = {}) {
       : 0,
     countdown: Number.isFinite(match.countdown)
       ? Math.max(0, Math.ceil(match.countdown))
+      : 0,
+    arenaSettleCountdown: Number.isFinite(match.arenaSettleCountdown)
+      ? Math.max(0, Math.ceil(match.arenaSettleCountdown))
+      : 0,
+    loadCountdown: Number.isFinite(match.loadCountdown)
+      ? Math.max(0, Math.ceil(match.loadCountdown))
       : 0,
     ballFrozen: Boolean(match.ballFrozen),
   };
@@ -214,6 +224,7 @@ function handleClientMessage(socket, raw) {
       isBeaming: false,
       isHoldingBall: false,
       holdPosition: null,
+      loadReady: false,
       updatedAt: Date.now(),
     };
     clients.set(socket, { id, roomId: room.id });
@@ -244,6 +255,12 @@ function handleClientMessage(socket, raw) {
     player.holdPosition = msg.holdPosition
       ? sanitizeVec3(msg.holdPosition, player.position)
       : null;
+    player.updatedAt = Date.now();
+    return;
+  }
+
+  if (msg.type === 'loadReady') {
+    player.loadReady = Boolean(msg.ready);
     player.updatedAt = Date.now();
     return;
   }
