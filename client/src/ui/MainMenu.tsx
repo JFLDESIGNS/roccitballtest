@@ -26,6 +26,7 @@ import {
 } from '../game/premiumBall';
 import { HowToPlayContent } from './howToPlayContent';
 import { PremiumBallPurchaseModal } from './PremiumBallPurchaseModal';
+import premiumBallsImage from '../assets/images/ui/premium-balls.png';
 import '../mapEditor/mapEditor.css';
 
 const PROFILE_NAME_KEY = 'rocketball-player-name';
@@ -225,12 +226,21 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                 aria-label="Premium ball"
               >
                 <div className="premium-ball-offer premium-ball-offer--dock">
+                  <div className="premium-balls-showcase" aria-hidden>
+                    <img src={premiumBallsImage} alt="" />
+                  </div>
                   {premium8Ball ? (
                     <p className="premium-ball-equipped">
                       Premium 8-Ball equipped
                     </p>
                   ) : (
                     <>
+                      <ul className="premium-ball-stats premium-ball-stats--dock">
+                        <li>+30 extra power on ball</li>
+                        <li>+18% magnetic grip strength</li>
+                        <li>Pro-grade billiards resin finish</li>
+                        <li>VIP chalk pocket (cosmetic)</li>
+                      </ul>
                       <button
                         type="button"
                         className="btn-premium-ball"
@@ -242,12 +252,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                         </span>
                         Buy Premium Ball
                       </button>
-                      <ul className="premium-ball-stats premium-ball-stats--dock">
-                        <li>+30 extra power on ball</li>
-                        <li>+18% magnetic grip strength</li>
-                        <li>Pro-grade billiards resin finish</li>
-                        <li>VIP chalk pocket (cosmetic)</li>
-                      </ul>
                     </>
                   )}
                 </div>
