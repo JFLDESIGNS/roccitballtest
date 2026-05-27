@@ -40,7 +40,8 @@ export function ArenaAtmosphere() {
     graphicsStore.getState,
   );
 
-  const count = gfx.atmosphere ? Math.min(gfx.particleCount, POOL) : 0;
+  const count =
+    gfx.atmosphere && !gfx.badPuter ? Math.min(gfx.particleCount, POOL) : 0;
 
   const { geometry, base, seeds, fade, material } = useMemo(() => {
     const positions = new Float32Array(POOL * 3);

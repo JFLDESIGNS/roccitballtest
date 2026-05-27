@@ -40,10 +40,11 @@ export function SceneEnvironment() {
     scene.background = skyDisplay;
     /** Dark neutral fog — avoids cyan wash on the court */
     const fogColor = new THREE.Color('#1e2630');
-    const fogDensity = gfx.fog
+    const fogOn = gfx.fog && !gfx.badPuter;
+    const fogDensity = fogOn
       ? gfx.fogDensity / Math.max(0.85, brightness)
       : gfx.fogDensity;
-    if (gfx.fog) {
+    if (fogOn) {
       scene.fog = new THREE.FogExp2(fogColor.getHex(), fogDensity);
     } else {
       scene.fog = null;
@@ -51,20 +52,21 @@ export function SceneEnvironment() {
     return () => {
       scene.fog = null;
     };
-  }, [gfx.exposure, gfx.fog, gfx.fogDensity, brightness, gl, scene]);
+  }, [gfx.badPuter, gfx.exposure, gfx.fog, gfx.fogDensity, brightness, gl, scene]);
 
   useEffect(() => {
-    gl.shadowMap.enabled = gfx.shadows;
-    if (gfx.shadows) {
+    const shadowsOn = gfx.shadows && !gfx.badPuter;
+    gl.shadowMap.enabled = shadowsOn;
+    if (shadowsOn) {
       gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
       gl.shadowMap.needsUpdate = true;
     }
-  }, [gfx.shadows, gfx.shadowMapType, gl]);
+  }, [gfx.badPuter, gfx.shadows, gfx.shadowMapType, gl]);
 
   useFrame(() => {
     gl.toneMappingExposure = gfx.exposure * brightness;
     scene.environmentIntensity = 0.26;
-    if (gfx.fog && scene.fog instanceof THREE.FogExp2) {
+    if (!gfx.badPuter && gfx.fog && scene.fog instanceof THREE.FogExp2) {
       scene.fog.density = gfx.fogDensity / Math.max(0.85, brightness);
     }
   });

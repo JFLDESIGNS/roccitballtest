@@ -7,6 +7,7 @@ import {
 } from '../game/audio';
 import { getMenuMusicVolume } from '../game/menuAudioSettings';
 import { gameStore } from '../game/gameStore';
+import { graphicsStore } from '../game/graphicsStore';
 import {
   clampJersey,
   DEFAULT_LOCAL_JERSEY,
@@ -71,6 +72,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
+  );
+  const badPuter = useSyncExternalStore(
+    graphicsStore.subscribe,
+    () => graphicsStore.getState().badPuter,
   );
   const activeMapId = useSyncExternalStore(
     mapRegistryStore.subscribe,
@@ -248,6 +253,14 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                   <span>
                     {multiplayer.enabled ? 'Bots off online' : 'Practice bots'}
                   </span>
+                </label>
+                <label className="menu-option menu-option--dock-bad-puter">
+                  <input
+                    type="checkbox"
+                    checked={badPuter}
+                    onChange={(e) => graphicsStore.setBadPuter(e.target.checked)}
+                  />
+                  <span>Bad Puter</span>
                 </label>
                 <label className="menu-field menu-map-picker menu-field--dock-map">
                   <span>Arena map</span>

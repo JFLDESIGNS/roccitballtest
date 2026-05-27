@@ -305,6 +305,13 @@ export function LightGlowBillboard({
     if (!root) return;
 
     const gfx = graphicsStore.getState();
+    const lowPowerHidden = gfx.badPuter && !editorPreview;
+    const mesh = meshRef.current;
+    if (mesh) mesh.visible = !lowPowerHidden;
+    if (lowPowerHidden) {
+      material.uniforms.uOpacity.value = 0;
+      return;
+    }
     const peakOpacity = gfx.mapLightGlowOpacity ?? MAP_LIGHT_GLOW_DEFAULT_OPACITY;
     const sizeScale = gfx.mapLightGlowSizeScale ?? 1;
     const fadeFt = gfx.mapLightGlowProximityFadeFt;
@@ -351,7 +358,6 @@ export function LightGlowBillboard({
       material.userData.glowBlend = blend;
     }
 
-    const mesh = meshRef.current;
     if (mesh) {
       mesh.scale.set(glowDiameter, glowDiameter, 1);
       mesh.updateWorldMatrix(true, false);

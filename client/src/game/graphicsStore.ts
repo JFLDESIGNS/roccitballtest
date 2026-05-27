@@ -33,6 +33,7 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
   return {
     ...defaults,
     ...raw,
+    badPuter: raw.badPuter ?? defaults.badPuter,
     chromaticAberration: raw.chromaticAberration ?? defaults.chromaticAberration,
     chromaticAberrationIntensity:
       raw.chromaticAberrationIntensity ?? defaults.chromaticAberrationIntensity,
@@ -114,6 +115,8 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
 }
 
 export type GraphicsSettings = {
+  /** Low-end computer mode: local-only faster rendering path. */
+  badPuter: boolean;
   shadows: boolean;
   shadowMapType: ShadowMapTypeId;
   bloom: boolean;
@@ -172,6 +175,7 @@ export type GraphicsSettings = {
 type GraphicsState = GraphicsSettings;
 
 const defaults: GraphicsSettings = {
+  badPuter: false,
   shadows: true,
   shadowMapType: 'basic',
   bloom: true,
@@ -270,6 +274,7 @@ export const graphicsStore = {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
+  setBadPuter: (v: boolean) => patch({ badPuter: v }),
   setShadows: (v: boolean) => patch({ shadows: v }),
   setShadowMapType: (v: ShadowMapTypeId) => patch({ shadowMapType: v }),
   setBloom: (v: boolean) => patch({ bloom: v }),

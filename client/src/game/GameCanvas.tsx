@@ -337,6 +337,10 @@ function Scene({
     gameStore.subscribe,
     () => gameStore.getState().localTeam,
   );
+  const badPuter = useSyncExternalStore(
+    graphicsStore.subscribe,
+    () => graphicsStore.getState().badPuter,
+  );
   const botsEnabled = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().botsEnabled,
@@ -877,15 +881,15 @@ function Scene({
         lowEnergy={beamLowEnergy}
         team={localTeam}
       />
-      <RocketExplosionSprites poolRef={splashFxRef} />
-      <FanGlassCrackFx />
-      <PillarShakeSmoke />
-      <ImpactSparks />
+      {!badPuter && <RocketExplosionSprites poolRef={splashFxRef} />}
+      {!badPuter && <FanGlassCrackFx />}
+      {!badPuter && <PillarShakeSmoke />}
+      {!badPuter && <ImpactSparks />}
       <GameplayCollisionDebug />
-      <RocketWallImpactFx poolRef={wallImpactFxRef} />
-      <BotRagdollBurstFx poolRef={botRagdollFxRef} />
+      {!badPuter && <RocketWallImpactFx poolRef={wallImpactFxRef} />}
+      {!badPuter && <BotRagdollBurstFx poolRef={botRagdollFxRef} />}
       <BeamDenyZonesVisual />
-      <GoalFireworks />
+      {!badPuter && <GoalFireworks />}
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
       <FallRecoveryMonitor
         playerBodyRef={playerBodyRef}
@@ -897,8 +901,8 @@ function Scene({
         }}
         onRecoverBall={() => gameStore.clearBallHolder()}
       />
-      <RocketRecoilFx />
-      <RocketTrailSmoke />
+      {!badPuter && <RocketRecoilFx />}
+      {!badPuter && <RocketTrailSmoke />}
       <Rockets
         rocketsRef={rocketsRef}
         onExplosion={handleExplosion}
@@ -969,6 +973,7 @@ function Scene({
 export function GameCanvas({ onExit }: { onExit: () => void }) {
   const tune = useSyncExternalStore(tuningStore.subscribe, tuningStore.getState);
   const gfx = useSyncExternalStore(graphicsStore.subscribe, graphicsStore.getState);
+  const effectiveShadows = gfx.shadows && !gfx.badPuter;
   const showColliderDebug = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().showColliderDebug,
@@ -1016,21 +1021,21 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
       <Canvas
         style={{ background: '#181c22' }}
         camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
-        dpr={[RENDER.dprMin, RENDER.dprMax]}
+        dpr={gfx.badPuter ? [1, 1] : [RENDER.dprMin, RENDER.dprMax]}
         gl={{
-          antialias: RENDER.antialias,
+          antialias: gfx.badPuter ? false : RENDER.antialias,
           powerPreference: 'high-performance',
           alpha: false,
           stencil: false,
         }}
-        shadows={gfx.shadows}
+        shadows={effectiveShadows}
         onCreated={({ gl }) => {
           gl.domElement.tabIndex = 0;
           gl.domElement.style.outline = 'none';
           gl.setClearColor('#181c22', 1);
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = gfx.exposure;
-          if (gfx.shadows) {
+          if (effectiveShadows) {
             gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
           }
           gl.domElement.addEventListener(
@@ -1048,7 +1053,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         <SceneEnvironment />
         <ArenaSky />
         <ArenaLighting />
-        <ArenaAtmosphere />
+        {!gfx.badPuter && <ArenaAtmosphere />}
         <Suspense fallback={null}>
           <Physics
             gravity={[0, tune.gravity, 0]}
@@ -1058,7 +1063,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
             <Scene onExit={onExit} rocketsRef={rocketsRef} />
           </Physics>
         </Suspense>
-        <ScenePostFX />
+        {!gfx.badPuter && <ScenePostFX />}
       </Canvas>
     </div>
   );
