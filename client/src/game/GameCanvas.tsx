@@ -83,6 +83,7 @@ import { ArenaPadMonitor } from './ArenaPadMonitor';
 import {
   multiplayerStore,
   type NetworkRocketState,
+  type RemoteMultiplayerPlayer,
 } from '../multiplayer/multiplayerStore';
 import { RemotePlayers } from './RemotePlayers';
 import {
@@ -126,6 +127,56 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
     explosive: r.explosive,
     punchedGlowIds: new Set(),
   };
+}
+
+function RemoteBeamVisual({
+  player,
+  ballPosition,
+}: {
+  player: RemoteMultiplayerPlayer;
+  ballPosition: () => THREE.Vector3 | null;
+}) {
+  const chestRef = useRef(new THREE.Vector3());
+
+  return (
+    <BeamVisual
+      pullActive={() => player.isBeaming}
+      chestPosition={() => {
+        chestRef.current.set(
+          player.position.x,
+          player.position.y + BEAM.chestHeight,
+          player.position.z,
+        );
+        return chestRef.current;
+      }}
+      ballPosition={ballPosition}
+      lowEnergy={false}
+      team={player.team}
+    />
+  );
+}
+
+function RemoteBeamVisuals({
+  ballPosition,
+}: {
+  ballPosition: () => THREE.Vector3 | null;
+}) {
+  const players = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().remotePlayers,
+  );
+
+  return (
+    <>
+      {players.map((player) => (
+        <RemoteBeamVisual
+          key={player.id}
+          player={player}
+          ballPosition={ballPosition}
+        />
+      ))}
+    </>
+  );
 }
 
 function MatchLoop({
@@ -881,6 +932,7 @@ function Scene({
         lowEnergy={beamLowEnergy}
         team={localTeam}
       />
+      <RemoteBeamVisuals ballPosition={ballPos} />
       {!badPuter && <RocketExplosionSprites poolRef={splashFxRef} />}
       {!badPuter && <FanGlassCrackFx />}
       {!badPuter && <PillarShakeSmoke />}

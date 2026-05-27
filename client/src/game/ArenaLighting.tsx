@@ -15,8 +15,8 @@ export function ArenaLighting() {
   const b = gfx.arenaBrightness ?? 1;
 
   const hemiSky = INDOOR_HEMI_SKY;
-  const hemiIntensity = 0.24 * b;
-  const ambIntensity = 0.058 * b;
+  const hemiIntensity = (gfx.badPuter ? 1.1 : 0.24) * b;
+  const ambIntensity = (gfx.badPuter ? 0.52 : 0.058) * b;
 
   return (
     <>

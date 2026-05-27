@@ -340,7 +340,7 @@ function StadiumLightNode({
       gfx.stadiumStripLightIntensity ?? 5,
     );
     const col = readLightColor(light);
-    const shadow = computeCastShadow(light, gfx.shadows);
+    const shadow = computeCastShadow(light, gfx.shadows && !gfx.badPuter);
     if (castShadowRef.current !== shadow) {
       castShadowRef.current = shadow;
       const point = pointRef.current;
