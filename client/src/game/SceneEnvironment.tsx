@@ -53,13 +53,16 @@ export function SceneEnvironment() {
     };
   }, [gfx.exposure, gfx.fog, gfx.fogDensity, brightness, gl, scene]);
 
-  useFrame(() => {
-    gl.toneMappingExposure = gfx.exposure * brightness;
+  useEffect(() => {
     gl.shadowMap.enabled = gfx.shadows;
     if (gfx.shadows) {
       gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
       gl.shadowMap.needsUpdate = true;
     }
+  }, [gfx.shadows, gfx.shadowMapType, gl]);
+
+  useFrame(() => {
+    gl.toneMappingExposure = gfx.exposure * brightness;
     scene.environmentIntensity = 0.26;
     if (gfx.fog && scene.fog instanceof THREE.FogExp2) {
       scene.fog.density = gfx.fogDensity / Math.max(0.85, brightness);

@@ -84,20 +84,25 @@ export function HUD({ onMainMenu }: HUDProps) {
       <StadiumLightEditorPanel />
       <div className="hud-top">
         <div className="hud-top-center">
-          {state.announcement && performance.now() < state.announcement.expiresAt && (
-            <div className="hud-announcement">{state.announcement.message}</div>
-          )}
-          {comboActive && (
-            <div className="hud-combo" aria-live="polite">
-              <div className="hud-combo-label">Combo</div>
-              <div className="hud-combo-mult">x{state.ballCombo}</div>
-            </div>
-          )}
           <MatchScoreboard
             red={state.score.red}
             blue={state.score.blue}
             timeLabel={formatTime(state.timeLeft)}
           />
+          {(state.announcement && performance.now() < state.announcement.expiresAt) ||
+          comboActive ? (
+            <div className="hud-top-overlays">
+              {state.announcement && performance.now() < state.announcement.expiresAt && (
+                <div className="hud-announcement">{state.announcement.message}</div>
+              )}
+              {comboActive && (
+                <div className="hud-combo" aria-live="polite">
+                  <div className="hud-combo-label">Combo</div>
+                  <div className="hud-combo-mult">x{state.ballCombo}</div>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
         <div className="hud-top-right">
           <div className="hud-speed-panel">

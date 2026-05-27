@@ -150,7 +150,7 @@ body,
 
 .main-menu-dock .main-menu-setup-compact {
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.88fr);
-  grid-template-rows: auto auto auto auto;
+  grid-template-rows: auto auto auto;
   gap: 0.42rem 0.5rem;
 }
 
@@ -1706,8 +1706,8 @@ body,
   position: relative;
   display: flex;
   justify-content: flex-end;
-  padding: 0.65rem 1.5rem 1rem;
-  min-height: 5.5rem;
+  padding: 0.35rem 1.5rem 0.65rem;
+  min-height: 4.6rem;
 }
 
 .hud-top-center {
@@ -1718,16 +1718,28 @@ body,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
   max-width: min(96vw, 640px);
   pointer-events: none;
   z-index: 20;
 }
 
+.hud-top-overlays {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(96vw, 640px);
+}
+
 /* Rocket League–style top score bar (blue left, red right) */
 .rl-scoreboard {
-  --rl-red: #e81919;
-  --rl-blue: #55aaff;
+  --rl-red: #b81414;
+  --rl-blue: #1e4fa8;
   display: flex;
   align-items: stretch;
   filter: drop-shadow(0 5px 16px rgba(0, 0, 0, 0.58));
@@ -1820,11 +1832,11 @@ body,
 }
 
 .team-red {
-  color: #ff5566;
+  color: #e04555;
 }
 
 .team-blue {
-  color: #55aaff;
+  color: #4a8fd4;
 }
 
 .hud-top-right {

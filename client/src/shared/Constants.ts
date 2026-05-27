@@ -1184,7 +1184,7 @@ export const GOAL_RINGS = {
 /** Renderer / lighting */
 export const RENDER = {
   dprMin: 1,
-  dprMax: 1.35,
+  dprMax: 1.2,
   antialias: true,
   enableShadows: true,
   shadowMapSize: 4096,

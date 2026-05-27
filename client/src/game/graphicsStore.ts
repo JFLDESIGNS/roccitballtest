@@ -175,7 +175,7 @@ const defaults: GraphicsSettings = {
   shadows: true,
   shadowMapType: 'basic',
   bloom: true,
-  bloomIntensity: 0.42,
+  bloomIntensity: 0.32,
   ao: false,
   aoIntensity: 1.05,
   aoRadius: 10,
