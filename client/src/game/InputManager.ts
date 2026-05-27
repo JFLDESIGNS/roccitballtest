@@ -280,8 +280,9 @@ class InputManager {
           this.lastForwardTapAt = nowSec;
         }
       }
-      if (e.code === 'KeyE' && !gameStore.getState().debugFreelook) {
+      if (e.code === 'KeyE' && !e.repeat && !gameStore.getState().debugFreelook) {
         this.throwQueued = true;
+        this.ePropelQueued = true;
         triggerThrowFlipEmotes();
       }
       if (e.code === 'KeyF') this.spawnBallQueued = true;

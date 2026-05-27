@@ -48,6 +48,7 @@ import {
 import { botFireHeldBall, type BotLaunchKind } from './botHeldBallShot';
 import { canKnockLooseHeldBall } from './ballHoldImmunity';
 import { setBotBallChaseActive } from './botTeamBallChase';
+import { allowTeamAttract } from './botTeamAttractLock';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import {
   captureBallSocket,
@@ -3022,7 +3023,7 @@ function BotAvatar({
       !denyHere &&
       energy.current > ENERGY.minBeam;
 
-    const beaming =
+    const beamingCandidate =
       !!ball &&
       holder === null &&
       !waitForTeammateShot &&
@@ -3035,6 +3036,18 @@ function BotAvatar({
       !regrabLocked &&
       !denyHere &&
       energy.current > ENERGY.minBeam;
+
+    const coordAllowsBeaming =
+      bot.team !== 'red' || mode !== 'attractBall'
+        ? true
+        : allowTeamAttract('red', bot.id, beamingCandidate);
+
+    // Release the lock immediately when this bot stops trying to attract.
+    if (bot.team === 'red' && mode === 'attractBall' && !beamingCandidate) {
+      allowTeamAttract('red', bot.id, false);
+    }
+
+    const beaming = beamingCandidate && coordAllowsBeaming;
 
     beamPullActive.current = beaming;
     if (beaming) {

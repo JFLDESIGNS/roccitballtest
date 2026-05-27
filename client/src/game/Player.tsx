@@ -138,7 +138,6 @@ function speedCameraFactor(
 }
 
 const _moveVelXZ = new THREE.Vector3();
-const _ePropelVel = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
 
 function ePropelImpulseThreshold(index: number): number {
@@ -147,20 +146,12 @@ function ePropelImpulseThreshold(index: number): number {
   return (index / (n - 1)) * MOVEMENT.ePropelDurationSec;
 }
 
-/** Move at sample time, else camera forward */
+/** Camera look direction (yaw + pitch) for E propel. */
 function resolveEPropelDirection(
   out: THREE.Vector3,
-  forward: THREE.Vector3,
-  right: THREE.Vector3,
-  move: { x: number; y: number },
-  walkSpeed: number,
+  lookDir: THREE.Vector3,
 ): void {
-  cameraMoveTargetXZ(_ePropelVel, forward, right, move, walkSpeed);
-  if (_ePropelVel.lengthSq() > 1e-6) {
-    out.copy(_ePropelVel).setY(0).normalize();
-    return;
-  }
-  out.copy(forward).setY(0);
+  out.copy(lookDir);
   if (out.lengthSq() < 1e-6) out.set(0, 0, -1);
   else out.normalize();
 }
@@ -856,6 +847,7 @@ export function Player({
     if (
       !goalEjectMoveLocked &&
       !isPlayerKnockStunActive() &&
+      !holdingBall.current &&
       ePropelCooldown.current <= 0 &&
       inputManager.consumeEPropel()
     ) {
@@ -869,14 +861,12 @@ export function Player({
       ePropelElapsed.current = 0;
       ePropelImpulsesApplied.current = 0;
       ePropelCooldown.current = MOVEMENT.ePropelCooldownSec;
-      ePropelVyBoost.current = MOVEMENT.ePropelUpSpeed;
-      resolveEPropelDirection(
-        _ePropelDir,
-        forward,
-        right,
-        moveEarly,
-        tune.walkSpeed,
-      );
+      resolveEPropelDirection(_ePropelDir, lookDir);
+      const horizLook = Math.hypot(_ePropelDir.x, _ePropelDir.z);
+      const launchVy =
+        _ePropelDir.y * MOVEMENT.ePropelUpSpeed +
+        (horizLook > 0.65 ? MOVEMENT.dashUpSpeed : 0);
+      ePropelVyBoost.current = launchVy;
       playDash();
       grounded.current = false;
       jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
@@ -896,18 +886,9 @@ export function Player({
         ePropelElapsed.current >=
           ePropelImpulseThreshold(ePropelImpulsesApplied.current)
       ) {
-        const moveSample = goalEjectMoveLocked
-          ? { x: 0, y: 0 }
-          : inputManager.getMoveVector();
-        resolveEPropelDirection(
-          _ePropelDir,
-          forward,
-          right,
-          moveSample,
-          tune.walkSpeed,
-        );
         velocity.current.x += _ePropelDir.x * MOVEMENT.ePropelImpulseHSpeed;
         velocity.current.z += _ePropelDir.z * MOVEMENT.ePropelImpulseHSpeed;
+        velocity.current.y += _ePropelDir.y * MOVEMENT.ePropelImpulseHSpeed * 0.45;
         ePropelImpulsesApplied.current += 1;
       }
       velocity.current.x = _ePropelDir.x * MOVEMENT.ePropelSustainSpeed;

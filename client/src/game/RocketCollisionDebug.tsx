@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { ARENA, ARENA_PADS, GOAL_RINGS } from '../shared/Constants';
+import { ARENA, ARENA_PADS } from '../shared/Constants';
 import { getBillboardMounts, getBounceTrampolinePads } from './arenaPadLayout';
 import { billboardHitHalfExtents } from './billboardCollision';
 import { getBallDropRocketHitAabb } from './ballDropRocketCollision';
@@ -11,12 +11,6 @@ import {
   getFanGlassPanels,
   type FanGlassPanel,
 } from './fanGlassHit';
-import {
-  ARENA_GOALS,
-  goalBackRingCenterX,
-  ringTube,
-  ringTiltX,
-} from './goals';
 import { listArenaPlatforms } from './arenaSpawn';
 
 export const ROCKET_HIT_WIRE_COLOR = '#bb55ff';
@@ -289,39 +283,6 @@ function TrampolineRocketWire({
   );
 }
 
-function GoalRimRocketWire({ goal }: { goal: (typeof ARENA_GOALS)[0] }) {
-  const litMajor = goal.ringRadius;
-  // Match visible/Rapier torus geometry (tube radius), not inflated rocket radius.
-  const litTube = ringTube(litMajor);
-  const backMajor = goal.ringRadius * GOAL_RINGS.backRingScale;
-  const backTube = ringTube(backMajor) * GOAL_RINGS.backRingTubeScale;
-  const tiltX = ringTiltX(goal.team, goal.size);
-  const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
-
-  const litGeo = useMemo(
-    () => new THREE.EdgesGeometry(new THREE.TorusGeometry(litMajor, litTube, 10, 24)),
-    [litMajor, litTube],
-  );
-  const backGeo = useMemo(
-    () =>
-      new THREE.EdgesGeometry(new THREE.TorusGeometry(backMajor, backTube, 10, 20)),
-    [backMajor, backTube],
-  );
-
-  return (
-    <group position={[goal.center.x, goal.center.y, goal.center.z]}>
-      <group rotation={[0, Math.PI / 2, 0]}>
-        <group rotation={[tiltX, 0, 0]}>
-          <WireLineSegments geometry={litGeo} />
-          <group position={[backLocalX, 0, 0]}>
-            <WireLineSegments geometry={backGeo} />
-          </group>
-        </group>
-      </group>
-    </group>
-  );
-}
-
 /** Purple wireframes — logical surfaces rockets detonate / bounce on (G key). */
 export function RocketCollisionDebug() {
   const platforms = useMemo(() => listArenaPlatforms(), []);
@@ -368,10 +329,6 @@ export function RocketCollisionDebug() {
           radius={pad.radius}
           platformTopY={pad.platformTopY}
         />
-      ))}
-
-      {ARENA_GOALS.map((goal) => (
-        <GoalRimRocketWire key={`rocket-rim-${goal.id}`} goal={goal} />
       ))}
 
       {billboards.map((mount, i) => (

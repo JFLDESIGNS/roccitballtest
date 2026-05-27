@@ -79,6 +79,11 @@ const ARENA_CONCRETE_METALNESS = 0.1;
 const ARENA_CONCRETE_ENV_INTENSITY = 0.48;
 /** Shared wall + floor concrete (same maps and color) */
 const ARENA_WALL_FLOOR_CONCRETE_COLOR = '#2a3038';
+/** Floor-only tuning — darker + glossier but still uses roughnessMap. */
+const ARENA_FLOOR_CONCRETE_COLOR = '#07090c';
+const ARENA_FLOOR_CONCRETE_ROUGHNESS = 0.48;
+const ARENA_FLOOR_CONCRETE_METALNESS = 0.18;
+const ARENA_FLOOR_CONCRETE_ENV_INTENSITY = 0.9;
 
 function createArenaConcreteSurfaceMaterial(
   color: string,
@@ -277,6 +282,11 @@ function applyAllConcreteMaps(): void {
   bindWallFloorConcrete(arenaWallMaterial, 1, 1);
   /** Floor UVs are already meter-tiled in createArenaHexFloorGeometry — repeat must stay 1× */
   bindWallFloorConcrete(arenaHexFloorMaterial, 1, 1);
+  arenaHexFloorMaterial.color.set(ARENA_FLOOR_CONCRETE_COLOR);
+  arenaHexFloorMaterial.roughness = ARENA_FLOOR_CONCRETE_ROUGHNESS;
+  arenaHexFloorMaterial.metalness = ARENA_FLOOR_CONCRETE_METALNESS;
+  arenaHexFloorMaterial.envMapIntensity = ARENA_FLOOR_CONCRETE_ENV_INTENSITY;
+  arenaHexFloorMaterial.needsUpdate = true;
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
 }

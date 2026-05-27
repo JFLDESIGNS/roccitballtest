@@ -727,13 +727,13 @@ export const MOVEMENT = {
   /** Upward pop at dash start (m/s) */
   dashUpSpeed: 2,
   /** E — leap + forward propel (flip stays on keydown) */
-  ePropelDurationSec: 1,
+  ePropelDurationSec: 1.15,
   ePropelImpulseCount: 4,
-  ePropelUpSpeed: 13,
+  ePropelUpSpeed: 21.75,
   /** Horizontal speed added on each of the 4 move samples (m/s) */
-  ePropelImpulseHSpeed: 8.5,
+  ePropelImpulseHSpeed: 15.75,
   /** Locked horizontal speed for the rest of the propel window (m/s) */
-  ePropelSustainSpeed: 19,
+  ePropelSustainSpeed: 36,
   ePropelEnergyCostFrac: 0.6,
   ePropelCooldownSec: 0.45,
 } as const;
@@ -1059,7 +1059,7 @@ export const GOAL_RINGS = {
   /** Bottom (large) black back-ring offset from lit center toward wall (m) */
   backRingWallOffsetM: 1.75,
   /** Middle + top — extra push toward wall beyond tier back offset (ft) */
-  midTopBackRingWallExtraFt: 2,
+  midTopBackRingWallExtraFt: 0.75,
   /** Top (5 pt) backup plate — nudge toward court from wall-backed position (ft) */
   topBackRingCourtForwardFt: 1,
   /** Top (small) ring — standoff from wall toward center court (feet) */
