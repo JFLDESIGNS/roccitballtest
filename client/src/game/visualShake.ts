@@ -8,7 +8,7 @@ import { ARENA_PADS } from '../shared/Constants';
 const SHAKE_MS = 500;
 const MAX_TILT_DEG = 1.35;
 const PILLAR_SHAKE_MS = 680;
-const PILLAR_MAX_TILT_DEG = 2.55;
+const PILLAR_MAX_TILT_DEG = 1.45;
 const PILLAR_MAX_OFFSET_M = 0.22;
 const BILLBOARD_SHAKE_MS = 1280;
 const BILLBOARD_MAX_TILT_DEG = 2.15;

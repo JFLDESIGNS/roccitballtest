@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'client', 'dist');
 const port = Number(process.env.PORT || 3000);
-const snapshotHz = Number(process.env.SNAPSHOT_HZ || 30);
+const snapshotHz = Number(process.env.SNAPSHOT_HZ || 45);
 const BALL_RADIUS = 1.6;
 const BALL_SPAWN = { x: 0, y: 2.05, z: 0 };
 const ARENA_HEX_RADIUS = 64;
@@ -36,6 +36,8 @@ const BALL_RESTITUTION = 0.58;
 const BALL_FRICTION = 0.26;
 const BALL_ANGULAR_DAMPING = 0.06;
 const BALL_MAX_SPEED = 85;
+const ROCKET_BALL_HIT_DELTA_V = 22;
+const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
 const SERVER_STEP_MAX = 1 / 30;
@@ -504,6 +506,62 @@ function clampPhysicsBallSpeed(room) {
   body.setLinvel({ x: v.x * scale, y: v.y * scale, z: v.z * scale }, true);
 }
 
+function normalizeVec3(value, fallback = { x: 0, y: 1, z: 0 }) {
+  const v = sanitizeVec3(value, fallback);
+  const length = Math.hypot(v.x, v.y, v.z);
+  if (length <= 0.0001) return { ...fallback };
+  return { x: v.x / length, y: v.y / length, z: v.z / length };
+}
+
+function rocketKnockDirection(ballPosition, impact) {
+  if (impact.rocketVelocity) {
+    return normalizeVec3(impact.rocketVelocity);
+  }
+  const dx = ballPosition.x - impact.position.x;
+  const dy = ballPosition.y - impact.position.y;
+  const dz = ballPosition.z - impact.position.z;
+  return normalizeVec3({ x: dx, y: dy, z: dz });
+}
+
+function applyRocketImpactToServerBall(room, impact, now) {
+  if (!room.physics) room.physics = createRoomPhysics();
+  const body = room.physics.ballBody;
+  const ballPosition = body.translation();
+  const dx = ballPosition.x - impact.position.x;
+  const dy = ballPosition.y - impact.position.y;
+  const dz = ballPosition.z - impact.position.z;
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist > impact.radius) return false;
+
+  const falloff = Math.max(
+    ROCKET_BALL_SPLASH_MIN_FALLOFF,
+    1 - dist / Math.max(impact.radius, 0.001),
+  );
+  const direction = rocketKnockDirection(ballPosition, impact);
+  const velocity = body.linvel();
+  body.setLinvel(
+    {
+      x: velocity.x + direction.x * ROCKET_BALL_HIT_DELTA_V * falloff,
+      y: velocity.y + direction.y * ROCKET_BALL_HIT_DELTA_V * falloff,
+      z: velocity.z + direction.z * ROCKET_BALL_HIT_DELTA_V * falloff,
+    },
+    true,
+  );
+
+  const normal = normalizeVec3(impact.ballImpactNormal, direction);
+  body.setAngvel(
+    {
+      x: normal.z * ROCKET_BALL_HIT_DELTA_V * falloff * 0.9,
+      y: 0,
+      z: -normal.x * ROCKET_BALL_HIT_DELTA_V * falloff * 0.9,
+    },
+    true,
+  );
+  clampPhysicsBallSpeed(room);
+  syncBallFromPhysics(room, now);
+  return true;
+}
+
 function tickRoomBall(room, dt, now) {
   if (!room.ball) room.ball = createServerBall();
   if (!room.physics) room.physics = createRoomPhysics();
@@ -695,6 +753,23 @@ function handleClientMessage(socket, raw) {
         sendJson(peerSocket, packet);
       }
     }
+    return;
+  }
+
+  if (msg.type === 'rocketImpact') {
+    const impact = {
+      position: sanitizeVec3(msg.impact?.position),
+      radius: Number.isFinite(msg.impact?.radius)
+        ? Math.max(0.5, Math.min(18, msg.impact.radius))
+        : 7,
+      rocketVelocity: msg.impact?.rocketVelocity
+        ? sanitizeVec3(msg.impact.rocketVelocity)
+        : null,
+      ballImpactNormal: msg.impact?.ballImpactNormal
+        ? sanitizeVec3(msg.impact.ballImpactNormal)
+        : null,
+    };
+    applyRocketImpactToServerBall(room, impact, Date.now());
     return;
   }
 

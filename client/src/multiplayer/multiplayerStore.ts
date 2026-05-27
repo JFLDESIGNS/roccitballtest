@@ -39,6 +39,13 @@ export type NetworkRocketState = {
   explosive: boolean;
 };
 
+export type NetworkRocketImpact = {
+  position: Vec3;
+  radius: number;
+  rocketVelocity?: Vec3;
+  ballImpactNormal?: Vec3;
+};
+
 export type NetworkBallAction = {
   id: string;
   ownerId: string;
@@ -344,6 +351,14 @@ export const multiplayerStore = {
     sendJson({
       type: 'rocketFire',
       rocket,
+    });
+  },
+
+  sendRocketImpact(impact: NetworkRocketImpact): void {
+    if (!state.enabled || state.status !== 'online') return;
+    sendJson({
+      type: 'rocketImpact',
+      impact,
     });
   },
 

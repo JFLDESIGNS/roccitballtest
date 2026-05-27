@@ -607,6 +607,33 @@ function Scene({
   }, [ballPos]);
 
   const handleExplosion = useCallback((hit: ExplosionHit) => {
+    const multiplayer = multiplayerStore.getState();
+    if (
+      multiplayer.enabled &&
+      multiplayer.status === 'online' &&
+      (hit.fromOwnerId === 'local' || hit.fromOwnerId === multiplayer.selfId)
+    ) {
+      multiplayerStore.sendRocketImpact({
+        position: { x: hit.x, y: hit.y, z: hit.z },
+        radius: hit.radius,
+        rocketVelocity:
+          hit.rocketVx !== undefined &&
+          hit.rocketVy !== undefined &&
+          hit.rocketVz !== undefined
+            ? { x: hit.rocketVx, y: hit.rocketVy, z: hit.rocketVz }
+            : undefined,
+        ballImpactNormal:
+          hit.ballImpactNx !== undefined &&
+          hit.ballImpactNy !== undefined &&
+          hit.ballImpactNz !== undefined
+            ? {
+                x: hit.ballImpactNx,
+                y: hit.ballImpactNy,
+                z: hit.ballImpactNz,
+              }
+            : undefined,
+      });
+    }
     const now = performance.now();
     if (now - lastExplosionSfxAt.current > 70) {
       lastExplosionSfxAt.current = now;
