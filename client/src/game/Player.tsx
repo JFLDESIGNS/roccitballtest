@@ -193,7 +193,15 @@ type PlayerProps = {
   onRocketFired: (rocket: ReturnType<typeof createRocket>) => void;
   onBallHeldChange: (held: boolean) => void;
   onBeamBreak: () => void;
-  onPositionUpdate: (pos: THREE.Vector3, chest: THREE.Vector3) => void;
+  onPositionUpdate: (
+    pos: THREE.Vector3,
+    chest: THREE.Vector3,
+    pose: {
+      yaw: number;
+      pitch: number;
+      velocity: { x: number; y: number; z: number };
+    },
+  ) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
   /** Return false when rockets are maxed out / empty */
   canFireRocket?: () => boolean;
@@ -656,7 +664,11 @@ export function Player({
         );
       }
       pivotRef.current.set(tr.x, tr.y + CAMERA.pivotHeight, tr.z);
-      onPositionUpdate(pos, chestPos.current);
+      onPositionUpdate(pos, chestPos.current, {
+        yaw: rot.yaw,
+        pitch: inputManager.getAimPitch(),
+        velocity: { x: lv.x, y: lv.y, z: lv.z },
+      });
       updateThirdPersonCamera(
         camera,
         pivotRef.current,
@@ -704,9 +716,12 @@ export function Player({
 
     pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
-    onPositionUpdate(pos, chestPos.current);
-
     const linvel = body.linvel();
+    onPositionUpdate(pos, chestPos.current, {
+      yaw: rot.yaw,
+      pitch: inputManager.getAimPitch(),
+      velocity: { x: linvel.x, y: linvel.y, z: linvel.z },
+    });
     const moveSpeed = Math.hypot(linvel.x, linvel.z);
     const goalEjectMoveLocked = isPlayerGoalEjectMoveLocked();
     const moveEarly = goalEjectMoveLocked

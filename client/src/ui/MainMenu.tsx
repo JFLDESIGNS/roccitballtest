@@ -15,6 +15,7 @@ import {
   getLocalProfile,
   setLocalProfile,
 } from '../game/playerRoster';
+import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { MenuLogoTilt } from './MenuLogoTilt';
 import { MenuBotPreview } from './MenuBotPreview';
 import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
@@ -78,9 +79,14 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     mapRegistryStore.subscribe,
     mapRegistryStore.listSummaries,
   );
+  const multiplayer = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    multiplayerStore.getState,
+  );
 
   useEffect(() => {
     setLocalProfile(playerName, jerseyNumber);
+    multiplayerStore.updateProfile(getLocalProfile());
   }, [playerName, jerseyNumber]);
 
   useEffect(() => {
@@ -102,9 +108,21 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const enterArena = () => {
     commitProfile();
     setLocalProfile(playerName, jerseyNumber);
+    multiplayerStore.updateProfile(getLocalProfile());
     resumeAudio();
     stopBackgroundMusic();
     onPlay();
+  };
+
+  const toggleMultiplayer = () => {
+    commitProfile();
+    setLocalProfile(playerName, jerseyNumber);
+    const profile = getLocalProfile();
+    if (multiplayer.enabled) {
+      multiplayerStore.disconnect();
+    } else {
+      multiplayerStore.connect(profile);
+    }
   };
 
   const openEditor = () => {
@@ -217,6 +235,29 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                     }}
                   />
                 </label>
+                <div className="menu-online menu-field--dock-online">
+                  <button
+                    type="button"
+                    className={
+                      multiplayer.enabled
+                        ? 'btn-online btn-online--active'
+                        : 'btn-online'
+                    }
+                    onClick={toggleMultiplayer}
+                  >
+                    Online Multiplayer
+                    <span>{multiplayer.status}</span>
+                  </button>
+                  {multiplayer.error ? (
+                    <small>{multiplayer.error}</small>
+                  ) : (
+                    <small>
+                      {multiplayer.selfId
+                        ? `Room ${multiplayer.roomId}`
+                        : 'Connect before Play Now'}
+                    </small>
+                  )}
+                </div>
               </div>
             </section>
 

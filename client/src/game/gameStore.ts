@@ -196,6 +196,10 @@ export const gameStore = {
     }
     notify();
   },
+  setLocalTeam: (team: Team) => {
+    state = { ...state, localTeam: team };
+    notify();
+  },
   startMatch: () => {
     clearBotTeamRelease();
     arenaRoofStore.reset();

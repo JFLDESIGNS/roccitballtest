@@ -43,6 +43,29 @@ body,
   height: 100% !important;
 }
 
+.remote-player-nameplate {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.2rem 0.46rem;
+  border: 1px solid rgba(112, 205, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(2, 10, 24, 0.72);
+  color: #f2f8ff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 12px rgba(75, 180, 255, 0.18);
+}
+
+.remote-player-nameplate small {
+  color: #69d9ff;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
 /* Full-screen refocus layer above HUD when pointer lock is released (alt-tab, etc.) */
 .game-pointer-capture {
   position: fixed;
@@ -150,7 +173,7 @@ body,
 
 .main-menu-dock .main-menu-setup-compact {
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.88fr);
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto auto;
   gap: 0.42rem 0.5rem;
 }
 
@@ -179,6 +202,54 @@ body,
 .main-menu-dock .menu-field--dock-music {
   grid-column: 1 / -1;
   grid-row: 4;
+}
+
+.main-menu-dock .menu-field--dock-online {
+  grid-column: 1 / -1;
+  grid-row: 5;
+}
+
+.menu-online {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.menu-online small {
+  min-height: 0.85rem;
+  color: #9fb8dc;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.btn-online {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.38rem 0.7rem;
+  border: 1px solid rgba(85, 170, 255, 0.52);
+  border-radius: 0.42rem;
+  background: rgba(17, 36, 69, 0.72);
+  color: #eaf4ff;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.btn-online span {
+  color: #62d9ff;
+  font-size: 0.68rem;
+  text-transform: none;
+}
+
+.btn-online--active {
+  border-color: rgba(87, 255, 188, 0.68);
+  background: rgba(9, 58, 53, 0.8);
+  box-shadow: inset 0 0 16px rgba(67, 255, 188, 0.12);
 }
 
 .main-menu-dock-row {

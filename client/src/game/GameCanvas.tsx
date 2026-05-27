@@ -80,6 +80,8 @@ import {
 import { FallRecoveryMonitor } from './FallRecoveryMonitor';
 import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
+import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import { RemotePlayers } from './RemotePlayers';
 import {
   announceBotDestroyed,
   announceRocketPlayerHit,
@@ -329,11 +331,25 @@ function Scene({
   });
 
   const onPlayerPosition = useCallback(
-    (pos: THREE.Vector3, chest: THREE.Vector3) => {
+    (
+      pos: THREE.Vector3,
+      chest: THREE.Vector3,
+      pose: {
+        yaw: number;
+        pitch: number;
+        velocity: { x: number; y: number; z: number };
+      },
+    ) => {
       playerPosRef.current.copy(pos);
       playerChestRef.current.copy(chest);
       setFanGlassListenerPosition(pos.x, pos.y, pos.z);
       setLightGlowProximityAnchor(pos);
+      multiplayerStore.sendLocalPlayer({
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        velocity: pose.velocity,
+        rotation: { yaw: pose.yaw, pitch: pose.pitch },
+        energy: gameStore.getState().energy,
+      });
     },
     [],
   );
@@ -564,6 +580,7 @@ function Scene({
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
       />
+      <RemotePlayers />
       <DebugFreelook />
       <BeamVisual
         pullActive={pullActive}
