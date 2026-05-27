@@ -84,6 +84,8 @@ let socket: WebSocket | null = null;
 let lastSendAt = 0;
 let profile: ActorProfile | null = null;
 
+const LOCAL_PLAYER_SEND_INTERVAL_MS = 33;
+
 let state: MultiplayerState = {
   enabled: false,
   status: 'offline',
@@ -270,7 +272,7 @@ export const multiplayerStore = {
   sendLocalPlayer(update: LocalPlayerUpdate): void {
     if (!state.enabled || state.status !== 'online') return;
     const now = performance.now();
-    if (now - lastSendAt < 66) return;
+    if (now - lastSendAt < LOCAL_PLAYER_SEND_INTERVAL_MS) return;
     lastSendAt = now;
     sendJson({
       type: 'playerUpdate',

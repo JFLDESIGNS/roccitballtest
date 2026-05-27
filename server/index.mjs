@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'client', 'dist');
 const port = Number(process.env.PORT || 3000);
-const snapshotHz = Number(process.env.SNAPSHOT_HZ || 20);
+const snapshotHz = Number(process.env.SNAPSHOT_HZ || 30);
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],

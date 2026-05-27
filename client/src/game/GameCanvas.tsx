@@ -280,6 +280,12 @@ function Scene({
   const botEnergySyncTimer = useRef(0);
   const hostStateSendTimer = useRef(0);
   const lastAppliedNetworkBallAt = useRef(0);
+  const networkBallReady = useRef(false);
+  const networkBallTargetPos = useRef(new THREE.Vector3());
+  const networkBallTargetVel = useRef(new THREE.Vector3());
+  const networkBallTargetAngVel = useRef(new THREE.Vector3());
+  const networkBallSmoothedPos = useRef(new THREE.Vector3());
+  const networkBallPredictedPos = useRef(new THREE.Vector3());
   const lastExplosionSfxAt = useRef(0);
   const { gl } = useThree();
   const beamLowEnergy = useSyncExternalStore(
@@ -356,7 +362,7 @@ function Scene({
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
         if (hostStateSendTimer.current <= 0) {
-          hostStateSendTimer.current = 0.05;
+          hostStateSendTimer.current = 1 / 30;
           const t = ballForNetwork.translation();
           const v = ballForNetwork.linvel();
           const av = ballForNetwork.angvel();
@@ -381,10 +387,50 @@ function Scene({
       ) {
         const b = network.ball;
         lastAppliedNetworkBallAt.current = b.updatedAt;
-        ballForNetwork.setTranslation(b.position, true);
-        ballForNetwork.setLinvel(b.velocity, true);
-        ballForNetwork.setAngvel(b.angularVelocity, true);
+        networkBallTargetPos.current.set(
+          b.position.x,
+          b.position.y,
+          b.position.z,
+        );
+        networkBallTargetVel.current.set(
+          b.velocity.x,
+          b.velocity.y,
+          b.velocity.z,
+        );
+        networkBallTargetAngVel.current.set(
+          b.angularVelocity.x,
+          b.angularVelocity.y,
+          b.angularVelocity.z,
+        );
+        if (!networkBallReady.current) {
+          networkBallSmoothedPos.current.copy(networkBallTargetPos.current);
+          networkBallReady.current = true;
+        }
       }
+      if (!isNetworkHost && networkBallReady.current) {
+        networkBallPredictedPos.current
+          .copy(networkBallTargetPos.current)
+          .addScaledVector(networkBallTargetVel.current, 0.075);
+        const current = ballForNetwork.translation();
+        networkBallSmoothedPos.current.set(current.x, current.y, current.z);
+        const dist = networkBallSmoothedPos.current.distanceTo(
+          networkBallPredictedPos.current,
+        );
+        if (dist > 5) {
+          networkBallSmoothedPos.current.copy(networkBallPredictedPos.current);
+        } else {
+          const alpha = 1 - Math.exp(-dt * 20);
+          networkBallSmoothedPos.current.lerp(
+            networkBallPredictedPos.current,
+            alpha,
+          );
+        }
+        ballForNetwork.setTranslation(networkBallSmoothedPos.current, true);
+        ballForNetwork.setLinvel(networkBallTargetVel.current, true);
+        ballForNetwork.setAngvel(networkBallTargetAngVel.current, true);
+      }
+    } else {
+      networkBallReady.current = false;
     }
 
     if (showBots) {

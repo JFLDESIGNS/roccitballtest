@@ -17,6 +17,14 @@ import { PlayerAvatar } from './PlayerAvatar';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
+const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.08;
+const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 38;
+const REMOTE_PLAYER_SNAP_DISTANCE = 7;
+
+function lerpAngle(from: number, to: number, alpha: number): number {
+  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + delta * alpha;
+}
 
 function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -28,6 +36,14 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     ),
   );
   const smoothedPos = useRef(targetPos.current.clone());
+  const predictedPos = useRef(targetPos.current.clone());
+  const targetVel = useRef(
+    new THREE.Vector3(
+      player.velocity.x,
+      player.velocity.y,
+      player.velocity.z,
+    ),
+  );
   const targetYaw = useRef(player.rotation.yaw);
   const smoothedYaw = useRef(player.rotation.yaw);
   const rotationQuat = useRef(new THREE.Quaternion());
@@ -40,8 +56,25 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       player.position.y,
       player.position.z,
     );
+    targetVel.current.set(
+      player.velocity.x,
+      player.velocity.y,
+      player.velocity.z,
+    );
+    const speed = targetVel.current.length();
+    if (speed > REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED) {
+      targetVel.current.multiplyScalar(REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED / speed);
+    }
     targetYaw.current = player.rotation.yaw;
-  }, [player.position.x, player.position.y, player.position.z, player.rotation.yaw]);
+  }, [
+    player.position.x,
+    player.position.y,
+    player.position.z,
+    player.rotation.yaw,
+    player.velocity.x,
+    player.velocity.y,
+    player.velocity.z,
+  ]);
 
   useBeforePhysicsStep(() => {
     const body = bodyRef.current;
@@ -54,12 +87,21 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       smoothedYaw.current = targetYaw.current;
       ready.current = true;
     } else {
-      const alpha = 1 - Math.exp(-dt * 14);
-      smoothedPos.current.lerp(targetPos.current, alpha);
-      smoothedYaw.current = THREE.MathUtils.lerp(
+      predictedPos.current
+        .copy(targetPos.current)
+        .addScaledVector(targetVel.current, REMOTE_PLAYER_EXTRAPOLATE_SEC);
+      const dist = smoothedPos.current.distanceTo(predictedPos.current);
+      if (dist > REMOTE_PLAYER_SNAP_DISTANCE) {
+        smoothedPos.current.copy(predictedPos.current);
+      } else {
+        const alpha = 1 - Math.exp(-dt * 18);
+        smoothedPos.current.lerp(predictedPos.current, alpha);
+      }
+      const yawAlpha = 1 - Math.exp(-dt * 20);
+      smoothedYaw.current = lerpAngle(
         smoothedYaw.current,
         targetYaw.current,
-        alpha,
+        yawAlpha,
       );
     }
     rotationQuat.current.setFromEuler(new THREE.Euler(0, smoothedYaw.current, 0));
