@@ -9,7 +9,6 @@ const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'client', 'dist');
 const port = Number(process.env.PORT || 3000);
 const snapshotHz = Number(process.env.SNAPSHOT_HZ || 20);
-const staleMs = 10_000;
 
 const mimeTypes = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -218,9 +217,6 @@ function handleClientMessage(socket, raw) {
 function broadcastSnapshots() {
   const now = Date.now();
   for (const room of rooms.values()) {
-    for (const [id, player] of room.players) {
-      if (now - player.updatedAt > staleMs) room.players.delete(id);
-    }
     const players = [...room.players.values()];
     const packet = JSON.stringify({
       type: 'snapshot',

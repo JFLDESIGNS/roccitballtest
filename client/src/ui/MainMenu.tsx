@@ -357,12 +357,23 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
 
           <footer className="main-menu-play">
             <button type="button" className="btn-play-now" onClick={enterArena}>
-              {waitingForOnlinePlayer ? 'Waiting for Player' : 'Play Now'}
+              Play Now
             </button>
-            {waitingForOnlinePlayer && (
-              <div className="main-menu-waiting" role="status">
-                <strong>Waiting for another player...</strong>
-                <span>Open this same Railway URL in another browser and turn Online Multiplayer on.</span>
+          </footer>
+
+          {waitingForOnlinePlayer && (
+            <div className="main-menu-waiting-backdrop" role="status">
+              <div className="main-menu-waiting-panel">
+                <strong>Waiting for another player</strong>
+                <span>
+                  Open this same Railway URL in another browser and turn Online
+                  Multiplayer on.
+                </span>
+                <em>
+                  Room {multiplayer.roomId} ·{' '}
+                  {multiplayer.remotePlayers.length + 1} player
+                  {multiplayer.remotePlayers.length === 0 ? '' : 's'} online
+                </em>
                 <button
                   type="button"
                   className="btn-secondary"
@@ -371,8 +382,8 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                   Cancel Wait
                 </button>
               </div>
-            )}
-          </footer>
+            </div>
+          )}
         </div>
       )}
 
