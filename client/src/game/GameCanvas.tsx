@@ -1071,9 +1071,9 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
       <Canvas
         style={{ background: '#181c22' }}
         camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
-        dpr={[RENDER.dprMin, RENDER.dprMax]}
+        dpr={gfx.badPuter ? [1, 1] : [RENDER.dprMin, RENDER.dprMax]}
         gl={{
-          antialias: RENDER.antialias,
+          antialias: gfx.badPuter ? false : RENDER.antialias,
           powerPreference: 'high-performance',
           alpha: false,
           stencil: false,
