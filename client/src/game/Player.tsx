@@ -134,12 +134,12 @@ const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const PLAYER_LOWER_COLLIDER = {
-  halfExtents: [0.64, 0.24, 0.84] as [number, number, number],
-  centerY: 0.22,
+  halfExtents: [0.76, 0.18, 0.98] as [number, number, number],
+  centerY: 0.16,
 };
 const PLAYER_UPPER_COLLIDER = {
-  halfExtents: [0.34, 0.56, 0.46] as [number, number, number],
-  centerY: 1,
+  halfExtents: [0.42, 0.58, 0.54] as [number, number, number],
+  centerY: 0.98,
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
@@ -307,6 +307,7 @@ export function Player({
   const grounded = useRef(true);
   const jumpsLeft = useRef<number>(MOVEMENT.maxJumps);
   const jumpAirGrace = useRef(0);
+  const fallAssistTimer = useRef(0);
   const coyoteTime = useRef(0);
   const _wishDir = useRef(new THREE.Vector3());
   /** One fire SFX per LMB press; edge attempt skips release retry */
@@ -1059,16 +1060,26 @@ export function Player({
     const move = goalEjectMoveLocked
       ? { x: 0, y: 0 }
       : inputManager.getMoveVector();
+    const fastDropHeld =
+      !grounded.current &&
+      !grappleActive.current &&
+      !grindRailActive.current &&
+      move.y < -0.01;
+    const moveForAirControl = fastDropHeld
+      ? { x: move.x, y: 0 }
+      : move;
     const sprintInput = !goalEjectMoveLocked && inputManager.isSprint();
     const canSprint = energy.current > 0;
     const sprinting =
-      sprintInput && canSprint && (move.x !== 0 || move.y !== 0);
+      sprintInput &&
+      canSprint &&
+      (moveForAirControl.x !== 0 || moveForAirControl.y !== 0);
     const walkSpeed = effectiveWalkSpeed;
     const sprintSpeed = effectiveSprintSpeed;
     const speed = sprinting ? sprintSpeed : walkSpeed;
     const accel = grounded.current ? MOVEMENT.groundAccel : MOVEMENT.groundAccel * 0.65;
 
-    cameraMoveTargetXZ(_moveVelXZ, forward, right, move, speed);
+    cameraMoveTargetXZ(_moveVelXZ, forward, right, moveForAirControl, speed);
     const wishDir = _wishDir.current.copy(_moveVelXZ);
     if (wishDir.lengthSq() > 0) {
       wishDir.normalize();
@@ -1387,7 +1398,18 @@ export function Player({
       );
     }
     if (!grindRailActive.current) {
-      vy = tuningStore.integrateGravity(vy, dt);
+      if (!grappleActive.current && !grounded.current && vy < -0.1) {
+        fallAssistTimer.current += dt;
+      } else {
+        fallAssistTimer.current = 0;
+      }
+      const fallMult =
+        fastDropHeld
+          ? MOVEMENT.fastDropFallMult
+          : fallAssistTimer.current >= MOVEMENT.fallAssistDelaySec
+            ? MOVEMENT.fallAssistMult
+            : 1;
+      vy += tune.gravity * dt * fallMult;
     }
 
     velocity.current.y = vy;

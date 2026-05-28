@@ -690,6 +690,12 @@ export const MOVEMENT = {
   tripleJumpForce: 11,
   maxJumps: 3,
   gravity: -11,
+  /** Fall assist starts only after real descent, preserving jump takeoff feel */
+  fallAssistDelaySec: 0.2,
+  /** Player-only faster descent after the delay (2 = fall twice as fast) */
+  fallAssistMult: 2,
+  /** Holding S in air fast-drops instead of moving backward */
+  fastDropFallMult: 3.2,
   airControl: 0.95,
   jumpMomentumBoost: 1.12,
   groundAccel: 22,
