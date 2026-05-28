@@ -736,20 +736,13 @@ export const MOVEMENT = {
   ePropelSustainSpeed: 36,
   ePropelEnergyCostFrac: 0.6,
   ePropelCooldownSec: 0.45,
-  /** Shift-held glide/ski control on slopes */
-  skiGroundControl: 0.18,
-  skiDownhillAccel: 26,
-  skiUphillDrag: 11,
-  skiMomentumPreserve: 0.992,
-  skiMinSlopeDelta: 0.012,
-  skiSlopeAccelClamp: 18,
-  skiAirGravityScale: 0.72,
-  skiAirMomentumPreserve: 0.997,
   maxHorizontalSpeedSprintMul: 1.9,
   grappleMaxDistance: 95,
   grappleMinLookY: 0.1,
   grapplePullTightness: 17,
   grappleReleaseBoost: 1.16,
+  grappleHangFeetAboveGroundM: 3.05,
+  grappleRetractSpeed: 18,
 } as const;
 
 /** Energy */

@@ -366,11 +366,11 @@ export function Player({
   const grindRailCooldown = useRef(0);
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
-  const lastGroundY = useRef<number | null>(null);
   const beamWasDown = useRef(false);
   const grappleActive = useRef(false);
   const grappleAnchor = useRef(new THREE.Vector3());
   const grappleLength = useRef(0);
+  const grappleTargetLength = useRef(0);
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
@@ -421,10 +421,12 @@ export function Player({
       const hitZ = origin.z + lookDir.z * t;
       if (!isInsideHex(hitX, hitZ, ARENA.hexRadius - 1.4)) return false;
       grappleAnchor.current.set(hitX, ceilingY, hitZ);
-      grappleLength.current = Math.max(
+      const initialLength = Math.max(
         4.5,
         grappleAnchor.current.distanceTo(origin),
       );
+      grappleLength.current = initialLength;
+      grappleTargetLength.current = initialLength;
       grappleActive.current = true;
       return true;
     },
@@ -895,9 +897,6 @@ export function Player({
     const { forward, right } = getCameraBasis(rot.yaw);
     const beamDown = inputManager.isBeam();
     const beamPressed = beamDown && !beamWasDown.current;
-    if (!beamDown && beamWasDown.current) {
-      stopGrapple(false);
-    }
     beamWasDown.current = beamDown;
 
     pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
@@ -1036,10 +1035,8 @@ export function Player({
     if (grounded.current && jumpAirGrace.current <= 0) {
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = MOVEMENT.coyoteTimeSec;
-      lastGroundY.current = probe.groundY;
     } else if (!grounded.current) {
       coyoteTime.current = Math.max(0, coyoteTime.current - dt);
-      lastGroundY.current = null;
     }
 
     const move = goalEjectMoveLocked
@@ -1053,8 +1050,6 @@ export function Player({
     const sprintSpeed = effectiveSprintSpeed;
     const speed = sprinting ? sprintSpeed : walkSpeed;
     const accel = grounded.current ? MOVEMENT.groundAccel : MOVEMENT.groundAccel * 0.65;
-    const skiing = sprinting && grounded.current && !grindRailActive.current;
-    const skiGliding = sprintInput && !grounded.current && !grindRailActive.current;
 
     cameraMoveTargetXZ(_moveVelXZ, forward, right, move, speed);
     const wishDir = _wishDir.current.copy(_moveVelXZ);
@@ -1126,44 +1121,17 @@ export function Player({
       const control = grounded.current ? 1 : MOVEMENT.airControl;
       const targetVelX = _moveVelXZ.x * control;
       const targetVelZ = _moveVelXZ.z * control;
-      const accelScale = skiing ? MOVEMENT.skiGroundControl : accel;
       const maxHorizontalSpeed = sprintSpeed * MOVEMENT.maxHorizontalSpeedSprintMul;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
         targetVelX,
-        accelScale * dt,
+        accel * dt,
       );
       velocity.current.z = THREE.MathUtils.lerp(
         velocity.current.z,
         targetVelZ,
-        accelScale * dt,
+        accel * dt,
       );
-
-      if (skiing) {
-        const prevGroundY = lastGroundY.current ?? probe.groundY;
-        const slopeDelta = probe.groundY - prevGroundY;
-        lastGroundY.current = probe.groundY;
-        const horizSpeed = Math.hypot(velocity.current.x, velocity.current.z);
-        const dirX =
-          horizSpeed > 0.001 ? velocity.current.x / horizSpeed : forward.x;
-        const dirZ =
-          horizSpeed > 0.001 ? velocity.current.z / horizSpeed : forward.z;
-        velocity.current.x *= MOVEMENT.skiMomentumPreserve;
-        velocity.current.z *= MOVEMENT.skiMomentumPreserve;
-        if (Math.abs(slopeDelta) > MOVEMENT.skiMinSlopeDelta) {
-          const slopeAccelRaw =
-            slopeDelta < 0
-              ? (-slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiDownhillAccel
-              : -(slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiUphillDrag;
-          const slopeAccel = THREE.MathUtils.clamp(
-            slopeAccelRaw,
-            -MOVEMENT.skiSlopeAccelClamp,
-            MOVEMENT.skiSlopeAccelClamp,
-          );
-          velocity.current.x += dirX * slopeAccel * dt;
-          velocity.current.z += dirZ * slopeAccel * dt;
-        }
-      }
 
       if (!grounded.current && wishDir.lengthSq() > 0) {
         const curH = Math.hypot(velocity.current.x, velocity.current.z);
@@ -1173,11 +1141,6 @@ export function Player({
           velocity.current.x = targetVelX * keep;
           velocity.current.z = targetVelZ * keep;
         }
-      }
-
-      if (skiGliding) {
-        velocity.current.x *= MOVEMENT.skiAirMomentumPreserve;
-        velocity.current.z *= MOVEMENT.skiAirMomentumPreserve;
       }
 
       clampHorizontalVelocity(velocity.current, maxHorizontalSpeed);
@@ -1414,12 +1377,26 @@ export function Player({
       );
     }
     if (!grindRailActive.current) {
-      const gravityDt = skiGliding ? dt * MOVEMENT.skiAirGravityScale : dt;
-      vy = tuningStore.integrateGravity(vy, gravityDt);
+      vy = tuningStore.integrateGravity(vy, dt);
     }
 
     velocity.current.y = vy;
     if (grappleActive.current) {
+      const grappleGroundY = probe.groundY;
+      const targetFeetY =
+        grappleGroundY + MOVEMENT.grappleHangFeetAboveGroundM;
+      const targetBodyY = targetFeetY - (playerFeetY(0));
+      const targetChestY = targetBodyY + BEAM.chestHeight;
+      const desiredLength = Math.max(
+        3.2,
+        grappleAnchor.current.y - targetChestY,
+      );
+      grappleTargetLength.current = desiredLength;
+      grappleLength.current = THREE.MathUtils.lerp(
+        grappleLength.current,
+        grappleTargetLength.current,
+        Math.min(1, MOVEMENT.grappleRetractSpeed * dt),
+      );
       const chestX = pos.x;
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
