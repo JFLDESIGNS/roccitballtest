@@ -28,6 +28,7 @@ class InputManager {
   private ePropelQueued = false;
   private fireQueued = false;
   private jumpQueued = false;
+  private grappleQueued = false;
   private jumpBufferUntil = 0;
   private lastForwardTapAt = 0;
   private dashBoostQueued = false;
@@ -335,6 +336,9 @@ class InputManager {
         this.jumpBufferUntil =
           performance.now() / 1000 + BALL.jumpBufferSec;
       }
+      if (e.code === 'KeyQ' && !e.repeat) {
+        this.grappleQueued = true;
+      }
       if (e.code === 'Tab') {
         e.preventDefault();
         if (gameStore.getState().debugFreelook) {
@@ -569,6 +573,12 @@ class InputManager {
     }
     this.jumpQueued = false;
     this.jumpBufferUntil = 0;
+    return true;
+  }
+
+  consumeGrapple(): boolean {
+    if (!this.grappleQueued) return false;
+    this.grappleQueued = false;
     return true;
   }
 

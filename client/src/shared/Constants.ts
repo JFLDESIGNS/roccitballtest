@@ -739,11 +739,14 @@ export const MOVEMENT = {
   maxHorizontalSpeedSprintMul: 1.9,
   grappleMaxDistance: 95,
   grappleMinLookY: 0.1,
-  grapplePullTightness: 17,
-  grappleReleaseBoost: 1.16,
-  grappleHangFeetAboveGroundM: 3.05,
-  grappleArcadeSlackM: 0.9,
-  grappleRetractSpeed: 28,
+  grapplePullTightness: 24,
+  grappleReleaseBoost: 1.22,
+  grappleHangFeetAboveGroundM: 4.2,
+  grappleArcadeSlackM: 0.35,
+  grappleRetractSpeed: 54,
+  grappleLaunchSpeedMul: 2,
+  grappleMinLaunchSpeedSprintMul: 1.45,
+  grappleMaxHorizontalSpeedSprintMul: 2.4,
 } as const;
 
 /** Energy */

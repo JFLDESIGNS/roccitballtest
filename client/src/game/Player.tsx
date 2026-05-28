@@ -127,7 +127,6 @@ import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import {
   GRIND_RAIL,
   sampleGrindRailContact,
-  setGrindRailGlow,
 } from './grindRail';
 import { burstGrindRailSparks } from './impactSparks';
 
@@ -170,6 +169,8 @@ function clampHorizontalVelocity(
 const _moveVelXZ = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
 const _grappleToChest = new THREE.Vector3();
+const _grappleLaunchTangent = new THREE.Vector3();
+const _grapplePlanarDir = new THREE.Vector3();
 const _grappleMidpoint = new THREE.Vector3();
 const _grappleCableDir = new THREE.Vector3();
 const _grappleCableUp = new THREE.Vector3(0, 1, 0);
@@ -370,12 +371,13 @@ export function Player({
   const grindRailCooldown = useRef(0);
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
-  const beamWasDown = useRef(false);
   const grappleActive = useRef(false);
   const grappleAnchor = useRef(new THREE.Vector3());
   const grappleLength = useRef(0);
   const grappleTargetLength = useRef(0);
   const grappleNeedsSetup = useRef(false);
+  const grappleKickPending = useRef(false);
+  const grapplePlanarDir = useRef(new THREE.Vector3(0, 0, -1));
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
@@ -400,6 +402,7 @@ export function Player({
     if (!grappleActive.current) return;
     grappleActive.current = false;
     grappleNeedsSetup.current = false;
+    grappleKickPending.current = false;
     const body = bodyRef.current;
     if (boost && body) {
       const lv = body.linvel();
@@ -422,6 +425,16 @@ export function Player({
       const hitX = origin.x + lookDir.x * t;
       const hitZ = origin.z + lookDir.z * t;
       if (!isInsideHex(hitX, hitZ, ARENA.hexRadius - 1.4)) return false;
+      _grapplePlanarDir.set(lookDir.x, 0, lookDir.z);
+      if (_grapplePlanarDir.lengthSq() < 0.0001) {
+        _grapplePlanarDir.set(
+          -Math.sin(inputManager.getRotation().yaw),
+          0,
+          -Math.cos(inputManager.getRotation().yaw),
+        );
+      }
+      _grapplePlanarDir.normalize();
+      grapplePlanarDir.current.copy(_grapplePlanarDir);
       grappleAnchor.current.set(hitX, ceilingY, hitZ);
       const initialLength = Math.max(
         4.5,
@@ -430,6 +443,7 @@ export function Player({
       grappleLength.current = initialLength;
       grappleTargetLength.current = initialLength;
       grappleNeedsSetup.current = true;
+      grappleKickPending.current = true;
       grappleActive.current = true;
       return true;
     },
@@ -440,7 +454,6 @@ export function Player({
       grindRailActive.current = false;
       setGrindRailActive(false);
     }
-    setGrindRailGlow({ active: false });
     grindRailSpeed.current = 0;
     grindRailWobble.current = 0;
     grindRailSparkTimer.current = 0;
@@ -899,8 +912,7 @@ export function Player({
     const lookDir = inputManager.getLookDirection();
     const { forward, right } = getCameraBasis(rot.yaw);
     const beamDown = inputManager.isBeam();
-    const beamPressed = beamDown && !beamWasDown.current;
-    beamWasDown.current = beamDown;
+    const grapplePressed = inputManager.consumeGrapple();
 
     pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
@@ -1229,7 +1241,7 @@ export function Player({
           );
           const wobbleSide = Math.sin(grindRailWobble.current) * 0.1;
           const wobbleLift = Math.abs(Math.cos(grindRailWobble.current * 1.6)) * 0.05;
-          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.16 + wobbleLift;
+          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.31 + wobbleLift;
           const rideX = railContact.rideX + railContact.inwardX * wobbleSide;
           const rideZ = railContact.rideZ + railContact.inwardZ * wobbleSide;
           body.setTranslation(
@@ -1240,13 +1252,6 @@ export function Player({
           velocity.current.x = tangentX * grindRailSpeed.current;
           velocity.current.z = tangentZ * grindRailSpeed.current;
           velocity.current.y = 0;
-          setGrindRailGlow({
-            active: true,
-            x: railContact.x,
-            y: GRIND_RAIL.y,
-            z: railContact.z,
-            yaw: Math.atan2(-tangentZ, tangentX),
-          });
           grindRailSparkTimer.current -= dt;
           if (grindRailSparkTimer.current <= 0) {
             grindRailSparkTimer.current = 0.028;
@@ -1286,7 +1291,7 @@ export function Player({
         walkSpeed * 3,
         sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
       );
-      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.16;
+      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.31;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },
         true,
@@ -1392,14 +1397,14 @@ export function Player({
       const safeChestY = safeBodyY + BEAM.chestHeight;
       if (grappleNeedsSetup.current) {
         grappleTargetLength.current = Math.max(
-          3.2,
+          4.2,
           grappleAnchor.current.y -
             safeChestY +
             MOVEMENT.grappleArcadeSlackM,
         );
         grappleLength.current = Math.min(
           grappleLength.current,
-          grappleTargetLength.current + 2.2,
+          grappleTargetLength.current + 0.9,
         );
         grappleNeedsSetup.current = false;
       }
@@ -1412,7 +1417,7 @@ export function Player({
         grappleLength.current = THREE.MathUtils.lerp(
           grappleLength.current,
           grappleTargetLength.current,
-          Math.min(1, MOVEMENT.grappleRetractSpeed * 0.35 * dt),
+          Math.min(1, MOVEMENT.grappleRetractSpeed * 0.55 * dt),
         );
       }
       const chestX = pos.x;
@@ -1431,13 +1436,59 @@ export function Player({
           velocity.current.x * ropeDir.x +
           velocity.current.y * ropeDir.y +
           velocity.current.z * ropeDir.z;
-        if (dist >= grappleLength.current && radialSpeed > 0) {
-          velocity.current.x -= ropeDir.x * radialSpeed;
-          velocity.current.y -= ropeDir.y * radialSpeed;
-          velocity.current.z -= ropeDir.z * radialSpeed;
+        if (grappleKickPending.current) {
+          _grappleLaunchTangent
+            .copy(grapplePlanarDir.current)
+            .sub(
+              _grappleToChest.clone().multiplyScalar(
+                grapplePlanarDir.current.dot(ropeDir),
+              ),
+            );
+          if (_grappleLaunchTangent.lengthSq() < 0.001) {
+            _grappleLaunchTangent.set(
+              velocity.current.x,
+              velocity.current.y,
+              velocity.current.z,
+            );
+            _grappleLaunchTangent.sub(
+              ropeDir.clone().multiplyScalar(
+                _grappleLaunchTangent.dot(ropeDir),
+              ),
+            );
+          }
+          if (_grappleLaunchTangent.lengthSq() > 0.001) {
+            _grappleLaunchTangent.normalize();
+            const currentHoriz = Math.hypot(
+              velocity.current.x,
+              velocity.current.z,
+            );
+            const launchSpeed = THREE.MathUtils.clamp(
+              Math.max(
+                currentHoriz * MOVEMENT.grappleLaunchSpeedMul,
+                sprintSpeed * MOVEMENT.grappleMinLaunchSpeedSprintMul,
+              ),
+              sprintSpeed * 1.15,
+              sprintSpeed * MOVEMENT.grappleMaxHorizontalSpeedSprintMul,
+            );
+            velocity.current.x =
+              _grappleLaunchTangent.x * launchSpeed;
+            velocity.current.y = Math.max(
+              velocity.current.y,
+              _grappleLaunchTangent.y * launchSpeed + 2.8,
+            );
+            velocity.current.z =
+              _grappleLaunchTangent.z * launchSpeed;
+          }
+          grappleKickPending.current = false;
         }
         if (dist > grappleLength.current) {
           const tighten = dist - grappleLength.current;
+          if (radialSpeed > 0) {
+            const radialTrim = radialSpeed * 0.45;
+            velocity.current.x -= ropeDir.x * radialTrim;
+            velocity.current.y -= ropeDir.y * radialTrim;
+            velocity.current.z -= ropeDir.z * radialTrim;
+          }
           velocity.current.x -= ropeDir.x * tighten * MOVEMENT.grapplePullTightness;
           velocity.current.y -= ropeDir.y * tighten * MOVEMENT.grapplePullTightness;
           velocity.current.z -= ropeDir.z * tighten * MOVEMENT.grapplePullTightness;
@@ -1445,41 +1496,27 @@ export function Player({
           const nextChestY = grappleAnchor.current.y + ropeDir.y * grappleLength.current;
           const nextChestZ = grappleAnchor.current.z + ropeDir.z * grappleLength.current;
           const nextBodyY = nextChestY - BEAM.chestHeight;
-          body.setTranslation({ x: nextChestX, y: nextBodyY, z: nextChestZ }, true);
-          pos.set(nextChestX, nextBodyY, nextChestZ);
+          body.setTranslation(
+            {
+              x: nextChestX,
+              y: Math.max(nextBodyY, safeBodyY),
+              z: nextChestZ,
+            },
+            true,
+          );
+          pos.set(nextChestX, Math.max(nextBodyY, safeBodyY), nextChestZ);
         }
       }
       if (pos.y < safeBodyY) {
-        const dx = pos.x - grappleAnchor.current.x;
-        const dz = pos.z - grappleAnchor.current.z;
-        const horiz = Math.hypot(dx, dz);
-        const verticalDrop = Math.max(
-          0.1,
-          grappleAnchor.current.y - safeChestY,
-        );
-        const maxHoriz = Math.sqrt(
-          Math.max(
-            0,
-            grappleLength.current * grappleLength.current -
-              verticalDrop * verticalDrop,
-          ),
-        );
-        let nextX = pos.x;
-        let nextZ = pos.z;
-        if (horiz > maxHoriz && horiz > 0.0001) {
-          const scale = maxHoriz / horiz;
-          nextX = grappleAnchor.current.x + dx * scale;
-          nextZ = grappleAnchor.current.z + dz * scale;
-        }
-        body.setTranslation({ x: nextX, y: safeBodyY, z: nextZ }, true);
-        pos.set(nextX, safeBodyY, nextZ);
+        body.setTranslation({ x: pos.x, y: safeBodyY, z: pos.z }, true);
+        pos.set(pos.x, safeBodyY, pos.z);
         if (velocity.current.y < 0) velocity.current.y = 0;
       }
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
       clampHorizontalVelocity(
         velocity.current,
-        sprintSpeed * MOVEMENT.maxHorizontalSpeedSprintMul,
+        sprintSpeed * MOVEMENT.grappleMaxHorizontalSpeedSprintMul,
       );
     }
     const feetNow = playerFeetY(pos.y);
@@ -1582,6 +1619,25 @@ export function Player({
       multiplayerNow.enabled &&
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
+    if (
+      grapplePressed &&
+      !grappleActive.current &&
+      !holdingBall.current &&
+      !goalEjectMoveLocked &&
+      !grindRailActive.current &&
+      !knockStunned &&
+      !frozen
+    ) {
+      if (!tryStartGrapple(chestPos.current, lookDir)) {
+        if (now - beamNoLockSoundAt.current > 0.45) {
+          beamNoLockSoundAt.current = now;
+          playBeamNoLock();
+        }
+      } else {
+        grounded.current = false;
+        jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
+      }
+    }
     const beamAttempt =
       beamDown &&
       !beamNeedsRepress.current &&
@@ -1609,13 +1665,7 @@ export function Player({
       beamRequested && (holdingBall.current || canLockBeamTarget);
 
     if (beamAttempt && !beamInput) {
-      if (
-        beamPressed &&
-        !holdingBall.current &&
-        tryStartGrapple(chestPos.current, lookDir)
-      ) {
-        // use grapple instead of empty beam when no ball is available
-      } else if (now - beamNoLockSoundAt.current > 0.45) {
+      if (now - beamNoLockSoundAt.current > 0.45) {
         beamNoLockSoundAt.current = now;
         playBeamNoLock();
       }
@@ -2190,7 +2240,7 @@ export function Player({
     <group visible={!debugFreelook}>
       <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
       <mesh ref={grappleCableRef} visible={false} frustumCulled={false}>
-        <cylinderGeometry args={[0.025, 0.025, 1, 8, 1, true]} />
+        <cylinderGeometry args={[0.018, 0.018, 1, 8, 1, true]} />
         <meshBasicMaterial
           color="#8fd8ff"
           transparent

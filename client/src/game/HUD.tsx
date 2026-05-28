@@ -234,8 +234,8 @@ export function HUD({ onMainMenu }: HUDProps) {
               inputManager.requestPointerLock(canvas);
             }}
           >
-            Click arena to capture mouse (needed after menu or alt-tab) - LMB rocket - RMB beam - F
-            spawn ball
+            Click arena to capture mouse (needed after menu or alt-tab) - LMB rocket - RMB beam - Q
+            grapple - F spawn ball
           </div>
         )}
 
@@ -295,6 +295,7 @@ export function HUD({ onMainMenu }: HUDProps) {
             {bouncy ? 'LMB Tap explosive / Hold bouncer' : 'LMB Explosive rockets'}
           </span>
           <span>RMB Beam</span>
+          <span>Q Grapple</span>
           <span>F Spawn ball</span>
           <span>1 Tuning</span>
           <span>Shift Sprint</span>

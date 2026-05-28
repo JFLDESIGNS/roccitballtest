@@ -66,23 +66,6 @@ export type GrindRailContact = {
 let cachedSegments: GrindRailSegment[] | null = null;
 let cachedPaths: THREE.Vector3[][] | null = null;
 
-type GrindRailGlowState = {
-  active: boolean;
-  x: number;
-  y: number;
-  z: number;
-  yaw: number;
-};
-
-const glowListeners = new Set<() => void>();
-let glowState: GrindRailGlowState = {
-  active: false,
-  x: 0,
-  y: GRIND_RAIL.y,
-  z: 0,
-  yaw: 0,
-};
-
 function buildSegment(
   start: THREE.Vector2,
   end: THREE.Vector2,
@@ -264,38 +247,6 @@ export function getGrindRailSegments(): GrindRailSegment[] {
   cachedSegments = segments;
   return cachedSegments;
 }
-
-function emitGlow() {
-  glowListeners.forEach((listener) => listener());
-}
-
-export function setGrindRailGlow(
-  next:
-    | {
-        active: true;
-        x: number;
-        y: number;
-        z: number;
-        yaw: number;
-      }
-    | { active: false },
-) {
-  glowState =
-    next.active
-      ? next
-      : { active: false, x: 0, y: GRIND_RAIL.y, z: 0, yaw: 0 };
-  emitGlow();
-}
-
-export const grindRailGlowStore = {
-  subscribe(listener: () => void) {
-    glowListeners.add(listener);
-    return () => glowListeners.delete(listener);
-  },
-  getState() {
-    return glowState;
-  },
-};
 
 const _nearest: GrindRailContact = {
   segmentIndex: -1,
