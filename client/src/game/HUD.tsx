@@ -77,6 +77,17 @@ export function HUD({ onMainMenu }: HUDProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [matchOver]);
 
+  useEffect(() => {
+    const bannerId = state.goalBanner?.id;
+    if (!bannerId || matchOver) return;
+    const timeout = window.setTimeout(() => {
+      if (gameStore.getState().goalBanner?.id === bannerId) {
+        gameStore.clearScorePopup();
+      }
+    }, 5200);
+    return () => window.clearTimeout(timeout);
+  }, [matchOver, state.goalBanner?.id]);
+
   if (state.phase === 'menu') return null;
 
   const comboActive =
@@ -224,13 +235,22 @@ export function HUD({ onMainMenu }: HUDProps) {
             </div>
           </div>
           <div className="hud-goal-banner-copy">
-            <p className="hud-goal-banner-overline">Goal scored</p>
+            <p className="hud-goal-banner-overline">
+              {state.goalBanner.team.toUpperCase()} goal
+            </p>
             <h3>{state.goalBanner.scorerName}</h3>
+            <p className="hud-goal-banner-result">Scored for {state.goalBanner.team}</p>
             <div className="hud-goal-banner-meta">
-              <span>+{state.goalBanner.points} pts</span>
-              {formatShotDistance(state.goalBanner.shotDistanceM) && (
-                <span>From {formatShotDistance(state.goalBanner.shotDistanceM)}</span>
-              )}
+              <span>
+                <strong>+{state.goalBanner.points}</strong>
+                <em>{state.goalBanner.points === 1 ? 'point' : 'points'}</em>
+              </span>
+              <span>
+                <strong>
+                  {formatShotDistance(state.goalBanner.shotDistanceM) ?? 'Unknown'}
+                </strong>
+                <em>shot distance</em>
+              </span>
             </div>
           </div>
         </div>

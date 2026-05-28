@@ -14,6 +14,17 @@ import { ARENA_GOALS, goalBallScoreRetreatPos, goalBallSuckLerpPos } from './goa
 type Vec3 = { x: number; y: number; z: number };
 
 let resolveBots: (() => BotRuntime[]) | null = null;
+let lastLocalGoalTouch:
+  | { scorerName: string; position: Vec3; at: number }
+  | null = null;
+
+export function markLocalGoalShot(scorerName: string, position: Vec3): void {
+  lastLocalGoalTouch = {
+    scorerName: scorerName.trim() || 'You',
+    position: { ...position },
+    at: performance.now(),
+  };
+}
 
 export function registerGoalScoreBotProvider(provider: () => BotRuntime[]) {
   resolveBots = provider;
@@ -91,7 +102,24 @@ function registerGoalScore(
   goalScoreRuntime.postScoreDelaySec = MATCH.postScoreCountdownDelaySec;
 
   const bots = resolveBots?.() ?? [];
-  gameStore.addScore(hit.scoringTeam, hit.points, hit.goalPos);
+  const touch =
+    lastLocalGoalTouch && performance.now() - lastLocalGoalTouch.at < 12000
+      ? lastLocalGoalTouch
+      : null;
+  const shotDistanceM = touch
+    ? Math.hypot(
+        touch.position.x - hit.goalPos.x,
+        touch.position.y - hit.goalPos.y,
+        touch.position.z - hit.goalPos.z,
+      )
+    : null;
+  gameStore.addScore(
+    hit.scoringTeam,
+    hit.points,
+    hit.goalPos,
+    touch?.scorerName ?? null,
+    shotDistanceM,
+  );
   playGoalCelebration();
 
   if (gameStore.getState().ballHolderId) {

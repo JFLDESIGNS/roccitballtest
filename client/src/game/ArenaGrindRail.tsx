@@ -3,19 +3,19 @@ import * as THREE from 'three';
 import { GRIND_RAIL, getGrindRailSegments } from './grindRail';
 
 const railMaterial = new THREE.MeshStandardMaterial({
-  color: '#ff2738',
-  emissive: '#ff172d',
-  emissiveIntensity: 2.2,
-  metalness: 0.35,
-  roughness: 0.18,
+  color: '#d91f2e',
+  emissive: '#be1424',
+  emissiveIntensity: 0.85,
+  metalness: 0.42,
+  roughness: 0.24,
 });
 
 const railCoreMaterial = new THREE.MeshStandardMaterial({
-  color: '#fff1f2',
-  emissive: '#ff4452',
-  emissiveIntensity: 1.6,
-  metalness: 0.2,
-  roughness: 0.12,
+  color: '#ffd5da',
+  emissive: '#e03240',
+  emissiveIntensity: 0.55,
+  metalness: 0.28,
+  roughness: 0.2,
 });
 
 export function ArenaGrindRail() {

@@ -33,6 +33,7 @@ import { RocketRecoilFx } from './RocketRecoilFx';
 import { RocketTrailSmoke } from './RocketTrailSmoke';
 import {
   goalScoreRuntime,
+  markLocalGoalShot,
   registerGoalScoreBotProvider,
   tickGoalScoreRuntime,
 } from './goalScoreHandler';
@@ -91,6 +92,7 @@ import {
   announceRocketPlayerHit,
 } from './announcements';
 import { setKickoffBallReleaseHandler } from './kickoffDrop';
+import { getLocalProfile } from './playerRoster';
 
 function rocketToNetwork(r: ActiveRocket): Omit<NetworkRocketState, 'ownerId'> {
   return {
@@ -731,6 +733,13 @@ function Scene({
             : undefined,
       });
     }
+    if (!multiplayer.enabled && hit.fromOwnerId === 'local') {
+      markLocalGoalShot(getLocalProfile().displayName, {
+        x: hit.x,
+        y: hit.y,
+        z: hit.z,
+      });
+    }
     const now = performance.now();
     if (now - lastExplosionSfxAt.current > 70) {
       lastExplosionSfxAt.current = now;
@@ -893,8 +902,16 @@ function Scene({
         onBallHeldChange={(v) => {
           holdingBallRef.current = v;
           holdingBallRef.current = v;
+          if (v) {
+            markLocalGoalShot(getLocalProfile().displayName, {
+              x: playerPosRef.current.x,
+              y: playerPosRef.current.y,
+              z: playerPosRef.current.z,
+            });
+          }
         }}
         onBallReleased={(release) => {
+          markLocalGoalShot(getLocalProfile().displayName, release.position);
           if (multiplayerStore.getState().enabled) {
             localBallPredictionUntil.current = performance.now() + 900;
             localBallPredictionReleasePos.current.set(

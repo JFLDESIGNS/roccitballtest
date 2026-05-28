@@ -1,11 +1,20 @@
 import * as THREE from 'three';
 import { ARENA, MOVEMENT } from '../shared/Constants';
 import { hexVertices } from './arenaHex';
+import { ARENA_PILLAR, pillarSurfaceRadiusAtY } from './arenaPillarConfig';
+
+const RAIL_PILLAR_GAP_M = 0.35;
+const RAIL_GOAL_GAP_M = 27;
+const railPathInsetM =
+  ARENA_PILLAR.hexInset +
+  pillarSurfaceRadiusAtY(ARENA.arenaLogoBannerY - ARENA.arenaLogoBannerHeightM * 0.5) +
+  RAIL_PILLAR_GAP_M;
 
 export const GRIND_RAIL = {
   y: ARENA.arenaLogoBannerY - ARENA.arenaLogoBannerHeightM * 0.5,
   radius: 0.22,
-  wallInsetM: 1.35,
+  pathInsetM: railPathInsetM,
+  goalGapM: RAIL_GOAL_GAP_M,
   rideOffsetM: MOVEMENT.capsuleRadius + 0.52,
   contactHorizontalM: 1.45,
   activeHorizontalM: 2.15,
@@ -48,40 +57,72 @@ export type GrindRailContact = {
 
 let cachedSegments: GrindRailSegment[] | null = null;
 
+function buildSegment(
+  start: THREE.Vector2,
+  end: THREE.Vector2,
+): GrindRailSegment {
+  const dx = end.x - start.x;
+  const dz = end.y - start.y;
+  const length = Math.hypot(dx, dz);
+  const tangentX = dx / length;
+  const tangentZ = dz / length;
+  const midX = (start.x + end.x) * 0.5;
+  const midZ = (start.y + end.y) * 0.5;
+  let outwardX = tangentZ;
+  let outwardZ = -tangentX;
+  if (midX * outwardX + midZ * outwardZ < 0) {
+    outwardX = -outwardX;
+    outwardZ = -outwardZ;
+  }
+
+  return {
+    startX: start.x,
+    startZ: start.y,
+    endX: end.x,
+    endZ: end.y,
+    midX,
+    midZ,
+    length,
+    yaw: Math.atan2(-tangentZ, tangentX),
+    tangentX,
+    tangentZ,
+    inwardX: -outwardX,
+    inwardZ: -outwardZ,
+  };
+}
+
 export function getGrindRailSegments(): GrindRailSegment[] {
   if (cachedSegments) return cachedSegments;
-  const verts = hexVertices(ARENA.hexRadius - GRIND_RAIL.wallInsetM);
-  cachedSegments = verts.map((a, i) => {
+  const verts = hexVertices(ARENA.hexRadius - GRIND_RAIL.pathInsetM);
+  const segments: GrindRailSegment[] = [];
+  for (let i = 0; i < verts.length; i++) {
+    const a = verts[i]!;
     const b = verts[(i + 1) % verts.length]!;
     const dx = b.x - a.x;
     const dz = b.y - a.y;
     const length = Math.hypot(dx, dz);
     const tangentX = dx / length;
     const tangentZ = dz / length;
-    const midX = (a.x + b.x) * 0.5;
-    const midZ = (a.y + b.y) * 0.5;
-    let outwardX = tangentZ;
-    let outwardZ = -tangentX;
-    if (midX * outwardX + midZ * outwardZ < 0) {
-      outwardX = -outwardX;
-      outwardZ = -outwardZ;
-    }
 
-    return {
-      startX: a.x,
-      startZ: a.y,
-      endX: b.x,
-      endZ: b.y,
-      midX,
-      midZ,
-      length,
-      yaw: Math.atan2(-tangentZ, tangentX),
-      tangentX,
-      tangentZ,
-      inwardX: -outwardX,
-      inwardZ: -outwardZ,
-    };
-  });
+    if ((i === 0 || i === 3) && length > GRIND_RAIL.goalGapM + 8) {
+      const keep = (length - GRIND_RAIL.goalGapM) * 0.5;
+      segments.push(
+        buildSegment(
+          a,
+          new THREE.Vector2(a.x + tangentX * keep, a.y + tangentZ * keep),
+        ),
+      );
+      segments.push(
+        buildSegment(
+          new THREE.Vector2(b.x - tangentX * keep, b.y - tangentZ * keep),
+          b,
+        ),
+      );
+    } else {
+      segments.push(buildSegment(a, b));
+    }
+  }
+  cachedSegments = segments;
   return cachedSegments;
 }
 

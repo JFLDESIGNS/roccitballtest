@@ -440,7 +440,13 @@ export const gameStore = {
     };
     notify();
   },
-  addScore: (team: Team, points: number, goalPos?: { x: number; y: number; z: number }) => {
+  addScore: (
+    team: Team,
+    points: number,
+    goalPos?: { x: number; y: number; z: number },
+    scorerName?: string | null,
+    shotDistanceM?: number | null,
+  ) => {
     const nextStats = { ...state.matchStats };
     if (team === state.localTeam) {
       nextStats.goals += 1;
@@ -457,8 +463,10 @@ export const gameStore = {
         id: celebrationId,
         team,
         points,
-        scorerName: team === state.localTeam ? 'You' : `${team.toUpperCase()} TEAM`,
-        shotDistanceM: null,
+        scorerName:
+          scorerName?.trim() ||
+          (team === state.localTeam ? 'You' : `${team.toUpperCase()} TEAM`),
+        shotDistanceM: shotDistanceM ?? null,
       },
       lastScoringTeam: team,
       ballCombo: 0,
