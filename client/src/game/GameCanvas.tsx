@@ -83,6 +83,7 @@ import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
 import {
   multiplayerStore,
+  type NetworkBallState,
   type NetworkRocketState,
   type RemoteMultiplayerPlayer,
 } from '../multiplayer/multiplayerStore';
@@ -130,6 +131,30 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
     bouncesLeft: r.bouncesLeft,
     explosive: r.explosive,
     punchedGlowIds: new Set(),
+  };
+}
+
+const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.1;
+const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
+const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
+
+type NetworkBallSample = {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  angularVelocity: THREE.Vector3;
+  at: number;
+};
+
+function makeNetworkBallSample(ball: NetworkBallState): NetworkBallSample {
+  return {
+    position: new THREE.Vector3(ball.position.x, ball.position.y, ball.position.z),
+    velocity: new THREE.Vector3(ball.velocity.x, ball.velocity.y, ball.velocity.z),
+    angularVelocity: new THREE.Vector3(
+      ball.angularVelocity.x,
+      ball.angularVelocity.y,
+      ball.angularVelocity.z,
+    ),
+    at: ball.updatedAt,
   };
 }
 
@@ -380,11 +405,11 @@ function Scene({
   const hostStateSendTimer = useRef(0);
   const lastAppliedNetworkBallAt = useRef(0);
   const networkBallReady = useRef(false);
-  const networkBallTargetPos = useRef(new THREE.Vector3());
-  const networkBallTargetVel = useRef(new THREE.Vector3());
-  const networkBallTargetAngVel = useRef(new THREE.Vector3());
-  const networkBallSmoothedPos = useRef(new THREE.Vector3());
-  const networkBallPredictedPos = useRef(new THREE.Vector3());
+  const networkBallPrevSample = useRef<NetworkBallSample | null>(null);
+  const networkBallLatestSample = useRef<NetworkBallSample | null>(null);
+  const networkBallRenderPos = useRef(new THREE.Vector3());
+  const networkBallRenderVel = useRef(new THREE.Vector3());
+  const networkBallRenderAngVel = useRef(new THREE.Vector3());
   const localBallPredictionUntil = useRef(0);
   const localBallPredictionReleasePos = useRef(new THREE.Vector3());
   const localBallPredictionMinSpeed = useRef(0);
@@ -524,23 +549,28 @@ function Scene({
           // sends a ball state that actually looks like the shot took over.
         } else {
           lastAppliedNetworkBallAt.current = b.updatedAt;
-          networkBallTargetPos.current.set(
-            b.position.x,
-            b.position.y,
-            b.position.z,
-          );
-          networkBallTargetVel.current.set(
-            b.velocity.x,
-            b.velocity.y,
-            b.velocity.z,
-          );
-          networkBallTargetAngVel.current.set(
-            b.angularVelocity.x,
-            b.angularVelocity.y,
-            b.angularVelocity.z,
-          );
+          const nextSample = makeNetworkBallSample(b);
+          const previousSample = networkBallLatestSample.current;
+          if (
+            !networkBallReady.current ||
+            previousSample == null ||
+            nextSample.at <= previousSample.at ||
+            nextSample.position.distanceTo(previousSample.position) > 9
+          ) {
+            networkBallPrevSample.current = nextSample;
+            networkBallRenderPos.current.copy(nextSample.position);
+          } else {
+            networkBallPrevSample.current = {
+              position: previousSample.position.clone(),
+              velocity: previousSample.velocity.clone(),
+              angularVelocity: previousSample.angularVelocity.clone(),
+              at: previousSample.at,
+            };
+          }
+          networkBallLatestSample.current = nextSample;
           if (!networkBallReady.current) {
-            networkBallSmoothedPos.current.copy(networkBallTargetPos.current);
+            networkBallRenderVel.current.copy(nextSample.velocity);
+            networkBallRenderAngVel.current.copy(nextSample.angularVelocity);
             networkBallReady.current = true;
           }
           localBallPredictionUntil.current = 0;
@@ -552,29 +582,61 @@ function Scene({
         networkBallReady.current &&
         nowMs >= localBallPredictionUntil.current
       ) {
-        networkBallPredictedPos.current
-          .copy(networkBallTargetPos.current)
-          .addScaledVector(networkBallTargetVel.current, 0.075);
-        const current = ballForNetwork.translation();
-        networkBallSmoothedPos.current.set(current.x, current.y, current.z);
-        const dist = networkBallSmoothedPos.current.distanceTo(
-          networkBallPredictedPos.current,
-        );
-        if (dist > 5) {
-          networkBallSmoothedPos.current.copy(networkBallPredictedPos.current);
-        } else {
-          const alpha = 1 - Math.exp(-dt * 20);
-          networkBallSmoothedPos.current.lerp(
-            networkBallPredictedPos.current,
-            alpha,
-          );
+        const previousSample = networkBallPrevSample.current;
+        const latestSample = networkBallLatestSample.current;
+        if (previousSample && latestSample) {
+          const renderAt =
+            nowMs - NETWORK_BALL_INTERPOLATION_BACKTIME_SEC * 1000;
+          if (latestSample.at > previousSample.at && renderAt <= latestSample.at) {
+            const alpha = THREE.MathUtils.clamp(
+              (renderAt - previousSample.at) /
+                Math.max(1, latestSample.at - previousSample.at),
+              0,
+              1,
+            );
+            networkBallRenderPos.current.lerpVectors(
+              previousSample.position,
+              latestSample.position,
+              alpha,
+            );
+            networkBallRenderVel.current.lerpVectors(
+              previousSample.velocity,
+              latestSample.velocity,
+              alpha,
+            );
+            networkBallRenderAngVel.current.lerpVectors(
+              previousSample.angularVelocity,
+              latestSample.angularVelocity,
+              alpha,
+            );
+          } else {
+            networkBallRenderPos.current.copy(latestSample.position);
+            networkBallRenderVel.current.copy(latestSample.velocity);
+            const speed = networkBallRenderVel.current.length();
+            if (speed > NETWORK_BALL_MAX_EXTRAPOLATE_SPEED) {
+              networkBallRenderVel.current.multiplyScalar(
+                NETWORK_BALL_MAX_EXTRAPOLATE_SPEED / speed,
+              );
+            }
+            const extraSec = Math.min(
+              NETWORK_BALL_EXTRAPOLATE_SEC,
+              Math.max(0, (renderAt - latestSample.at) / 1000),
+            );
+            networkBallRenderPos.current.addScaledVector(
+              networkBallRenderVel.current,
+              extraSec,
+            );
+            networkBallRenderAngVel.current.copy(latestSample.angularVelocity);
+          }
+          ballForNetwork.setTranslation(networkBallRenderPos.current, true);
+          ballForNetwork.setLinvel(networkBallRenderVel.current, true);
+          ballForNetwork.setAngvel(networkBallRenderAngVel.current, true);
         }
-        ballForNetwork.setTranslation(networkBallSmoothedPos.current, true);
-        ballForNetwork.setLinvel(networkBallTargetVel.current, true);
-        ballForNetwork.setAngvel(networkBallTargetAngVel.current, true);
       }
     } else {
       networkBallReady.current = false;
+      networkBallPrevSample.current = null;
+      networkBallLatestSample.current = null;
     }
 
     if (showBots) {

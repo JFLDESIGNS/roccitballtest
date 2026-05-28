@@ -162,7 +162,7 @@ let socket: WebSocket | null = null;
 let lastSendAt = 0;
 let profile: ActorProfile | null = null;
 
-const LOCAL_PLAYER_SEND_INTERVAL_MS = 33;
+const LOCAL_PLAYER_SEND_INTERVAL_MS = 16;
 
 let state: MultiplayerState = {
   enabled: false,
@@ -276,19 +276,31 @@ function handleMessage(raw: string) {
   }
 
   if (msg.type === 'snapshot') {
+    const receivedAt = performance.now();
     const selfId = state.selfId;
     const selfPlayer = msg.players.find((player) => player.id === selfId) ?? null;
     if (msg.match && selfId !== msg.hostId) {
       gameStore.syncNetworkMatch(msg.match);
     }
+    const ball = msg.ball
+      ? {
+          ...msg.ball,
+          updatedAt: receivedAt,
+        }
+      : null;
     patch({
       hostId: msg.hostId,
-      ball: msg.ball,
+      ball,
       match: msg.match,
       roomInfo: msg.room,
       team: selfPlayer?.team ?? state.team,
       teamSlot: selfPlayer?.teamSlot ?? state.teamSlot,
-      remotePlayers: msg.players.filter((player) => player.id !== selfId),
+      remotePlayers: msg.players
+        .filter((player) => player.id !== selfId)
+        .map((player) => ({
+          ...player,
+          updatedAt: receivedAt,
+        })),
     });
     return;
   }

@@ -17,9 +17,34 @@ import { PlayerAvatar } from './PlayerAvatar';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
-const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.08;
+const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.1;
+const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.1;
 const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 38;
 const REMOTE_PLAYER_SNAP_DISTANCE = 7;
+
+type RemotePlayerSample = {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  yaw: number;
+  at: number;
+};
+
+function makeSample(player: RemoteMultiplayerPlayer): RemotePlayerSample {
+  return {
+    position: new THREE.Vector3(
+      player.position.x,
+      player.position.y,
+      player.position.z,
+    ),
+    velocity: new THREE.Vector3(
+      player.velocity.x,
+      player.velocity.y,
+      player.velocity.z,
+    ),
+    yaw: player.rotation.yaw,
+    at: player.updatedAt,
+  };
+}
 
 function lerpAngle(from: number, to: number, alpha: number): number {
   const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
@@ -28,44 +53,33 @@ function lerpAngle(from: number, to: number, alpha: number): number {
 
 function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const bodyRef = useRef<RapierRigidBody>(null);
-  const targetPos = useRef(
-    new THREE.Vector3(
-      player.position.x,
-      player.position.y,
-      player.position.z,
-    ),
-  );
-  const smoothedPos = useRef(targetPos.current.clone());
-  const predictedPos = useRef(targetPos.current.clone());
-  const targetVel = useRef(
-    new THREE.Vector3(
-      player.velocity.x,
-      player.velocity.y,
-      player.velocity.z,
-    ),
-  );
-  const targetYaw = useRef(player.rotation.yaw);
-  const smoothedYaw = useRef(player.rotation.yaw);
+  const latestSample = useRef(makeSample(player));
+  const previousSample = useRef(makeSample(player));
+  const displayPos = useRef(latestSample.current.position.clone());
+  const displayYaw = useRef(latestSample.current.yaw);
+  const interpolatedPos = useRef(new THREE.Vector3());
+  const blendedVel = useRef(new THREE.Vector3());
   const rotationQuat = useRef(new THREE.Quaternion());
   const ready = useRef(false);
-  const lastStepAt = useRef(performance.now());
 
   useEffect(() => {
-    targetPos.current.set(
-      player.position.x,
-      player.position.y,
-      player.position.z,
-    );
-    targetVel.current.set(
-      player.velocity.x,
-      player.velocity.y,
-      player.velocity.z,
-    );
-    const speed = targetVel.current.length();
-    if (speed > REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED) {
-      targetVel.current.multiplyScalar(REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED / speed);
+    const next = makeSample(player);
+    const prev = latestSample.current;
+    if (
+      !ready.current ||
+      next.at <= prev.at ||
+      next.position.distanceTo(prev.position) > REMOTE_PLAYER_SNAP_DISTANCE * 1.75
+    ) {
+      previousSample.current = next;
+    } else {
+      previousSample.current = {
+        position: prev.position.clone(),
+        velocity: prev.velocity.clone(),
+        yaw: prev.yaw,
+        at: prev.at,
+      };
     }
-    targetYaw.current = player.rotation.yaw;
+    latestSample.current = next;
   }, [
     player.position.x,
     player.position.y,
@@ -80,32 +94,49 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     const body = bodyRef.current;
     if (!body) return;
     const now = performance.now();
-    const dt = Math.min(0.08, Math.max(0.001, (now - lastStepAt.current) / 1000));
-    lastStepAt.current = now;
     if (!ready.current) {
-      smoothedPos.current.copy(targetPos.current);
-      smoothedYaw.current = targetYaw.current;
+      displayPos.current.copy(latestSample.current.position);
+      displayYaw.current = latestSample.current.yaw;
       ready.current = true;
     } else {
-      predictedPos.current
-        .copy(targetPos.current)
-        .addScaledVector(targetVel.current, REMOTE_PLAYER_EXTRAPOLATE_SEC);
-      const dist = smoothedPos.current.distanceTo(predictedPos.current);
-      if (dist > REMOTE_PLAYER_SNAP_DISTANCE) {
-        smoothedPos.current.copy(predictedPos.current);
+      const from = previousSample.current;
+      const to = latestSample.current;
+      const renderAt = now - REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC * 1000;
+      let targetYaw = to.yaw;
+      if (to.at > from.at && renderAt <= to.at) {
+        const alpha = THREE.MathUtils.clamp(
+          (renderAt - from.at) / Math.max(1, to.at - from.at),
+          0,
+          1,
+        );
+        interpolatedPos.current.lerpVectors(from.position, to.position, alpha);
+        blendedVel.current.lerpVectors(from.velocity, to.velocity, alpha);
+        targetYaw = lerpAngle(from.yaw, to.yaw, alpha);
       } else {
-        const alpha = 1 - Math.exp(-dt * 18);
-        smoothedPos.current.lerp(predictedPos.current, alpha);
+        interpolatedPos.current.copy(to.position);
+        blendedVel.current.copy(to.velocity);
+        const speed = blendedVel.current.length();
+        if (speed > REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED) {
+          blendedVel.current.multiplyScalar(
+            REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED / speed,
+          );
+        }
+        const extraSec = Math.min(
+          REMOTE_PLAYER_EXTRAPOLATE_SEC,
+          Math.max(0, (renderAt - to.at) / 1000),
+        );
+        interpolatedPos.current.addScaledVector(blendedVel.current, extraSec);
       }
-      const yawAlpha = 1 - Math.exp(-dt * 20);
-      smoothedYaw.current = lerpAngle(
-        smoothedYaw.current,
-        targetYaw.current,
-        yawAlpha,
-      );
+      const dist = displayPos.current.distanceTo(interpolatedPos.current);
+      if (dist > REMOTE_PLAYER_SNAP_DISTANCE) {
+        displayPos.current.copy(interpolatedPos.current);
+      } else {
+        displayPos.current.copy(interpolatedPos.current);
+      }
+      displayYaw.current = targetYaw;
     }
-    rotationQuat.current.setFromEuler(new THREE.Euler(0, smoothedYaw.current, 0));
-    body.setNextKinematicTranslation(smoothedPos.current);
+    rotationQuat.current.setFromEuler(new THREE.Euler(0, displayYaw.current, 0));
+    body.setNextKinematicTranslation(displayPos.current);
     body.setNextKinematicRotation(rotationQuat.current);
   });
 

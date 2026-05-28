@@ -35,9 +35,28 @@ type HUDProps = {
 
 export function HUD({ onMainMenu }: HUDProps) {
   const state = useSyncExternalStore(gameStore.subscribe, gameStore.getState);
-  const multiplayer = useSyncExternalStore(
+  const multiplayerEnabled = useSyncExternalStore(
     multiplayerStore.subscribe,
-    multiplayerStore.getState,
+    () => multiplayerStore.getState().enabled,
+  );
+  const multiplayerRoomName = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.name ?? null,
+  );
+  const multiplayerRoomId = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomId,
+  );
+  const multiplayerPlayerCount = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => {
+      const s = multiplayerStore.getState();
+      return s.roomInfo?.playerCount ?? s.remotePlayers.length + 1;
+    },
+  );
+  const multiplayerMaxPlayers = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.maxPlayers ?? 2,
   );
   const bouncy = useSyncExternalStore(
     tuningStore.subscribe,
@@ -96,13 +115,12 @@ export function HUD({ onMainMenu }: HUDProps) {
   return (
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
       <FpsCounter />
-      {multiplayer.enabled && (
+      {multiplayerEnabled && (
         <div className="hud-online-status">
           <strong>Online</strong>
           <span>
-            {(multiplayer.roomInfo?.name ?? `Room ${multiplayer.roomId}`)} ·{' '}
-            {multiplayer.roomInfo?.playerCount ?? multiplayer.remotePlayers.length + 1}/
-            {multiplayer.roomInfo?.maxPlayers ?? 2} players
+            {(multiplayerRoomName ?? `Room ${multiplayerRoomId}`)} ·{' '}
+            {multiplayerPlayerCount}/{multiplayerMaxPlayers} players
           </span>
         </div>
       )}

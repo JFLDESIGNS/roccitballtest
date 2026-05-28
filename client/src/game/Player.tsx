@@ -243,9 +243,17 @@ export function Player({
     gameStore.subscribe,
     () => gameStore.getState().debugFreelook,
   );
-  const multiplayerState = useSyncExternalStore(
+  const multiplayerEnabled = useSyncExternalStore(
     multiplayerStore.subscribe,
-    multiplayerStore.getState,
+    () => multiplayerStore.getState().enabled,
+  );
+  const multiplayerRoomMode = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.mode ?? null,
+  );
+  const multiplayerTeamSlot = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().teamSlot,
   );
   const bodyRef = useRef<RapierRigidBody>(null);
   const visualRef = useRef<THREE.Group>(null);
@@ -327,14 +335,14 @@ export function Player({
   const spawnPos = useMemo(() => {
     const team = gameStore.getState().localTeam;
     const teamPlayerCount =
-      multiplayerState.enabled && multiplayerState.roomInfo?.mode === '2v2'
+      multiplayerEnabled && multiplayerRoomMode === '2v2'
         ? 2
         : 1;
-    return getTeamSpawn(team, multiplayerState.teamSlot, teamPlayerCount);
+    return getTeamSpawn(team, multiplayerTeamSlot, teamPlayerCount);
   }, [
-    multiplayerState.enabled,
-    multiplayerState.roomInfo?.mode,
-    multiplayerState.teamSlot,
+    multiplayerEnabled,
+    multiplayerRoomMode,
+    multiplayerTeamSlot,
   ]);
 
   const applyTeamSpawn = useCallback(() => {
