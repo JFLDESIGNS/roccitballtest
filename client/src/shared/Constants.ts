@@ -773,13 +773,13 @@ export const BALL = {
   linearDamping: 0.014,
   angularDamping: 0.06,
   /** Roll rate scale on LMB / bot release (ω ≈ v/R) */
-  launchSpinScale: 0.78,
+  launchSpinScale: 1.56,
   /** Blend ω×r tangential speed into post-bounce linear velocity */
-  spinBounceCoupling: 0.72,
+  spinBounceCoupling: 0.92,
   /** Fraction of spin transferred into the bounce (reduces ω) */
-  spinBounceTransfer: 0.28,
+  spinBounceTransfer: 0.22,
   /** Off-center rocket impulse → angular velocity (τ = r × J) */
-  rocketHitSpinScale: 0.92,
+  rocketHitSpinScale: 1.84,
   /** Scales world gravity on the ball (1 = match arena gravity) */
   gravityScale: 1,
   /** Was 80 → +12% (90) → pulled back to +6% (85); clamped in ballRuntime */
@@ -817,13 +817,13 @@ export const BALL = {
   /** Blend held proxy into physics ball on release (seconds) */
   holdReleaseVisualLerpSec: 0.22,
   /** Loose proxy — filter raw physics position (reduces jitter) */
-  looseVisualTargetSmooth: 40,
+  looseVisualTargetSmooth: 48,
   /** Loose proxy display follow — higher = snappier */
-  looseVisualPosSmooth: 36,
+  looseVisualPosSmooth: 44,
   /** Loose proxy spin follow — higher = snappier */
-  looseVisualRotSmooth: 58,
+  looseVisualRotSmooth: 84,
   /** Soft catch-up if display drifts farther than this from filtered target (m) */
-  looseVisualMaxLagM: 0.45,
+  looseVisualMaxLagM: 0.38,
   /** Low-pass on ramp/floor support height while held */
   holdSupportSmooth: 32,
   /** How long Space stays buffered if jump was early (seconds) */

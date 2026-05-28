@@ -13,6 +13,7 @@ import goal1Url from '../assets/sounds/goal1.WAV';
 import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
 import jumpSoundUrl from '../assets/sounds/jumpsound.mp3';
 import grindRailUrl from '../assets/sounds/grind-rail.mp3';
+import electricSlapUrl from '../assets/sounds/electric-slap.mp3';
 
 let ctx: AudioContext | null = null;
 
@@ -29,6 +30,7 @@ let lastBallShotAt = 0;
 
 const BALL_SHOT_DEBOUNCE_MS = 120;
 const SHOT_SAMPLE_BASE = 0.44;
+const ELECTRIC_SLAP_SAMPLE_BASE = 0.58;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
 /** Menu + in-match loops (Rocket Dope Tron) */
@@ -137,6 +139,7 @@ const GAME_AUDIO_PRELOAD_URLS = [
   rocketDopeTronUrl,
   jumpSoundUrl,
   grindRailUrl,
+  electricSlapUrl,
 ] as const;
 
 function preloadSamples(): void {
@@ -988,7 +991,13 @@ export function setGrindRailActive(active: boolean) {
 export function playBallLaunch() {
   if (!getCtx()) return;
   suppressBallBounceUntil = performance.now() + 200;
-  playShotSample();
+  const now = performance.now();
+  if (now - lastBallShotAt < BALL_SHOT_DEBOUNCE_MS) return;
+  lastBallShotAt = now;
+  playSample(
+    electricSlapUrl,
+    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume,
+  );
 }
 
 /** Skip floor/wall bounce SFX immediately after a ball shot */

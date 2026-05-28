@@ -134,10 +134,10 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
   };
 }
 
-const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.1;
+const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.075;
 const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
 const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
-const NETWORK_BALL_CORRECTION_SNAP_M = 8.5;
+const NETWORK_BALL_CORRECTION_SNAP_M = 7.5;
 const LOCAL_BALL_IMPACT_PREDICTION_MS = 320;
 
 type NetworkBallSample = {
@@ -672,7 +672,7 @@ function Scene({
           if (correctionDist > NETWORK_BALL_CORRECTION_SNAP_M) {
             ballForNetwork.setTranslation(networkBallRenderPos.current, true);
           } else {
-            const correctionAlpha = 1 - Math.exp(-dt * 12);
+            const correctionAlpha = 1 - Math.exp(-dt * 18);
             correction.multiplyScalar(correctionAlpha);
             ballForNetwork.setTranslation(
               {
@@ -1066,6 +1066,7 @@ function Scene({
             kind: 'release',
             position: release.position,
             velocity: release.velocity,
+            angularVelocity: release.angularVelocity,
             ballState: release.ballState,
           });
         }}

@@ -231,6 +231,7 @@ type PlayerProps = {
   onBallReleased?: (release: {
     position: { x: number; y: number; z: number };
     velocity: { x: number; y: number; z: number };
+    angularVelocity: { x: number; y: number; z: number };
     ballState: 'loose' | 'launched';
   }) => void;
   onBeamBreak: () => void;
@@ -537,6 +538,7 @@ export function Player({
       gameStore.setBallState('loose');
       onBallHeldChange(false);
       onBeamBreak();
+      playBallLaunch();
       if (ball && body) {
         beginLocalHeldBallRelease(heldBallVisualBridge.smoothPos);
         releaseBallPhysics(ball);
@@ -1771,7 +1773,8 @@ export function Player({
         },
         true,
       );
-      applyBallLaunchImpulse(ball, velocity, swingVel);
+      applyBallLaunchImpulse(ball, velocity, swingVel, lookDir);
+      const av = ball.angvel();
       onBallReleased?.({
         position: {
           x: _holdSocket.current.x,
@@ -1779,6 +1782,7 @@ export function Player({
           z: _holdSocket.current.z,
         },
         velocity: { x: velocity.x, y: velocity.y, z: velocity.z },
+        angularVelocity: { x: av.x, y: av.y, z: av.z },
         ballState,
       });
       gameStore.setBallState(ballState);

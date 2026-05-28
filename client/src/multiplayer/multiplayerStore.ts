@@ -69,6 +69,7 @@ export type NetworkBallAction = {
   kind: 'release';
   position: Vec3;
   velocity: Vec3;
+  angularVelocity?: Vec3;
   ballState: 'loose' | 'launched';
 };
 

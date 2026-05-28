@@ -131,6 +131,10 @@ export function LooseBallVisual({
       _displayPos.copy(_targetPos);
       _displayQuat.copy(_targetQuat);
       displayReadyRef.current = true;
+    } else if (_displayPos.distanceTo(_targetPos) > maxLagM * 4) {
+      _filteredPos.copy(_targetPos);
+      _displayPos.copy(_targetPos);
+      _displayQuat.copy(_targetQuat);
     } else {
       _filteredPos.lerp(_targetPos, targetAlpha);
     }

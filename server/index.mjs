@@ -83,6 +83,8 @@ const BALL_RESTITUTION = 0.58;
 const BALL_FRICTION = 0.26;
 const BALL_ANGULAR_DAMPING = 0.06;
 const BALL_MAX_SPEED = 85;
+const BALL_LAUNCH_SPIN_SCALE = 1.56;
+const BALL_ROCKET_HIT_SPIN_SCALE = 1.84;
 const FT_TO_M = 0.3048;
 const ROCKET_BALL_HIT_DELTA_V = 33;
 const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
@@ -1070,9 +1072,9 @@ function setPhysicsBall(room, position, velocity, angularVelocity = null) {
   body.setLinvel(velocity, true);
   body.setAngvel(
     angularVelocity ?? {
-      x: velocity.z / BALL_RADIUS,
+      x: (velocity.z / BALL_RADIUS) * BALL_LAUNCH_SPIN_SCALE,
       y: 0,
-      z: -velocity.x / BALL_RADIUS,
+      z: (-velocity.x / BALL_RADIUS) * BALL_LAUNCH_SPIN_SCALE,
     },
     true,
   );
@@ -1175,6 +1177,19 @@ function rocketKnockDirection(ballPosition, impact) {
   return normalizeVec3({ x: dx, y: dy, z: dz });
 }
 
+function rocketHitAngularVelocity(body, normal, deltaV, falloff) {
+  const av = body.angvel();
+  return {
+    x:
+      av.x +
+      normal.z * deltaV * falloff * BALL_ROCKET_HIT_SPIN_SCALE,
+    y: av.y,
+    z:
+      av.z -
+      normal.x * deltaV * falloff * BALL_ROCKET_HIT_SPIN_SCALE,
+  };
+}
+
 function applyRocketImpactToServerBall(room, impact, now) {
   if (!room.physics) room.physics = createRoomPhysics();
   const body = room.physics.ballBody;
@@ -1189,26 +1204,20 @@ function applyRocketImpactToServerBall(room, impact, now) {
     ROCKET_BALL_SPLASH_MIN_FALLOFF,
     1 - dist / Math.max(impact.radius, 0.001),
   );
+  const deltaV = ROCKET_BALL_HIT_DELTA_V;
   const direction = rocketKnockDirection(ballPosition, impact);
   const velocity = body.linvel();
   body.setLinvel(
     {
-      x: velocity.x + direction.x * ROCKET_BALL_HIT_DELTA_V * falloff,
-      y: velocity.y + direction.y * ROCKET_BALL_HIT_DELTA_V * falloff,
-      z: velocity.z + direction.z * ROCKET_BALL_HIT_DELTA_V * falloff,
+      x: velocity.x + direction.x * deltaV * falloff,
+      y: velocity.y + direction.y * deltaV * falloff,
+      z: velocity.z + direction.z * deltaV * falloff,
     },
     true,
   );
 
   const normal = normalizeVec3(impact.ballImpactNormal, direction);
-  body.setAngvel(
-    {
-      x: normal.z * ROCKET_BALL_HIT_DELTA_V * falloff * 0.9,
-      y: 0,
-      z: -normal.x * ROCKET_BALL_HIT_DELTA_V * falloff * 0.9,
-    },
-    true,
-  );
+  body.setAngvel(rocketHitAngularVelocity(body, normal, deltaV, falloff), true);
   clampPhysicsBallSpeed(room);
   syncBallFromPhysics(room, now);
   return true;
@@ -1564,6 +1573,9 @@ function handleClientMessage(socket, raw) {
       kind: 'release',
       position: sanitizeVec3(msg.action?.position),
       velocity: sanitizeVec3(msg.action?.velocity),
+      angularVelocity: msg.action?.angularVelocity
+        ? sanitizeVec3(msg.action.angularVelocity)
+        : null,
       ballState: msg.action?.ballState === 'loose' ? 'loose' : 'launched',
     };
     player.isHoldingBall = false;
@@ -1572,11 +1584,12 @@ function handleClientMessage(socket, raw) {
     markRoomLastTouch(room, player, action.position);
     room.ball.position = action.position;
     room.ball.velocity = action.velocity;
-    room.ball.angularVelocity = {
-      x: action.velocity.z / BALL_RADIUS,
-      y: 0,
-      z: -action.velocity.x / BALL_RADIUS,
-    };
+    room.ball.angularVelocity =
+      action.angularVelocity ?? {
+        x: (action.velocity.z / BALL_RADIUS) * BALL_LAUNCH_SPIN_SCALE,
+        y: 0,
+        z: (-action.velocity.x / BALL_RADIUS) * BALL_LAUNCH_SPIN_SCALE,
+      };
     clampBallSpeed(room.ball);
     room.ball.updatedAt = Date.now();
     setPhysicsBall(room, room.ball.position, room.ball.velocity, room.ball.angularVelocity);

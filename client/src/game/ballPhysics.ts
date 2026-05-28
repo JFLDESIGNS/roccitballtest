@@ -173,12 +173,17 @@ export function wakeBallBody(body: RapierRigidBody): void {
 /** Natural roll from horizontal launch speed (no swing sidespin). */
 export function computeBallReleaseSpin(
   launchVel: THREE.Vector3,
+  forwardHint?: THREE.Vector3,
 ): { x: number; y: number; z: number } {
   const horiz = Math.hypot(launchVel.x, launchVel.z);
   if (horiz < 0.4) return { x: 0, y: 0, z: 0 };
 
   const rollOmega = (horiz / BALL.radius) * BALL.launchSpinScale;
-  _rollAxis.set(launchVel.z, 0, -launchVel.x).normalize();
+  if (forwardHint && Math.hypot(forwardHint.x, forwardHint.z) > 0.001) {
+    _rollAxis.set(forwardHint.z, 0, -forwardHint.x).normalize();
+  } else {
+    _rollAxis.set(launchVel.z, 0, -launchVel.x).normalize();
+  }
   return {
     x: _rollAxis.x * rollOmega,
     y: 0,
@@ -190,6 +195,7 @@ export function applyBallLaunchImpulse(
   body: RapierRigidBody,
   launchVel: THREE.Vector3,
   _swingVel?: THREE.Vector3,
+  forwardHint?: THREE.Vector3,
 ): void {
   let x = launchVel.x;
   let y = launchVel.y;
@@ -203,6 +209,6 @@ export function applyBallLaunchImpulse(
   }
 
   body.setLinvel({ x, y, z }, true);
-  body.setAngvel(computeBallReleaseSpin(launchVel), true);
+  body.setAngvel(computeBallReleaseSpin(launchVel, forwardHint), true);
   wakeBallBody(body);
 }
