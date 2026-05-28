@@ -66,8 +66,8 @@ type DroneThrusterFlamesProps = {
   forwardPitchDeg?: number;
   /** Scales flame from nozzle; base/disc stays at attach point (y = 0) */
   sizeScale?: number;
-  /** Player-only option: hide cones/lights until sprint throttle is active. */
-  requireThrottleVisible?: boolean;
+  /** Optional idle dimming for player thrusters; throttle fades back to full strength. */
+  idleOpacityScale?: number;
 };
 
 /** Glowing flame cones at drone foot thrusters */
@@ -79,7 +79,7 @@ export function DroneThrusterFlames({
   offsetBackIn = 0,
   forwardPitchDeg = DEFAULT_FLAME_FORWARD_PITCH_DEG,
   sizeScale = 1,
-  requireThrottleVisible = false,
+  idleOpacityScale = 1,
 }: DroneThrusterFlamesProps) {
   const colors = TEAM_FLAME[team];
   const groupRef = useRef<THREE.Group>(null);
@@ -131,15 +131,18 @@ export function DroneThrusterFlames({
   useFrame(({ clock }) => {
     const throttle = THREE.MathUtils.clamp(throttleRef?.current ?? 0, 0, 1);
     const jumpBoost = THREE.MathUtils.clamp(jumpBoostRef?.current ?? 0, 0, 1);
-    if (groupRef.current) {
-      groupRef.current.visible = !requireThrottleVisible || throttle > 0.035;
-    }
     const t = clock.elapsedTime;
     const pulse = 0.82 + Math.sin(t * 14) * 0.12;
     const glowPulse = 0.22 + Math.sin(t * 11) * 0.07;
     const jumpGlow = 1 + jumpBoost * 2.4;
-    mat.opacity = pulse * 0.52 * (1 + throttle * 0.42) * jumpGlow;
-    glowMat.opacity = glowPulse * 0.48 * (1 + throttle * 0.5) * (1 + jumpBoost * 1.8);
+    const idleFade = THREE.MathUtils.lerp(
+      THREE.MathUtils.clamp(idleOpacityScale, 0, 1),
+      1,
+      throttle,
+    );
+    mat.opacity = pulse * 0.52 * (1 + throttle * 0.42) * jumpGlow * idleFade;
+    glowMat.opacity =
+      glowPulse * 0.48 * (1 + throttle * 0.5) * (1 + jumpBoost * 1.8) * idleFade;
     for (let i = 0; i < pulseRefs.current.length; i++) {
       const m = pulseRefs.current[i];
       if (m) {
@@ -149,10 +152,7 @@ export function DroneThrusterFlames({
         m.scale.setScalar(s * sizeScale);
       }
     }
-    const lightIntensity =
-      requireThrottleVisible && throttle <= 0.035
-        ? 0
-        : (8 + throttle * 14) * (1 + jumpBoost * 2.2);
+    const lightIntensity = (8 + throttle * 14) * (1 + jumpBoost * 2.2) * idleFade;
     const lightReach = (5.5 + throttle * 2.5) * (1 + jumpBoost * 0.35);
     for (let i = 0; i < lightRefs.current.length; i++) {
       const light = lightRefs.current[i];

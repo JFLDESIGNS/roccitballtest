@@ -51,8 +51,16 @@ export function separateBallFromPlayer(
   if (!preserveBallMomentum) return;
 
   const lv = ball.linvel();
+  const plv = player.linvel();
+  const playerTowardBall = Math.max(
+    0,
+    plv.x * _away.x + plv.y * _away.y * 0.35 + plv.z * _away.z,
+  );
   const horiz = Math.hypot(lv.x, lv.z);
-  const boost = Math.min(9, 2.5 + overlap * 4 + horiz * 0.05);
+  const boost = Math.min(
+    11.5,
+    3.25 + overlap * 5.25 + horiz * 0.05 + playerTowardBall * 0.22,
+  );
   ball.setLinvel(
     {
       x: lv.x + _away.x * boost * bm,

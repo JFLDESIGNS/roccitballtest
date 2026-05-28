@@ -6,7 +6,6 @@ import emptyClipUrl from '../assets/sounds/emptyclip.wav';
 import shotUrl from '../assets/sounds/shot.flac';
 import explosionUrl from '../assets/sounds/explosion.wav';
 import chingUrl from '../assets/sounds/ching.mp3';
-import ambientUrl from '../assets/sounds/ambient.wav';
 import cheerUrl from '../assets/sounds/cheering.wav';
 import panicUrl from '../assets/sounds/panic.wav';
 import goal1Url from '../assets/sounds/goal1.WAV';
@@ -81,7 +80,6 @@ type TimedCrowdTrack = {
 
 const BEAM_LOCAL_GAIN = 0.028;
 
-let ambientTrack: LoopingTrack | null = null;
 let bgMusicTrack: LoopingTrack | null = null;
 let grindRailTrack: LoopingTrack | null = null;
 let bgMusicMode: 'menu' | 'game' | null = null;
@@ -132,7 +130,6 @@ const GAME_AUDIO_PRELOAD_URLS = [
   shotUrl,
   explosionUrl,
   chingUrl,
-  ambientUrl,
   cheerUrl,
   panicUrl,
   goal1Url,
@@ -466,19 +463,6 @@ export function restartGameplayBackgroundMusic(): void {
 export function returnToMenuAudio(): void {
   stopMatchAudio();
   if (BACKGROUND_MUSIC_ENABLED) startMenuBackgroundMusic();
-}
-
-function stopAmbientLoop(): void {
-  if (!ambientTrack) return;
-  const ac = getCtx();
-  if (!ac) return;
-  const { source, gain } = ambientTrack;
-  const t = ac.currentTime;
-  gain.gain.cancelScheduledValues(t);
-  gain.gain.setValueAtTime(gain.gain.value, t);
-  gain.gain.linearRampToValueAtTime(0.001, t + 0.35);
-  source.stop(t + 0.4);
-  ambientTrack = null;
 }
 
 function randomSampleStartOffset(buffer: AudioBuffer, playSec: number): number {
@@ -1022,7 +1006,6 @@ export function stopMatchAudio(): void {
   stopGrindRailLoop();
   stopCheer();
   stopPanic();
-  stopAmbientLoop();
   stopBgMusic();
 }
 
