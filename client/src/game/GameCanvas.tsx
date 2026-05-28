@@ -575,53 +575,44 @@ function Scene({
           b.position.y - currentBallPosition.y,
           b.position.z - currentBallPosition.z,
         );
+        lastAppliedNetworkBallAt.current = b.updatedAt;
+        const nextSample = makeNetworkBallSample(b);
+        const previousSample = networkBallLatestSample.current;
         if (
-          nowMs < localBallPredictionUntil.current &&
-          (!hostShotLooksCaughtUp || serverDistanceFromLocal > 4)
+          !networkBallReady.current ||
+          previousSample == null ||
+          nextSample.at <= previousSample.at ||
+          nextSample.position.distanceTo(previousSample.position) > 9
         ) {
-          // Keep the follower's local release prediction alive until the server
-          // sends a ball state that actually looks like the shot took over.
+          networkBallPrevSample.current = nextSample;
+          networkBallRenderPos.current.copy(nextSample.position);
+          networkBallSampleHistory.current = [nextSample];
         } else {
-          lastAppliedNetworkBallAt.current = b.updatedAt;
-          const nextSample = makeNetworkBallSample(b);
-          const previousSample = networkBallLatestSample.current;
-          if (
-            !networkBallReady.current ||
-            previousSample == null ||
-            nextSample.at <= previousSample.at ||
-            nextSample.position.distanceTo(previousSample.position) > 9
-          ) {
-            networkBallPrevSample.current = nextSample;
-            networkBallRenderPos.current.copy(nextSample.position);
-            networkBallSampleHistory.current = [nextSample];
-          } else {
-            networkBallPrevSample.current = {
-              position: previousSample.position.clone(),
-              velocity: previousSample.velocity.clone(),
-              angularVelocity: previousSample.angularVelocity.clone(),
-              at: previousSample.at,
-            };
-            networkBallSampleHistory.current.push(nextSample);
-            while (networkBallSampleHistory.current.length > NETWORK_BALL_SAMPLE_HISTORY) {
-              networkBallSampleHistory.current.shift();
-            }
+          networkBallPrevSample.current = {
+            position: previousSample.position.clone(),
+            velocity: previousSample.velocity.clone(),
+            angularVelocity: previousSample.angularVelocity.clone(),
+            at: previousSample.at,
+          };
+          networkBallSampleHistory.current.push(nextSample);
+          while (networkBallSampleHistory.current.length > NETWORK_BALL_SAMPLE_HISTORY) {
+            networkBallSampleHistory.current.shift();
           }
-          networkBallLatestSample.current = nextSample;
-          if (!networkBallReady.current) {
-            networkBallRenderVel.current.copy(nextSample.velocity);
-            networkBallRenderAngVel.current.copy(nextSample.angularVelocity);
-            networkBallReady.current = true;
-          }
-          if (serverDistanceFromLocal < 3.6 || hostShotLooksCaughtUp) {
-            localBallPredictionUntil.current = 0;
-          }
-          localBallPredictionMinSpeed.current = 0;
         }
+        networkBallLatestSample.current = nextSample;
+        if (!networkBallReady.current) {
+          networkBallRenderVel.current.copy(nextSample.velocity);
+          networkBallRenderAngVel.current.copy(nextSample.angularVelocity);
+          networkBallReady.current = true;
+        }
+        if (serverDistanceFromLocal < 3.6 || hostShotLooksCaughtUp) {
+          localBallPredictionUntil.current = 0;
+        }
+        localBallPredictionMinSpeed.current = 0;
       }
       if (
         !isLocalHoldingBall &&
-        networkBallReady.current &&
-        nowMs >= localBallPredictionUntil.current
+        networkBallReady.current
       ) {
         const previousSample = networkBallPrevSample.current;
         const latestSample = networkBallLatestSample.current;
@@ -691,16 +682,19 @@ function Scene({
             networkBallRenderAngVel.current.copy(latestSample.angularVelocity);
           }
           const current = ballForNetwork.translation();
+          const predictionActive = nowMs < localBallPredictionUntil.current;
           const correction = networkBallCorrection.current.set(
             networkBallRenderPos.current.x - current.x,
             networkBallRenderPos.current.y - current.y,
             networkBallRenderPos.current.z - current.z,
           );
           const correctionDist = correction.length();
-          if (correctionDist > NETWORK_BALL_CORRECTION_SNAP_M) {
+          if (!predictionActive && correctionDist > NETWORK_BALL_CORRECTION_SNAP_M) {
             ballForNetwork.setTranslation(networkBallRenderPos.current, true);
           } else {
-            const correctionAlpha = 1 - Math.exp(-dt * 18);
+            const correctionAlpha = predictionActive
+              ? 1 - Math.exp(-dt * 6)
+              : 1 - Math.exp(-dt * 18);
             correction.multiplyScalar(correctionAlpha);
             ballForNetwork.setTranslation(
               {
@@ -711,8 +705,30 @@ function Scene({
               true,
             );
           }
-          ballForNetwork.setLinvel(networkBallRenderVel.current, true);
-          ballForNetwork.setAngvel(networkBallRenderAngVel.current, true);
+          if (predictionActive) {
+            const lv = ballForNetwork.linvel();
+            const av = ballForNetwork.angvel();
+            const velAlpha = 1 - Math.exp(-dt * 8);
+            ballForNetwork.setLinvel(
+              {
+                x: THREE.MathUtils.lerp(lv.x, networkBallRenderVel.current.x, velAlpha),
+                y: THREE.MathUtils.lerp(lv.y, networkBallRenderVel.current.y, velAlpha),
+                z: THREE.MathUtils.lerp(lv.z, networkBallRenderVel.current.z, velAlpha),
+              },
+              true,
+            );
+            ballForNetwork.setAngvel(
+              {
+                x: THREE.MathUtils.lerp(av.x, networkBallRenderAngVel.current.x, velAlpha),
+                y: THREE.MathUtils.lerp(av.y, networkBallRenderAngVel.current.y, velAlpha),
+                z: THREE.MathUtils.lerp(av.z, networkBallRenderAngVel.current.z, velAlpha),
+              },
+              true,
+            );
+          } else {
+            ballForNetwork.setLinvel(networkBallRenderVel.current, true);
+            ballForNetwork.setAngvel(networkBallRenderAngVel.current, true);
+          }
         }
       }
     } else {
