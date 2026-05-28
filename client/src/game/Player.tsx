@@ -8,7 +8,7 @@ import {
   type CollisionEnterPayload,
   type RapierRigidBody,
 } from '@react-three/rapier';
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import {
   ARENA,
@@ -321,6 +321,10 @@ export function Player({
   const ePropelCooldown = useRef(0);
   const ePropelVyBoost = useRef<number | null>(null);
   const energy = useRef<number>(ENERGY.max);
+  const [playerCollisionGroups, setPlayerCollisionGroupsState] = useState(
+    PLAYER_LOOSE_COLLISION,
+  );
+  const playerCollisionGroupsRef = useRef(PLAYER_LOOSE_COLLISION);
   const regenTimer = useRef(0);
   const draining = useRef(false);
   const holdingBall = useRef(false);
@@ -388,13 +392,9 @@ export function Player({
     );
   }, []);
   const setPlayerCollisionGroups = useCallback((groups: number) => {
-    const body = bodyRef.current;
-    if (!body) return;
-    for (let i = 0; i < 4; i += 1) {
-      const collider = body.collider(i);
-      if (!collider) break;
-      collider.setCollisionGroups(groups);
-    }
+    if (playerCollisionGroupsRef.current === groups) return;
+    playerCollisionGroupsRef.current = groups;
+    setPlayerCollisionGroupsState(groups);
   }, []);
   const stopGrapple = useCallback((boost = false) => {
     if (!grappleActive.current) return;
@@ -1393,15 +1393,28 @@ export function Player({
       if (grappleNeedsSetup.current) {
         grappleTargetLength.current = Math.max(
           3.2,
-          grappleAnchor.current.y - safeChestY,
+          grappleAnchor.current.y -
+            safeChestY +
+            MOVEMENT.grappleArcadeSlackM,
+        );
+        grappleLength.current = Math.min(
+          grappleLength.current,
+          grappleTargetLength.current + 2.2,
         );
         grappleNeedsSetup.current = false;
       }
-      grappleLength.current = THREE.MathUtils.lerp(
-        grappleLength.current,
-        grappleTargetLength.current,
-        Math.min(1, MOVEMENT.grappleRetractSpeed * dt),
-      );
+      if (grappleLength.current > grappleTargetLength.current) {
+        grappleLength.current = Math.max(
+          grappleTargetLength.current,
+          grappleLength.current - MOVEMENT.grappleRetractSpeed * dt,
+        );
+      } else {
+        grappleLength.current = THREE.MathUtils.lerp(
+          grappleLength.current,
+          grappleTargetLength.current,
+          Math.min(1, MOVEMENT.grappleRetractSpeed * 0.35 * dt),
+        );
+      }
       const chestX = pos.x;
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
@@ -2227,13 +2240,13 @@ export function Player({
           args={PLAYER_LOWER_COLLIDER.halfExtents}
           position={[0, PLAYER_LOWER_COLLIDER.centerY, 0]}
           friction={0.55}
-          collisionGroups={PLAYER_LOOSE_COLLISION}
+          collisionGroups={playerCollisionGroups}
         />
         <CuboidCollider
           args={PLAYER_UPPER_COLLIDER.halfExtents}
           position={[0, PLAYER_UPPER_COLLIDER.centerY, 0]}
           friction={0.55}
-          collisionGroups={PLAYER_LOOSE_COLLISION}
+          collisionGroups={playerCollisionGroups}
         />
         {!playerVisualProxy ? (
           <group ref={visualRef} position={[0, capCenterY, 0]}>

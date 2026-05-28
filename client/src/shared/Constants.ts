@@ -742,7 +742,8 @@ export const MOVEMENT = {
   grapplePullTightness: 17,
   grappleReleaseBoost: 1.16,
   grappleHangFeetAboveGroundM: 3.05,
-  grappleRetractSpeed: 18,
+  grappleArcadeSlackM: 0.9,
+  grappleRetractSpeed: 28,
 } as const;
 
 /** Energy */
