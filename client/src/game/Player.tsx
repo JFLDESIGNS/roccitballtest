@@ -358,6 +358,8 @@ export function Player({
   const _posScratch = useRef(new THREE.Vector3());
   const _beamBallPos = useRef(new THREE.Vector3());
   const pivotRef = useRef(new THREE.Vector3());
+  const cameraPivotTarget = useRef(new THREE.Vector3());
+  const cameraPivotReady = useRef(false);
   const cameraSnapped = useRef(false);
   const lastPhaseRef = useRef<GamePhase>('menu');
   const launchMomentumSamples = useRef<THREE.Vector3[]>([]);
@@ -418,6 +420,34 @@ export function Player({
       setPlayerBallCollisionGroupsState(ballGroups);
     }
   }, []);
+  const writeCameraPivot = useCallback(
+    (x: number, y: number, z: number, dt: number, snap = false) => {
+      const target = cameraPivotTarget.current.set(
+        x,
+        y + CAMERA.pivotHeight,
+        z,
+      );
+      const pivot = pivotRef.current;
+      if (
+        snap ||
+        !cameraPivotReady.current ||
+        pivot.distanceToSquared(target) > 64 ||
+        dt <= 0
+      ) {
+        pivot.copy(target);
+        cameraPivotReady.current = true;
+        return pivot;
+      }
+
+      const xzAlpha = 1 - Math.exp(-18 * dt);
+      const yAlpha = 1 - Math.exp(-24 * dt);
+      pivot.x += (target.x - pivot.x) * xzAlpha;
+      pivot.z += (target.z - pivot.z) * xzAlpha;
+      pivot.y += (target.y - pivot.y) * yAlpha;
+      return pivot;
+    },
+    [],
+  );
   const stopGrapple = useCallback((boost = false) => {
     if (!grappleActive.current) return;
     grappleActive.current = false;
@@ -520,6 +550,7 @@ export function Player({
     grindRailCooldown.current = 0;
     inputManager.resetLookFromPosition(spawnPos.x, spawnPos.z);
     cameraSnapped.current = false;
+    cameraPivotReady.current = false;
     spawnApplied.current = true;
     return true;
   }, [spawnPos, stopGrindRailRide]);
@@ -796,11 +827,11 @@ export function Player({
 
     if (!spawnApplied.current && applyTeamSpawn()) {
       const t = body.translation();
-      pivotRef.current.set(t.x, t.y + CAMERA.pivotHeight, t.z);
+      const pivot = writeCameraPivot(t.x, t.y, t.z, dt, true);
       const rot = inputManager.getRotation();
       updateThirdPersonCamera(
         camera,
-        pivotRef.current,
+        pivot,
         rot.yaw,
         inputManager.getAimPitch(),
         1,
@@ -813,6 +844,7 @@ export function Player({
     if (phase === 'intro' && lastPhaseRef.current !== 'intro') {
       spawnApplied.current = false;
       cameraSnapped.current = false;
+      cameraPivotReady.current = false;
       camSpeedExtra.current = 0;
       thrusterThrottle.current = 0;
       thrusterJumpBoost.current = 0;
@@ -843,12 +875,12 @@ export function Player({
     if (phase === 'intro' || phase === 'loading') {
       if (spawnApplied.current) {
         const t = body.translation();
-        pivotRef.current.set(t.x, t.y + CAMERA.pivotHeight, t.z);
+        const pivot = writeCameraPivot(t.x, t.y, t.z, dt, true);
         const rot = inputManager.getRotation();
         syncPreGamePresentation(rot.yaw);
         updateThirdPersonCamera(
           camera,
-          pivotRef.current,
+          pivot,
           rot.yaw,
           inputManager.getAimPitch(),
           dt,
@@ -870,7 +902,7 @@ export function Player({
       const rot = inputManager.getRotation();
       syncPreGamePresentation(rot.yaw);
       chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
-      pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
+      const pivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, true);
       onPositionUpdate(pos, chestPos.current, {
         yaw: rot.yaw,
         pitch: inputManager.getAimPitch(),
@@ -881,7 +913,7 @@ export function Player({
       });
       updateThirdPersonCamera(
         camera,
-        pivotRef.current,
+        pivot,
         rot.yaw,
         inputManager.getAimPitch(),
         dt,
@@ -977,7 +1009,7 @@ export function Player({
           playerBeamDenyUntil.current - knockNow,
         );
       }
-      pivotRef.current.set(tr.x, tr.y + CAMERA.pivotHeight, tr.z);
+      const pivot = writeCameraPivot(tr.x, tr.y, tr.z, dt, false);
       onPositionUpdate(pos, chestPos.current, {
         yaw: rot.yaw,
         pitch: inputManager.getAimPitch(),
@@ -988,7 +1020,7 @@ export function Player({
       });
       updateThirdPersonCamera(
         camera,
-        pivotRef.current,
+        pivot,
         rot.yaw,
         inputManager.getAimPitch(),
         dt,
@@ -1035,7 +1067,7 @@ export function Player({
     const beamDown = inputManager.isBeam();
     const grapplePressed = inputManager.consumeGrapple();
 
-    pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
+    const pivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
     const linvel = body.linvel();
     onPositionUpdate(pos, chestPos.current, {
@@ -1096,7 +1128,7 @@ export function Player({
 
     updateThirdPersonCamera(
       camera,
-      pivotRef.current,
+      pivot,
       rot.yaw,
       inputManager.getAimPitch(),
       dt,
