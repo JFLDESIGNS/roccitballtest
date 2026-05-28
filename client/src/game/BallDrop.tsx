@@ -41,7 +41,7 @@ const SCREEN_LOWER_Y = -ARENA.ballDropScreenLowerFt * FT;
 const HOLD_SEC = ARENA.ballDropFlapHoldSec;
 const OPEN_SEC = ARENA.ballDropFlapOpenSec;
 const CLOSE_SEC = ARENA.ballDropFlapCloseSec;
-const BALL_RELEASE_OPEN_PROGRESS = 0.12;
+const BALL_RELEASE_OPEN_PROGRESS = 0.22;
 
 const SLICE_CLOSED = new THREE.Color('#06080c');
 const SLICE_OPEN = new THREE.Color('#141820');
