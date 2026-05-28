@@ -135,13 +135,15 @@ const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const PLAYER_LOWER_COLLIDER = {
-  halfExtents: [0.5, 0.22, 0.68] as [number, number, number],
+  halfExtents: [0.64, 0.24, 0.84] as [number, number, number],
   centerY: 0.22,
 };
 const PLAYER_UPPER_COLLIDER = {
   halfExtents: [0.34, 0.56, 0.46] as [number, number, number],
   centerY: 1,
 };
+const _bodyYawQuat = new THREE.Quaternion();
+const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -348,6 +350,20 @@ export function Player({
   const grindRailCooldown = useRef(0);
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
+  const alignPlayerBodyYaw = useCallback((yaw: number) => {
+    const body = bodyRef.current;
+    if (!body) return;
+    _bodyYawQuat.setFromAxisAngle(_bodyYawAxis, yaw);
+    body.setRotation(
+      {
+        x: _bodyYawQuat.x,
+        y: _bodyYawQuat.y,
+        z: _bodyYawQuat.z,
+        w: _bodyYawQuat.w,
+      },
+      true,
+    );
+  }, []);
   const setPlayerCollisionGroups = useCallback((groups: number) => {
     const body = bodyRef.current;
     if (!body) return;
@@ -619,6 +635,7 @@ export function Player({
 
     const syncPreGamePresentation = (yaw: number) => {
       snapRigidBodyUpright(body);
+      alignPlayerBodyYaw(yaw);
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       clearKnockVisualTumble(knockTumble.current);
@@ -780,6 +797,7 @@ export function Player({
         false,
         camSpeedExtra.current,
       );
+      alignPlayerBodyYaw(rot.yaw);
       gameStore.setSpeeds(
         Math.hypot(lv.x, lv.z),
         ballBodyRef.current
@@ -887,6 +905,7 @@ export function Player({
     );
 
     const aimPitch = inputManager.getAimPitch();
+    alignPlayerBodyYaw(rot.yaw);
 
     if (
       !tickCharacterVisualRecovery(
