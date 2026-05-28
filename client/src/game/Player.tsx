@@ -79,6 +79,7 @@ import {
   playRocketFire,
   playRocketEmpty,
   playBeamNoLock,
+  playEnergyPickup,
   setBeamAttractActive,
   setGrindRailActive,
 } from './audio';
@@ -130,6 +131,7 @@ import {
   sampleGrindRailContact,
 } from './grindRail';
 import { burstGrindRailSparks } from './impactSparks';
+import { tryCollectEnergyOrb } from './energyOrbStore';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
@@ -1957,6 +1959,13 @@ export function Player({
     }
 
     const now = performance.now() / 1000;
+    if (energy.current < ENERGY.max - 0.5) {
+      const orbEnergy = tryCollectEnergyOrb(pos, now);
+      if (orbEnergy > 0) {
+        energy.current = Math.min(ENERGY.max, energy.current + orbEnergy);
+        playEnergyPickup();
+      }
+    }
     if (
       holdingBall.current &&
       gameStore.getState().ballHolderId !== 'local'
@@ -2258,7 +2267,10 @@ export function Player({
         );
       }
 
-      energy.current = 0;
+      energy.current = Math.max(
+        0,
+        energy.current * (1 - ENERGY.ballShotCostFraction),
+      );
       draining.current = true;
       regenTimer.current = 0;
       resetHoldMomentum();

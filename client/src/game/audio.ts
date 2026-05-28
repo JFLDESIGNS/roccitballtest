@@ -831,6 +831,13 @@ export function playDash() {
   playNoiseBurst(0.05, 0.04);
 }
 
+export function playEnergyPickup() {
+  if (!getCtx()) return;
+  playTone(520, 0.08, 'triangle', 0.025, 760);
+  playTone(980, 0.12, 'sine', 0.025, 1480, 0.035);
+  playNoiseBurst(0.035, 0.012, 0.02);
+}
+
 /** Ceiling bump — small sci-fi tick */
 export function playCeilingBump(impactSpeed: number) {
   if (!getCtx()) return;

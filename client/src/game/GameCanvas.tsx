@@ -81,6 +81,7 @@ import {
 import { FallRecoveryMonitor } from './FallRecoveryMonitor';
 import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
+import { EnergyPickupOrbs } from './EnergyPickupOrbs';
 import {
   multiplayerStore,
   type NetworkBallState,
@@ -1140,6 +1141,7 @@ function Scene({
       <BeamDenyZonesVisual />
       <GoalFireworks />
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
+      <EnergyPickupOrbs />
       <FallRecoveryMonitor
         playerBodyRef={playerBodyRef}
         ballBodyRef={ballBodyRef}

@@ -772,6 +772,7 @@ export const ENERGY = {
   /** Scales with faster sprint so shift sprint burns bar quicker */
   sprintDrain: 21,
   airFlyDrain: 30,
+  ballShotCostFraction: 0.5,
   beamDrain: 17,
   /** RMB + carrying ball — ~8s from full (100 / 12.5) */
   carryBeamDrain: 12.5,
