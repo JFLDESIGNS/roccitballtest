@@ -21,7 +21,8 @@ const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.075;
 const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.12;
 const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 44;
 const REMOTE_PLAYER_SNAP_DISTANCE = 7;
-const REMOTE_PLAYER_SMOOTH_RATE = 18;
+const REMOTE_PLAYER_SMOOTH_RATE = 24;
+const REMOTE_PLAYER_SAMPLE_HISTORY = 12;
 
 type RemotePlayerSample = {
   position: THREE.Vector3;
@@ -56,6 +57,14 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const bodyRef = useRef<RapierRigidBody>(null);
   const latestSample = useRef(makeSample(player));
   const previousSample = useRef(makeSample(player));
+  const initialPosition = useRef<[number, number, number]>([
+    player.position.x,
+    player.position.y,
+    player.position.z,
+  ]);
+  const sampleHistory = useRef<RemotePlayerSample[]>([
+    makeSample(player),
+  ]);
   const displayPos = useRef(latestSample.current.position.clone());
   const displayYaw = useRef(latestSample.current.yaw);
   const interpolatedPos = useRef(new THREE.Vector3());
@@ -73,6 +82,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       next.position.distanceTo(prev.position) > REMOTE_PLAYER_SNAP_DISTANCE * 1.75
     ) {
       previousSample.current = next;
+      sampleHistory.current = [next];
     } else {
       previousSample.current = {
         position: prev.position.clone(),
@@ -80,6 +90,10 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         yaw: prev.yaw,
         at: prev.at,
       };
+      sampleHistory.current.push(next);
+      while (sampleHistory.current.length > REMOTE_PLAYER_SAMPLE_HISTORY) {
+        sampleHistory.current.shift();
+      }
     }
     latestSample.current = next;
   }, [
@@ -106,16 +120,45 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       const from = previousSample.current;
       const to = latestSample.current;
       const renderAt = now - REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC * 1000;
+      const history = sampleHistory.current;
+      let sampleFrom = from;
+      let sampleTo = to;
       let targetYaw = to.yaw;
-      if (to.at > from.at && renderAt <= to.at) {
+      for (let i = history.length - 2; i >= 0; i--) {
+        const a = history[i]!;
+        const b = history[i + 1]!;
+        if (renderAt >= a.at && renderAt <= b.at) {
+          sampleFrom = a;
+          sampleTo = b;
+          break;
+        }
+      }
+      const canInterpolate =
+        sampleTo.at > sampleFrom.at &&
+        renderAt <= sampleTo.at &&
+        renderAt >= sampleFrom.at;
+      if (canInterpolate) {
         const alpha = THREE.MathUtils.clamp(
-          (renderAt - from.at) / Math.max(1, to.at - from.at),
+          (renderAt - sampleFrom.at) / Math.max(1, sampleTo.at - sampleFrom.at),
           0,
           1,
         );
-        interpolatedPos.current.lerpVectors(from.position, to.position, alpha);
-        blendedVel.current.lerpVectors(from.velocity, to.velocity, alpha);
-        targetYaw = lerpAngle(from.yaw, to.yaw, alpha);
+        interpolatedPos.current.lerpVectors(
+          sampleFrom.position,
+          sampleTo.position,
+          alpha,
+        );
+        blendedVel.current.lerpVectors(
+          sampleFrom.velocity,
+          sampleTo.velocity,
+          alpha,
+        );
+        targetYaw = lerpAngle(sampleFrom.yaw, sampleTo.yaw, alpha);
+      } else if (history.length > 0 && renderAt < history[0]!.at) {
+        const oldest = history[0]!;
+        interpolatedPos.current.copy(oldest.position);
+        blendedVel.current.copy(oldest.velocity);
+        targetYaw = oldest.yaw;
       } else {
         interpolatedPos.current.copy(to.position);
         blendedVel.current.copy(to.velocity);
@@ -154,7 +197,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       ref={bodyRef}
       type="kinematicPosition"
       colliders={false}
-      position={[player.position.x, player.position.y, player.position.z]}
+      position={initialPosition.current}
       userData={{ character: true, hitTarget: true, actorId: player.id }}
     >
       <CapsuleCollider
