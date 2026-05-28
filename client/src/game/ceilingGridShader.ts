@@ -41,7 +41,7 @@ const fragmentShader = /* glsl */ `
 `;
 
 export function createCeilingGridShaderMaterial(): CeilingGridShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -55,4 +55,6 @@ export function createCeilingGridShaderMaterial(): CeilingGridShaderMaterial {
     vertexShader,
     fragmentShader,
   }) as CeilingGridShaderMaterial;
+  material.name = 'CeilingGridShader';
+  return material;
 }

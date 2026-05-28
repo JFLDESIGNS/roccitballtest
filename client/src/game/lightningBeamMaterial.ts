@@ -58,7 +58,7 @@ const fragmentShader = /* glsl */ `
 `;
 
 export function createLightningBeamMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uOpacity: { value: 1 },
@@ -72,4 +72,6 @@ export function createLightningBeamMaterial(): THREE.ShaderMaterial {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
   });
+  material.name = 'LightningBeam';
+  return material;
 }

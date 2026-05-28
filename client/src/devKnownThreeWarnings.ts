@@ -26,6 +26,23 @@ function isSuppressedFbxTextureWarn(message: string): boolean {
 
 let installed = false;
 
+function formatShaderErrorParams(params: unknown[]): string {
+  return params
+    .map((param) => {
+      if (typeof param === 'string') return param;
+      if (param && typeof param === 'object') {
+        try {
+          return JSON.stringify(param, null, 2);
+        } catch {
+          return String(param);
+        }
+      }
+      return String(param ?? '');
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 /** Dev-only: keep the loading screen console readable */
 export function installDevKnownThreeWarningFilters(): void {
   if (!import.meta.env.DEV || installed) return;
@@ -40,7 +57,15 @@ export function installDevKnownThreeWarningFilters(): void {
       return;
     }
     if (type === 'warn') console.warn(message, ...params);
-    else if (type === 'error') console.error(message, ...params);
+    else if (type === 'error') {
+      console.error(message, ...params);
+      if (typeof message === 'string' && message.includes('Shader Error')) {
+        const details = formatShaderErrorParams(params);
+        if (details) {
+          console.error('[Three shader diagnostics]\n' + details);
+        }
+      }
+    }
     else console.log(message, ...params);
   });
 

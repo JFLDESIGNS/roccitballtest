@@ -153,6 +153,7 @@ const skyDomeMaterial = new THREE.ShaderMaterial({
     }
   `,
 });
+skyDomeMaterial.name = 'ArenaSkyDome';
 
 function CloudCluster({
   position,

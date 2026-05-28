@@ -52,7 +52,7 @@ export function createHeatLensMaterial(outer: boolean): THREE.ShaderMaterial {
     bulge: { value: outer ? 0.52 : 0.38 },
   };
 
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
     fragmentShader,
@@ -62,4 +62,6 @@ export function createHeatLensMaterial(outer: boolean): THREE.ShaderMaterial {
     toneMapped: false,
     side: THREE.DoubleSide,
   });
+  material.name = outer ? 'HeatLensOuter' : 'HeatLensInner';
+  return material;
 }

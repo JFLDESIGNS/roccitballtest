@@ -83,7 +83,7 @@ export type FanGlassCrackShaderMaterial = THREE.ShaderMaterial & {
 export function createFanGlassCrackMaterial(
   crackTex: THREE.Texture,
 ): FanGlassCrackShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: {
       crackMap: { value: crackTex },
       uOpacity: { value: 0.2 },
@@ -104,4 +104,6 @@ export function createFanGlassCrackMaterial(
     polygonOffsetFactor: -4,
     polygonOffsetUnits: -4,
   }) as FanGlassCrackShaderMaterial;
+  material.name = 'FanGlassCrack';
+  return material;
 }

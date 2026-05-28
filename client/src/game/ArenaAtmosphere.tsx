@@ -84,6 +84,7 @@ export function ArenaAtmosphere() {
       blending: THREE.NormalBlending,
       toneMapped: false,
     });
+    mat.name = 'ArenaAtmospherePoints';
     return {
       geometry: geo,
       base: basePos,

@@ -49,7 +49,7 @@ function makeConeFadeMaterial(
   baseStrength: number,
   fresnelPower: number,
 ) {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     depthTest: true,
@@ -124,6 +124,8 @@ function makeConeFadeMaterial(
       }
     `,
   });
+  material.name = `BallDropSpotlightCone-${fresnelPower.toFixed(1)}`;
+  return material;
 }
 
 function teamSpotColors(team: Team): {

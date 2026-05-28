@@ -31,7 +31,7 @@ export type RocketTrailShaderMaterial = THREE.ShaderMaterial & {
 };
 
 export function createRocketTrailShaderMaterial(): RocketTrailShaderMaterial {
-  return new THREE.ShaderMaterial({
+  const material = new THREE.ShaderMaterial({
     uniforms: { uOpacity: { value: 1 } },
     vertexShader,
     fragmentShader,
@@ -41,4 +41,6 @@ export function createRocketTrailShaderMaterial(): RocketTrailShaderMaterial {
     toneMapped: true,
     vertexColors: true,
   }) as RocketTrailShaderMaterial;
+  material.name = 'RocketTrail';
+  return material;
 }
