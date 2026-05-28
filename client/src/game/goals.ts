@@ -245,23 +245,17 @@ export function goalBackCapDiscCenter(
 export function goalBackCapSquareCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
-  const disc = goalBackCapDiscCenter(goal);
-  return offsetAlongGoalAxis(
-    { ...goal, center: disc },
-    goalBackCapArenaNudgeM(goal.team, goal.size),
-  );
+  return goalScoringCenter(goal);
 }
 
 /** Local +X nudge for backup cap square along hole axis (after ring tilt). */
-export function goalBackCapArenaNudgeM(_team: Team, size: GoalSize): number {
-  if (size === 'medium') {
-    return GOAL_RINGS.midRingBackCapCourtOffsetFt * FT;
-  }
-  if (size === 'small') {
-    return GOAL_RINGS.topRingBackCapCourtOffsetFt * FT;
-  }
-  const capNudgeScale = 0.15;
-  return GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+export function goalBackCapArenaNudgeM(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): number {
+  const disc = goalBackCapDiscCenter(goal);
+  const scoring = goalScoringCenter(goal);
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  return (scoring.x - disc.x) * towardCourt;
 }
 
 function buildWallRings(team: Team, wallX: number): GoalDef[] {

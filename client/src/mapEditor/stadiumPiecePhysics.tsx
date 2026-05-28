@@ -35,7 +35,7 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
   const backTube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
   const capColliderR = goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
-  const capArenaNudge = goalBackCapArenaNudgeM(goal.team, goal.size);
+  const capArenaNudge = goalBackCapArenaNudgeM(goal);
 
   const litTorusCollider = useMemo(
     () => buildTorusTrimesh(goal.ringRadius, tube, radial, tubular),

@@ -198,8 +198,9 @@ function GoalRingBackplate({
     return m;
   }, []);
 
-  const capArenaNudge = goalBackCapArenaNudgeM(team, size);
-  const backCenter = goalBackRingCenter({ center, team, size });
+  const goalRef = useMemo(() => ({ center, team, size }), [center, team, size]);
+  const capArenaNudge = goalBackCapArenaNudgeM(goalRef);
+  const backCenter = goalBackRingCenter(goalRef);
 
   return (
     <MaybeRigidBody

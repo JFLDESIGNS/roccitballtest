@@ -1075,7 +1075,7 @@ export const GOAL_RINGS = {
   /** Lit top ring pull-back toward wall (feet); 0 = full standoff toward court */
   topRingLitWallPullBackFt: 0,
   /** Top black back ring — offset from lit center toward wall (m) */
-  topRingBackWallOffsetM: 1.75,
+  topRingBackWallOffsetM: 2.35,
   /** Extra lift for top ring only (feet, toward ceiling) */
   topRingExtraHeightFt: 3,
   /** Extra lift for middle ring only (feet); top ring stack position stays fixed */
@@ -1087,7 +1087,7 @@ export const GOAL_RINGS = {
   /** Extra lit-ring nudge toward court (m); 0 = use standoff only */
   midRingArenaOffsetM: 0,
   /** Middle ring black back — sits behind glow toward the wall */
-  midRingBackWallOffsetM: 1.75,
+  midRingBackWallOffsetM: 2.25,
   /** @deprecated visuals follow collider rigidbody — kept at 0 */
   midRingBackVisualExtraFt: 0,
   /** Middle (2 pt) backup cap square — out from black disc toward court (feet) */
