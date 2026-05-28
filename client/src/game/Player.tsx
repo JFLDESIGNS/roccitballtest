@@ -1347,11 +1347,21 @@ export function Player({
           railContact.segmentT >= 1 - edgeThreshold &&
           tangentX * railContact.tangentX + tangentZ * railContact.tangentZ > 0;
         if (movingTowardStart || movingTowardEnd) {
-          const exitSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
+          const exitSpeed = Math.max(grindRailSpeed.current, horizontalSpeed) * GRIND_RAIL.edgePopSpeedMul;
           stopGrindRailRide(GRIND_RAIL.jumpCooldownSec * 0.35);
+          railJumpVy = GRIND_RAIL.edgePopUpSpeed;
           velocity.current.x = tangentX * exitSpeed;
           velocity.current.z = tangentZ * exitSpeed;
-          velocity.current.y = linvel.y;
+          velocity.current.y = GRIND_RAIL.edgePopUpSpeed;
+          const tr = body.translation();
+          const nextX = tr.x + tangentX * GRIND_RAIL.edgePopForwardM;
+          const nextY = tr.y + 0.22;
+          const nextZ = tr.z + tangentZ * GRIND_RAIL.edgePopForwardM;
+          body.setTranslation(
+            { x: nextX, y: nextY, z: nextZ },
+            true,
+          );
+          pos.set(nextX, nextY, nextZ);
         } else {
           grindRailWobble.current += dt * THREE.MathUtils.lerp(8, 15, Math.min(1, grindRailSpeed.current / Math.max(1, effectiveSprintSpeed * 2)));
           grindRailSpeed.current = Math.max(

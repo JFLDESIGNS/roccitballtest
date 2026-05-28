@@ -26,6 +26,9 @@ export const GRIND_RAIL = {
   minRideSpeed: 1.8,
   decelMps2: 3.4,
   jumpOutwardSpeed: 5.5,
+  edgePopSpeedMul: 1.18,
+  edgePopUpSpeed: 5.8,
+  edgePopForwardM: 0.75,
   jumpCooldownSec: 0.42,
 } as const;
 

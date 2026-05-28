@@ -113,6 +113,11 @@ const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
 const GOAL_SCORE_COOLDOWN_MS = 5700;
 const ROOM_NAME_MAX = 28;
+const PLAYER_BALL_CONTACT_RADIUS = BALL_RADIUS + 1.35;
+const PLAYER_BALL_CONTACT_VERTICAL = 3.1;
+const PLAYER_BALL_CONTACT_PUSH = 3.8;
+const PLAYER_BALL_CONTACT_VEL_INHERIT = 0.28;
+const PLAYER_BALL_CONTACT_MAX_DELTA_V = 2.2;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
 const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
@@ -1223,6 +1228,80 @@ function applyRocketImpactToServerBall(room, impact, now) {
   return true;
 }
 
+function applyPlayerContactToServerBall(room, dt, now) {
+  if (!room.physics || !room.ball || room.match?.ballFrozen) return;
+  const body = room.physics.ballBody;
+  const ballPosition = body.translation();
+  const ballVelocity = body.linvel();
+  let vx = ballVelocity.x;
+  let vy = ballVelocity.y;
+  let vz = ballVelocity.z;
+  let touchedBy = null;
+
+  for (const player of room.players.values()) {
+    if (
+      player.isHoldingBall ||
+      (player.releasedBallUntil && now < player.releasedBallUntil)
+    ) {
+      continue;
+    }
+    const px = player.position.x;
+    const py = player.position.y + 0.75;
+    const pz = player.position.z;
+    if (Math.abs(ballPosition.y - py) > PLAYER_BALL_CONTACT_VERTICAL) continue;
+
+    let dx = ballPosition.x - px;
+    let dz = ballPosition.z - pz;
+    let dist = Math.hypot(dx, dz);
+    if (dist >= PLAYER_BALL_CONTACT_RADIUS) continue;
+    if (dist < 0.001) {
+      const pvLen = Math.hypot(player.velocity.x, player.velocity.z);
+      if (pvLen > 0.001) {
+        dx = player.velocity.x / pvLen;
+        dz = player.velocity.z / pvLen;
+        dist = 1;
+      } else {
+        dx = 1;
+        dz = 0;
+        dist = 1;
+      }
+    }
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const playerTowardBall = Math.max(
+      0,
+      player.velocity.x * nx + player.velocity.z * nz,
+    );
+    const overlap = PLAYER_BALL_CONTACT_RADIUS - dist;
+    if (playerTowardBall < 0.15 && overlap < 0.18) continue;
+
+    const frameScale = Math.min(1.25, Math.max(0.35, dt * 60));
+    const deltaV = Math.min(
+      PLAYER_BALL_CONTACT_MAX_DELTA_V,
+      (overlap * PLAYER_BALL_CONTACT_PUSH +
+        playerTowardBall * PLAYER_BALL_CONTACT_VEL_INHERIT) *
+        frameScale,
+    );
+    vx += nx * deltaV;
+    vz += nz * deltaV;
+
+    const fallingOntoBall =
+      player.velocity.y < -2.2 &&
+      ballPosition.y < player.position.y + 0.4 &&
+      dist < BALL_RADIUS * 0.95;
+    if (fallingOntoBall) {
+      vy -= Math.min(6, Math.abs(player.velocity.y) * 0.45);
+      vx += player.velocity.x * 0.12;
+      vz += player.velocity.z * 0.12;
+    }
+    touchedBy = player;
+  }
+
+  if (!touchedBy) return;
+  body.setLinvel({ x: vx, y: vy, z: vz }, true);
+  markRoomLastTouch(room, touchedBy, ballPosition);
+}
+
 function tickRoomBall(room, dt, now) {
   if (!room.ball) room.ball = createServerBall();
   if (!room.physics) room.physics = createRoomPhysics();
@@ -1290,6 +1369,8 @@ function tickRoomBall(room, dt, now) {
       true,
     );
   }
+
+  applyPlayerContactToServerBall(room, dt, now);
 
   room.physics.accumulator = Math.min(0.1, room.physics.accumulator + dt);
   while (room.physics.accumulator >= SERVER_PHYSICS_STEP) {
@@ -1448,7 +1529,10 @@ function handleClientMessage(socket, raw) {
       (other) => other.id !== player.id && other.isHoldingBall,
     );
     const wantsHold = Boolean(msg.isHoldingBall);
-    player.isHoldingBall = wantsHold && !otherHolder;
+    player.isHoldingBall =
+      wantsHold &&
+      !otherHolder &&
+      (!player.releasedBallUntil || Date.now() >= player.releasedBallUntil);
     player.isBeaming =
       Boolean(msg.isBeaming) && !player.isHoldingBall && !otherHolder;
     player.holdPosition = player.isHoldingBall && msg.holdPosition

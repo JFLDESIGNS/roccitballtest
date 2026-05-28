@@ -138,6 +138,7 @@ const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.075;
 const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
 const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
 const NETWORK_BALL_CORRECTION_SNAP_M = 7.5;
+const NETWORK_BALL_SAMPLE_HISTORY = 16;
 const LOCAL_BALL_IMPACT_PREDICTION_MS = 320;
 
 type NetworkBallSample = {
@@ -438,6 +439,7 @@ function Scene({
   const networkBallReady = useRef(false);
   const networkBallPrevSample = useRef<NetworkBallSample | null>(null);
   const networkBallLatestSample = useRef<NetworkBallSample | null>(null);
+  const networkBallSampleHistory = useRef<NetworkBallSample[]>([]);
   const networkBallRenderPos = useRef(new THREE.Vector3());
   const networkBallRenderVel = useRef(new THREE.Vector3());
   const networkBallRenderAngVel = useRef(new THREE.Vector3());
@@ -591,6 +593,7 @@ function Scene({
           ) {
             networkBallPrevSample.current = nextSample;
             networkBallRenderPos.current.copy(nextSample.position);
+            networkBallSampleHistory.current = [nextSample];
           } else {
             networkBallPrevSample.current = {
               position: previousSample.position.clone(),
@@ -598,6 +601,10 @@ function Scene({
               angularVelocity: previousSample.angularVelocity.clone(),
               at: previousSample.at,
             };
+            networkBallSampleHistory.current.push(nextSample);
+            while (networkBallSampleHistory.current.length > NETWORK_BALL_SAMPLE_HISTORY) {
+              networkBallSampleHistory.current.shift();
+            }
           }
           networkBallLatestSample.current = nextSample;
           if (!networkBallReady.current) {
@@ -621,28 +628,49 @@ function Scene({
         if (previousSample && latestSample) {
           const renderAt =
             nowMs - NETWORK_BALL_INTERPOLATION_BACKTIME_SEC * 1000;
-          if (latestSample.at > previousSample.at && renderAt <= latestSample.at) {
+          const history = networkBallSampleHistory.current;
+          let sampleFrom = previousSample;
+          let sampleTo = latestSample;
+          for (let i = history.length - 2; i >= 0; i--) {
+            const a = history[i]!;
+            const b = history[i + 1]!;
+            if (renderAt >= a.at && renderAt <= b.at) {
+              sampleFrom = a;
+              sampleTo = b;
+              break;
+            }
+          }
+          const canInterpolate =
+            sampleTo.at > sampleFrom.at &&
+            renderAt <= sampleTo.at &&
+            renderAt >= sampleFrom.at;
+          if (canInterpolate) {
             const alpha = THREE.MathUtils.clamp(
-              (renderAt - previousSample.at) /
-                Math.max(1, latestSample.at - previousSample.at),
+              (renderAt - sampleFrom.at) /
+                Math.max(1, sampleTo.at - sampleFrom.at),
               0,
               1,
             );
             networkBallRenderPos.current.lerpVectors(
-              previousSample.position,
-              latestSample.position,
+              sampleFrom.position,
+              sampleTo.position,
               alpha,
             );
             networkBallRenderVel.current.lerpVectors(
-              previousSample.velocity,
-              latestSample.velocity,
+              sampleFrom.velocity,
+              sampleTo.velocity,
               alpha,
             );
             networkBallRenderAngVel.current.lerpVectors(
-              previousSample.angularVelocity,
-              latestSample.angularVelocity,
+              sampleFrom.angularVelocity,
+              sampleTo.angularVelocity,
               alpha,
             );
+          } else if (history.length > 0 && renderAt < history[0]!.at) {
+            const oldest = history[0]!;
+            networkBallRenderPos.current.copy(oldest.position);
+            networkBallRenderVel.current.copy(oldest.velocity);
+            networkBallRenderAngVel.current.copy(oldest.angularVelocity);
           } else {
             networkBallRenderPos.current.copy(latestSample.position);
             networkBallRenderVel.current.copy(latestSample.velocity);
@@ -691,6 +719,7 @@ function Scene({
       networkBallReady.current = false;
       networkBallPrevSample.current = null;
       networkBallLatestSample.current = null;
+      networkBallSampleHistory.current = [];
     }
 
     if (showBots) {
@@ -793,7 +822,7 @@ function Scene({
     (
       position: { x: number; y: number; z: number },
       velocity: { x: number; y: number; z: number },
-      durationMs = 1250,
+      durationMs = 650,
       minSpeedScale = 0.55,
     ) => {
       localBallPredictionUntil.current = performance.now() + durationMs;
@@ -807,6 +836,7 @@ function Scene({
         Math.hypot(velocity.x, velocity.y, velocity.z) * minSpeedScale,
       );
       networkBallReady.current = false;
+      networkBallSampleHistory.current = [];
     },
     [],
   );
