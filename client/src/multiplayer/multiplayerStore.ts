@@ -167,6 +167,7 @@ const listeners = new Set<() => void>();
 let socket: WebSocket | null = null;
 let lastSendAt = 0;
 let profile: ActorProfile | null = null;
+let latestBallServerTime = 0;
 
 const LOCAL_PLAYER_SEND_INTERVAL_MS = 12;
 
@@ -283,17 +284,22 @@ function handleMessage(raw: string) {
 
   if (msg.type === 'snapshot') {
     const receivedAt = performance.now();
+    const serverTime = Number.isFinite(msg.serverTime) ? msg.serverTime : 0;
     const selfId = state.selfId;
     const selfPlayer = msg.players.find((player) => player.id === selfId) ?? null;
     if (msg.match && selfId !== msg.hostId) {
       gameStore.syncNetworkMatch(msg.match);
     }
-    const ball = msg.ball
+    const acceptsBall =
+      Boolean(msg.ball) &&
+      (latestBallServerTime === 0 || serverTime > latestBallServerTime);
+    if (acceptsBall) latestBallServerTime = serverTime;
+    const ball = acceptsBall && msg.ball
       ? {
           ...msg.ball,
           updatedAt: receivedAt,
         }
-      : null;
+      : state.ball;
     patch({
       hostId: msg.hostId,
       ball,
@@ -327,6 +333,9 @@ function handleMessage(raw: string) {
 
   if (msg.type === 'ballImpulse') {
     const receivedAt = performance.now();
+    const serverTime = Number.isFinite(msg.serverTime) ? msg.serverTime : 0;
+    if (serverTime < latestBallServerTime) return;
+    latestBallServerTime = serverTime;
     patch({
       ball: msg.ball
         ? {
@@ -358,6 +367,7 @@ function closeSocket() {
   socket.onclose = null;
   socket.close();
   socket = null;
+  latestBallServerTime = 0;
 }
 
 export const multiplayerStore = {
@@ -419,6 +429,7 @@ export const multiplayerStore = {
     };
     socket.onclose = () => {
       socket = null;
+      latestBallServerTime = 0;
       if (state.enabled) {
         patch({
           status: 'offline',

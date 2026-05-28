@@ -88,6 +88,7 @@ const BALL_ROCKET_HIT_SPIN_SCALE = 1.84;
 const FT_TO_M = 0.3048;
 const ROCKET_BALL_HIT_DELTA_V = 33;
 const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
+const ROCKET_BALL_NETWORK_GRACE_RADIUS = 2.6;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
 const TRAMPOLINE_BOUNCE_LAUNCH_HEIGHT_FT = 28;
@@ -1203,11 +1204,12 @@ function applyRocketImpactToServerBall(room, impact, now) {
   const dy = ballPosition.y - impact.position.y;
   const dz = ballPosition.z - impact.position.z;
   const dist = Math.hypot(dx, dy, dz);
-  if (dist > impact.radius) return false;
+  const effectiveRadius = impact.radius + ROCKET_BALL_NETWORK_GRACE_RADIUS;
+  if (dist > effectiveRadius) return false;
 
   const falloff = Math.max(
     ROCKET_BALL_SPLASH_MIN_FALLOFF,
-    1 - dist / Math.max(impact.radius, 0.001),
+    1 - dist / Math.max(effectiveRadius, 0.001),
   );
   const deltaV = ROCKET_BALL_HIT_DELTA_V;
   const direction = rocketKnockDirection(ballPosition, impact);

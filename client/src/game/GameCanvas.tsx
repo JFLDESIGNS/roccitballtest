@@ -139,7 +139,7 @@ const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
 const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
 const NETWORK_BALL_CORRECTION_SNAP_M = 7.5;
 const NETWORK_BALL_SAMPLE_HISTORY = 16;
-const LOCAL_BALL_IMPACT_PREDICTION_MS = 320;
+const LOCAL_BALL_IMPACT_PREDICTION_MS = 750;
 
 type NetworkBallSample = {
   position: THREE.Vector3;
@@ -875,32 +875,6 @@ function Scene({
 
   const handleExplosion = useCallback((hit: ExplosionHit) => {
     const multiplayer = multiplayerStore.getState();
-    if (
-      multiplayer.enabled &&
-      multiplayer.status === 'online' &&
-      (hit.fromOwnerId === 'local' || hit.fromOwnerId === multiplayer.selfId)
-    ) {
-      multiplayerStore.sendRocketImpact({
-        position: { x: hit.x, y: hit.y, z: hit.z },
-        radius: hit.radius,
-        rocketVelocity:
-          hit.rocketVx !== undefined &&
-          hit.rocketVy !== undefined &&
-          hit.rocketVz !== undefined
-            ? { x: hit.rocketVx, y: hit.rocketVy, z: hit.rocketVz }
-            : undefined,
-        ballImpactNormal:
-          hit.ballImpactNx !== undefined &&
-          hit.ballImpactNy !== undefined &&
-          hit.ballImpactNz !== undefined
-            ? {
-                x: hit.ballImpactNx,
-                y: hit.ballImpactNy,
-                z: hit.ballImpactNz,
-              }
-            : undefined,
-      });
-    }
     if (!multiplayer.enabled && hit.fromOwnerId === 'local') {
       markLocalGoalShot(getLocalProfile().displayName, {
         x: hit.x,
@@ -970,6 +944,28 @@ function Scene({
       ) {
         const lv = ball.linvel();
         if (hit.fromOwnerId === 'local' || hit.fromOwnerId === multiplayer.selfId) {
+          if (multiplayer.enabled && multiplayer.status === 'online') {
+            multiplayerStore.sendRocketImpact({
+              position: { x: hit.x, y: hit.y, z: hit.z },
+              radius: hit.radius,
+              rocketVelocity:
+                hit.rocketVx !== undefined &&
+                hit.rocketVy !== undefined &&
+                hit.rocketVz !== undefined
+                  ? { x: hit.rocketVx, y: hit.rocketVy, z: hit.rocketVz }
+                  : undefined,
+              ballImpactNormal:
+                hit.ballImpactNx !== undefined &&
+                hit.ballImpactNy !== undefined &&
+                hit.ballImpactNz !== undefined
+                  ? {
+                      x: hit.ballImpactNx,
+                      y: hit.ballImpactNy,
+                      z: hit.ballImpactNz,
+                    }
+                  : undefined,
+            });
+          }
           armLocalBallPrediction(
             { x: bt.x, y: bt.y, z: bt.z },
             { x: lv.x, y: lv.y, z: lv.z },
