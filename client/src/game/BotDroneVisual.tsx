@@ -73,6 +73,7 @@ export function PlayerDroneThrusters({
       offsetBackIn={BOT_THRUSTER_OFFSET_BACK_IN}
       forwardPitchDeg={PLAYER_FLAME_FORWARD_PITCH_DEG}
       sizeScale={BOT_THRUSTER_SIZE_SCALE}
+      requireThrottleVisible
     />
   );
 }

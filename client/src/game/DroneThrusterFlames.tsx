@@ -66,6 +66,8 @@ type DroneThrusterFlamesProps = {
   forwardPitchDeg?: number;
   /** Scales flame from nozzle; base/disc stays at attach point (y = 0) */
   sizeScale?: number;
+  /** Player-only option: hide cones/lights until sprint throttle is active. */
+  requireThrottleVisible?: boolean;
 };
 
 /** Glowing flame cones at drone foot thrusters */
@@ -77,8 +79,10 @@ export function DroneThrusterFlames({
   offsetBackIn = 0,
   forwardPitchDeg = DEFAULT_FLAME_FORWARD_PITCH_DEG,
   sizeScale = 1,
+  requireThrottleVisible = false,
 }: DroneThrusterFlamesProps) {
   const colors = TEAM_FLAME[team];
+  const groupRef = useRef<THREE.Group>(null);
   const pulseRefs = useRef<THREE.Mesh[]>([]);
   const lightRefs = useRef<THREE.PointLight[]>([]);
   const positions = useMemo(
@@ -127,6 +131,9 @@ export function DroneThrusterFlames({
   useFrame(({ clock }) => {
     const throttle = THREE.MathUtils.clamp(throttleRef?.current ?? 0, 0, 1);
     const jumpBoost = THREE.MathUtils.clamp(jumpBoostRef?.current ?? 0, 0, 1);
+    if (groupRef.current) {
+      groupRef.current.visible = !requireThrottleVisible || throttle > 0.035;
+    }
     const t = clock.elapsedTime;
     const pulse = 0.82 + Math.sin(t * 14) * 0.12;
     const glowPulse = 0.22 + Math.sin(t * 11) * 0.07;
@@ -142,7 +149,10 @@ export function DroneThrusterFlames({
         m.scale.setScalar(s * sizeScale);
       }
     }
-    const lightIntensity = (8 + throttle * 14) * (1 + jumpBoost * 2.2);
+    const lightIntensity =
+      requireThrottleVisible && throttle <= 0.035
+        ? 0
+        : (8 + throttle * 14) * (1 + jumpBoost * 2.2);
     const lightReach = (5.5 + throttle * 2.5) * (1 + jumpBoost * 0.35);
     for (let i = 0; i < lightRefs.current.length; i++) {
       const light = lightRefs.current[i];
@@ -154,7 +164,7 @@ export function DroneThrusterFlames({
   });
 
   return (
-    <group>
+    <group ref={groupRef}>
       {positions.map((pos, i) => (
         <group key={`thruster-${i}`} position={pos}>
           <mesh
