@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import {
-  CapsuleCollider,
+  CuboidCollider,
   interactionGroups,
   RigidBody,
   useAfterPhysicsStep,
@@ -134,6 +134,14 @@ import { burstGrindRailSparks } from './impactSparks';
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
+const PLAYER_LOWER_COLLIDER = {
+  halfExtents: [0.5, 0.22, 0.68] as [number, number, number],
+  centerY: 0.22,
+};
+const PLAYER_UPPER_COLLIDER = {
+  halfExtents: [0.34, 0.56, 0.46] as [number, number, number],
+  centerY: 1,
+};
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -340,6 +348,15 @@ export function Player({
   const grindRailCooldown = useRef(0);
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
+  const setPlayerCollisionGroups = useCallback((groups: number) => {
+    const body = bodyRef.current;
+    if (!body) return;
+    for (let i = 0; i < 4; i += 1) {
+      const collider = body.collider(i);
+      if (!collider) break;
+      collider.setCollisionGroups(groups);
+    }
+  }, []);
   const stopGrindRailRide = useCallback((cooldownSec = 0) => {
     if (grindRailActive.current) {
       grindRailActive.current = false;
@@ -542,34 +559,27 @@ export function Player({
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       if (!flyModeActive.current) {
         flyModeActive.current = true;
-        const col = body.collider(0);
-        if (col) col.setCollisionGroups(PLAYER_DEBUG_NOCLIP);
+        setPlayerCollisionGroups(PLAYER_DEBUG_NOCLIP);
       }
       return;
     }
 
     if (flyModeActive.current) {
       flyModeActive.current = false;
-      const col = body.collider(0);
-      if (col) {
-        const carrying =
-          holdingBall.current || gameStore.getState().ballHolderId === 'local';
-        col.setCollisionGroups(
-          carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
-        );
-      }
+      const carrying =
+        holdingBall.current || gameStore.getState().ballHolderId === 'local';
+      setPlayerCollisionGroups(
+        carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+      );
     }
 
     const carryingBall =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
     if (carryingBall !== playerCarryingBall.current) {
       playerCarryingBall.current = carryingBall;
-      const playerCol = body.collider(0);
-      if (playerCol) {
-        playerCol.setCollisionGroups(
-          carryingBall ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
-        );
-      }
+      setPlayerCollisionGroups(
+        carryingBall ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+      );
     }
 
     if (!spawnApplied.current && applyTeamSpawn()) {
@@ -1985,9 +1995,15 @@ export function Player({
           }
         }}
       >
-        <CapsuleCollider
-          args={[capHalfH, MOVEMENT.capsuleRadius]}
-          position={[0, capCenterY, 0]}
+        <CuboidCollider
+          args={PLAYER_LOWER_COLLIDER.halfExtents}
+          position={[0, PLAYER_LOWER_COLLIDER.centerY, 0]}
+          friction={0.55}
+          collisionGroups={PLAYER_LOOSE_COLLISION}
+        />
+        <CuboidCollider
+          args={PLAYER_UPPER_COLLIDER.halfExtents}
+          position={[0, PLAYER_UPPER_COLLIDER.centerY, 0]}
           friction={0.55}
           collisionGroups={PLAYER_LOOSE_COLLISION}
         />
