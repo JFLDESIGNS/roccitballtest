@@ -129,6 +129,7 @@ import {
   sampleGrindRailContact,
   setGrindRailGlow,
 } from './grindRail';
+import { burstGrindRailSparks } from './impactSparks';
 
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
@@ -337,6 +338,8 @@ export function Player({
   const grindRailSpeed = useRef(0);
   const grindRailDir = useRef(new THREE.Vector2(1, 0));
   const grindRailCooldown = useRef(0);
+  const grindRailWobble = useRef(0);
+  const grindRailSparkTimer = useRef(0);
   const stopGrindRailRide = useCallback((cooldownSec = 0) => {
     if (grindRailActive.current) {
       grindRailActive.current = false;
@@ -344,6 +347,8 @@ export function Player({
     }
     setGrindRailGlow({ active: false });
     grindRailSpeed.current = 0;
+    grindRailWobble.current = 0;
+    grindRailSparkTimer.current = 0;
     if (cooldownSec > 0) {
       grindRailCooldown.current = cooldownSec;
     }
@@ -1116,16 +1121,21 @@ export function Player({
           velocity.current.z = tangentZ * exitSpeed;
           velocity.current.y = linvel.y;
         } else {
+          grindRailWobble.current += dt * THREE.MathUtils.lerp(8, 15, Math.min(1, grindRailSpeed.current / Math.max(1, tune.sprintSpeed * 2)));
           grindRailSpeed.current = Math.max(
             0,
             grindRailSpeed.current - GRIND_RAIL.decelMps2 * dt,
           );
-          const rideY = GRIND_RAIL.y - capCenterY + 0.08;
+          const wobbleSide = Math.sin(grindRailWobble.current) * 0.1;
+          const wobbleLift = Math.abs(Math.cos(grindRailWobble.current * 1.6)) * 0.05;
+          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.04 + wobbleLift;
+          const rideX = railContact.rideX + railContact.inwardX * wobbleSide;
+          const rideZ = railContact.rideZ + railContact.inwardZ * wobbleSide;
           body.setTranslation(
-            { x: railContact.rideX, y: rideY, z: railContact.rideZ },
+            { x: rideX, y: rideY, z: rideZ },
             true,
           );
-          pos.set(railContact.rideX, rideY, railContact.rideZ);
+          pos.set(rideX, rideY, rideZ);
           velocity.current.x = tangentX * grindRailSpeed.current;
           velocity.current.z = tangentZ * grindRailSpeed.current;
           velocity.current.y = 0;
@@ -1136,6 +1146,17 @@ export function Player({
             z: railContact.z,
             yaw: Math.atan2(-tangentZ, tangentX),
           });
+          grindRailSparkTimer.current -= dt;
+          if (grindRailSparkTimer.current <= 0) {
+            grindRailSparkTimer.current = 0.028;
+            burstGrindRailSparks(
+              rideX,
+              rideY + capCenterY - GRIND_RAIL.radius * 0.2,
+              rideZ,
+              tangentX,
+              tangentZ,
+            );
+          }
           grounded.current = false;
           jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
           coyoteTime.current = 0;
@@ -1157,12 +1178,14 @@ export function Player({
       grindRailActive.current = true;
       setGrindRailActive(true);
       grindRailDir.current.set(tangentX, tangentZ);
+      grindRailWobble.current = 0;
+      grindRailSparkTimer.current = 0;
       grindRailSpeed.current = THREE.MathUtils.clamp(
         Math.max(horizontalSpeed * 3, tune.walkSpeed * 3),
         tune.walkSpeed * 3,
         tune.sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
       );
-      const rideY = GRIND_RAIL.y - capCenterY + 0.08;
+      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.04;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },
         true,

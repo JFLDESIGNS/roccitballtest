@@ -75,6 +75,29 @@ export function burstBillboardFaceSparks(
   }
 }
 
+export function burstGrindRailSparks(
+  x: number,
+  y: number,
+  z: number,
+  tangentX: number,
+  tangentZ: number,
+): void {
+  const count = 8;
+  for (let i = 0; i < count; i++) {
+    const spark = claimSpark();
+    const side = (Math.random() - 0.5) * 0.32;
+    const back = 0.18 + Math.random() * 0.55;
+    spark.x = x - tangentX * back - tangentZ * side;
+    spark.y = y - 0.22 + Math.random() * 0.12;
+    spark.z = z - tangentZ * back + tangentX * side;
+    spark.vx = -tangentX * (6 + Math.random() * 8) + (Math.random() - 0.5) * 1.8;
+    spark.vy = 1.2 + Math.random() * 3.4;
+    spark.vz = -tangentZ * (6 + Math.random() * 8) + (Math.random() - 0.5) * 1.8;
+    spark.maxLife = 0.1 + Math.random() * 0.14;
+    spark.life = spark.maxLife;
+  }
+}
+
 export function tickImpactSparks(dt: number): readonly ImpactSpark[] {
   for (let i = sparks.length - 1; i >= 0; i--) {
     const p = sparks[i]!;
