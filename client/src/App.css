@@ -2831,7 +2831,6 @@ body,
 
 .main-menu-browser-head span,
 .main-menu-browser-copy,
-.main-menu-browser-error,
 .main-menu-lobby-footer p {
   color: #a9bfdc;
   font-size: 0.82rem;
@@ -2871,6 +2870,23 @@ body,
 .main-menu-browser-panel-head h3 {
   font-size: 0.96rem;
   text-transform: uppercase;
+}
+
+.main-menu-browser-status {
+  min-height: 2.35rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: transparent;
+  font-size: 0.82rem;
+}
+
+.main-menu-browser-status--error {
+  border-color: rgba(255, 118, 136, 0.28);
+  background: rgba(52, 13, 21, 0.72);
+  color: #ffd2d8;
 }
 
 .main-menu-room-list,
@@ -3051,14 +3067,6 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
-}
-
-.main-menu-browser-error {
-  padding: 0.8rem 0.9rem;
-  border: 1px solid rgba(255, 118, 136, 0.28);
-  border-radius: 8px;
-  background: rgba(52, 13, 21, 0.72);
-  color: #ffd2d8;
 }
 
 .hud-goal-banner {

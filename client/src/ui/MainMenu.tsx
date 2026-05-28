@@ -69,6 +69,12 @@ function roomModeDescription(mode: RoomMode): string {
     : 'Two players, one per team';
 }
 
+function browserErrorLabel(error: string | null): string | null {
+  if (!error) return null;
+  if (/failed to fetch/i.test(error)) return 'Failed to connect';
+  return error;
+}
+
 export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const saved = loadSavedProfile();
   const [playerName, setPlayerName] = useState(saved.name);
@@ -121,6 +127,9 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     roomInfo !== null && roomInfo.playerCount >= roomInfo.maxPlayers;
   const everyoneReady =
     roomInfo !== null && roomReadyCount >= roomInfo.maxPlayers;
+  const browserStatusError = browserErrorLabel(
+    browserError || multiplayer.error,
+  );
 
   useEffect(() => {
     setLocalProfile(playerName, jerseyNumber);
@@ -523,6 +532,16 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                     Close
                   </button>
                 </div>
+                <div
+                  className={
+                    browserStatusError
+                      ? 'main-menu-browser-status main-menu-browser-status--error'
+                      : 'main-menu-browser-status'
+                  }
+                  aria-live="polite"
+                >
+                  {browserStatusError}
+                </div>
 
                 {multiplayer.enabled && multiplayer.roomInfo ? (
                   <div className="main-menu-lobby">
@@ -704,12 +723,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                         </button>
                       </div>
                     </section>
-                  </div>
-                )}
-
-                {(browserError || multiplayer.error) && (
-                  <div className="main-menu-browser-error">
-                    {browserError || multiplayer.error}
                   </div>
                 )}
               </div>
