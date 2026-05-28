@@ -114,6 +114,7 @@ const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
 const GOAL_SCORE_COOLDOWN_MS = 5700;
 const ROOM_NAME_MAX = 28;
+const MIN_LAUNCHED_BALL_SPEED = 18;
 const PLAYER_BALL_CONTACT_RADIUS = BALL_RADIUS + 1.35;
 const PLAYER_BALL_CONTACT_VERTICAL = 3.1;
 const PLAYER_BALL_CONTACT_PUSH = 3.8;
@@ -1051,6 +1052,41 @@ function sanitizeMatchState(match = {}) {
   };
 }
 
+function playerAimDirection(player) {
+  const yaw = Number.isFinite(player.rotation?.yaw) ? player.rotation.yaw : 0;
+  const pitch = Number.isFinite(player.rotation?.pitch) ? player.rotation.pitch : 0;
+  const cp = Math.cos(pitch);
+  return {
+    x: -Math.sin(yaw) * cp,
+    y: Math.sin(pitch),
+    z: -Math.cos(yaw) * cp,
+  };
+}
+
+function ensureLaunchVelocity(player, velocity, ballState) {
+  const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
+  if (ballState !== 'launched' || speed >= MIN_LAUNCHED_BALL_SPEED) {
+    return velocity;
+  }
+  const aim = playerAimDirection(player);
+  const scale =
+    speed > 0.001
+      ? MIN_LAUNCHED_BALL_SPEED / speed
+      : 0;
+  if (scale > 0) {
+    return {
+      x: velocity.x * scale,
+      y: velocity.y * scale,
+      z: velocity.z * scale,
+    };
+  }
+  return {
+    x: aim.x * MIN_LAUNCHED_BALL_SPEED,
+    y: aim.y * MIN_LAUNCHED_BALL_SPEED + 3,
+    z: aim.z * MIN_LAUNCHED_BALL_SPEED,
+  };
+}
+
 function clampBallSpeed(ball) {
   const speed = Math.hypot(ball.velocity.x, ball.velocity.y, ball.velocity.z);
   if (speed <= BALL_MAX_SPEED || speed <= 0.0001) return;
@@ -1540,7 +1576,13 @@ function handleClientMessage(socket, raw) {
     player.holdPosition = player.isHoldingBall && msg.holdPosition
       ? sanitizeVec3(msg.holdPosition, player.position)
       : null;
-    if (!player.isHoldingBall) player.releasedBallUntil = 0;
+    if (
+      !player.isHoldingBall &&
+      player.releasedBallUntil &&
+      Date.now() >= player.releasedBallUntil
+    ) {
+      player.releasedBallUntil = 0;
+    }
     player.updatedAt = Date.now();
     return;
   }
@@ -1658,7 +1700,11 @@ function handleClientMessage(socket, raw) {
       ownerId: client.id,
       kind: 'release',
       position: sanitizeVec3(msg.action?.position),
-      velocity: sanitizeVec3(msg.action?.velocity),
+      velocity: ensureLaunchVelocity(
+        player,
+        sanitizeVec3(msg.action?.velocity),
+        msg.action?.ballState === 'loose' ? 'loose' : 'launched',
+      ),
       angularVelocity: msg.action?.angularVelocity
         ? sanitizeVec3(msg.action.angularVelocity)
         : null,
