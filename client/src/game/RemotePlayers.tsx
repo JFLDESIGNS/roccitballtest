@@ -1,9 +1,9 @@
 import { Html } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import {
   CapsuleCollider,
   interactionGroups,
   RigidBody,
-  useBeforePhysicsStep,
   type RapierRigidBody,
 } from '@react-three/rapier';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
@@ -17,12 +17,13 @@ import { PlayerAvatar } from './PlayerAvatar';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
-const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.075;
-const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.12;
-const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 44;
-const REMOTE_PLAYER_SNAP_DISTANCE = 7;
-const REMOTE_PLAYER_SMOOTH_RATE = 24;
-const REMOTE_PLAYER_SAMPLE_HISTORY = 12;
+const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.14;
+const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.18;
+const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 52;
+const REMOTE_PLAYER_SNAP_DISTANCE = 9;
+const REMOTE_PLAYER_POSITION_SMOOTH_RATE = 15;
+const REMOTE_PLAYER_YAW_SMOOTH_RATE = 18;
+const REMOTE_PLAYER_SAMPLE_HISTORY = 24;
 
 type RemotePlayerSample = {
   position: THREE.Vector3;
@@ -70,8 +71,9 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const interpolatedPos = useRef(new THREE.Vector3());
   const blendedVel = useRef(new THREE.Vector3());
   const rotationQuat = useRef(new THREE.Quaternion());
+  const visualRef = useRef<THREE.Group>(null);
+  const nameplateRef = useRef<THREE.Group>(null);
   const ready = useRef(false);
-  const lastStepAt = useRef(0);
 
   useEffect(() => {
     const next = makeSample(player);
@@ -106,12 +108,13 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     player.velocity.z,
   ]);
 
-  useBeforePhysicsStep(() => {
+  useFrame((_, dtRaw) => {
     const body = bodyRef.current;
-    if (!body) return;
+    const visual = visualRef.current;
+    const nameplate = nameplateRef.current;
+    if (!body && !visual) return;
     const now = performance.now();
-    const dt = lastStepAt.current > 0 ? Math.min(0.05, (now - lastStepAt.current) / 1000) : 1 / 60;
-    lastStepAt.current = now;
+    const dt = Math.min(0.05, Math.max(1 / 120, dtRaw));
     if (!ready.current) {
       displayPos.current.copy(latestSample.current.position);
       displayYaw.current = latestSample.current.yaw;
@@ -178,44 +181,63 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       if (dist > REMOTE_PLAYER_SNAP_DISTANCE) {
         displayPos.current.copy(interpolatedPos.current);
       } else {
-        const alpha = 1 - Math.exp(-dt * REMOTE_PLAYER_SMOOTH_RATE);
+        const alpha = 1 - Math.exp(-dt * REMOTE_PLAYER_POSITION_SMOOTH_RATE);
         displayPos.current.lerp(interpolatedPos.current, alpha);
       }
       displayYaw.current = lerpAngle(
         displayYaw.current,
         targetYaw,
-        1 - Math.exp(-dt * (REMOTE_PLAYER_SMOOTH_RATE + 2)),
+        1 - Math.exp(-dt * REMOTE_PLAYER_YAW_SMOOTH_RATE),
       );
     }
     rotationQuat.current.setFromEuler(new THREE.Euler(0, displayYaw.current, 0));
-    body.setNextKinematicTranslation(displayPos.current);
-    body.setNextKinematicRotation(rotationQuat.current);
+    if (body) {
+      body.setNextKinematicTranslation(displayPos.current);
+      body.setNextKinematicRotation(rotationQuat.current);
+    }
+    if (visual) {
+      visual.position.copy(displayPos.current);
+      visual.quaternion.copy(rotationQuat.current);
+    }
+    if (nameplate) {
+      nameplate.position.set(
+        displayPos.current.x,
+        displayPos.current.y + MOVEMENT.capsuleHeight + 1.1,
+        displayPos.current.z,
+      );
+    }
   });
 
   return (
-    <RigidBody
-      ref={bodyRef}
-      type="kinematicPosition"
-      colliders={false}
-      position={initialPosition.current}
-      userData={{ character: true, hitTarget: true, actorId: player.id }}
-    >
-      <CapsuleCollider
-        args={[capHalfH, MOVEMENT.capsuleRadius]}
-        position={[0, capCenterY, 0]}
-        friction={0.65}
-        collisionGroups={interactionGroups(0, [0, 1, 2, 4])}
-      />
-      <group position={[0, capCenterY, 0]}>
-        <PlayerAvatar team={player.team} />
+    <>
+      <RigidBody
+        ref={bodyRef}
+        type="kinematicPosition"
+        colliders={false}
+        position={initialPosition.current}
+        userData={{ character: true, hitTarget: true, actorId: player.id }}
+      >
+        <CapsuleCollider
+          args={[capHalfH, MOVEMENT.capsuleRadius]}
+          position={[0, capCenterY, 0]}
+          friction={0.65}
+          collisionGroups={interactionGroups(0, [0, 1, 2, 4])}
+        />
+      </RigidBody>
+      <group ref={visualRef} position={initialPosition.current}>
+        <group position={[0, capCenterY, 0]}>
+          <PlayerAvatar team={player.team} />
+        </group>
       </group>
-      <Html center position={[0, MOVEMENT.capsuleHeight + 1.1, 0]}>
-        <div className="remote-player-nameplate">
-          <span>{player.name}</span>
-          <small>#{player.jerseyNumber.toString().padStart(2, '0')}</small>
-        </div>
-      </Html>
-    </RigidBody>
+      <group ref={nameplateRef} position={initialPosition.current}>
+        <Html center>
+          <div className="remote-player-nameplate">
+            <span>{player.name}</span>
+            <small>#{player.jerseyNumber.toString().padStart(2, '0')}</small>
+          </div>
+        </Html>
+      </group>
+    </>
   );
 }
 
