@@ -371,6 +371,7 @@ export function Player({
   const grappleAnchor = useRef(new THREE.Vector3());
   const grappleLength = useRef(0);
   const grappleTargetLength = useRef(0);
+  const grappleNeedsSetup = useRef(false);
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
@@ -398,6 +399,7 @@ export function Player({
   const stopGrapple = useCallback((boost = false) => {
     if (!grappleActive.current) return;
     grappleActive.current = false;
+    grappleNeedsSetup.current = false;
     const body = bodyRef.current;
     if (boost && body) {
       const lv = body.linvel();
@@ -427,6 +429,7 @@ export function Player({
       );
       grappleLength.current = initialLength;
       grappleTargetLength.current = initialLength;
+      grappleNeedsSetup.current = true;
       grappleActive.current = true;
       return true;
     },
@@ -1382,16 +1385,18 @@ export function Player({
 
     velocity.current.y = vy;
     if (grappleActive.current) {
-      const grappleGroundY = probe.groundY;
-      const targetFeetY =
-        grappleGroundY + MOVEMENT.grappleHangFeetAboveGroundM;
-      const targetBodyY = targetFeetY - (playerFeetY(0));
-      const targetChestY = targetBodyY + BEAM.chestHeight;
-      const desiredLength = Math.max(
-        3.2,
-        grappleAnchor.current.y - targetChestY,
-      );
-      grappleTargetLength.current = desiredLength;
+      const safeGroundY = Math.max(ARENA.floorY, probe.groundY);
+      const safeFeetY =
+        safeGroundY + MOVEMENT.grappleHangFeetAboveGroundM;
+      const safeBodyY = safeFeetY - playerFeetY(0);
+      const safeChestY = safeBodyY + BEAM.chestHeight;
+      if (grappleNeedsSetup.current) {
+        grappleTargetLength.current = Math.max(
+          3.2,
+          grappleAnchor.current.y - safeChestY,
+        );
+        grappleNeedsSetup.current = false;
+      }
       grappleLength.current = THREE.MathUtils.lerp(
         grappleLength.current,
         grappleTargetLength.current,
@@ -1430,6 +1435,32 @@ export function Player({
           body.setTranslation({ x: nextChestX, y: nextBodyY, z: nextChestZ }, true);
           pos.set(nextChestX, nextBodyY, nextChestZ);
         }
+      }
+      if (pos.y < safeBodyY) {
+        const dx = pos.x - grappleAnchor.current.x;
+        const dz = pos.z - grappleAnchor.current.z;
+        const horiz = Math.hypot(dx, dz);
+        const verticalDrop = Math.max(
+          0.1,
+          grappleAnchor.current.y - safeChestY,
+        );
+        const maxHoriz = Math.sqrt(
+          Math.max(
+            0,
+            grappleLength.current * grappleLength.current -
+              verticalDrop * verticalDrop,
+          ),
+        );
+        let nextX = pos.x;
+        let nextZ = pos.z;
+        if (horiz > maxHoriz && horiz > 0.0001) {
+          const scale = maxHoriz / horiz;
+          nextX = grappleAnchor.current.x + dx * scale;
+          nextZ = grappleAnchor.current.z + dz * scale;
+        }
+        body.setTranslation({ x: nextX, y: safeBodyY, z: nextZ }, true);
+        pos.set(nextX, safeBodyY, nextZ);
+        if (velocity.current.y < 0) velocity.current.y = 0;
       }
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
