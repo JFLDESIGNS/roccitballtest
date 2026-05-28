@@ -79,6 +79,7 @@ import {
   playRocketEmpty,
   playBeamNoLock,
   setBeamAttractActive,
+  setGrindRailActive,
 } from './audio';
 import { triggerCeilingWallHit } from './visualShake';
 import {
@@ -332,6 +333,16 @@ export function Player({
   const grindRailSpeed = useRef(0);
   const grindRailDir = useRef(new THREE.Vector2(1, 0));
   const grindRailCooldown = useRef(0);
+  const stopGrindRailRide = useCallback((cooldownSec = 0) => {
+    if (grindRailActive.current) {
+      grindRailActive.current = false;
+      setGrindRailActive(false);
+    }
+    grindRailSpeed.current = 0;
+    if (cooldownSec > 0) {
+      grindRailCooldown.current = cooldownSec;
+    }
+  }, []);
   const spawnPos = useMemo(() => {
     const team = gameStore.getState().localTeam;
     const teamPlayerCount =
@@ -354,14 +365,14 @@ export function Player({
     );
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    grindRailActive.current = false;
+    stopGrindRailRide();
     grindRailSpeed.current = 0;
     grindRailCooldown.current = 0;
     inputManager.resetLookFromPosition(spawnPos.x, spawnPos.z);
     cameraSnapped.current = false;
     spawnApplied.current = true;
     return true;
-  }, [spawnPos]);
+  }, [spawnPos, stopGrindRailRide]);
 
   useEffect(() => {
     if (!onRocketBoostRef) return;
@@ -372,6 +383,8 @@ export function Player({
       onRocketBoostRef.current = null;
     };
   }, [onRocketBoostRef]);
+
+  useEffect(() => () => setGrindRailActive(false), []);
 
   const interruptBeamOnHit = useCallback(() => {
     const now = performance.now() / 1000;
@@ -655,7 +668,7 @@ export function Player({
     }
 
     if (knockTick === 'active') {
-      grindRailActive.current = false;
+      stopGrindRailRide();
       if (!knockStunWasActive.current) {
         impulseKnockVisualTumble(knockTumble.current);
         interruptBeamOnHit();
@@ -1042,8 +1055,6 @@ export function Player({
     if (grindRailActive.current) {
       if (jumpPressed) {
         railConsumedJump = true;
-        grindRailActive.current = false;
-        grindRailCooldown.current = GRIND_RAIL.jumpCooldownSec;
         const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
         playJump(Math.max(0, jumpIndex));
         railJumpVy = tuningStore.getJumpImpulse(0);
@@ -1054,6 +1065,7 @@ export function Player({
         const inwardX = railContact?.inwardX ?? -grindRailDir.current.y;
         const inwardZ = railContact?.inwardZ ?? grindRailDir.current.x;
         const exitSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
+        stopGrindRailRide(GRIND_RAIL.jumpCooldownSec);
         velocity.current.x =
           grindRailDir.current.x * exitSpeed +
           inwardX * GRIND_RAIL.jumpOutwardSpeed;
@@ -1070,8 +1082,7 @@ export function Player({
         );
         pos.set(nextX, nextY, nextZ);
       } else if (!railContact || grindRailSpeed.current <= GRIND_RAIL.minRideSpeed) {
-        grindRailActive.current = false;
-        grindRailCooldown.current = GRIND_RAIL.jumpCooldownSec * 0.5;
+        stopGrindRailRide(GRIND_RAIL.jumpCooldownSec * 0.5);
       } else {
         let tangentX = railContact.tangentX;
         let tangentZ = railContact.tangentZ;
@@ -1084,22 +1095,48 @@ export function Player({
           tangentZ = -tangentZ;
         }
         grindRailDir.current.set(tangentX, tangentZ);
-        grindRailSpeed.current = Math.max(
-          0,
-          grindRailSpeed.current - GRIND_RAIL.decelMps2 * dt,
-        );
-        const rideY = GRIND_RAIL.y - capCenterY + 0.08;
-        body.setTranslation(
-          { x: railContact.rideX, y: rideY, z: railContact.rideZ },
-          true,
-        );
-        pos.set(railContact.rideX, rideY, railContact.rideZ);
-        velocity.current.x = tangentX * grindRailSpeed.current;
-        velocity.current.z = tangentZ * grindRailSpeed.current;
-        velocity.current.y = 0;
-        grounded.current = false;
-        jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
-        coyoteTime.current = 0;
+        const edgeThreshold = 0.12;
+        const movingTowardStart =
+          railContact.openStart &&
+          railContact.segmentT <= edgeThreshold &&
+          tangentX * railContact.tangentX + tangentZ * railContact.tangentZ < 0;
+        const movingTowardEnd =
+          railContact.openEnd &&
+          railContact.segmentT >= 1 - edgeThreshold &&
+          tangentX * railContact.tangentX + tangentZ * railContact.tangentZ > 0;
+        if (movingTowardStart || movingTowardEnd) {
+          const launchSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
+          stopGrindRailRide(GRIND_RAIL.jumpCooldownSec * 0.6);
+          railJumpVy = tuningStore.getJumpImpulse(0) * 0.78;
+          grounded.current = false;
+          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+          coyoteTime.current = 0;
+          velocity.current.x = tangentX * launchSpeed;
+          velocity.current.z = tangentZ * launchSpeed;
+          const tr = body.translation();
+          const nextX = tr.x + tangentX * 0.42;
+          const nextY = tr.y + MOVEMENT.jumpLiftY * 0.8;
+          const nextZ = tr.z + tangentZ * 0.42;
+          body.setTranslation({ x: nextX, y: nextY, z: nextZ }, true);
+          pos.set(nextX, nextY, nextZ);
+        } else {
+          grindRailSpeed.current = Math.max(
+            0,
+            grindRailSpeed.current - GRIND_RAIL.decelMps2 * dt,
+          );
+          const rideY = GRIND_RAIL.y - capCenterY + 0.08;
+          body.setTranslation(
+            { x: railContact.rideX, y: rideY, z: railContact.rideZ },
+            true,
+          );
+          pos.set(railContact.rideX, rideY, railContact.rideZ);
+          velocity.current.x = tangentX * grindRailSpeed.current;
+          velocity.current.z = tangentZ * grindRailSpeed.current;
+          velocity.current.y = 0;
+          grounded.current = false;
+          jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
+          coyoteTime.current = 0;
+        }
       }
     } else if (
       !jumpPressed &&
@@ -1115,8 +1152,9 @@ export function Player({
         tangentZ = -tangentZ;
       }
       grindRailActive.current = true;
+      setGrindRailActive(true);
       grindRailDir.current.set(tangentX, tangentZ);
-      grindRailSpeed.current = Math.max(horizontalSpeed, tune.walkSpeed);
+      grindRailSpeed.current = Math.max(horizontalSpeed * 3, tune.walkSpeed * 3);
       const rideY = GRIND_RAIL.y - capCenterY + 0.08;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },
@@ -1129,6 +1167,8 @@ export function Player({
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
       coyoteTime.current = 0;
+    } else {
+      setGrindRailActive(false);
     }
 
     let vy = linvel.y;

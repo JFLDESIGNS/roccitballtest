@@ -12,6 +12,7 @@ import panicUrl from '../assets/sounds/panic.wav';
 import goal1Url from '../assets/sounds/goal1.WAV';
 import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
 import jumpSoundUrl from '../assets/sounds/jumpsound.mp3';
+import grindRailUrl from '../assets/sounds/grind-rail.mp3';
 
 let ctx: AudioContext | null = null;
 
@@ -80,6 +81,7 @@ const BEAM_LOCAL_GAIN = 0.028;
 
 let ambientTrack: LoopingTrack | null = null;
 let bgMusicTrack: LoopingTrack | null = null;
+let grindRailTrack: LoopingTrack | null = null;
 let bgMusicMode: 'menu' | 'game' | null = null;
 /** Bumps when a new start is requested or music stops — stale async loads bail out */
 let bgMusicStartGen = 0;
@@ -134,6 +136,7 @@ const GAME_AUDIO_PRELOAD_URLS = [
   goal1Url,
   rocketDopeTronUrl,
   jumpSoundUrl,
+  grindRailUrl,
 ] as const;
 
 function preloadSamples(): void {
@@ -293,6 +296,12 @@ function stopBgMusic(): void {
   if (track) disconnectLoopingTrack(track);
 }
 
+function stopGrindRailLoop(): void {
+  const track = grindRailTrack;
+  grindRailTrack = null;
+  if (track) disconnectLoopingTrack(track);
+}
+
 function isBgMusicActive(mode: 'menu' | 'game'): boolean {
   return bgMusicMode === mode && bgMusicTrack !== null;
 }
@@ -320,6 +329,11 @@ function applyActiveAudioMasterVolume(): void {
     const gain =
       bgMusicMode === 'menu' ? menuBgMusicGain() : gameBgMusicGain();
     bgMusicTrack.gain.gain.setValueAtTime(gain, t);
+  }
+
+  if (grindRailTrack) {
+    grindRailTrack.gain.gain.cancelScheduledValues(t);
+    grindRailTrack.gain.gain.setValueAtTime(sfxGain(0.09), t);
   }
 
   if (beamSound) {
@@ -941,6 +955,35 @@ export function setBeamAttractActive(active: boolean) {
   beamSound = null;
 }
 
+export function setGrindRailActive(active: boolean) {
+  const ac = getCtx();
+  if (!ac) return;
+
+  if (!active) {
+    stopGrindRailLoop();
+    return;
+  }
+
+  if (grindRailTrack) return;
+
+  void loadSample(grindRailUrl).then((buffer) => {
+    const live = getCtx();
+    if (!buffer || !live || grindRailTrack) return;
+    const source = live.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const gain = live.createGain();
+    gain.gain.value = sfxGain(0.09);
+    source.connect(gain);
+    gain.connect(live.destination);
+    source.start(0);
+    grindRailTrack = { source, gain };
+    source.onended = () => {
+      if (grindRailTrack?.source === source) grindRailTrack = null;
+    };
+  });
+}
+
 /** Ball shot / throw — user sample only (no procedural fallback) */
 export function playBallLaunch() {
   if (!getCtx()) return;
@@ -967,6 +1010,7 @@ export function playGoalCelebration() {
 }
 
 export function stopMatchAudio(): void {
+  stopGrindRailLoop();
   stopCheer();
   stopPanic();
   stopAmbientLoop();

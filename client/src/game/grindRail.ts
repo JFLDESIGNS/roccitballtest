@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { ARENA, MOVEMENT } from '../shared/Constants';
+import { ARENA } from '../shared/Constants';
 import { hexVertices } from './arenaHex';
 import { ARENA_PILLAR, pillarSurfaceRadiusAtY } from './arenaPillarConfig';
 
-const RAIL_PILLAR_GAP_M = 0.35;
+const RAIL_PILLAR_GAP_M = 0.58;
 const RAIL_GOAL_GAP_M = 27;
+const RAIL_CORNER_CUT_M = 4.1;
+const RAIL_CORNER_SEGMENTS = 4;
 const railPathInsetM =
   ARENA_PILLAR.hexInset +
   pillarSurfaceRadiusAtY(ARENA.arenaLogoBannerY - ARENA.arenaLogoBannerHeightM * 0.5) +
@@ -15,7 +17,7 @@ export const GRIND_RAIL = {
   radius: 0.22,
   pathInsetM: railPathInsetM,
   goalGapM: RAIL_GOAL_GAP_M,
-  rideOffsetM: MOVEMENT.capsuleRadius + 0.52,
+  rideOffsetM: 0.06,
   contactHorizontalM: 1.45,
   activeHorizontalM: 2.15,
   contactVerticalM: 1.05,
@@ -39,10 +41,15 @@ export type GrindRailSegment = {
   tangentZ: number;
   inwardX: number;
   inwardZ: number;
+  openStart: boolean;
+  openEnd: boolean;
 };
 
 export type GrindRailContact = {
   segmentIndex: number;
+  segmentT: number;
+  openStart: boolean;
+  openEnd: boolean;
   x: number;
   y: number;
   z: number;
@@ -60,6 +67,8 @@ let cachedSegments: GrindRailSegment[] | null = null;
 function buildSegment(
   start: THREE.Vector2,
   end: THREE.Vector2,
+  openStart = false,
+  openEnd = false,
 ): GrindRailSegment {
   const dx = end.x - start.x;
   const dz = end.y - start.y;
@@ -88,18 +97,56 @@ function buildSegment(
     tangentZ,
     inwardX: -outwardX,
     inwardZ: -outwardZ,
+    openStart,
+    openEnd,
   };
+}
+
+function trimTowards(from: THREE.Vector2, to: THREE.Vector2, distance: number) {
+  const out = to.clone().sub(from);
+  const len = out.length();
+  if (len <= 0.0001) return from.clone();
+  out.multiplyScalar(Math.min(distance, len * 0.45) / len);
+  return from.clone().add(out);
+}
+
+function appendRoundedCornerSegments(
+  segments: GrindRailSegment[],
+  start: THREE.Vector2,
+  corner: THREE.Vector2,
+  end: THREE.Vector2,
+) {
+  let last = start;
+  for (let i = 1; i <= RAIL_CORNER_SEGMENTS; i += 1) {
+    const t = i / RAIL_CORNER_SEGMENTS;
+    const point = new THREE.Vector2()
+      .copy(start)
+      .multiplyScalar((1 - t) * (1 - t))
+      .add(corner.clone().multiplyScalar(2 * (1 - t) * t))
+      .add(end.clone().multiplyScalar(t * t));
+    segments.push(buildSegment(last, point));
+    last = point;
+  }
 }
 
 export function getGrindRailSegments(): GrindRailSegment[] {
   if (cachedSegments) return cachedSegments;
   const verts = hexVertices(ARENA.hexRadius - GRIND_RAIL.pathInsetM);
+  const trimmedVerts = verts.map((corner, i) => {
+    const prev = verts[(i - 1 + verts.length) % verts.length]!;
+    const next = verts[(i + 1) % verts.length]!;
+    return {
+      corner,
+      inPoint: trimTowards(corner, prev, RAIL_CORNER_CUT_M),
+      outPoint: trimTowards(corner, next, RAIL_CORNER_CUT_M),
+    };
+  });
   const segments: GrindRailSegment[] = [];
-  for (let i = 0; i < verts.length; i++) {
-    const a = verts[i]!;
-    const b = verts[(i + 1) % verts.length]!;
-    const dx = b.x - a.x;
-    const dz = b.y - a.y;
+  for (let i = 0; i < trimmedVerts.length; i++) {
+    const a = trimmedVerts[i]!;
+    const b = trimmedVerts[(i + 1) % trimmedVerts.length]!;
+    const dx = b.inPoint.x - a.outPoint.x;
+    const dz = b.inPoint.y - a.outPoint.y;
     const length = Math.hypot(dx, dz);
     const tangentX = dx / length;
     const tangentZ = dz / length;
@@ -108,26 +155,40 @@ export function getGrindRailSegments(): GrindRailSegment[] {
       const keep = (length - GRIND_RAIL.goalGapM) * 0.5;
       segments.push(
         buildSegment(
-          a,
-          new THREE.Vector2(a.x + tangentX * keep, a.y + tangentZ * keep),
+          a.outPoint,
+          new THREE.Vector2(
+            a.outPoint.x + tangentX * keep,
+            a.outPoint.y + tangentZ * keep,
+          ),
+          false,
+          true,
         ),
       );
       segments.push(
         buildSegment(
-          new THREE.Vector2(b.x - tangentX * keep, b.y - tangentZ * keep),
-          b,
+          new THREE.Vector2(
+            b.inPoint.x - tangentX * keep,
+            b.inPoint.y - tangentZ * keep,
+          ),
+          b.inPoint,
+          true,
+          false,
         ),
       );
     } else {
-      segments.push(buildSegment(a, b));
+      segments.push(buildSegment(a.outPoint, b.inPoint));
     }
+    appendRoundedCornerSegments(segments, a.outPoint, b.corner, b.inPoint);
   }
   cachedSegments = segments;
   return cachedSegments;
 }
 
-const _nearest = {
+const _nearest: GrindRailContact = {
   segmentIndex: -1,
+  segmentT: 0,
+  openStart: false,
+  openEnd: false,
   x: 0,
   y: GRIND_RAIL.y,
   z: 0,
@@ -138,7 +199,7 @@ const _nearest = {
   tangentZ: 0,
   inwardX: 0,
   inwardZ: 1,
-} satisfies GrindRailContact;
+};
 
 export function sampleGrindRailContact(
   x: number,
@@ -151,6 +212,7 @@ export function sampleGrindRailContact(
 
   let best: GrindRailSegment | null = null;
   let bestIndex = -1;
+  let bestT = 0;
   let bestX = 0;
   let bestZ = 0;
   let bestDistanceSq = Infinity;
@@ -173,6 +235,7 @@ export function sampleGrindRailContact(
     if (d2 < bestDistanceSq) {
       best = s;
       bestIndex = i;
+      bestT = t;
       bestX = px;
       bestZ = pz;
       bestDistanceSq = d2;
@@ -183,6 +246,9 @@ export function sampleGrindRailContact(
   if (!best || distance > horizontalRange) return null;
 
   _nearest.segmentIndex = bestIndex;
+  _nearest.segmentT = bestT;
+  _nearest.openStart = best.openStart;
+  _nearest.openEnd = best.openEnd;
   _nearest.x = bestX;
   _nearest.y = GRIND_RAIL.y;
   _nearest.z = bestZ;
