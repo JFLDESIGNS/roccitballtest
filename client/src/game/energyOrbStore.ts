@@ -16,15 +16,15 @@ export type EnergyOrbSnapshot = {
 
 export const ENERGY_ORB_RESTORE = 38;
 export const ENERGY_ORB_PICKUP_RADIUS = 3.1;
-export const ENERGY_ORB_RESPAWN_SEC = 13;
+export const ENERGY_ORB_RESPAWN_SEC = 6;
 
 export const ENERGY_ORB_LAYOUT: EnergyOrbDefinition[] = [
   { id: 'side-blue-left', position: new THREE.Vector3(-42, 3.1, -24) },
   { id: 'side-blue-right', position: new THREE.Vector3(42, 3.1, -24) },
   { id: 'side-red-left', position: new THREE.Vector3(-42, 3.1, 24) },
   { id: 'side-red-right', position: new THREE.Vector3(42, 3.1, 24) },
-  { id: 'mid-rail-left', position: new THREE.Vector3(-15, 7.0, 0) },
-  { id: 'mid-rail-right', position: new THREE.Vector3(15, 7.0, 0) },
+  { id: 'mid-side-left', position: new THREE.Vector3(-50, 3.1, 0) },
+  { id: 'mid-side-right', position: new THREE.Vector3(50, 3.1, 0) },
 ];
 
 const respawnAt = new Map<string, number>();
