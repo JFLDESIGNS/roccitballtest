@@ -1229,7 +1229,7 @@ export function Player({
           );
           const wobbleSide = Math.sin(grindRailWobble.current) * 0.1;
           const wobbleLift = Math.abs(Math.cos(grindRailWobble.current * 1.6)) * 0.05;
-          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.04 + wobbleLift;
+          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.16 + wobbleLift;
           const rideX = railContact.rideX + railContact.inwardX * wobbleSide;
           const rideZ = railContact.rideZ + railContact.inwardZ * wobbleSide;
           body.setTranslation(
@@ -1286,7 +1286,7 @@ export function Player({
         walkSpeed * 3,
         sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
       );
-      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.04;
+      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.16;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },
         true,

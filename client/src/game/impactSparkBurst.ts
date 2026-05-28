@@ -82,18 +82,18 @@ export function burstGrindRailSparks(
   tangentX: number,
   tangentZ: number,
 ): void {
-  const count = 8;
+  const count = 12;
   for (let i = 0; i < count; i++) {
     const spark = claimSpark();
-    const side = (Math.random() - 0.5) * 0.32;
-    const back = 0.18 + Math.random() * 0.55;
+    const side = (Math.random() - 0.5) * 0.22;
+    const back = 0.22 + Math.random() * 0.7;
     spark.x = x - tangentX * back - tangentZ * side;
-    spark.y = y - 0.22 + Math.random() * 0.12;
+    spark.y = y - 0.18 + Math.random() * 0.16;
     spark.z = z - tangentZ * back + tangentX * side;
-    spark.vx = -tangentX * (6 + Math.random() * 8) + (Math.random() - 0.5) * 1.8;
-    spark.vy = 1.2 + Math.random() * 3.4;
-    spark.vz = -tangentZ * (6 + Math.random() * 8) + (Math.random() - 0.5) * 1.8;
-    spark.maxLife = 0.1 + Math.random() * 0.14;
+    spark.vx = -tangentX * (10 + Math.random() * 12) + (Math.random() - 0.5) * 1.2;
+    spark.vy = 1.6 + Math.random() * 2.8;
+    spark.vz = -tangentZ * (10 + Math.random() * 12) + (Math.random() - 0.5) * 1.2;
+    spark.maxLife = 0.12 + Math.random() * 0.16;
     spark.life = spark.maxLife;
   }
 }
