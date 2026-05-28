@@ -123,6 +123,7 @@ import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import { GRIND_RAIL, sampleGrindRailContact } from './grindRail';
 
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
@@ -262,7 +263,7 @@ export function Player({
   const { world } = useRapier();
   const velocity = useRef(new THREE.Vector3());
   const grounded = useRef(true);
-  const jumpsLeft = useRef(MOVEMENT.maxJumps);
+  const jumpsLeft = useRef<number>(MOVEMENT.maxJumps);
   const jumpAirGrace = useRef(0);
   const coyoteTime = useRef(0);
   const _wishDir = useRef(new THREE.Vector3());
@@ -319,6 +320,10 @@ export function Player({
   const holdSocketSmoothed = useRef(new THREE.Vector3());
   const holdSocketSmoothReady = useRef(false);
   const _rocketOrigin = useRef(new THREE.Vector3());
+  const grindRailActive = useRef(false);
+  const grindRailSpeed = useRef(0);
+  const grindRailDir = useRef(new THREE.Vector2(1, 0));
+  const grindRailCooldown = useRef(0);
   const spawnPos = useMemo(() => {
     const team = gameStore.getState().localTeam;
     const teamPlayerCount =
@@ -341,6 +346,9 @@ export function Player({
     );
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    grindRailActive.current = false;
+    grindRailSpeed.current = 0;
+    grindRailCooldown.current = 0;
     inputManager.resetLookFromPosition(spawnPos.x, spawnPos.z);
     cameraSnapped.current = false;
     spawnApplied.current = true;
@@ -639,6 +647,7 @@ export function Player({
     }
 
     if (knockTick === 'active') {
+      grindRailActive.current = false;
       if (!knockStunWasActive.current) {
         impulseKnockVisualTumble(knockTumble.current);
         interruptBeamOnHit();
@@ -755,6 +764,7 @@ export function Player({
     rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
+    grindRailCooldown.current = Math.max(0, grindRailCooldown.current - dt);
     if (ePropelTimer.current > 0) {
       ePropelElapsed.current += dt;
     }
@@ -921,9 +931,15 @@ export function Player({
       wishDir.normalize();
       lastWishDir.current.copy(wishDir);
     }
+    const jumpPressed =
+      !goalEjectMoveLocked &&
+      jumpsLeft.current > 0 &&
+      inputManager.consumeJump();
+    let railConsumedJump = false;
 
     if (
       !goalEjectMoveLocked &&
+      !grindRailActive.current &&
       !isPlayerKnockStunActive() &&
       !holdingBall.current &&
       ePropelCooldown.current <= 0 &&
@@ -1001,7 +1017,118 @@ export function Player({
       }
     }
 
+    let railJumpVy: number | null = null;
+    const railCenterY = pos.y + capCenterY;
+    const railContactRange = grindRailActive.current
+      ? GRIND_RAIL.activeHorizontalM
+      : GRIND_RAIL.contactHorizontalM;
+    const railContact = sampleGrindRailContact(
+      pos.x,
+      railCenterY,
+      pos.z,
+      railContactRange,
+      GRIND_RAIL.contactVerticalM,
+    );
+    const horizontalSpeed = Math.hypot(linvel.x, linvel.z);
+
+    if (grindRailActive.current) {
+      if (jumpPressed) {
+        railConsumedJump = true;
+        grindRailActive.current = false;
+        grindRailCooldown.current = GRIND_RAIL.jumpCooldownSec;
+        const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
+        playJump(Math.max(0, jumpIndex));
+        railJumpVy = tuningStore.getJumpImpulse(0);
+        jumpsLeft.current = Math.max(0, MOVEMENT.maxJumps - 1);
+        grounded.current = false;
+        jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+        coyoteTime.current = 0;
+        const inwardX = railContact?.inwardX ?? -grindRailDir.current.y;
+        const inwardZ = railContact?.inwardZ ?? grindRailDir.current.x;
+        const exitSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
+        velocity.current.x =
+          grindRailDir.current.x * exitSpeed +
+          inwardX * GRIND_RAIL.jumpOutwardSpeed;
+        velocity.current.z =
+          grindRailDir.current.y * exitSpeed +
+          inwardZ * GRIND_RAIL.jumpOutwardSpeed;
+        const tr = body.translation();
+        const nextX = tr.x + inwardX * 0.35;
+        const nextY = tr.y + MOVEMENT.jumpLiftY;
+        const nextZ = tr.z + inwardZ * 0.35;
+        body.setTranslation(
+          { x: nextX, y: nextY, z: nextZ },
+          true,
+        );
+        pos.set(nextX, nextY, nextZ);
+      } else if (!railContact || grindRailSpeed.current <= GRIND_RAIL.minRideSpeed) {
+        grindRailActive.current = false;
+        grindRailCooldown.current = GRIND_RAIL.jumpCooldownSec * 0.5;
+      } else {
+        let tangentX = railContact.tangentX;
+        let tangentZ = railContact.tangentZ;
+        if (
+          tangentX * grindRailDir.current.x +
+            tangentZ * grindRailDir.current.y <
+          0
+        ) {
+          tangentX = -tangentX;
+          tangentZ = -tangentZ;
+        }
+        grindRailDir.current.set(tangentX, tangentZ);
+        grindRailSpeed.current = Math.max(
+          0,
+          grindRailSpeed.current - GRIND_RAIL.decelMps2 * dt,
+        );
+        const rideY = GRIND_RAIL.y - capCenterY + 0.08;
+        body.setTranslation(
+          { x: railContact.rideX, y: rideY, z: railContact.rideZ },
+          true,
+        );
+        pos.set(railContact.rideX, rideY, railContact.rideZ);
+        velocity.current.x = tangentX * grindRailSpeed.current;
+        velocity.current.z = tangentZ * grindRailSpeed.current;
+        velocity.current.y = 0;
+        grounded.current = false;
+        jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
+        coyoteTime.current = 0;
+      }
+    } else if (
+      !jumpPressed &&
+      !goalEjectMoveLocked &&
+      grindRailCooldown.current <= 0 &&
+      railContact &&
+      horizontalSpeed >= GRIND_RAIL.entryMinSpeed
+    ) {
+      let tangentX = railContact.tangentX;
+      let tangentZ = railContact.tangentZ;
+      if (tangentX * linvel.x + tangentZ * linvel.z < 0) {
+        tangentX = -tangentX;
+        tangentZ = -tangentZ;
+      }
+      grindRailActive.current = true;
+      grindRailDir.current.set(tangentX, tangentZ);
+      grindRailSpeed.current = Math.max(horizontalSpeed, tune.walkSpeed);
+      const rideY = GRIND_RAIL.y - capCenterY + 0.08;
+      body.setTranslation(
+        { x: railContact.rideX, y: rideY, z: railContact.rideZ },
+        true,
+      );
+      pos.set(railContact.rideX, rideY, railContact.rideZ);
+      velocity.current.x = tangentX * grindRailSpeed.current;
+      velocity.current.z = tangentZ * grindRailSpeed.current;
+      velocity.current.y = 0;
+      grounded.current = false;
+      jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
+      coyoteTime.current = 0;
+    }
+
     let vy = linvel.y;
+    if (railJumpVy !== null) {
+      vy = railJumpVy;
+    } else if (grindRailActive.current) {
+      vy = 0;
+    }
     if (ePropelVyBoost.current !== null) {
       vy = ePropelVyBoost.current;
       ePropelVyBoost.current = null;
@@ -1009,6 +1136,7 @@ export function Player({
 
     if (
       !goalEjectMoveLocked &&
+      !grindRailActive.current &&
       dashCooldown.current <= 0 &&
       inputManager.consumeDashBoost()
     ) {
@@ -1038,7 +1166,7 @@ export function Player({
       );
     }
 
-    if (!goalEjectMoveLocked && jumpsLeft.current > 0 && inputManager.consumeJump()) {
+    if (jumpPressed && !railConsumedJump && !grindRailActive.current) {
       const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
       if (jumpIndex >= 2) {
         triggerForwardFlip('local');
@@ -1066,7 +1194,9 @@ export function Player({
         true,
       );
     }
-    vy = tuningStore.integrateGravity(vy, dt);
+    if (!grindRailActive.current) {
+      vy = tuningStore.integrateGravity(vy, dt);
+    }
 
     velocity.current.y = vy;
     const feetNow = playerFeetY(pos.y);

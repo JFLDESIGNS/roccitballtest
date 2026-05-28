@@ -42,6 +42,7 @@ import { RocccitLogoStamp } from './RocccitLogoStamp';
 import { BackWallEscapeZones } from './BackWallEscapeZones';
 import { GoalNetBackstop } from './GoalNetBackstop';
 import { ArenaInteractables } from './ArenaInteractables';
+import { ArenaGrindRail } from './ArenaGrindRail';
 import { GoalZoneDebugVisuals } from './GoalZoneDebugVisuals';
 import {
   createMeterTiledBoxGeometry,
@@ -455,6 +456,7 @@ export function Arena({
       <GoalZoneDebugVisuals />
       <BackWallEscapeZones />
       <ArenaInteractables />
+      <ArenaGrindRail />
 
       {wallSegments.map((w, i) =>
         isGoalHexEdge(w.edgeIndex) ? (
