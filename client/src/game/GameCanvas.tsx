@@ -138,6 +138,7 @@ const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.1;
 const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
 const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
 const NETWORK_BALL_CORRECTION_SNAP_M = 8.5;
+const LOCAL_BALL_IMPACT_PREDICTION_MS = 320;
 
 type NetworkBallSample = {
   position: THREE.Vector3;
@@ -788,6 +789,28 @@ function Scene({
     return ballVelVec.current;
   }, []);
 
+  const armLocalBallPrediction = useCallback(
+    (
+      position: { x: number; y: number; z: number },
+      velocity: { x: number; y: number; z: number },
+      durationMs = 1250,
+      minSpeedScale = 0.55,
+    ) => {
+      localBallPredictionUntil.current = performance.now() + durationMs;
+      localBallPredictionReleasePos.current.set(
+        position.x,
+        position.y,
+        position.z,
+      );
+      localBallPredictionMinSpeed.current = Math.max(
+        6,
+        Math.hypot(velocity.x, velocity.y, velocity.z) * minSpeedScale,
+      );
+      networkBallReady.current = false;
+    },
+    [],
+  );
+
   const handleBotRagdollBurst = useCallback(
     (
       anchor: { x: number; y: number; z: number },
@@ -915,6 +938,15 @@ function Scene({
           hit.ballImpactNz,
         )
       ) {
+        const lv = ball.linvel();
+        if (hit.fromOwnerId === 'local' || hit.fromOwnerId === multiplayer.selfId) {
+          armLocalBallPrediction(
+            { x: bt.x, y: bt.y, z: bt.z },
+            { x: lv.x, y: lv.y, z: lv.z },
+            LOCAL_BALL_IMPACT_PREDICTION_MS,
+            0.72,
+          );
+        }
         holdingBallRef.current = false;
         gameStore.clearBallHolder();
       }
@@ -958,7 +990,7 @@ function Scene({
         gameStore.setEnergy(e, e <= 0);
       }
     }
-  }, []);
+  }, [armLocalBallPrediction]);
 
   const customMap = useSyncExternalStore(
     mapRegistryStore.subscribe,
@@ -1028,21 +1060,7 @@ function Scene({
         onBallReleased={(release) => {
           markLocalGoalShot(getLocalProfile().displayName, release.position);
           if (multiplayerStore.getState().enabled) {
-            localBallPredictionUntil.current = performance.now() + 1250;
-            localBallPredictionReleasePos.current.set(
-              release.position.x,
-              release.position.y,
-              release.position.z,
-            );
-            localBallPredictionMinSpeed.current = Math.max(
-              6,
-              Math.hypot(
-                release.velocity.x,
-                release.velocity.y,
-                release.velocity.z,
-              ) * 0.55,
-            );
-            networkBallReady.current = false;
+            armLocalBallPrediction(release.position, release.velocity);
           }
           multiplayerStore.sendBallAction({
             kind: 'release',
