@@ -170,6 +170,7 @@ function clampHorizontalVelocity(
 }
 
 const _moveVelXZ = new THREE.Vector3();
+const _airFlyAimDir = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
 const _grappleToChest = new THREE.Vector3();
 const _grappleLaunchTangent = new THREE.Vector3();
@@ -332,6 +333,9 @@ export function Player({
   const ePropelImpulsesApplied = useRef(0);
   const ePropelCooldown = useRef(0);
   const ePropelVyBoost = useRef<number | null>(null);
+  const airFlyPulseTimer = useRef(0);
+  const airFlyDirReady = useRef(false);
+  const airFlyDir = useRef(new THREE.Vector3(0, 0, -1));
   const energy = useRef<number>(ENERGY.max);
   const [playerBodyCollisionGroups, setPlayerBodyCollisionGroupsState] = useState(
     PLAYER_BODY_COLLISION,
@@ -1190,7 +1194,7 @@ export function Player({
       !goalEjectMoveLocked &&
       inputManager.isSprint() &&
       energy.current > 0 &&
-      (moveEarly.x !== 0 || moveEarly.y !== 0)
+      ((moveEarly.x !== 0 || moveEarly.y !== 0) || !grounded.current)
         ? 1
         : 0;
     const speedFactor = speedCameraFactor(
@@ -1319,6 +1323,7 @@ export function Player({
       sprintInput &&
       canSprint &&
       (moveForAirControl.x !== 0 || moveForAirControl.y !== 0);
+    let airFlying = false;
     const walkSpeed = effectiveWalkSpeed;
     const sprintSpeed = effectiveSprintSpeed;
     const speed = sprinting ? sprintSpeed : walkSpeed;
@@ -1652,6 +1657,69 @@ export function Player({
         true,
       );
     }
+    airFlying =
+      sprintInput &&
+      energy.current > 0 &&
+      !goalEjectMoveLocked &&
+      !grounded.current &&
+      !grindRailActive.current &&
+      !grappleActive.current &&
+      !ePropelling &&
+      !dashing;
+    if (airFlying) {
+      if (!airFlyDirReady.current && airFlyPulseTimer.current <= 0) {
+        airFlyPulseTimer.current = MOVEMENT.airFlyPulseSec;
+      }
+      airFlyPulseTimer.current += dt;
+      if (airFlyPulseTimer.current >= MOVEMENT.airFlyPulseSec) {
+        airFlyPulseTimer.current %= MOVEMENT.airFlyPulseSec;
+        _airFlyAimDir.copy(lookDir);
+        _airFlyAimDir.y = THREE.MathUtils.clamp(
+          _airFlyAimDir.y,
+          MOVEMENT.airFlyMinAimY,
+          1,
+        );
+        if (_airFlyAimDir.y < MOVEMENT.airFlyNeutralLiftY) {
+          _airFlyAimDir.y = THREE.MathUtils.lerp(
+            _airFlyAimDir.y,
+            MOVEMENT.airFlyNeutralLiftY,
+            0.35,
+          );
+        }
+        if (_airFlyAimDir.lengthSq() < 0.001) {
+          _airFlyAimDir.set(forward.x, MOVEMENT.airFlyNeutralLiftY, forward.z);
+        }
+        _airFlyAimDir.normalize();
+        if (!airFlyDirReady.current) {
+          airFlyDir.current.copy(_airFlyAimDir);
+          airFlyDirReady.current = true;
+        } else {
+          airFlyDir.current.lerp(
+            _airFlyAimDir,
+            MOVEMENT.airFlyDirectionBlend,
+          );
+          airFlyDir.current.normalize();
+        }
+        velocity.current.x +=
+          airFlyDir.current.x * MOVEMENT.airFlyImpulseSpeed;
+        velocity.current.z +=
+          airFlyDir.current.z * MOVEMENT.airFlyImpulseSpeed;
+        vy +=
+          airFlyDir.current.y * MOVEMENT.airFlyImpulseSpeed +
+          MOVEMENT.airFlyLiftImpulse;
+      }
+      clampHorizontalVelocity(
+        velocity.current,
+        sprintSpeed * MOVEMENT.airFlyMaxHorizontalSpeedSprintMul,
+      );
+      vy = Math.min(
+        vy,
+        sprintSpeed * MOVEMENT.airFlyMaxHorizontalSpeedSprintMul * 0.55,
+      );
+    } else {
+      airFlyPulseTimer.current = 0;
+      airFlyDirReady.current = false;
+    }
     if (!grindRailActive.current) {
       if (!grappleActive.current && !grounded.current && vy < -0.1) {
         fallAssistTimer.current += dt;
@@ -1880,7 +1948,10 @@ export function Player({
     );
 
     draining.current = false;
-    if (sprinting && wishDir.lengthSq() > 0) {
+    if (airFlying) {
+      energy.current -= ENERGY.airFlyDrain * dt;
+      draining.current = true;
+    } else if (sprinting && wishDir.lengthSq() > 0) {
       energy.current -= ENERGY.sprintDrain * dt;
       draining.current = true;
     }
@@ -2019,7 +2090,7 @@ export function Player({
     }
 
     gameStore.setEnergy(energy.current);
-    gameStore.setIsSprinting(sprinting);
+    gameStore.setIsSprinting(sprinting || airFlying);
     gameStore.setIsBeaming(beamInput);
 
     const armPostShotRocketBlock = () => {

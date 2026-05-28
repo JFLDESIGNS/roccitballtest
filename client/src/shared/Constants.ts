@@ -756,6 +756,14 @@ export const MOVEMENT = {
   grappleMaxHorizontalSpeedSprintMul: 3,
   grappleSwingDrive: 18,
   grappleSwingDamping: 0.985,
+  /** Shift in air: pulsed arcade thrust, not normal hover */
+  airFlyPulseSec: 0.3,
+  airFlyImpulseSpeed: 8.5,
+  airFlyLiftImpulse: 1.35,
+  airFlyDirectionBlend: 0.45,
+  airFlyMaxHorizontalSpeedSprintMul: 2.55,
+  airFlyMinAimY: -0.22,
+  airFlyNeutralLiftY: 0.18,
 } as const;
 
 /** Energy */
@@ -763,6 +771,7 @@ export const ENERGY = {
   max: 100,
   /** Scales with faster sprint so shift sprint burns bar quicker */
   sprintDrain: 21,
+  airFlyDrain: 30,
   beamDrain: 17,
   /** RMB + carrying ball — ~8s from full (100 / 12.5) */
   carryBeamDrain: 12.5,
