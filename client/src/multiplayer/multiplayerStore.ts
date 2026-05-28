@@ -131,6 +131,11 @@ type ServerMessage =
       action: NetworkBallAction;
     }
   | {
+      type: 'ballImpulse';
+      serverTime: number;
+      ball: NetworkBallState | null;
+    }
+  | {
       type: 'goalScored';
       serverTime: number;
       goal: {
@@ -162,7 +167,7 @@ let socket: WebSocket | null = null;
 let lastSendAt = 0;
 let profile: ActorProfile | null = null;
 
-const LOCAL_PLAYER_SEND_INTERVAL_MS = 16;
+const LOCAL_PLAYER_SEND_INTERVAL_MS = 12;
 
 let state: MultiplayerState = {
   enabled: false,
@@ -315,6 +320,19 @@ function handleMessage(raw: string) {
   if (msg.type === 'ballAction') {
     patch({
       remoteBallActions: [...state.remoteBallActions, msg.action].slice(-24),
+    });
+    return;
+  }
+
+  if (msg.type === 'ballImpulse') {
+    const receivedAt = performance.now();
+    patch({
+      ball: msg.ball
+        ? {
+            ...msg.ball,
+            updatedAt: receivedAt,
+          }
+        : null,
     });
     return;
   }

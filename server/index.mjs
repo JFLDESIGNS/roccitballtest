@@ -1537,7 +1537,19 @@ function handleClientMessage(socket, raw) {
         : null,
     };
     markRoomLastTouch(room, player, impact.position);
-    applyRocketImpactToServerBall(room, impact, Date.now());
+    const now = Date.now();
+    if (applyRocketImpactToServerBall(room, impact, now)) {
+      const packet = {
+        type: 'ballImpulse',
+        serverTime: now,
+        ball: room.ball,
+      };
+      for (const [peerSocket, peerClient] of clients) {
+        if (peerClient.roomId === room.id) {
+          sendJson(peerSocket, packet);
+        }
+      }
+    }
     return;
   }
 
@@ -1568,9 +1580,20 @@ function handleClientMessage(socket, raw) {
     clampBallSpeed(room.ball);
     room.ball.updatedAt = Date.now();
     setPhysicsBall(room, room.ball.position, room.ball.velocity, room.ball.angularVelocity);
+    const now = Date.now();
+    const ballPacket = {
+      type: 'ballImpulse',
+      serverTime: now,
+      ball: room.ball,
+    };
+    for (const [peerSocket, peerClient] of clients) {
+      if (peerClient.roomId === room.id) {
+        sendJson(peerSocket, ballPacket);
+      }
+    }
     const packet = {
       type: 'ballAction',
-      serverTime: Date.now(),
+      serverTime: now,
       action,
     };
     for (const [peerSocket, peerClient] of clients) {

@@ -17,10 +17,11 @@ import { PlayerAvatar } from './PlayerAvatar';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
-const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.1;
-const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.1;
-const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 38;
+const REMOTE_PLAYER_INTERPOLATION_BACKTIME_SEC = 0.075;
+const REMOTE_PLAYER_EXTRAPOLATE_SEC = 0.12;
+const REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED = 44;
 const REMOTE_PLAYER_SNAP_DISTANCE = 7;
+const REMOTE_PLAYER_SMOOTH_RATE = 18;
 
 type RemotePlayerSample = {
   position: THREE.Vector3;
@@ -61,6 +62,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const blendedVel = useRef(new THREE.Vector3());
   const rotationQuat = useRef(new THREE.Quaternion());
   const ready = useRef(false);
+  const lastStepAt = useRef(0);
 
   useEffect(() => {
     const next = makeSample(player);
@@ -94,6 +96,8 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     const body = bodyRef.current;
     if (!body) return;
     const now = performance.now();
+    const dt = lastStepAt.current > 0 ? Math.min(0.05, (now - lastStepAt.current) / 1000) : 1 / 60;
+    lastStepAt.current = now;
     if (!ready.current) {
       displayPos.current.copy(latestSample.current.position);
       displayYaw.current = latestSample.current.yaw;
@@ -131,9 +135,14 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       if (dist > REMOTE_PLAYER_SNAP_DISTANCE) {
         displayPos.current.copy(interpolatedPos.current);
       } else {
-        displayPos.current.copy(interpolatedPos.current);
+        const alpha = 1 - Math.exp(-dt * REMOTE_PLAYER_SMOOTH_RATE);
+        displayPos.current.lerp(interpolatedPos.current, alpha);
       }
-      displayYaw.current = targetYaw;
+      displayYaw.current = lerpAngle(
+        displayYaw.current,
+        targetYaw,
+        1 - Math.exp(-dt * (REMOTE_PLAYER_SMOOTH_RATE + 2)),
+      );
     }
     rotationQuat.current.setFromEuler(new THREE.Euler(0, displayYaw.current, 0));
     body.setNextKinematicTranslation(displayPos.current);

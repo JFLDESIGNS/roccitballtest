@@ -992,13 +992,13 @@ export const ROCKET = {
   /** Self rocket straight down within downRocketBoostMaxHeightFt — launch multiplier */
   downRocketBoostForceMult: 10,
   /** Max feet above floor for down-rocket boost */
-  downRocketBoostMaxHeightFt: 10,
+  downRocketBoostMaxHeightFt: 18,
   /** Rocket velocity must align with straight down (0–1 dot) */
-  downRocketBoostMinDownDot: 0.85,
+  downRocketBoostMinDownDot: 0.72,
   /** Max horizontal offset (m) from blast to player for boost */
-  downRocketBoostMaxHorizM: 3.2,
+  downRocketBoostMaxHorizM: 4.2,
   /** Upward launch scale on top of playerForce × mult */
-  downRocketBoostUpScale: 1.15,
+  downRocketBoostUpScale: 1.24,
   /** Direct rocket body hit on local player */
   playerDirectKnock: 26,
   /** Velocity change applied via Rapier impulse on ball hits (× ballKnockStrength) */

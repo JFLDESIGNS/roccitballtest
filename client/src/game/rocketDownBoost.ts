@@ -21,7 +21,7 @@ export function isDownwardSelfRocketBoost(
   if (rocketVy === undefined) return false;
 
   const speed = Math.hypot(rocketVx ?? 0, rocketVy, rocketVz ?? 0);
-  if (speed < 6) return false;
+  if (speed < 5) return false;
 
   const downDot = -rocketVy / speed;
   if (downDot < ROCKET.downRocketBoostMinDownDot) return false;
@@ -29,7 +29,7 @@ export function isDownwardSelfRocketBoost(
   const horiz = Math.hypot(px - ex, pz - ez);
   if (horiz > ROCKET.downRocketBoostMaxHorizM) return false;
 
-  if (ey > chestY - 0.8) return false;
+  if (ey > chestY - 0.15) return false;
 
   return true;
 }
@@ -48,9 +48,9 @@ export function applyDownwardSelfRocketBoost(
 
   player.setLinvel(
     {
-      x: lv.x * 0.72,
-      y: Math.max(lv.y, 0) + up,
-      z: lv.z * 0.72,
+      x: lv.x * 0.82,
+      y: Math.max(lv.y, 2.4) + up,
+      z: lv.z * 0.82,
     },
     true,
   );
