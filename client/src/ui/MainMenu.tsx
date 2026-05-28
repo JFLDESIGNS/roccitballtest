@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   resumeAudio,
   setMenuBackgroundMusicVolume,
@@ -16,7 +16,11 @@ import {
   getLocalProfile,
   setLocalProfile,
 } from '../game/playerRoster';
-import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import {
+  multiplayerStore,
+  type RoomMode,
+  type RoomSummary,
+} from '../multiplayer/multiplayerStore';
 import { MenuLogoTilt } from './MenuLogoTilt';
 import { MenuBotPreview } from './MenuBotPreview';
 import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
@@ -55,6 +59,16 @@ type MainMenuProps = {
   onEditMap: () => void;
 };
 
+function roomModeLabel(mode: RoomMode): string {
+  return mode === '2v2' ? '2v2' : '1v1';
+}
+
+function roomModeDescription(mode: RoomMode): string {
+  return mode === '2v2'
+    ? 'Four players, two per team'
+    : 'Two players, one per team';
+}
+
 export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const saved = loadSavedProfile();
   const [playerName, setPlayerName] = useState(saved.name);
@@ -64,7 +78,11 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     () => getMenuMusicVolume(),
   );
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [waitingForOnlinePlayer, setWaitingForOnlinePlayer] = useState(false);
+  const [showServerBrowser, setShowServerBrowser] = useState(false);
+  const [browserRooms, setBrowserRooms] = useState<RoomSummary[]>([]);
+  const [browserBusy, setBrowserBusy] = useState(false);
+  const [browserError, setBrowserError] = useState<string | null>(null);
+  const [createMode, setCreateMode] = useState<RoomMode>('1v1');
   const premium8Ball = useSyncExternalStore(
     subscribePremium8Ball,
     getPremium8Ball,
@@ -90,6 +108,20 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     multiplayerStore.getState,
   );
 
+  const roomReadyCount = useMemo(() => {
+    const selfReady = multiplayer.playReady ? 1 : 0;
+    return (
+      selfReady +
+      multiplayer.remotePlayers.filter((player) => player.playReady === true).length
+    );
+  }, [multiplayer.playReady, multiplayer.remotePlayers]);
+
+  const roomInfo = multiplayer.roomInfo;
+  const roomIsFull =
+    roomInfo !== null && roomInfo.playerCount >= roomInfo.maxPlayers;
+  const everyoneReady =
+    roomInfo !== null && roomReadyCount >= roomInfo.maxPlayers;
+
   useEffect(() => {
     setLocalProfile(playerName, jerseyNumber);
     multiplayerStore.updateProfile(getLocalProfile());
@@ -102,33 +134,25 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   }, []);
 
   useEffect(() => {
-    if (!waitingForOnlinePlayer) return;
-    if (!multiplayer.enabled || multiplayer.status === 'offline') {
-      setWaitingForOnlinePlayer(false);
-      return;
-    }
-    if (multiplayer.status !== 'online') return;
-    if (!multiplayer.playReady) {
-      multiplayerStore.sendPlayReady(true);
-      return;
-    }
-    const allReady =
+    if (
+      multiplayer.enabled &&
+      multiplayer.status === 'online' &&
       multiplayer.playReady &&
-      multiplayer.remotePlayers.length > 0 &&
-      multiplayer.remotePlayers.every((player) => player.playReady === true);
-    if (!allReady) return;
-    setWaitingForOnlinePlayer(false);
-    resumeAudio();
-    stopBackgroundMusic();
-    onPlay();
+      roomIsFull &&
+      everyoneReady
+    ) {
+      setShowServerBrowser(false);
+      resumeAudio();
+      stopBackgroundMusic();
+      onPlay();
+    }
   }, [
+    everyoneReady,
     multiplayer.enabled,
     multiplayer.playReady,
-    multiplayer.remotePlayers.length,
-    multiplayer.remotePlayers,
     multiplayer.status,
     onPlay,
-    waitingForOnlinePlayer,
+    roomIsFull,
   ]);
 
   const commitProfile = () => {
@@ -141,40 +165,86 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     }
   };
 
-  const enterArena = () => {
+  const syncProfile = () => {
     commitProfile();
     setLocalProfile(playerName, jerseyNumber);
     multiplayerStore.updateProfile(getLocalProfile());
-    if (multiplayer.enabled) {
-      if (multiplayer.status === 'online') {
-        multiplayerStore.sendPlayReady(true);
-      }
-      if (
-        multiplayer.status !== 'online' ||
-        multiplayer.remotePlayers.length === 0 ||
-        !multiplayer.remotePlayers.every((player) => player.playReady === true)
-      ) {
-        setWaitingForOnlinePlayer(true);
-        return;
-      }
+  };
+
+  const refreshRooms = async () => {
+    setBrowserBusy(true);
+    setBrowserError(null);
+    try {
+      const rooms = await multiplayerStore.fetchRooms();
+      setBrowserRooms(rooms);
+    } catch (error) {
+      setBrowserError(
+        error instanceof Error ? error.message : 'Could not load lobbies.',
+      );
+    } finally {
+      setBrowserBusy(false);
     }
+  };
+
+  useEffect(() => {
+    if (!showServerBrowser || multiplayer.enabled) return;
+    void refreshRooms();
+    const id = window.setInterval(() => {
+      void refreshRooms();
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [multiplayer.enabled, showServerBrowser]);
+
+  const openServerBrowser = () => {
+    syncProfile();
+    setShowServerBrowser(true);
+    if (!multiplayer.enabled) {
+      void refreshRooms();
+    }
+  };
+
+  const launchOfflineMatch = (withBots: boolean) => {
+    syncProfile();
+    if (multiplayer.enabled) multiplayerStore.disconnect();
+    gameStore.setBotsEnabled(withBots);
+    setShowServerBrowser(false);
     resumeAudio();
     stopBackgroundMusic();
     onPlay();
   };
 
-  const toggleMultiplayer = () => {
-    commitProfile();
-    setLocalProfile(playerName, jerseyNumber);
-    const profile = getLocalProfile();
-    if (multiplayer.enabled) {
-      setWaitingForOnlinePlayer(false);
-      multiplayerStore.sendPlayReady(false);
-      multiplayerStore.disconnect();
-    } else {
+  const joinRoom = (roomId: string) => {
+    syncProfile();
+    gameStore.setBotsEnabled(false);
+    multiplayerStore.connect(getLocalProfile(), roomId);
+  };
+
+  const createRoom = async () => {
+    syncProfile();
+    setBrowserBusy(true);
+    setBrowserError(null);
+    try {
+      const room = await multiplayerStore.createRoom({ mode: createMode });
       gameStore.setBotsEnabled(false);
-      multiplayerStore.connect(profile);
+      multiplayerStore.connect(getLocalProfile(), room.id);
+    } catch (error) {
+      setBrowserError(
+        error instanceof Error ? error.message : 'Could not create lobby.',
+      );
+    } finally {
+      setBrowserBusy(false);
     }
+  };
+
+  const leaveLobby = () => {
+    multiplayerStore.sendPlayReady(false);
+    multiplayerStore.disconnect();
+    setBrowserError(null);
+    void refreshRooms();
+  };
+
+  const toggleReady = () => {
+    multiplayerStore.sendPlayReady(!multiplayer.playReady);
   };
 
   const openEditor = () => {
@@ -182,6 +252,43 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     mapEditorStore.openEditor(DEFAULT_MAP_ID);
     onEditMap();
   };
+
+  const lobbyRoster = useMemo(() => {
+    if (!multiplayer.roomInfo) return [];
+    const self = multiplayer.selfId
+      ? [
+          {
+            id: multiplayer.selfId,
+            name: getLocalProfile().displayName,
+            team: multiplayer.team ?? 'blue',
+            teamSlot: multiplayer.teamSlot,
+            ready: multiplayer.playReady,
+            jerseyNumber: getLocalProfile().jerseyNumber,
+            self: true,
+          },
+        ]
+      : [];
+    const remotes = multiplayer.remotePlayers.map((player) => ({
+      id: player.id,
+      name: player.name,
+      team: player.team,
+      teamSlot: player.teamSlot,
+      ready: Boolean(player.playReady),
+      jerseyNumber: player.jerseyNumber,
+      self: false,
+    }));
+    return [...self, ...remotes].sort((a, b) => {
+      if (a.team !== b.team) return a.team === 'blue' ? -1 : 1;
+      return a.teamSlot - b.teamSlot;
+    });
+  }, [
+    multiplayer.playReady,
+    multiplayer.remotePlayers,
+    multiplayer.roomInfo,
+    multiplayer.selfId,
+    multiplayer.team,
+    multiplayer.teamSlot,
+  ]);
 
   return (
     <div className="main-menu">
@@ -246,9 +353,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                     type="checkbox"
                     checked={multiplayer.enabled ? false : botsEnabled}
                     disabled={multiplayer.enabled}
-                    onChange={(e) =>
-                      gameStore.setBotsEnabled(e.target.checked)
-                    }
+                    onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
                   />
                   <span>
                     {multiplayer.enabled ? 'Bots off online' : 'Practice bots'}
@@ -306,24 +411,20 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                         ? 'btn-online btn-online--active'
                         : 'btn-online'
                     }
-                    onClick={toggleMultiplayer}
+                    onClick={openServerBrowser}
                   >
-                    Online Multiplayer
-                    <span>{multiplayer.status}</span>
+                    {multiplayer.enabled ? 'Current Lobby' : 'Server Browser'}
+                    <span>
+                      {multiplayer.enabled && multiplayer.roomInfo
+                        ? `${multiplayer.roomInfo.playerCount}/${multiplayer.roomInfo.maxPlayers}`
+                        : 'rooms'}
+                    </span>
                   </button>
-                  {multiplayer.error ? (
-                    <small>{multiplayer.error}</small>
-                  ) : (
-                    <small>
-                      {multiplayer.selfId
-                        ? `Room ${multiplayer.roomId} · ${
-                            multiplayer.remotePlayers.length + 1
-                          } player${
-                            multiplayer.remotePlayers.length === 0 ? '' : 's'
-                          } online`
-                        : 'Connect before Play Now'}
-                    </small>
-                  )}
+                  <small>
+                    {multiplayer.enabled && multiplayer.roomInfo
+                      ? `${multiplayer.roomInfo.name} · ${roomModeLabel(multiplayer.roomInfo.mode)}`
+                      : 'Browse online lobbies or start a bots match'}
+                  </small>
                 </div>
               </div>
             </section>
@@ -388,33 +489,229 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           </div>
 
           <footer className="main-menu-play">
-            <button type="button" className="btn-play-now" onClick={enterArena}>
+            <button
+              type="button"
+              className="btn-play-now"
+              onClick={openServerBrowser}
+            >
               Play Now
             </button>
           </footer>
 
-          {waitingForOnlinePlayer && (
-            <div className="main-menu-waiting-backdrop" role="status">
-              <div className="main-menu-waiting-panel">
-                <strong>Waiting for players</strong>
-                <span>
-                  The match starts after each connected player presses Play Now.
-                </span>
-                <em>
-                  Room {multiplayer.roomId} ·{' '}
-                  {multiplayer.remotePlayers.length + 1} player
-                  {multiplayer.remotePlayers.length === 0 ? '' : 's'} online
-                </em>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    multiplayerStore.sendPlayReady(false);
-                    setWaitingForOnlinePlayer(false);
-                  }}
-                >
-                  Cancel Wait
-                </button>
+          {showServerBrowser && (
+            <div className="main-menu-browser-backdrop" role="dialog" aria-modal="true">
+              <div className="main-menu-browser">
+                <div className="main-menu-browser-head">
+                  <div>
+                    <p className="main-menu-browser-kicker">Play Hub</p>
+                    <h2>
+                      {multiplayer.enabled && multiplayer.roomInfo
+                        ? multiplayer.roomInfo.name
+                        : 'Server Browser'}
+                    </h2>
+                    <span>
+                      {multiplayer.enabled && multiplayer.roomInfo
+                        ? `${roomModeLabel(multiplayer.roomInfo.mode)} · ${multiplayer.roomInfo.playerCount}/${multiplayer.roomInfo.maxPlayers} players in lobby`
+                        : 'Join an online lobby or launch a local match'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowServerBrowser(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {multiplayer.enabled && multiplayer.roomInfo ? (
+                  <div className="main-menu-lobby">
+                    <div className="main-menu-lobby-meta">
+                      <div className="main-menu-lobby-stat">
+                        <strong>{multiplayer.roomInfo.playerCount}</strong>
+                        <span>Players</span>
+                      </div>
+                      <div className="main-menu-lobby-stat">
+                        <strong>{roomReadyCount}</strong>
+                        <span>Ready</span>
+                      </div>
+                      <div className="main-menu-lobby-stat">
+                        <strong>{roomModeLabel(multiplayer.roomInfo.mode)}</strong>
+                        <span>Mode</span>
+                      </div>
+                    </div>
+
+                    <div className="main-menu-lobby-roster">
+                      {lobbyRoster.map((player) => (
+                        <div
+                          key={player.id}
+                          className={`main-menu-lobby-player main-menu-lobby-player--${player.team}`}
+                        >
+                          <div className="main-menu-lobby-player-badge">
+                            {player.team === 'blue' ? 'B' : 'R'}
+                          </div>
+                          <div className="main-menu-lobby-player-copy">
+                            <strong>
+                              {player.name}
+                              {player.self ? ' (You)' : ''}
+                            </strong>
+                            <span>
+                              #{player.jerseyNumber.toString().padStart(2, '0')} ·{' '}
+                              {player.team.toUpperCase()} slot {player.teamSlot + 1}
+                            </span>
+                          </div>
+                          <em>{player.ready ? 'Ready' : 'Waiting'}</em>
+                        </div>
+                      ))}
+                      {Array.from({
+                        length: Math.max(
+                          0,
+                          multiplayer.roomInfo.maxPlayers - lobbyRoster.length,
+                        ),
+                      }).map((_, index) => (
+                        <div key={`open-slot-${index}`} className="main-menu-lobby-player main-menu-lobby-player--empty">
+                          <div className="main-menu-lobby-player-badge">+</div>
+                          <div className="main-menu-lobby-player-copy">
+                            <strong>Open Slot</strong>
+                            <span>Waiting for another pilot</span>
+                          </div>
+                          <em>Open</em>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="main-menu-lobby-footer">
+                      <p>
+                        {roomIsFull
+                          ? everyoneReady
+                            ? 'Everybody is ready. Launching the match...'
+                            : 'Lobby is full. Ready up to launch.'
+                          : `Waiting for ${multiplayer.roomInfo.maxPlayers - multiplayer.roomInfo.playerCount} more player${multiplayer.roomInfo.maxPlayers - multiplayer.roomInfo.playerCount === 1 ? '' : 's'}.`}
+                      </p>
+                      <div className="main-menu-lobby-actions">
+                        <button
+                          type="button"
+                          className="btn-online btn-online--active"
+                          onClick={toggleReady}
+                        >
+                          {multiplayer.playReady ? 'Cancel Ready' : 'Ready Up'}
+                          <span>{multiplayer.playReady ? 'ready' : 'not ready'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={leaveLobby}
+                        >
+                          Leave Lobby
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="main-menu-browser-grid">
+                    <section className="main-menu-browser-panel">
+                      <div className="main-menu-browser-panel-head">
+                        <h3>Online Games</h3>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => void refreshRooms()}
+                          disabled={browserBusy}
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                      <div className="main-menu-room-list">
+                        {browserRooms.length === 0 ? (
+                          <div className="main-menu-room-empty">
+                            <strong>No games live right now</strong>
+                            <span>Create a fresh lobby below.</span>
+                          </div>
+                        ) : (
+                          browserRooms.map((room) => (
+                            <button
+                              key={room.id}
+                              type="button"
+                              className="main-menu-room-card"
+                              onClick={() => joinRoom(room.id)}
+                              disabled={browserBusy || room.playerCount >= room.maxPlayers}
+                            >
+                              <div className="main-menu-room-card-top">
+                                <strong>{room.name}</strong>
+                                <em>{roomModeLabel(room.mode)}</em>
+                              </div>
+                              <span>{roomModeDescription(room.mode)}</span>
+                              <div className="main-menu-room-card-foot">
+                                <small>
+                                  {room.playerCount}/{room.maxPlayers} in lobby
+                                </small>
+                                <small>{room.readyCount} ready</small>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="main-menu-browser-panel">
+                      <div className="main-menu-browser-panel-head">
+                        <h3>Create a Game</h3>
+                      </div>
+                      <div className="main-menu-browser-create">
+                        <div className="main-menu-mode-toggle">
+                          {(['1v1', '2v2'] as RoomMode[]).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              className={
+                                mode === createMode
+                                  ? 'main-menu-mode-btn main-menu-mode-btn--active'
+                                  : 'main-menu-mode-btn'
+                              }
+                              onClick={() => setCreateMode(mode)}
+                            >
+                              {roomModeLabel(mode)}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="main-menu-browser-copy">
+                          {roomModeDescription(createMode)}. The match starts after the lobby fills
+                          and every player readies up.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-online btn-online--active"
+                          onClick={() => void createRoom()}
+                          disabled={browserBusy}
+                        >
+                          Create {roomModeLabel(createMode)} Lobby
+                          <span>online</span>
+                        </button>
+                        <div className="main-menu-browser-divider" />
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => launchOfflineMatch(true)}
+                        >
+                          Play Against Bots
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => launchOfflineMatch(false)}
+                        >
+                          Solo Free Play
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                )}
+
+                {(browserError || multiplayer.error) && (
+                  <div className="main-menu-browser-error">
+                    {browserError || multiplayer.error}
+                  </div>
+                )}
               </div>
             </div>
           )}

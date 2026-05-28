@@ -52,6 +52,15 @@ type GameStoreState = {
   playerSpeed: number;
   ballSpeed: number;
   goalCelebration: { id: number; x: number; y: number; z: number; team: Team } | null;
+  goalBanner:
+    | {
+        id: number;
+        team: Team;
+        points: number;
+        scorerName: string;
+        shotDistanceM: number | null;
+      }
+    | null;
   /** Team that scored last (for bot celebration, etc.) */
   lastScoringTeam: Team | null;
   botsEnabled: boolean;
@@ -143,6 +152,7 @@ let state: GameStoreState = {
   playerSpeed: 0,
   ballSpeed: 0,
   goalCelebration: null,
+  goalBanner: null,
   lastScoringTeam: null,
   botsEnabled: loadBotsEnabled(),
   botEnergies: { 'bot-0': 100, 'bot-1': 100, 'bot-2': 100 },
@@ -211,6 +221,7 @@ export const gameStore = {
       timeLeft: MATCH.durationSec,
       energy: 100,
       lastScorePopup: null,
+      goalBanner: null,
       countdown: 0,
       arenaSettleCountdown: 0,
       loadCountdown: 0,
@@ -391,6 +402,8 @@ export const gameStore = {
     scoringTeam: Team;
     goalPos: { x: number; y: number; z: number };
     score: MatchScore;
+    scorerName?: string | null;
+    shotDistanceM?: number | null;
   }) => {
     const nextStats = { ...state.matchStats };
     if (goal.scoringTeam === state.localTeam) {
@@ -408,6 +421,13 @@ export const gameStore = {
         id: ++celebrationId,
         ...goal.goalPos,
         team: goal.scoringTeam,
+      },
+      goalBanner: {
+        id: celebrationId,
+        team: goal.scoringTeam,
+        points: goal.points,
+        scorerName: goal.scorerName?.trim() || `${goal.scoringTeam.toUpperCase()} TEAM`,
+        shotDistanceM: goal.shotDistanceM ?? null,
       },
       lastScoringTeam: goal.scoringTeam,
       ballFrozen: true,
@@ -433,6 +453,13 @@ export const gameStore = {
       goalCelebration: goalPos
         ? { id: ++celebrationId, ...goalPos, team }
         : state.goalCelebration,
+      goalBanner: {
+        id: celebrationId,
+        team,
+        points,
+        scorerName: team === state.localTeam ? 'You' : `${team.toUpperCase()} TEAM`,
+        shotDistanceM: null,
+      },
       lastScoringTeam: team,
       ballCombo: 0,
       ballComboExpiresAt: 0,
@@ -464,7 +491,7 @@ export const gameStore = {
     notify();
   },
   clearScorePopup: () => {
-    state = { ...state, lastScorePopup: null };
+    state = { ...state, lastScorePopup: null, goalBanner: null };
     notify();
   },
   setCountdown: (n: number) => {
@@ -511,6 +538,7 @@ export const gameStore = {
       isHoldingBall: false,
       ballState: 'loose',
       lastScorePopup: null,
+      goalBanner: null,
     };
     notify();
   },
@@ -521,6 +549,7 @@ export const gameStore = {
       phase: 'playing',
       countdown: 0,
       lastScorePopup: null,
+      goalBanner: null,
       ballHolderId: null,
       isHoldingBall: false,
     };
@@ -533,6 +562,7 @@ export const gameStore = {
       phase: 'playing',
       countdown: 0,
       lastScorePopup: null,
+      goalBanner: null,
       ballHolderId: null,
       isHoldingBall: false,
       ballFrozen: true,

@@ -20,6 +20,11 @@ export type GoalRimContact = {
   goalId: string;
 };
 
+export type GoalRimBallBounceResult = {
+  goalId: string;
+  impactSpeed: number;
+};
+
 const _sample = new THREE.Vector3();
 
 /** Lit + black torus — ball / rocket swept hits only */
@@ -130,14 +135,15 @@ export function tickGoalRimBallBounce(
   to: THREE.Vector3,
   cooldownSec: { current: number },
   dt: number,
-): boolean {
+) : GoalRimBallBounceResult | null {
   cooldownSec.current = Math.max(0, cooldownSec.current - dt);
-  if (cooldownSec.current > 0) return false;
+  if (cooldownSec.current > 0) return null;
 
   const rim = findGoalRimSegmentContact(from, to, BALL.radius);
-  if (!rim) return false;
+  if (!rim) return null;
 
   const v = body.linvel();
+  const impactSpeed = Math.hypot(v.x, v.y, v.z);
   const outward = rim.outwardX;
   const vDot = v.x * outward;
   const rest = GOAL_RINGS.rimBounceRestitution;
@@ -157,7 +163,7 @@ export function tickGoalRimBallBounce(
     true,
   );
   cooldownSec.current = GOAL_RINGS.rimBounceCooldownSec;
-  return true;
+  return { goalId: rim.goalId, impactSpeed };
 }
 
 export function goalRimLaunchSpeeds(gravity: number): { vx: number; vy: number } {

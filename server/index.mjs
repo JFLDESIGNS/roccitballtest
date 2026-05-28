@@ -110,6 +110,7 @@ const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
 const POST_RELEASE_HOLD_BLOCK_MS = 700;
 const GOAL_SCORE_COOLDOWN_MS = 5700;
+const ROOM_NAME_MAX = 28;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
 const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
@@ -800,25 +801,82 @@ function createRoomPhysics() {
 }
 
 function getRoom(roomId) {
+  return getOrCreateRoom(roomId);
+}
+
+function roomMaxPlayers(mode) {
+  return mode === '2v2' ? 4 : 2;
+}
+
+function sanitizeRoomMode(mode) {
+  return mode === '2v2' ? '2v2' : '1v1';
+}
+
+function sanitizeRoomName(name, mode, roomId) {
+  if (typeof name === 'string' && name.trim()) {
+    return name.trim().slice(0, ROOM_NAME_MAX);
+  }
+  return `${mode.toUpperCase()} Lobby ${roomId.slice(0, 4)}`;
+}
+
+function createRoomRecord(id, options = {}) {
+  const mode = sanitizeRoomMode(options.mode);
+  return {
+    id,
+    name: sanitizeRoomName(options.name, mode, id),
+    mode,
+    maxPlayers: roomMaxPlayers(mode),
+    players: new Map(),
+    hostId: null,
+    ball: createServerBall(),
+    match: null,
+    physics: createRoomPhysics(),
+    lastBallPosition: { ...BALL_SPAWN },
+    goalLockedUntil: 0,
+    ballHiddenUntil: 0,
+    ballPadUntil: 0,
+    ballDropCollisionDisabledUntil: 0,
+    lastTouch: null,
+    createdAt: Date.now(),
+  };
+}
+
+function getOrCreateRoom(roomId, options = {}) {
   const id = typeof roomId === 'string' && roomId.trim() ? roomId.trim() : 'main';
   let room = rooms.get(id);
   if (!room) {
-    room = {
-      id,
-      players: new Map(),
-      hostId: null,
-      ball: createServerBall(),
-      match: null,
-      physics: createRoomPhysics(),
-      lastBallPosition: { ...BALL_SPAWN },
-      goalLockedUntil: 0,
-      ballHiddenUntil: 0,
-      ballPadUntil: 0,
-      ballDropCollisionDisabledUntil: 0,
-    };
+    room = createRoomRecord(id, options);
     rooms.set(id, room);
   }
   return room;
+}
+
+function roomSummary(room) {
+  const players = [...room.players.values()];
+  const readyCount = players.filter((player) => player.playReady).length;
+  return {
+    id: room.id,
+    name: room.name,
+    mode: room.mode,
+    maxPlayers: room.maxPlayers,
+    playerCount: players.length,
+    readyCount,
+    inMatch: Boolean(room.match && room.match.phase !== 'menu'),
+  };
+}
+
+function listRoomSummaries() {
+  return [...rooms.values()]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map(roomSummary);
+}
+
+function assignRoomTeamSlots(room) {
+  const counters = { red: 0, blue: 0 };
+  for (const player of room.players.values()) {
+    player.teamSlot = counters[player.team];
+    counters[player.team] += 1;
+  }
 }
 
 function sendFrame(socket, data) {
@@ -917,6 +975,7 @@ function removeClient(socket) {
     room.hostId = [...room.players.keys()][0] ?? null;
     room.match = null;
   }
+  if (room) assignRoomTeamSlots(room);
   if (room && room.players.size === 0) rooms.delete(room.id);
 }
 
@@ -932,13 +991,17 @@ function sanitizeProfile(profile = {}) {
 }
 
 function sanitizeTeam(team, room) {
-  if (team === 'red' || team === 'blue') return team;
   let red = 0;
   let blue = 0;
   for (const player of room.players.values()) {
     if (player.team === 'red') red += 1;
     if (player.team === 'blue') blue += 1;
   }
+  const maxTeamPlayers = Math.max(1, Math.floor(room.maxPlayers / 2));
+  if (team === 'red' && red < maxTeamPlayers) return 'red';
+  if (team === 'blue' && blue < maxTeamPlayers) return 'blue';
+  if (red >= maxTeamPlayers) return 'blue';
+  if (blue >= maxTeamPlayers) return 'red';
   return red <= blue ? 'red' : 'blue';
 }
 
@@ -987,6 +1050,17 @@ function clampBallSpeed(ball) {
   ball.velocity.x *= scale;
   ball.velocity.y *= scale;
   ball.velocity.z *= scale;
+}
+
+function markRoomLastTouch(room, player, position) {
+  if (!player) return;
+  room.lastTouch = {
+    playerId: player.id,
+    playerName: player.name,
+    team: player.team,
+    position: sanitizeVec3(position, player.position),
+    updatedAt: Date.now(),
+  };
 }
 
 function setPhysicsBall(room, position, velocity, angularVelocity = null) {
@@ -1170,6 +1244,7 @@ function tickRoomBall(room, dt, now) {
       (!player.releasedBallUntil || now >= player.releasedBallUntil),
   );
   if (holder) {
+    markRoomLastTouch(room, holder, holder.holdPosition ?? holder.position);
     setPhysicsBall(
       room,
       sanitizeVec3(holder.holdPosition, room.ball.position),
@@ -1241,6 +1316,14 @@ function registerServerGoal(room, hit, now) {
   score[hit.scoringTeam] += hit.points;
   room.goalLockedUntil = now + GOAL_SCORE_COOLDOWN_MS;
   room.ballHiddenUntil = now + GOAL_BALL_HIDE_RESET_MS;
+  const scorer = room.lastTouch;
+  const shotDistanceM = scorer
+    ? Math.hypot(
+        scorer.position.x - hit.goalPos.x,
+        scorer.position.y - hit.goalPos.y,
+        scorer.position.z - hit.goalPos.z,
+      )
+    : null;
   room.match = {
     ...(room.match ?? {
       phase: 'playing',
@@ -1271,6 +1354,9 @@ function registerServerGoal(room, hit, now) {
       goalId: hit.goalId,
       goalPos: hit.goalPos,
       score,
+      scorerId: scorer?.playerId ?? null,
+      scorerName: scorer?.playerName ?? null,
+      shotDistanceM,
     },
   });
 }
@@ -1284,7 +1370,19 @@ function handleClientMessage(socket, raw) {
   }
 
   if (msg.type === 'hello') {
-    const room = getRoom(msg.roomId);
+    const room =
+      rooms.get(msg.roomId) ??
+      (msg.roomId === 'main'
+        ? getOrCreateRoom('main', { mode: '1v1', name: 'Main Lobby' })
+        : null);
+    if (!room) {
+      sendJson(socket, { type: 'joinError', message: 'That lobby no longer exists.' });
+      return;
+    }
+    if (room.players.size >= room.maxPlayers) {
+      sendJson(socket, { type: 'joinError', message: 'That lobby is already full.' });
+      return;
+    }
     const id = crypto.randomUUID();
     const profile = sanitizeProfile(msg.profile);
     const team = sanitizeTeam(msg.team, room);
@@ -1293,6 +1391,7 @@ function handleClientMessage(socket, raw) {
       name: profile.name,
       jerseyNumber: profile.jerseyNumber,
       team,
+      teamSlot: 0,
       position: { x: 0, y: 2, z: 0 },
       velocity: { x: 0, y: 0, z: 0 },
       rotation: { yaw: 0, pitch: 0 },
@@ -1306,8 +1405,17 @@ function handleClientMessage(socket, raw) {
     };
     clients.set(socket, { id, roomId: room.id });
     room.players.set(id, player);
+    assignRoomTeamSlots(room);
     if (!room.hostId) room.hostId = id;
-    sendJson(socket, { type: 'welcome', id, roomId: room.id, team, hostId: room.hostId });
+    sendJson(socket, {
+      type: 'welcome',
+      id,
+      roomId: room.id,
+      team,
+      teamSlot: player.teamSlot,
+      hostId: room.hostId,
+      room: roomSummary(room),
+    });
     return;
   }
 
@@ -1327,9 +1435,14 @@ function handleClientMessage(socket, raw) {
     player.energy = Number.isFinite(msg.energy)
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;
-    player.isBeaming = Boolean(msg.isBeaming);
-    player.isHoldingBall = Boolean(msg.isHoldingBall);
-    player.holdPosition = msg.holdPosition
+    const otherHolder = [...room.players.values()].find(
+      (other) => other.id !== player.id && other.isHoldingBall,
+    );
+    const wantsHold = Boolean(msg.isHoldingBall);
+    player.isHoldingBall = wantsHold && !otherHolder;
+    player.isBeaming =
+      Boolean(msg.isBeaming) && !player.isHoldingBall && !otherHolder;
+    player.holdPosition = player.isHoldingBall && msg.holdPosition
       ? sanitizeVec3(msg.holdPosition, player.position)
       : null;
     if (!player.isHoldingBall) player.releasedBallUntil = 0;
@@ -1353,7 +1466,7 @@ function handleClientMessage(socket, raw) {
   if (msg.type === 'hostState' && client.id === room.hostId) {
     if (!room.ball) room.ball = createServerBall();
     const players = [...room.players.values()];
-    if (players.length < 2 || players.some((p) => !p.playReady)) return;
+    if (players.length < room.maxPlayers || players.some((p) => !p.playReady)) return;
     const previousFrozen = room.match?.ballFrozen;
     const nextMatch = sanitizeMatchState(msg.match);
     if (Date.now() < (room.goalLockedUntil ?? 0) && room.match) {
@@ -1423,6 +1536,7 @@ function handleClientMessage(socket, raw) {
         ? sanitizeVec3(msg.impact.ballImpactNormal)
         : null,
     };
+    markRoomLastTouch(room, player, impact.position);
     applyRocketImpactToServerBall(room, impact, Date.now());
     return;
   }
@@ -1443,6 +1557,7 @@ function handleClientMessage(socket, raw) {
     player.isHoldingBall = false;
     player.holdPosition = null;
     player.releasedBallUntil = Date.now() + POST_RELEASE_HOLD_BLOCK_MS;
+    markRoomLastTouch(room, player, action.position);
     room.ball.position = action.position;
     room.ball.velocity = action.velocity;
     room.ball.angularVelocity = {
@@ -1476,6 +1591,7 @@ function broadcastSnapshots() {
       hostId: room.hostId,
       ball: room.ball,
       match: room.match,
+      room: roomSummary(room),
       players,
     });
     for (const [socket, client] of clients) {
@@ -1493,7 +1609,71 @@ function tickServer() {
   broadcastSnapshots();
 }
 
-function serveStatic(req, res) {
+function sendApiJson(res, statusCode, payload) {
+  res.writeHead(statusCode, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+  });
+  res.end(JSON.stringify(payload));
+}
+
+function readRequestJson(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8').trim();
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+async function maybeHandleApi(req, res) {
+  const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
+  if (url.pathname !== '/api/rooms') return false;
+
+  if (req.method === 'OPTIONS') {
+    sendApiJson(res, 204, {});
+    return true;
+  }
+
+  if (req.method === 'GET') {
+    sendApiJson(res, 200, { rooms: listRoomSummaries() });
+    return true;
+  }
+
+  if (req.method === 'POST') {
+    let body;
+    try {
+      body = await readRequestJson(req);
+    } catch {
+      sendApiJson(res, 400, { error: 'Invalid room payload.' });
+      return true;
+    }
+    const id = crypto.randomUUID().slice(0, 8);
+    const room = createRoomRecord(id, {
+      mode: body?.mode,
+      name: body?.name,
+    });
+    rooms.set(room.id, room);
+    sendApiJson(res, 201, { room: roomSummary(room) });
+    return true;
+  }
+
+  sendApiJson(res, 405, { error: 'Method not allowed.' });
+  return true;
+}
+
+async function serveStatic(req, res) {
+  if (await maybeHandleApi(req, res)) return;
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
   const relativePath =
     url.pathname === '/'

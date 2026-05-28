@@ -77,6 +77,7 @@ import {
   playJump,
   playRocketFire,
   playRocketEmpty,
+  playBeamNoLock,
   setBeamAttractActive,
 } from './audio';
 import { triggerCeilingWallHit } from './visualShake';
@@ -121,6 +122,7 @@ import {
 import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
+import { multiplayerStore } from '../multiplayer/multiplayerStore';
 
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
@@ -240,6 +242,10 @@ export function Player({
     gameStore.subscribe,
     () => gameStore.getState().debugFreelook,
   );
+  const multiplayerState = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    multiplayerStore.getState,
+  );
   const bodyRef = useRef<RapierRigidBody>(null);
   const visualRef = useRef<THREE.Group>(null);
   const tiltRef = useRef<THREE.Group>(null);
@@ -284,6 +290,7 @@ export function Player({
   const ballSeparationGraceUntil = useRef(0);
   /** After LMB ball shot, beam stays off until RMB is released and pressed again */
   const beamNeedsRepress = useRef(false);
+  const beamNoLockSoundAt = useRef(0);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -314,8 +321,16 @@ export function Player({
   const _rocketOrigin = useRef(new THREE.Vector3());
   const spawnPos = useMemo(() => {
     const team = gameStore.getState().localTeam;
-    return getTeamSpawn(team);
-  }, []);
+    const teamPlayerCount =
+      multiplayerState.enabled && multiplayerState.roomInfo?.mode === '2v2'
+        ? 2
+        : 1;
+    return getTeamSpawn(team, multiplayerState.teamSlot, teamPlayerCount);
+  }, [
+    multiplayerState.enabled,
+    multiplayerState.roomInfo?.mode,
+    multiplayerState.teamSlot,
+  ]);
 
   const applyTeamSpawn = useCallback(() => {
     const body = bodyRef.current;
@@ -1145,14 +1160,45 @@ export function Player({
     }
 
     const knockStunned = isPlayerKnockStunActive();
-
-    const beamInput =
+    const frozen = gameStore.getState().ballFrozen;
+    const ballLooseCooldown = now >= ballReleaseLockUntil.current;
+    const ball = ballBodyRef.current;
+    const ballHolder = gameStore.getState().ballHolderId;
+    const multiplayerNow = multiplayerStore.getState();
+    const remoteBallHeld =
+      multiplayerNow.enabled &&
+      multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
+    const canBeamBall = ballHolder === null && !remoteBallHeld;
+    const beamAttempt =
       inputManager.isBeam() &&
       !beamNeedsRepress.current &&
       !knockStunned &&
       energy.current >= ENERGY.minBeam &&
-      !beamDenied &&
-      !gameStore.getState().ballFrozen;
+      !frozen;
+    const beamRequested = beamAttempt && !beamDenied;
+    let canLockBeamTarget = false;
+
+    if (
+      beamRequested &&
+      !holdingBall.current &&
+      ball &&
+      ballLooseCooldown &&
+      canBeamBall
+    ) {
+      const bt = ball.translation();
+      const ballPos = _beamBallPos.current.set(bt.x, bt.y, bt.z);
+      const { grabDist } = beamGrabDistance(ballPos, chestPos.current, pos);
+      canLockBeamTarget = grabDist < BEAM.range;
+    }
+
+    const beamInput =
+      beamRequested && (holdingBall.current || canLockBeamTarget);
+
+    if (beamAttempt && !beamInput && now - beamNoLockSoundAt.current > 0.45) {
+      beamNoLockSoundAt.current = now;
+      playBeamNoLock();
+    }
+
     if (beamInput && holdingBall.current) {
       energy.current -= ENERGY.carryBeamDrain * dt;
       draining.current = true;
@@ -1194,9 +1240,6 @@ export function Player({
     gameStore.setEnergy(energy.current);
     gameStore.setIsSprinting(sprinting);
     gameStore.setIsBeaming(beamInput);
-
-    const ballLooseCooldown = now >= ballReleaseLockUntil.current;
-    const ball = ballBodyRef.current;
 
     const armPostShotRocketBlock = () => {
       if (inputManager.isFireDown()) {
@@ -1369,15 +1412,13 @@ export function Player({
       return true;
     };
 
-    const ballHolder = gameStore.getState().ballHolderId;
-    const canBeamBall = ballHolder === null;
-
     const beamingLoose =
       beamInput &&
       !holdingBall.current &&
+      canLockBeamTarget &&
       canBeamBall &&
       !!ball &&
-      !gameStore.getState().ballFrozen;
+      !frozen;
     setBeamAttractActive(beamingLoose);
 
     if (
@@ -1386,7 +1427,7 @@ export function Player({
       ballLooseCooldown &&
       canBeamBall &&
       !holdingBall.current &&
-      !gameStore.getState().ballFrozen
+      !frozen
     ) {
       const bt = ball.translation();
       const ballPos = _beamBallPos.current.set(bt.x, bt.y, bt.z);

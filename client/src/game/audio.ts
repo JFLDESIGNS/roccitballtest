@@ -778,6 +778,14 @@ export function playRocketEmpty() {
   playSample(emptyClipUrl, 0.48);
 }
 
+/** Beam attempted without a valid ball lock. */
+export function playBeamNoLock() {
+  if (!getCtx()) return;
+  playTone(180, 0.05, 'square', 0.032);
+  playTone(132, 0.07, 'sawtooth', 0.026, undefined, 0.045);
+  playNoiseBurst(0.045, 0.018, 0.015);
+}
+
 function playShotSample(): void {
   const now = performance.now();
   if (now - lastBallShotAt < BALL_SHOT_DEBOUNCE_MS) return;

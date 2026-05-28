@@ -682,7 +682,9 @@ export function updateRockets(
       continue;
     }
 
-    punchLightGlowAlongRocketSegment(r, _stepPrev, pos);
+    if (r.ownerId === 'local') {
+      punchLightGlowAlongRocketSegment(r, _stepPrev, pos);
+    }
 
     if (
       tryBillboardRocketHit(

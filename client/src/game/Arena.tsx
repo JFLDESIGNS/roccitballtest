@@ -1,12 +1,13 @@
 import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups } from '@react-three/rapier';
 import { MaybeRigidBody } from './maybeRigid';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import { ARENA, BALL } from '../shared/Constants';
 import {
   ARENA_GOALS,
   goalBackCapArenaNudgeM,
-  goalBackRingCenterX,
+  goalBackRingCenter,
   goalScoringCenter,
   goalScoringCylinderParams,
   GOAL_SCORING_CYLINDER_ROTATION,
@@ -50,6 +51,7 @@ import {
   arenaHexFloorMaterial,
   arenaWallMaterial,
 } from './arenaMaterials';
+import { sampleGoalRingHit } from './goalRingHitFx';
 
 const { hexRadius, wallHeight, wallThickness } = ARENA;
 
@@ -170,7 +172,6 @@ function GoalRingBackplate({
   const backRadius = ringRadius * GOAL_RINGS.backRingScale;
   const tube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const tiltX = ringTiltX(team, size);
-  const backX = goalBackRingCenterX({ center, team, size });
   const capRadius =
     Math.max(backRadius - tube * 0.92, goalScoreHoleRadius(ringRadius, size) * 0.88) *
     GOAL_RINGS.backRingCapScale;
@@ -197,16 +198,17 @@ function GoalRingBackplate({
   }, []);
 
   const capArenaNudge = goalBackCapArenaNudgeM(team, size);
+  const backCenter = goalBackRingCenter({ center, team, size });
 
   return (
     <MaybeRigidBody
       type="fixed"
       colliders={false}
-      position={[backX, center.y, center.z]}
+      position={[backCenter.x, backCenter.y, backCenter.z]}
     >
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
-          <group position={[capArenaNudge, 0, 0]}>
+          <group position={[0, 0, capArenaNudge]}>
             <GoalRingBackCapCollider capRadius={capColliderR} />
           </group>
           <TrimeshCollider
@@ -274,6 +276,23 @@ function GoalRing({
       ),
     [ringRadius, glowTube],
   );
+  const glowMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const ringMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
+  const faceMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+
+  useFrame(() => {
+    const pulse = sampleGoalRingHit(goalId);
+    if (glowMatRef.current) {
+      glowMatRef.current.opacity = GOAL_RINGS.glowOpacity + pulse * 0.32;
+    }
+    if (ringMatRef.current) {
+      ringMatRef.current.emissiveIntensity =
+        GOAL_RINGS.emissiveIntensity + pulse * 3.1;
+    }
+    if (faceMatRef.current) {
+      faceMatRef.current.opacity = 0.5 + pulse * 0.35;
+    }
+  });
 
   return (
     <>
@@ -300,6 +319,7 @@ function GoalRing({
               />
               <mesh geometry={glowGeo} renderOrder={2}>
                 <meshBasicMaterial
+                  ref={glowMatRef}
                   color={color}
                   transparent
                   opacity={GOAL_RINGS.glowOpacity}
@@ -310,6 +330,7 @@ function GoalRing({
               </mesh>
               <mesh geometry={torusGeo} castShadow={false} renderOrder={3}>
                 <meshStandardMaterial
+                  ref={ringMatRef}
                   color={color}
                   emissive={color}
                   emissiveIntensity={GOAL_RINGS.emissiveIntensity}
@@ -327,6 +348,7 @@ function GoalRing({
                   ]}
                 />
                 <meshBasicMaterial
+                  ref={faceMatRef}
                   color={color}
                   transparent
                   opacity={0.5}

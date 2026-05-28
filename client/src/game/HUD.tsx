@@ -24,6 +24,11 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function formatShotDistance(distanceM: number | null): string | null {
+  if (distanceM == null || !Number.isFinite(distanceM)) return null;
+  return `${Math.max(1, Math.round(distanceM * 3.28084))} ft`;
+}
+
 type HUDProps = {
   onMainMenu?: () => void;
 };
@@ -84,15 +89,16 @@ export function HUD({ onMainMenu }: HUDProps) {
         <div className="hud-online-status">
           <strong>Online</strong>
           <span>
-            Room {multiplayer.roomId} · {multiplayer.remotePlayers.length + 1}{' '}
-            player{multiplayer.remotePlayers.length === 0 ? '' : 's'}
+            {(multiplayer.roomInfo?.name ?? `Room ${multiplayer.roomId}`)} ·{' '}
+            {multiplayer.roomInfo?.playerCount ?? multiplayer.remotePlayers.length + 1}/
+            {multiplayer.roomInfo?.maxPlayers ?? 2} players
           </span>
         </div>
       )}
       <BallBoundaryHelpBadge />
       {state.debugFreelook && (
         <div className="debug-freelook-hint" role="status">
-          Debug fly — cursor on · RMB hold to look · WASD fly · U exit · Tab respawn ball
+          Debug fly - cursor on - RMB hold to look - WASD fly - U exit - Tab respawn ball
         </div>
       )}
       <StadiumLightEditorPanel />
@@ -176,36 +182,33 @@ export function HUD({ onMainMenu }: HUDProps) {
       )}
 
       {!matchOver && !state.debugFreelook && (
-        <HudCrosshairEnergy
-          energy={state.energy}
-          lowEnergy={state.energy < 25}
-        />
+        <HudCrosshairEnergy energy={state.energy} lowEnergy={state.energy < 25} />
       )}
 
       {!state.pointerLocked &&
         state.phase === 'playing' &&
         !matchOver &&
         !state.debugFreelook && (
-        <div
-          className="hud-hint"
-          role="button"
-          tabIndex={0}
-          onPointerDown={(e) => {
-            if (e.button !== 0) return;
-            if (tuningStore.getState().showMenu) return;
-            const canvas = document.querySelector<HTMLCanvasElement>(
-              '.game-canvas canvas',
-            );
-            if (!canvas) return;
-            resumeAudio();
-            warmAudio();
-            inputManager.requestPointerLock(canvas);
-          }}
-        >
-          Click arena to capture mouse (needed after menu or alt-tab) · LMB rocket ·
-          RMB beam · F spawn ball
-        </div>
-      )}
+          <div
+            className="hud-hint"
+            role="button"
+            tabIndex={0}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              if (tuningStore.getState().showMenu) return;
+              const canvas = document.querySelector<HTMLCanvasElement>(
+                '.game-canvas canvas',
+              );
+              if (!canvas) return;
+              resumeAudio();
+              warmAudio();
+              inputManager.requestPointerLock(canvas);
+            }}
+          >
+            Click arena to capture mouse (needed after menu or alt-tab) - LMB rocket - RMB beam - F
+            spawn ball
+          </div>
+        )}
 
       {state.lastScorePopup && !matchOver && (
         <div className={`hud-popup team-${state.lastScorePopup.team}`}>
@@ -213,25 +216,43 @@ export function HUD({ onMainMenu }: HUDProps) {
         </div>
       )}
 
-      {state.phase === 'playing' &&
-        state.arenaSettleCountdown > 0 &&
-        !matchOver && (
-          <div className="hud-countdown hud-countdown--settle">
-            {state.arenaSettleCountdown}
+      {state.goalBanner && !matchOver && (
+        <div className={`hud-goal-banner hud-goal-banner--${state.goalBanner.team}`}>
+          <div className="hud-goal-banner-portrait" aria-hidden>
+            <div className="hud-goal-banner-orb">
+              {state.goalBanner.team === 'blue' ? 'B' : 'R'}
+            </div>
           </div>
-        )}
+          <div className="hud-goal-banner-copy">
+            <p className="hud-goal-banner-overline">Goal scored</p>
+            <h3>{state.goalBanner.scorerName}</h3>
+            <div className="hud-goal-banner-meta">
+              <span>+{state.goalBanner.points} pts</span>
+              {formatShotDistance(state.goalBanner.shotDistanceM) && (
+                <span>From {formatShotDistance(state.goalBanner.shotDistanceM)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state.phase === 'playing' && state.arenaSettleCountdown > 0 && !matchOver && (
+        <div className="hud-countdown hud-countdown--settle">
+          {state.arenaSettleCountdown}
+        </div>
+      )}
 
       {state.phase === 'playing' &&
         state.arenaSettleCountdown === 0 &&
         state.countdown > 0 &&
-        !matchOver && (
-          <div className="hud-countdown">{state.countdown}</div>
-        )}
+        !matchOver && <div className="hud-countdown">{state.countdown}</div>}
 
       {state.showScoreboard && (
         <div className="hud-scoreboard">
           <h3>Scoreboard</h3>
-          <p>Red {state.score.red} — Blue {state.score.blue}</p>
+          <p>
+            Red {state.score.red} - Blue {state.score.blue}
+          </p>
           <p className="muted">Hold Tab</p>
         </div>
       )}
@@ -253,7 +274,7 @@ export function HUD({ onMainMenu }: HUDProps) {
           <div className="hud-match-end">
             <p className="hud-match-end-title">{matchEndHeadline(state)}</p>
             <p className="hud-match-end-score">
-              Red {state.score.red} — Blue {state.score.blue}
+              Red {state.score.red} - Blue {state.score.blue}
             </p>
             <div className="hud-match-stats">
               <p className="hud-match-stats-heading">Your stats</p>
@@ -268,8 +289,7 @@ export function HUD({ onMainMenu }: HUDProps) {
             </div>
             <div className="hud-match-end-actions">
               <button type="button" className="hud-match-end-btn" onClick={handlePlayAgain}>
-                Play again{' '}
-                <kbd className="hud-match-end-kbd">{MATCH_PLAY_AGAIN_KEY_LABEL}</kbd>
+                Play again <kbd className="hud-match-end-kbd">{MATCH_PLAY_AGAIN_KEY_LABEL}</kbd>
               </button>
               {onMainMenu && (
                 <button

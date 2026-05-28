@@ -281,9 +281,13 @@ export function applyExplosionToPlayer(
   fromOwnerId?: string,
 ): { damage: number; rocketJump: boolean } {
   const dist = Math.hypot(px - ex, py - ey, pz - ez);
-  if (dist >= radius) return { damage: 0, rocketJump: false };
+  const effectiveRadius = radius + 1.25;
+  if (dist >= effectiveRadius) return { damage: 0, rocketJump: false };
 
-  const falloff = Math.max(ROCKET.ballSplashMinFalloff, 1 - dist / radius);
+  const falloff = Math.max(
+    ROCKET.ballSplashMinFalloff,
+    1 - dist / effectiveRadius,
+  );
 
   if (
     feetY !== undefined &&
@@ -310,7 +314,15 @@ export function applyExplosionToPlayer(
 
   const knock = ROCKET.playerForce * falloff * forceScale;
 
-  const dir = knockDirection(px, py, pz, ex, ey, ez, rocketVx, rocketVy, rocketVz);
+  _dir.set(px - ex, py - ey, pz - ez);
+  if (_dir.lengthSq() < 0.0001) {
+    _dir.set(rocketVx ?? 0, rocketVy ?? 0.25, rocketVz ?? 0);
+  }
+  if (_dir.lengthSq() < 0.0001) _dir.set(0, 1, 0);
+  _dir.normalize();
+  _dir.y = Math.max(_dir.y, 0.18);
+  _dir.normalize();
+  const dir = _dir;
 
   const inheritScale = ROCKET.velocityInherit * 0.38 * falloff * forceScale;
   if (rocketVx !== undefined) {
@@ -328,7 +340,7 @@ export function applyExplosionToPlayer(
   armPlayerRocketKnockStun();
 
   return {
-    damage: splashDamageFactor(dist),
+    damage: splashDamageFactor(Math.min(dist, radius)),
     rocketJump: true,
   };
 }

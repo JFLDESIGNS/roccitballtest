@@ -77,6 +77,24 @@ function goalScoringArenaForwardM(size: GoalSize): number {
   return 0;
 }
 
+function goalTowardCourtSign(team: Team): 1 | -1 {
+  return team === 'red' ? 1 : -1;
+}
+
+function offsetAlongGoalAxis(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+  distance: number,
+): { x: number; y: number; z: number } {
+  const tilt = ringTiltX(goal.team, goal.size);
+  const towardCourt = goalTowardCourtSign(goal.team);
+  const localZ = distance * towardCourt;
+  return {
+    x: goal.center.x + Math.cos(tilt) * localZ,
+    y: goal.center.y - Math.sin(tilt) * localZ,
+    z: goal.center.z,
+  };
+}
+
 /** Push scoring cylinder into the ring — stick-out pulls center toward the court */
 export function goalScoringWallInsetM(size: GoalSize): number {
   const half = goalScoringSensorDepth(size) / 2;
@@ -131,18 +149,7 @@ export function goalScoringCenter(
   const inset = goalScoringWallInsetM(goal.size);
   const forward = goalScoringArenaForwardM(goal.size);
   const pullBack = goalScoringWallPullbackM(goal.size);
-  const towardCourt = goal.team === 'red' ? 1 : -1;
-  const yLiftFt =
-    goal.size === 'small' ? GOAL_RINGS.scoringVolumeTopLiftFt : 0;
-
-  return {
-    x:
-      goal.center.x +
-      (goal.team === 'red' ? -inset : inset) +
-      towardCourt * (forward - pullBack),
-    y: goal.center.y + yLiftFt * FT,
-    z: goal.center.z,
-  };
+  return offsetAlongGoalAxis(goal, forward - pullBack - inset);
 }
 
 export function goalScoringSensorDepth(size: GoalSize): number {
@@ -208,15 +215,16 @@ export function goalBackRingWallOffsetM(size: GoalSize): number {
 export function goalBackRingCenterX(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): number {
+  return goalBackRingCenter(goal).x;
+}
+
+export function goalBackRingCenter(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
   const backOffset = goalBackRingWallOffsetM(goal.size);
-  const towardCourt = goal.team === 'red' ? 1 : -1;
   const courtForward =
     goal.size === 'small' ? GOAL_RINGS.topBackRingCourtForwardFt * FT : 0;
-  return (
-    goal.center.x +
-    (goal.team === 'red' ? -backOffset : backOffset) +
-    towardCourt * courtForward
-  );
+  return offsetAlongGoalAxis(goal, courtForward - backOffset);
 }
 
 /** Black hole disc collider radius — matches Arena GoalRingBackCapCollider */
@@ -230,12 +238,7 @@ export function goalBackCapColliderRadius(
 export function goalBackCapDiscCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
-  const backX = goalBackRingCenterX(goal);
-  return {
-    x: backX,
-    y: goal.center.y,
-    z: goal.center.z,
-  };
+  return goalBackRingCenter(goal);
 }
 
 /** World center of the square backup cap collider (in front of the black disc). */
@@ -243,25 +246,22 @@ export function goalBackCapSquareCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
   const disc = goalBackCapDiscCenter(goal);
-  const towardCourt = goal.team === 'red' ? 1 : -1;
-  return {
-    x: disc.x + towardCourt * goalBackCapArenaNudgeM(goal.team, goal.size),
-    y: disc.y,
-    z: disc.z,
-  };
+  return offsetAlongGoalAxis(
+    { ...goal, center: disc },
+    goalBackCapArenaNudgeM(goal.team, goal.size),
+  );
 }
 
 /** Local +X nudge for backup cap square along hole axis (after ring tilt). */
-export function goalBackCapArenaNudgeM(team: Team, size: GoalSize): number {
-  const towardCourt = team === 'red' ? 1 : -1;
+export function goalBackCapArenaNudgeM(_team: Team, size: GoalSize): number {
   if (size === 'medium') {
-    return towardCourt * GOAL_RINGS.midRingBackCapCourtOffsetFt * FT;
+    return GOAL_RINGS.midRingBackCapCourtOffsetFt * FT;
   }
   if (size === 'small') {
-    return towardCourt * GOAL_RINGS.topRingBackCapCourtOffsetFt * FT;
+    return GOAL_RINGS.topRingBackCapCourtOffsetFt * FT;
   }
   const capNudgeScale = 0.15;
-  return towardCourt * GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
+  return GOAL_RINGS.backRingWallOffsetM * capNudgeScale;
 }
 
 function buildWallRings(team: Team, wallX: number): GoalDef[] {
@@ -317,12 +317,19 @@ export const ARENA_GOALS = buildGoals();
 const SPAWN_BACK_FROM_WALL = 14;
 
 /** Spawn on your defensive end — attack the opposite wall */
-export function getTeamSpawn(team: Team): { x: number; y: number; z: number } {
+export function getTeamSpawn(
+  team: Team,
+  teamSlot = 0,
+  teamPlayerCount = 1,
+): { x: number; y: number; z: number } {
   const { red: redX, blue: blueX } = goalWallPositions();
+  const slotOffsets =
+    teamPlayerCount >= 2 ? [-8, 8, -15, 15] : [0];
+  const zOffset = slotOffsets[teamSlot] ?? slotOffsets[slotOffsets.length - 1] ?? 0;
   return {
     x: team === 'red' ? redX + SPAWN_BACK_FROM_WALL : blueX - SPAWN_BACK_FROM_WALL,
     y: 2,
-    z: 0,
+    z: zOffset,
   };
 }
 

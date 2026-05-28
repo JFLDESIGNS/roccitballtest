@@ -2788,3 +2788,328 @@ body,
 .hud-match-end-btn--secondary:hover {
   background: #2e3d58;
 }
+
+.main-menu-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(2, 8, 18, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.main-menu-browser {
+  width: min(1100px, calc(100vw - 2rem));
+  max-height: min(88vh, 860px);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.1rem 1.15rem;
+  overflow: auto;
+  border: 1px solid rgba(101, 175, 255, 0.34);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(16, 28, 54, 0.96), rgba(6, 11, 24, 0.98)),
+    #08101e;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.main-menu-browser-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.main-menu-browser-head h2 {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.main-menu-browser-head span,
+.main-menu-browser-copy,
+.main-menu-browser-error,
+.main-menu-lobby-footer p {
+  color: #a9bfdc;
+  font-size: 0.82rem;
+}
+
+.main-menu-browser-kicker,
+.hud-goal-banner-overline {
+  color: #69d9ff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.main-menu-browser-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+  gap: 0.9rem;
+}
+
+.main-menu-browser-panel {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(98, 160, 236, 0.22);
+  border-radius: 8px;
+  background: rgba(7, 13, 29, 0.72);
+}
+
+.main-menu-browser-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.main-menu-browser-panel-head h3 {
+  font-size: 0.96rem;
+  text-transform: uppercase;
+}
+
+.main-menu-room-list,
+.main-menu-browser-create,
+.main-menu-lobby {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.main-menu-room-empty {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1.2rem;
+  border: 1px dashed rgba(110, 164, 235, 0.32);
+  border-radius: 8px;
+  color: #c8d7eb;
+  text-align: center;
+}
+
+.main-menu-room-card {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.82rem 0.9rem;
+  border: 1px solid rgba(96, 161, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(16, 28, 54, 0.7);
+  color: #edf5ff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.main-menu-room-card:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.main-menu-room-card-top,
+.main-menu-room-card-foot,
+.main-menu-lobby-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.main-menu-room-card span,
+.main-menu-room-card small,
+.main-menu-lobby-player-copy span {
+  color: #abc0db;
+  font-size: 0.78rem;
+}
+
+.main-menu-room-card em,
+.main-menu-lobby-player em {
+  color: #70e2ff;
+  font-size: 0.72rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.main-menu-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.main-menu-mode-btn {
+  min-height: 2.3rem;
+  border: 1px solid rgba(92, 159, 238, 0.32);
+  border-radius: 8px;
+  background: rgba(14, 23, 44, 0.86);
+  color: #dceaff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.main-menu-mode-btn--active {
+  border-color: rgba(95, 228, 255, 0.72);
+  background: rgba(20, 59, 92, 0.88);
+  color: #f7fcff;
+}
+
+.main-menu-browser-divider {
+  height: 1px;
+  background: rgba(95, 153, 225, 0.18);
+}
+
+.main-menu-lobby-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.main-menu-lobby-stat {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.72rem;
+  border: 1px solid rgba(97, 161, 240, 0.2);
+  border-radius: 8px;
+  background: rgba(10, 17, 35, 0.78);
+  text-align: center;
+}
+
+.main-menu-lobby-stat strong {
+  color: #f0f7ff;
+  font-size: 1.05rem;
+}
+
+.main-menu-lobby-stat span {
+  color: #9cb4d4;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.main-menu-lobby-roster {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.main-menu-lobby-player {
+  padding: 0.75rem 0.8rem;
+  border: 1px solid rgba(93, 155, 232, 0.22);
+  border-radius: 8px;
+  background: rgba(10, 17, 35, 0.78);
+}
+
+.main-menu-lobby-player--blue {
+  box-shadow: inset 3px 0 0 rgba(70, 170, 255, 0.75);
+}
+
+.main-menu-lobby-player--red {
+  box-shadow: inset 3px 0 0 rgba(255, 98, 108, 0.7);
+}
+
+.main-menu-lobby-player--empty {
+  opacity: 0.7;
+  box-shadow: inset 3px 0 0 rgba(132, 154, 180, 0.28);
+}
+
+.main-menu-lobby-player-badge,
+.hud-goal-banner-orb {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(66, 150, 255, 0.92), rgba(18, 48, 95, 0.96));
+  color: #fff;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.main-menu-lobby-player--red .main-menu-lobby-player-badge,
+.hud-goal-banner--red .hud-goal-banner-orb {
+  background: linear-gradient(180deg, rgba(255, 112, 112, 0.96), rgba(110, 22, 28, 0.98));
+}
+
+.main-menu-lobby-player-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.main-menu-lobby-player-copy strong {
+  color: #eef6ff;
+  font-size: 0.88rem;
+}
+
+.main-menu-lobby-footer {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.main-menu-lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.main-menu-browser-error {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(255, 118, 136, 0.28);
+  border-radius: 8px;
+  background: rgba(52, 13, 21, 0.72);
+  color: #ffd2d8;
+}
+
+.hud-goal-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 6rem;
+  transform: translateX(-50%);
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: min(34rem, calc(100vw - 2rem));
+  max-width: min(42rem, calc(100vw - 2rem));
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(93, 165, 255, 0.34);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(12, 22, 45, 0.94), rgba(5, 10, 22, 0.98)),
+    #08101d;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hud-goal-banner--blue {
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.34),
+    inset 4px 0 0 rgba(71, 165, 255, 0.88);
+}
+
+.hud-goal-banner--red {
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.34),
+    inset 4px 0 0 rgba(255, 98, 108, 0.88);
+}
+
+.hud-goal-banner-copy {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.hud-goal-banner-copy h3 {
+  font-size: clamp(1.3rem, 2vw, 2rem);
+  line-height: 1;
+}
+
+.hud-goal-banner-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  color: #d6e3f3;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}

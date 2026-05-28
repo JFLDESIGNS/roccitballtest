@@ -6,6 +6,8 @@ import { tickGoalRimBallBounce } from './goalRingBounce';
 import { gameStore } from './gameStore';
 import { tuningStore } from './tuningStore';
 import * as THREE from 'three';
+import { playGoalRimHit } from './audio';
+import { triggerGoalRingHit } from './goalRingHitFx';
 
 /** Physics cap — loose proxy & clamps read BALL/SUPERBALL.maxSpeed from Constants. */
 export function getBallMaxSpeed(): number {
@@ -41,7 +43,17 @@ export function stepBallPhysics(
     const t = body.translation();
     _ballFrom.copy(prev);
     _ballTo.set(t.x, t.y, t.z);
-    tickGoalRimBallBounce(body, _ballFrom, _ballTo, goalRimBounceCooldown, dt);
+    const rimHit = tickGoalRimBallBounce(
+      body,
+      _ballFrom,
+      _ballTo,
+      goalRimBounceCooldown,
+      dt,
+    );
+    if (rimHit) {
+      playGoalRimHit(rimHit.impactSpeed);
+      triggerGoalRingHit(rimHit.goalId);
+    }
   }
   applyBallFloorAssist(body);
   applyBallWallUnstick(body);

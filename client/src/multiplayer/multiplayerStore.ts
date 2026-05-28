@@ -4,12 +4,26 @@ import { gameStore, type GamePhase } from '../game/gameStore';
 import { applyNetworkGoalScore } from '../game/goalScoreHandler';
 
 export type MultiplayerStatus = 'offline' | 'connecting' | 'online' | 'error';
+export type RoomMode = '1v1' | '2v2';
+
+export type RoomSummary = {
+  id: string;
+  name: string;
+  mode: RoomMode;
+  maxPlayers: number;
+  playerCount: number;
+  readyCount: number;
+  inMatch: boolean;
+};
+
+export type RoomInfo = RoomSummary;
 
 export type RemoteMultiplayerPlayer = {
   id: string;
   name: string;
   jerseyNumber: number;
   team: Team;
+  teamSlot: number;
   position: Vec3;
   velocity: Vec3;
   rotation: { yaw: number; pitch: number };
@@ -74,7 +88,9 @@ type MultiplayerState = {
   selfId: string | null;
   hostId: string | null;
   roomId: string;
+  roomInfo: RoomInfo | null;
   team: Team | null;
+  teamSlot: number;
   error: string | null;
   ball: NetworkBallState | null;
   match: NetworkMatchState | null;
@@ -85,13 +101,23 @@ type MultiplayerState = {
 };
 
 type ServerMessage =
-  | { type: 'welcome'; id: string; roomId: string; team: Team; hostId?: string }
+  | {
+      type: 'welcome';
+      id: string;
+      roomId: string;
+      team: Team;
+      teamSlot: number;
+      hostId?: string;
+      room: RoomInfo;
+    }
+  | { type: 'joinError'; message: string }
   | {
       type: 'snapshot';
       serverTime: number;
       hostId: string | null;
       ball: NetworkBallState | null;
       match: NetworkMatchState | null;
+      room: RoomInfo;
       players: RemoteMultiplayerPlayer[];
     }
   | {
@@ -115,6 +141,9 @@ type ServerMessage =
         goalId: string;
         goalPos: Vec3;
         score: MatchScore;
+        scorerId: string | null;
+        scorerName: string | null;
+        shotDistanceM: number | null;
       };
     };
 
@@ -141,7 +170,9 @@ let state: MultiplayerState = {
   selfId: null,
   hostId: null,
   roomId: 'main',
+  roomInfo: null,
   team: null,
+  teamSlot: 0,
   error: null,
   ball: null,
   match: null,
@@ -179,6 +210,22 @@ function websocketUrl(): string {
   return `${protocol}//${window.location.host}/ws`;
 }
 
+function apiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_MULTIPLAYER_HTTP_URL as string | undefined;
+  if (envUrl?.trim()) return envUrl.trim().replace(/\/+$/, '');
+  const wsUrl = websocketUrl();
+  return wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
+}
+
+async function readJson<T>(input: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(input, init);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `Request failed (${response.status})`);
+  }
+  return (await response.json()) as T;
+}
+
 function sendJson(payload: unknown) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify(payload));
@@ -199,14 +246,38 @@ function handleMessage(raw: string) {
       selfId: msg.id,
       hostId: msg.hostId ?? msg.id,
       roomId: msg.roomId,
+      roomInfo: msg.room,
       team: msg.team,
+      teamSlot: msg.teamSlot,
       error: null,
     });
     return;
   }
 
+  if (msg.type === 'joinError') {
+    patch({
+      status: 'error',
+      error: msg.message,
+      enabled: false,
+      selfId: null,
+      hostId: null,
+      roomInfo: null,
+      team: null,
+      teamSlot: 0,
+      ball: null,
+      match: null,
+      playReady: false,
+      remoteRockets: [],
+      remoteBallActions: [],
+      remotePlayers: [],
+    });
+    closeSocket();
+    return;
+  }
+
   if (msg.type === 'snapshot') {
     const selfId = state.selfId;
+    const selfPlayer = msg.players.find((player) => player.id === selfId) ?? null;
     if (msg.match && selfId !== msg.hostId) {
       gameStore.syncNetworkMatch(msg.match);
     }
@@ -214,6 +285,9 @@ function handleMessage(raw: string) {
       hostId: msg.hostId,
       ball: msg.ball,
       match: msg.match,
+      roomInfo: msg.room,
+      team: selfPlayer?.team ?? state.team,
+      teamSlot: selfPlayer?.teamSlot ?? state.teamSlot,
       remotePlayers: msg.players.filter((player) => player.id !== selfId),
     });
     return;
@@ -239,6 +313,8 @@ function handleMessage(raw: string) {
       scoringTeam: msg.goal.scoringTeam,
       goalPos: msg.goal.goalPos,
       score: msg.goal.score,
+      scorerName: msg.goal.scorerName,
+      shotDistanceM: msg.goal.shotDistanceM,
     });
   }
 }
@@ -272,7 +348,9 @@ export const multiplayerStore = {
       selfId: null,
       hostId: null,
       roomId,
+      roomInfo: null,
       team: null,
+      teamSlot: 0,
       error: null,
       ball: null,
       match: null,
@@ -315,7 +393,9 @@ export const multiplayerStore = {
           status: 'offline',
           selfId: null,
           hostId: null,
+          roomInfo: null,
           team: null,
+          teamSlot: 0,
           ball: null,
           match: null,
           playReady: false,
@@ -334,7 +414,9 @@ export const multiplayerStore = {
       status: 'offline',
       selfId: null,
       hostId: null,
+      roomInfo: null,
       team: null,
+      teamSlot: 0,
       error: null,
       ball: null,
       match: null,
@@ -434,5 +516,19 @@ export const multiplayerStore = {
     state = { ...state, remoteBallActions: [] };
     emit();
     return actions;
+  },
+
+  async fetchRooms(): Promise<RoomSummary[]> {
+    const data = await readJson<{ rooms: RoomSummary[] }>(`${apiBaseUrl()}/api/rooms`);
+    return data.rooms;
+  },
+
+  async createRoom(options: { mode: RoomMode; name?: string }): Promise<RoomSummary> {
+    const data = await readJson<{ room: RoomSummary }>(`${apiBaseUrl()}/api/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+    return data.room;
   },
 };

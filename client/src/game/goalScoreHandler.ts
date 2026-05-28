@@ -59,6 +59,8 @@ export function applyNetworkGoalScore(hit: {
   scoringTeam: Team;
   goalPos: { x: number; y: number; z: number };
   score: { red: number; blue: number };
+  scorerName?: string | null;
+  shotDistanceM?: number | null;
 }): void {
   goalScoreRuntime.scoreCooldownSec =
     MATCH.scorePauseSec +

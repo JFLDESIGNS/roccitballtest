@@ -139,18 +139,24 @@ function RemoteBeamVisual({
   ballPosition: () => THREE.Vector3 | null;
 }) {
   const chestRef = useRef(new THREE.Vector3());
+  const updateChestPosition = useCallback(() => {
+    chestRef.current.set(
+      player.position.x,
+      player.position.y + BEAM.chestHeight,
+      player.position.z,
+    );
+    return chestRef.current;
+  }, [player.position.x, player.position.y, player.position.z]);
 
   return (
     <BeamVisual
-      pullActive={() => player.isBeaming}
-      chestPosition={() => {
-        chestRef.current.set(
-          player.position.x,
-          player.position.y + BEAM.chestHeight,
-          player.position.z,
-        );
-        return chestRef.current;
+      pullActive={() => {
+        if (!player.isBeaming) return false;
+        const chest = updateChestPosition();
+        const ball = ballPosition();
+        return !!ball && chest.distanceTo(ball) < BEAM.range;
       }}
+      chestPosition={updateChestPosition}
       ballPosition={ballPosition}
       lowEnergy={false}
       team={player.team}
@@ -459,7 +465,7 @@ function Scene({
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
         if (hostStateSendTimer.current <= 0) {
-          hostStateSendTimer.current = 1 / 30;
+          hostStateSendTimer.current = 1 / 60;
           const t = ballForNetwork.translation();
           const v = ballForNetwork.linvel();
           const av = ballForNetwork.angvel();
