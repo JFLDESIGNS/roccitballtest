@@ -118,9 +118,14 @@ const ROOM_NAME_MAX = 28;
 const MIN_LAUNCHED_BALL_SPEED = 18;
 const PLAYER_BALL_CONTACT_RADIUS = BALL_RADIUS + 1.35;
 const PLAYER_BALL_CONTACT_VERTICAL = 3.1;
-const PLAYER_BALL_CONTACT_PUSH = 8.5;
-const PLAYER_BALL_CONTACT_VEL_INHERIT = 0.68;
-const PLAYER_BALL_CONTACT_MAX_DELTA_V = 6.5;
+const PLAYER_BALL_CONTACT_PUSH = 25.5;
+const PLAYER_BALL_CONTACT_VEL_INHERIT = 2.04;
+const PLAYER_BALL_CONTACT_MAX_DELTA_V = 19.5;
+const PLAYER_BALL_SCOOP_TOP_Y = 0.34;
+const PLAYER_BALL_SCOOP_POP_MIN_UP_SPEED = 2.6;
+const PLAYER_BALL_SCOOP_HALF_X = 0.78;
+const PLAYER_BALL_SCOOP_HALF_Z = 1.24;
+const PLAYER_BALL_SCOOP_CENTER_Z = 0;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
 const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
@@ -1332,6 +1337,34 @@ function applyPlayerContactToServerBall(room, dt, now) {
     );
     vx += nx * deltaV;
     vz += nz * deltaV;
+
+    const ballBottomY = ballPosition.y - BALL_RADIUS;
+    const scoopTopY = player.position.y + PLAYER_BALL_SCOOP_TOP_Y;
+    const yaw = Number.isFinite(player.rotation?.yaw) ? player.rotation.yaw : 0;
+    const localBallX = dx * -Math.cos(yaw) + dz * Math.sin(yaw);
+    const localBallZ = dx * -Math.sin(yaw) + dz * -Math.cos(yaw);
+    const ballOverLowerScoop =
+      Math.abs(localBallX) <= PLAYER_BALL_SCOOP_HALF_X + BALL_RADIUS * 0.48 &&
+      Math.abs(localBallZ - PLAYER_BALL_SCOOP_CENTER_Z) <=
+        PLAYER_BALL_SCOOP_HALF_Z + BALL_RADIUS * 0.42;
+    const jumpingUnderBall =
+      player.velocity.y > PLAYER_BALL_SCOOP_POP_MIN_UP_SPEED &&
+      ballBottomY >= scoopTopY - 0.42 &&
+      ballBottomY <= scoopTopY + 0.95 &&
+      ballOverLowerScoop;
+    if (jumpingUnderBall) {
+      const pop = Math.min(
+        26,
+        Math.max(
+          12,
+          player.velocity.y * 2.2 +
+            Math.hypot(player.velocity.x, player.velocity.z) * 0.35,
+        ),
+      );
+      vy += pop;
+      vx += player.velocity.x * 0.45;
+      vz += player.velocity.z * 0.45;
+    }
 
     const fallingOntoBall =
       player.velocity.y < -2.2 &&

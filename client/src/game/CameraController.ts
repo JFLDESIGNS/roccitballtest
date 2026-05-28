@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ARENA, CAMERA } from '../shared/Constants';
+import { isInsideHex } from './arenaHex';
 
 const _lookDir = new THREE.Vector3();
 const _behind = new THREE.Vector3();
@@ -10,6 +11,7 @@ const _lookTarget = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _fromPivot = new THREE.Vector3();
 const _toRef = new THREE.Vector3();
+const _wallTest = new THREE.Vector3();
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -46,6 +48,30 @@ function clampCameraFloor(pos: THREE.Vector3, pivotY: number) {
     pivotY - CAMERA.maxDropBelowPivot,
   );
   if (pos.y < minY) pos.y = minY;
+}
+
+function clampCameraArenaWalls(pos: THREE.Vector3, pivot: THREE.Vector3) {
+  if (pos.y > ARENA.wallHeight + 1.5) return;
+
+  const radius = ARENA.hexRadius - ARENA.wallThickness - CAMERA.collisionPadding;
+  if (isInsideHex(pos.x, pos.z, radius)) return;
+  if (!isInsideHex(pivot.x, pivot.z, radius)) {
+    pos.copy(pivot);
+    return;
+  }
+
+  let insideT = 0;
+  let outsideT = 1;
+  for (let i = 0; i < 14; i += 1) {
+    const t = (insideT + outsideT) * 0.5;
+    _wallTest.lerpVectors(pivot, pos, t);
+    if (isInsideHex(_wallTest.x, _wallTest.z, radius)) {
+      insideT = t;
+    } else {
+      outsideT = t;
+    }
+  }
+  pos.lerpVectors(pivot, pos, Math.max(0, insideT - 0.015));
 }
 
 /**
@@ -105,6 +131,7 @@ export function updateThirdPersonCamera(
   }
 
   clampCameraFloor(_desired, pivot.y);
+  clampCameraArenaWalls(_desired, pivot);
 
   if (snap) {
     camera.position.copy(_desired);
@@ -114,6 +141,7 @@ export function updateThirdPersonCamera(
   }
 
   clampCameraFloor(camera.position, pivot.y);
+  clampCameraArenaWalls(camera.position, pivot);
 
   _lookTarget.copy(_desired).addScaledVector(_lookDir, CAMERA.lookAhead);
 

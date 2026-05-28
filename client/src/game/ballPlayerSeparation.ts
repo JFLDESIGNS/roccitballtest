@@ -58,8 +58,8 @@ export function separateBallFromPlayer(
   );
   const horiz = Math.hypot(lv.x, lv.z);
   const boost = Math.min(
-    22,
-    5.5 + overlap * 9 + horiz * 0.06 + playerTowardBall * 0.55,
+    66,
+    16.5 + overlap * 27 + horiz * 0.18 + playerTowardBall * 1.65,
   );
   ball.setLinvel(
     {
