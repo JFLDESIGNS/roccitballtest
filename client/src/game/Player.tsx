@@ -33,7 +33,7 @@ import {
 } from './beamPhysics';
 import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse } from './ballPhysics';
-import { clampToHex } from './arenaHex';
+import { clampToHex, isInsideHex } from './arenaHex';
 import { getTeamSpawn } from './goals';
 import {
   getCameraBasis,
@@ -158,6 +158,11 @@ function speedCameraFactor(
 
 const _moveVelXZ = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
+const _grappleToChest = new THREE.Vector3();
+const _grappleMidpoint = new THREE.Vector3();
+const _grappleCableDir = new THREE.Vector3();
+const _grappleCableUp = new THREE.Vector3(0, 1, 0);
+const _grappleCableQuat = new THREE.Quaternion();
 
 function ePropelImpulseThreshold(index: number): number {
   const n = MOVEMENT.ePropelImpulseCount;
@@ -350,6 +355,12 @@ export function Player({
   const grindRailCooldown = useRef(0);
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
+  const lastGroundY = useRef<number | null>(null);
+  const beamWasDown = useRef(false);
+  const grappleActive = useRef(false);
+  const grappleAnchor = useRef(new THREE.Vector3());
+  const grappleLength = useRef(0);
+  const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
     if (!body) return;
@@ -373,6 +384,41 @@ export function Player({
       collider.setCollisionGroups(groups);
     }
   }, []);
+  const stopGrapple = useCallback((boost = false) => {
+    if (!grappleActive.current) return;
+    grappleActive.current = false;
+    const body = bodyRef.current;
+    if (boost && body) {
+      const lv = body.linvel();
+      body.setLinvel(
+        {
+          x: lv.x * MOVEMENT.grappleReleaseBoost,
+          y: Math.max(lv.y, 0) + 2.2,
+          z: lv.z * MOVEMENT.grappleReleaseBoost,
+        },
+        true,
+      );
+    }
+  }, []);
+  const tryStartGrapple = useCallback(
+    (origin: THREE.Vector3, lookDir: THREE.Vector3) => {
+      if (lookDir.y < MOVEMENT.grappleMinLookY) return false;
+      const ceilingY = ARENA.wallHeight + ARENA.ceilingOverlapM - 0.08;
+      const t = (ceilingY - origin.y) / Math.max(lookDir.y, 0.0001);
+      if (t <= 0 || t > MOVEMENT.grappleMaxDistance) return false;
+      const hitX = origin.x + lookDir.x * t;
+      const hitZ = origin.z + lookDir.z * t;
+      if (!isInsideHex(hitX, hitZ, ARENA.hexRadius - 1.4)) return false;
+      grappleAnchor.current.set(hitX, ceilingY, hitZ);
+      grappleLength.current = Math.max(
+        4.5,
+        grappleAnchor.current.distanceTo(origin),
+      );
+      grappleActive.current = true;
+      return true;
+    },
+    [],
+  );
   const stopGrindRailRide = useCallback((cooldownSec = 0) => {
     if (grindRailActive.current) {
       grindRailActive.current = false;
@@ -666,6 +712,8 @@ export function Player({
     if (tuningStore.getState().showMenu) return;
 
     const tune = tuningStore.getState();
+    const effectiveWalkSpeed = Math.max(tune.walkSpeed, MOVEMENT.walkSpeed);
+    const effectiveSprintSpeed = Math.max(tune.sprintSpeed, MOVEMENT.sprintSpeed);
     if (gameStore.getState().arenaSettleCountdown > 0) {
       const t = body.translation();
       const pos = _posScratch.current.set(t.x, t.y, t.z);
@@ -727,7 +775,7 @@ export function Player({
         forward,
         right,
         move,
-        tune.walkSpeed,
+        effectiveWalkSpeed,
       );
       const wishDir = _wishDir.current.copy(_moveVelXZ);
       if (wishDir.lengthSq() > 0) {
@@ -742,7 +790,7 @@ export function Player({
       blendPlayerKnockStunMovement(body, velocity.current, {
         wishX: moveLocked ? 0 : _moveVelXZ.x,
         wishZ: moveLocked ? 0 : _moveVelXZ.z,
-        walkSpeed: tune.walkSpeed,
+        walkSpeed: effectiveWalkSpeed,
         grounded: groundedStun,
         dt,
       });
@@ -751,8 +799,8 @@ export function Player({
       const stunMoveSpeed = Math.hypot(lv.x, lv.z);
       const stunFactor = speedCameraFactor(
         stunMoveSpeed,
-        tune.walkSpeed,
-        tune.sprintSpeed,
+        effectiveWalkSpeed,
+        effectiveSprintSpeed,
       );
       camSpeedExtra.current = smoothAsymmetric(
         camSpeedExtra.current,
@@ -834,6 +882,12 @@ export function Player({
     const rot = inputManager.getRotation();
     const lookDir = inputManager.getLookDirection();
     const { forward, right } = getCameraBasis(rot.yaw);
+    const beamDown = inputManager.isBeam();
+    const beamPressed = beamDown && !beamWasDown.current;
+    if (!beamDown && beamWasDown.current) {
+      stopGrapple(false);
+    }
+    beamWasDown.current = beamDown;
 
     pivotRef.current.set(pos.x, pos.y + CAMERA.pivotHeight, pos.z);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
@@ -868,8 +922,8 @@ export function Player({
         : 0;
     const speedFactor = speedCameraFactor(
       moveSpeed,
-      tune.walkSpeed,
-      tune.sprintSpeed,
+      effectiveWalkSpeed,
+      effectiveSprintSpeed,
     );
     camSpeedExtra.current = smoothAsymmetric(
       camSpeedExtra.current,
@@ -971,8 +1025,10 @@ export function Player({
     if (grounded.current && jumpAirGrace.current <= 0) {
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = MOVEMENT.coyoteTimeSec;
+      lastGroundY.current = probe.groundY;
     } else if (!grounded.current) {
       coyoteTime.current = Math.max(0, coyoteTime.current - dt);
+      lastGroundY.current = null;
     }
 
     const move = goalEjectMoveLocked
@@ -982,8 +1038,12 @@ export function Player({
     const canSprint = energy.current > 0;
     const sprinting =
       sprintInput && canSprint && (move.x !== 0 || move.y !== 0);
-    const speed = sprinting ? tune.sprintSpeed : tune.walkSpeed;
+    const walkSpeed = effectiveWalkSpeed;
+    const sprintSpeed = effectiveSprintSpeed;
+    const speed = sprinting ? sprintSpeed : walkSpeed;
     const accel = grounded.current ? MOVEMENT.groundAccel : MOVEMENT.groundAccel * 0.65;
+    const skiing = sprinting && grounded.current && !grindRailActive.current;
+    const skiGliding = sprintInput && !grounded.current && !grindRailActive.current;
 
     cameraMoveTargetXZ(_moveVelXZ, forward, right, move, speed);
     const wishDir = _wishDir.current.copy(_moveVelXZ);
@@ -1055,16 +1115,38 @@ export function Player({
       const control = grounded.current ? 1 : MOVEMENT.airControl;
       const targetVelX = _moveVelXZ.x * control;
       const targetVelZ = _moveVelXZ.z * control;
+      const accelScale = skiing ? MOVEMENT.skiGroundControl : accel;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
         targetVelX,
-        accel * dt,
+        accelScale * dt,
       );
       velocity.current.z = THREE.MathUtils.lerp(
         velocity.current.z,
         targetVelZ,
-        accel * dt,
+        accelScale * dt,
       );
+
+      if (skiing) {
+        const prevGroundY = lastGroundY.current ?? probe.groundY;
+        const slopeDelta = probe.groundY - prevGroundY;
+        lastGroundY.current = probe.groundY;
+        const horizSpeed = Math.hypot(velocity.current.x, velocity.current.z);
+        const dirX =
+          horizSpeed > 0.001 ? velocity.current.x / horizSpeed : forward.x;
+        const dirZ =
+          horizSpeed > 0.001 ? velocity.current.z / horizSpeed : forward.z;
+        velocity.current.x *= MOVEMENT.skiMomentumPreserve;
+        velocity.current.z *= MOVEMENT.skiMomentumPreserve;
+        if (Math.abs(slopeDelta) > MOVEMENT.skiMinSlopeDelta) {
+          const slopeAccel =
+            slopeDelta < 0
+              ? (-slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiDownhillAccel
+              : -(slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiUphillDrag;
+          velocity.current.x += dirX * slopeAccel * dt;
+          velocity.current.z += dirZ * slopeAccel * dt;
+        }
+      }
 
       if (!grounded.current && wishDir.lengthSq() > 0) {
         const curH = Math.hypot(velocity.current.x, velocity.current.z);
@@ -1074,6 +1156,11 @@ export function Player({
           velocity.current.x = targetVelX * keep;
           velocity.current.z = targetVelZ * keep;
         }
+      }
+
+      if (skiGliding) {
+        velocity.current.x *= MOVEMENT.skiAirMomentumPreserve;
+        velocity.current.z *= MOVEMENT.skiAirMomentumPreserve;
       }
     }
 
@@ -1150,7 +1237,7 @@ export function Player({
           velocity.current.z = tangentZ * exitSpeed;
           velocity.current.y = linvel.y;
         } else {
-          grindRailWobble.current += dt * THREE.MathUtils.lerp(8, 15, Math.min(1, grindRailSpeed.current / Math.max(1, tune.sprintSpeed * 2)));
+          grindRailWobble.current += dt * THREE.MathUtils.lerp(8, 15, Math.min(1, grindRailSpeed.current / Math.max(1, effectiveSprintSpeed * 2)));
           grindRailSpeed.current = Math.max(
             0,
             grindRailSpeed.current - GRIND_RAIL.decelMps2 * dt,
@@ -1210,9 +1297,9 @@ export function Player({
       grindRailWobble.current = 0;
       grindRailSparkTimer.current = 0;
       grindRailSpeed.current = THREE.MathUtils.clamp(
-        Math.max(horizontalSpeed * 3, tune.walkSpeed * 3),
-        tune.walkSpeed * 3,
-        tune.sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
+        Math.max(horizontalSpeed * 3, walkSpeed * 3),
+        walkSpeed * 3,
+        sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
       );
       const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.04;
       body.setTranslation(
@@ -1244,6 +1331,7 @@ export function Player({
     if (
       !goalEjectMoveLocked &&
       !grindRailActive.current &&
+      !grappleActive.current &&
       dashCooldown.current <= 0 &&
       inputManager.consumeDashBoost()
     ) {
@@ -1273,7 +1361,12 @@ export function Player({
       );
     }
 
-    if (jumpPressed && !railConsumedJump && !grindRailActive.current) {
+    if (grappleActive.current && jumpPressed) {
+      stopGrapple(true);
+      grounded.current = false;
+      jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+      coyoteTime.current = 0;
+    } else if (jumpPressed && !railConsumedJump && !grindRailActive.current) {
       const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
       if (jumpIndex >= 2) {
         triggerForwardFlip('local');
@@ -1302,10 +1395,49 @@ export function Player({
       );
     }
     if (!grindRailActive.current) {
-      vy = tuningStore.integrateGravity(vy, dt);
+      const gravityDt = skiGliding ? dt * MOVEMENT.skiAirGravityScale : dt;
+      vy = tuningStore.integrateGravity(vy, gravityDt);
     }
 
     velocity.current.y = vy;
+    if (grappleActive.current) {
+      const chestX = pos.x;
+      const chestY = pos.y + BEAM.chestHeight;
+      const chestZ = pos.z;
+      _grappleToChest.set(
+        chestX - grappleAnchor.current.x,
+        chestY - grappleAnchor.current.y,
+        chestZ - grappleAnchor.current.z,
+      );
+      const dist = _grappleToChest.length();
+      if (dist > 0.001) {
+        _grappleToChest.multiplyScalar(1 / dist);
+        const ropeDir = _grappleToChest;
+        const radialSpeed =
+          velocity.current.x * ropeDir.x +
+          velocity.current.y * ropeDir.y +
+          velocity.current.z * ropeDir.z;
+        if (dist >= grappleLength.current && radialSpeed > 0) {
+          velocity.current.x -= ropeDir.x * radialSpeed;
+          velocity.current.y -= ropeDir.y * radialSpeed;
+          velocity.current.z -= ropeDir.z * radialSpeed;
+        }
+        if (dist > grappleLength.current) {
+          const tighten = dist - grappleLength.current;
+          velocity.current.x -= ropeDir.x * tighten * MOVEMENT.grapplePullTightness;
+          velocity.current.y -= ropeDir.y * tighten * MOVEMENT.grapplePullTightness;
+          velocity.current.z -= ropeDir.z * tighten * MOVEMENT.grapplePullTightness;
+          const nextChestX = grappleAnchor.current.x + ropeDir.x * grappleLength.current;
+          const nextChestY = grappleAnchor.current.y + ropeDir.y * grappleLength.current;
+          const nextChestZ = grappleAnchor.current.z + ropeDir.z * grappleLength.current;
+          const nextBodyY = nextChestY - BEAM.chestHeight;
+          body.setTranslation({ x: nextChestX, y: nextBodyY, z: nextChestZ }, true);
+          pos.set(nextChestX, nextBodyY, nextChestZ);
+        }
+      }
+      grounded.current = false;
+      jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
+    }
     const feetNow = playerFeetY(pos.y);
     const padLaunched = tryPlayerPads(
       body,
@@ -1392,7 +1524,7 @@ export function Player({
           ballBodyRef.current.translation().z,
         ));
 
-    if (!inputManager.isBeam()) {
+    if (!beamDown) {
       beamNeedsRepress.current = false;
     }
 
@@ -1407,11 +1539,12 @@ export function Player({
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
     const beamAttempt =
-      inputManager.isBeam() &&
+      beamDown &&
       !beamNeedsRepress.current &&
       !knockStunned &&
       energy.current >= ENERGY.minBeam &&
-      !frozen;
+      !frozen &&
+      !grappleActive.current;
     const beamRequested = beamAttempt && !beamDenied;
     let canLockBeamTarget = false;
 
@@ -1431,9 +1564,17 @@ export function Player({
     const beamInput =
       beamRequested && (holdingBall.current || canLockBeamTarget);
 
-    if (beamAttempt && !beamInput && now - beamNoLockSoundAt.current > 0.45) {
-      beamNoLockSoundAt.current = now;
-      playBeamNoLock();
+    if (beamAttempt && !beamInput) {
+      if (
+        beamPressed &&
+        !holdingBall.current &&
+        tryStartGrapple(chestPos.current, lookDir)
+      ) {
+        // use grapple instead of empty beam when no ball is available
+      } else if (now - beamNoLockSoundAt.current > 0.45) {
+        beamNoLockSoundAt.current = now;
+        playBeamNoLock();
+      }
     }
 
     if (beamInput && holdingBall.current) {
@@ -1945,6 +2086,33 @@ export function Player({
     if (clamped.x !== pos.x || clamped.z !== pos.z) {
       body.setTranslation({ x: clamped.x, y: pos.y, z: clamped.z }, true);
     }
+
+    const grappleCable = grappleCableRef.current;
+    if (grappleCable) {
+      if (grappleActive.current) {
+        _grappleCableDir.copy(grappleAnchor.current).sub(chestPos.current);
+        const cableLength = _grappleCableDir.length();
+        if (cableLength > 0.001) {
+          _grappleMidpoint
+            .copy(chestPos.current)
+            .add(grappleAnchor.current)
+            .multiplyScalar(0.5);
+          _grappleCableDir.multiplyScalar(1 / cableLength);
+          _grappleCableQuat.setFromUnitVectors(
+            _grappleCableUp,
+            _grappleCableDir,
+          );
+          grappleCable.visible = true;
+          grappleCable.position.copy(_grappleMidpoint);
+          grappleCable.quaternion.copy(_grappleCableQuat);
+          grappleCable.scale.set(1, cableLength, 1);
+        } else {
+          grappleCable.visible = false;
+        }
+      } else {
+        grappleCable.visible = false;
+      }
+    }
   });
 
   const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
@@ -1977,6 +2145,16 @@ export function Player({
   return (
     <group visible={!debugFreelook}>
       <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
+      <mesh ref={grappleCableRef} visible={false} frustumCulled={false}>
+        <cylinderGeometry args={[0.025, 0.025, 1, 8, 1, true]} />
+        <meshBasicMaterial
+          color="#8fd8ff"
+          transparent
+          opacity={0.92}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
       <PlayerMotionRibbons bodyRef={bodyRef} />
       {playerVisualProxy ? (
         <PlayerVisualProxy

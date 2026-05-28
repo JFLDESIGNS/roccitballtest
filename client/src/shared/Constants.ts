@@ -680,9 +680,9 @@ export const AIM = {
 
 /** Player movement */
 export const MOVEMENT = {
-  walkSpeed: 9.5,
+  walkSpeed: 14.25,
   /** +30% vs prior sprint — shift sprint */
-  sprintSpeed: 18.2,
+  sprintSpeed: 27.3,
   /** A/D strafe vs W/S — pure sideways uses walk/sprint × this */
   strafeSpeedScale: 1.38,
   jumpForce: 18,
@@ -736,6 +736,18 @@ export const MOVEMENT = {
   ePropelSustainSpeed: 36,
   ePropelEnergyCostFrac: 0.6,
   ePropelCooldownSec: 0.45,
+  /** Shift-held glide/ski control on slopes */
+  skiGroundControl: 0.18,
+  skiDownhillAccel: 26,
+  skiUphillDrag: 11,
+  skiMomentumPreserve: 0.992,
+  skiMinSlopeDelta: 0.012,
+  skiAirGravityScale: 0.72,
+  skiAirMomentumPreserve: 0.997,
+  grappleMaxDistance: 95,
+  grappleMinLookY: 0.1,
+  grapplePullTightness: 17,
+  grappleReleaseBoost: 1.16,
 } as const;
 
 /** Energy */
