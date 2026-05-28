@@ -14,7 +14,7 @@ const railPathInsetM =
 
 export const GRIND_RAIL = {
   y: ARENA.arenaLogoBannerY - ARENA.arenaLogoBannerHeightM * 0.5,
-  radius: 0.66,
+  radius: 0.52,
   pathInsetM: railPathInsetM,
   goalGapM: RAIL_GOAL_GAP_M,
   rideOffsetM: 0.02,

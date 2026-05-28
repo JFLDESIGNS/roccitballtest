@@ -7,19 +7,19 @@ import {
 } from './grindRail';
 
 const railMaterial = new THREE.MeshStandardMaterial({
-  color: '#bb1a27',
-  emissive: '#250406',
-  emissiveIntensity: 0.18,
-  metalness: 0.46,
-  roughness: 0.22,
+  color: '#090b10',
+  emissive: '#020304',
+  emissiveIntensity: 0.04,
+  metalness: 0.56,
+  roughness: 0.18,
 });
 
 const railCoreMaterial = new THREE.MeshStandardMaterial({
-  color: '#ffd9de',
-  emissive: '#3a070c',
-  emissiveIntensity: 0.14,
-  metalness: 0.24,
-  roughness: 0.18,
+  color: '#171b23',
+  emissive: '#07090c',
+  emissiveIntensity: 0.05,
+  metalness: 0.34,
+  roughness: 0.24,
 });
 
 const glowMaterial = new THREE.MeshStandardMaterial({

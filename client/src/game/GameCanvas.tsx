@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Physics, type RapierRigidBody } from '@react-three/rapier';
-import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useSyncExternalStore } from 'react';
 import { BALL, BEAM, BOT, MATCH, RENDER, ROCKET } from '../shared/Constants';
@@ -137,6 +137,7 @@ function rocketFromNetwork(r: NetworkRocketState): ActiveRocket {
 const NETWORK_BALL_INTERPOLATION_BACKTIME_SEC = 0.1;
 const NETWORK_BALL_EXTRAPOLATE_SEC = 0.1;
 const NETWORK_BALL_MAX_EXTRAPOLATE_SPEED = 85;
+const NETWORK_BALL_CORRECTION_SNAP_M = 8.5;
 
 type NetworkBallSample = {
   position: THREE.Vector3;
@@ -340,8 +341,34 @@ function PreMatchArenaFlyover() {
   const { camera } = useThree();
   const startedAt = useRef(0);
   const snapped = useRef(false);
-  const target = useRef(new THREE.Vector3(0, 13, 0));
   const desired = useRef(new THREE.Vector3());
+  const lookAt = useRef(new THREE.Vector3());
+
+  const shots = useMemo(
+    () => [
+      {
+        pos: new THREE.Vector3(-46, 16, 30),
+        look: new THREE.Vector3(-18, 11, 6),
+      },
+      {
+        pos: new THREE.Vector3(-22, 13, -52),
+        look: new THREE.Vector3(-4, 10, -8),
+      },
+      {
+        pos: new THREE.Vector3(40, 19, -24),
+        look: new THREE.Vector3(15, 11, -2),
+      },
+      {
+        pos: new THREE.Vector3(0, 30, 56),
+        look: new THREE.Vector3(0, 12, 0),
+      },
+      {
+        pos: new THREE.Vector3(0, 24, 0),
+        look: new THREE.Vector3(0, 10, -22),
+      },
+    ],
+    [],
+  );
 
   useFrame(({ clock }, dt) => {
     const state = gameStore.getState();
@@ -355,19 +382,22 @@ function PreMatchArenaFlyover() {
     if (startedAt.current === 0) startedAt.current = clock.elapsedTime;
     const duration = Math.max(0.1, MATCH.arenaSettleCountdownSec);
     const t = Math.min(1, (clock.elapsedTime - startedAt.current) / duration);
-    const ease = t * t * (3 - 2 * t);
-    const angle = -Math.PI * 0.82 + ease * Math.PI * 1.64;
-    const radius = 58 - Math.sin(ease * Math.PI) * 10;
-    const y = 24 + Math.sin(ease * Math.PI) * 9;
+    const scaled = t * (shots.length - 1);
+    const index = Math.min(shots.length - 2, Math.floor(scaled));
+    const localT = scaled - index;
+    const ease = localT * localT * (3 - 2 * localT);
+    const from = shots[index]!;
+    const to = shots[index + 1]!;
 
-    desired.current.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    desired.current.lerpVectors(from.pos, to.pos, ease);
+    lookAt.current.lerpVectors(from.look, to.look, ease);
     if (!snapped.current) {
       camera.position.copy(desired.current);
       snapped.current = true;
     } else {
-      camera.position.lerp(desired.current, 1 - Math.exp(-dt * 5.5));
+      camera.position.lerp(desired.current, 1 - Math.exp(-dt * 7.5));
     }
-    camera.lookAt(target.current);
+    camera.lookAt(lookAt.current);
     camera.updateMatrixWorld();
   }, 10);
 
@@ -410,6 +440,7 @@ function Scene({
   const networkBallRenderPos = useRef(new THREE.Vector3());
   const networkBallRenderVel = useRef(new THREE.Vector3());
   const networkBallRenderAngVel = useRef(new THREE.Vector3());
+  const networkBallCorrection = useRef(new THREE.Vector3());
   const localBallPredictionUntil = useRef(0);
   const localBallPredictionReleasePos = useRef(new THREE.Vector3());
   const localBallPredictionMinSpeed = useRef(0);
@@ -573,7 +604,9 @@ function Scene({
             networkBallRenderAngVel.current.copy(nextSample.angularVelocity);
             networkBallReady.current = true;
           }
-          localBallPredictionUntil.current = 0;
+          if (serverDistanceFromLocal < 3.6 || hostShotLooksCaughtUp) {
+            localBallPredictionUntil.current = 0;
+          }
           localBallPredictionMinSpeed.current = 0;
         }
       }
@@ -628,7 +661,27 @@ function Scene({
             );
             networkBallRenderAngVel.current.copy(latestSample.angularVelocity);
           }
-          ballForNetwork.setTranslation(networkBallRenderPos.current, true);
+          const current = ballForNetwork.translation();
+          const correction = networkBallCorrection.current.set(
+            networkBallRenderPos.current.x - current.x,
+            networkBallRenderPos.current.y - current.y,
+            networkBallRenderPos.current.z - current.z,
+          );
+          const correctionDist = correction.length();
+          if (correctionDist > NETWORK_BALL_CORRECTION_SNAP_M) {
+            ballForNetwork.setTranslation(networkBallRenderPos.current, true);
+          } else {
+            const correctionAlpha = 1 - Math.exp(-dt * 12);
+            correction.multiplyScalar(correctionAlpha);
+            ballForNetwork.setTranslation(
+              {
+                x: current.x + correction.x,
+                y: current.y + correction.y,
+                z: current.z + correction.z,
+              },
+              true,
+            );
+          }
           ballForNetwork.setLinvel(networkBallRenderVel.current, true);
           ballForNetwork.setAngvel(networkBallRenderAngVel.current, true);
         }
@@ -975,7 +1028,7 @@ function Scene({
         onBallReleased={(release) => {
           markLocalGoalShot(getLocalProfile().displayName, release.position);
           if (multiplayerStore.getState().enabled) {
-            localBallPredictionUntil.current = performance.now() + 900;
+            localBallPredictionUntil.current = performance.now() + 1250;
             localBallPredictionReleasePos.current.set(
               release.position.x,
               release.position.y,

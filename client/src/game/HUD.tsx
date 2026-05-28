@@ -274,12 +274,6 @@ export function HUD({ onMainMenu }: HUDProps) {
         </div>
       )}
 
-      {state.phase === 'playing' && state.arenaSettleCountdown > 0 && !matchOver && (
-        <div className="hud-countdown hud-countdown--settle">
-          {state.arenaSettleCountdown}
-        </div>
-      )}
-
       {state.phase === 'playing' &&
         state.arenaSettleCountdown === 0 &&
         state.countdown > 0 &&
