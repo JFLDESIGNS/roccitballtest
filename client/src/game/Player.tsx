@@ -156,6 +156,17 @@ function speedCameraFactor(
   return raw * raw * (3 - 2 * raw);
 }
 
+function clampHorizontalVelocity(
+  velocity: THREE.Vector3,
+  maxSpeed: number,
+): void {
+  const horiz = Math.hypot(velocity.x, velocity.z);
+  if (horiz <= maxSpeed || horiz <= 0.0001) return;
+  const scale = maxSpeed / horiz;
+  velocity.x *= scale;
+  velocity.z *= scale;
+}
+
 const _moveVelXZ = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
 const _grappleToChest = new THREE.Vector3();
@@ -1116,6 +1127,7 @@ export function Player({
       const targetVelX = _moveVelXZ.x * control;
       const targetVelZ = _moveVelXZ.z * control;
       const accelScale = skiing ? MOVEMENT.skiGroundControl : accel;
+      const maxHorizontalSpeed = sprintSpeed * MOVEMENT.maxHorizontalSpeedSprintMul;
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
         targetVelX,
@@ -1139,10 +1151,15 @@ export function Player({
         velocity.current.x *= MOVEMENT.skiMomentumPreserve;
         velocity.current.z *= MOVEMENT.skiMomentumPreserve;
         if (Math.abs(slopeDelta) > MOVEMENT.skiMinSlopeDelta) {
-          const slopeAccel =
+          const slopeAccelRaw =
             slopeDelta < 0
               ? (-slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiDownhillAccel
               : -(slopeDelta / Math.max(dt, 0.001)) * MOVEMENT.skiUphillDrag;
+          const slopeAccel = THREE.MathUtils.clamp(
+            slopeAccelRaw,
+            -MOVEMENT.skiSlopeAccelClamp,
+            MOVEMENT.skiSlopeAccelClamp,
+          );
           velocity.current.x += dirX * slopeAccel * dt;
           velocity.current.z += dirZ * slopeAccel * dt;
         }
@@ -1162,6 +1179,8 @@ export function Player({
         velocity.current.x *= MOVEMENT.skiAirMomentumPreserve;
         velocity.current.z *= MOVEMENT.skiAirMomentumPreserve;
       }
+
+      clampHorizontalVelocity(velocity.current, maxHorizontalSpeed);
     }
 
     let railJumpVy: number | null = null;
@@ -1437,6 +1456,10 @@ export function Player({
       }
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
+      clampHorizontalVelocity(
+        velocity.current,
+        sprintSpeed * MOVEMENT.maxHorizontalSpeedSprintMul,
+      );
     }
     const feetNow = playerFeetY(pos.y);
     const padLaunched = tryPlayerPads(
