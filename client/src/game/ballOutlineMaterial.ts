@@ -18,6 +18,8 @@ void main() {
 const OUTLINE_FRAGMENT = /* glsl */ `
 uniform vec3 uColor;
 uniform float uLineWidthPx;
+varying vec3 vNormalVS;
+varying vec3 vViewPosVS;
 
 void main() {
   vec3 n = normalize(vNormalVS);
