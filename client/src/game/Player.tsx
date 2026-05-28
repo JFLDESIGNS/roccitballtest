@@ -1,5 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import {
+  CapsuleCollider,
   CuboidCollider,
   interactionGroups,
   RigidBody,
@@ -130,8 +131,8 @@ import {
 } from './grindRail';
 import { burstGrindRailSparks } from './impactSparks';
 
-const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
-const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
+const PLAYER_BODY_COLLISION = interactionGroups(0, [0, 2, 4]);
+const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const PLAYER_LOWER_COLLIDER = {
   halfExtents: [0.78, 0.18, 1.24] as [number, number, number],
@@ -331,10 +332,14 @@ export function Player({
   const ePropelCooldown = useRef(0);
   const ePropelVyBoost = useRef<number | null>(null);
   const energy = useRef<number>(ENERGY.max);
-  const [playerCollisionGroups, setPlayerCollisionGroupsState] = useState(
-    PLAYER_LOOSE_COLLISION,
+  const [playerBodyCollisionGroups, setPlayerBodyCollisionGroupsState] = useState(
+    PLAYER_BODY_COLLISION,
   );
-  const playerCollisionGroupsRef = useRef(PLAYER_LOOSE_COLLISION);
+  const [playerBallCollisionGroups, setPlayerBallCollisionGroupsState] = useState(
+    PLAYER_BALL_SCOOP_COLLISION,
+  );
+  const playerBodyCollisionGroupsRef = useRef(PLAYER_BODY_COLLISION);
+  const playerBallCollisionGroupsRef = useRef(PLAYER_BALL_SCOOP_COLLISION);
   const regenTimer = useRef(0);
   const draining = useRef(false);
   const holdingBall = useRef(false);
@@ -403,10 +408,15 @@ export function Player({
       true,
     );
   }, []);
-  const setPlayerCollisionGroups = useCallback((groups: number) => {
-    if (playerCollisionGroupsRef.current === groups) return;
-    playerCollisionGroupsRef.current = groups;
-    setPlayerCollisionGroupsState(groups);
+  const setPlayerCollisionGroups = useCallback((bodyGroups: number, ballGroups: number) => {
+    if (playerBodyCollisionGroupsRef.current !== bodyGroups) {
+      playerBodyCollisionGroupsRef.current = bodyGroups;
+      setPlayerBodyCollisionGroupsState(bodyGroups);
+    }
+    if (playerBallCollisionGroupsRef.current !== ballGroups) {
+      playerBallCollisionGroupsRef.current = ballGroups;
+      setPlayerBallCollisionGroupsState(ballGroups);
+    }
   }, []);
   const stopGrapple = useCallback((boost = false) => {
     if (!grappleActive.current) return;
@@ -759,7 +769,7 @@ export function Player({
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       if (!flyModeActive.current) {
         flyModeActive.current = true;
-        setPlayerCollisionGroups(PLAYER_DEBUG_NOCLIP);
+        setPlayerCollisionGroups(PLAYER_DEBUG_NOCLIP, PLAYER_DEBUG_NOCLIP);
       }
       return;
     }
@@ -769,7 +779,8 @@ export function Player({
       const carrying =
         holdingBall.current || gameStore.getState().ballHolderId === 'local';
       setPlayerCollisionGroups(
-        carrying ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+        PLAYER_BODY_COLLISION,
+        carrying ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
       );
     }
 
@@ -778,7 +789,8 @@ export function Player({
     if (carryingBall !== playerCarryingBall.current) {
       playerCarryingBall.current = carryingBall;
       setPlayerCollisionGroups(
-        carryingBall ? PLAYER_CARRY_COLLISION : PLAYER_LOOSE_COLLISION,
+        PLAYER_BODY_COLLISION,
+        carryingBall ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
       );
     }
 
@@ -2458,17 +2470,23 @@ export function Player({
           }
         }}
       >
+        <CapsuleCollider
+          args={[capHalfH, MOVEMENT.capsuleRadius]}
+          position={[0, capCenterY, 0]}
+          friction={0.65}
+          collisionGroups={playerBodyCollisionGroups}
+        />
         <CuboidCollider
           args={PLAYER_LOWER_COLLIDER.halfExtents}
           position={[0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ]}
           friction={0.55}
-          collisionGroups={playerCollisionGroups}
+          collisionGroups={playerBallCollisionGroups}
         />
         <CuboidCollider
           args={PLAYER_UPPER_COLLIDER.halfExtents}
           position={[0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ]}
           friction={0.55}
-          collisionGroups={playerCollisionGroups}
+          collisionGroups={playerBallCollisionGroups}
         />
         {!playerVisualProxy ? (
           <group ref={visualRef} position={[0, capCenterY, 0]}>

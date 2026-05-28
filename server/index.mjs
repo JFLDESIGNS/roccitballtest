@@ -86,9 +86,10 @@ const BALL_MAX_SPEED = 85;
 const BALL_LAUNCH_SPIN_SCALE = 1.56;
 const BALL_ROCKET_HIT_SPIN_SCALE = 1.84;
 const FT_TO_M = 0.3048;
-const ROCKET_BALL_HIT_DELTA_V = 33;
+const ROCKET_BALL_HIT_DELTA_V = 50;
 const ROCKET_BALL_SPLASH_MIN_FALLOFF = 0.52;
 const ROCKET_BALL_NETWORK_GRACE_RADIUS = 2.6;
+const ROCKET_BALL_SPEED_INHERIT = 0.16;
 const BEAM_RANGE = 42 * 0.6;
 const BEAM_PULL_ACCEL = 39;
 const TRAMPOLINE_BOUNCE_LAUNCH_HEIGHT_FT = 28;
@@ -1247,7 +1248,16 @@ function applyRocketImpactToServerBall(room, impact, now) {
     ROCKET_BALL_SPLASH_MIN_FALLOFF,
     1 - dist / Math.max(effectiveRadius, 0.001),
   );
-  const deltaV = ROCKET_BALL_HIT_DELTA_V;
+  const rocketSpeed = impact.rocketVelocity
+    ? Math.hypot(
+        impact.rocketVelocity.x,
+        impact.rocketVelocity.y,
+        impact.rocketVelocity.z,
+      )
+    : 0;
+  const deltaV =
+    ROCKET_BALL_HIT_DELTA_V +
+    Math.min(16, rocketSpeed * ROCKET_BALL_SPEED_INHERIT);
   const direction = rocketKnockDirection(ballPosition, impact);
   const velocity = body.linvel();
   body.setLinvel(
