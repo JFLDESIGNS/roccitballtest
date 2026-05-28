@@ -1157,7 +1157,11 @@ export function Player({
       grindRailActive.current = true;
       setGrindRailActive(true);
       grindRailDir.current.set(tangentX, tangentZ);
-      grindRailSpeed.current = Math.max(horizontalSpeed * 3, tune.walkSpeed * 3);
+      grindRailSpeed.current = THREE.MathUtils.clamp(
+        Math.max(horizontalSpeed * 3, tune.walkSpeed * 3),
+        tune.walkSpeed * 3,
+        tune.sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
+      );
       const rideY = GRIND_RAIL.y - capCenterY + 0.08;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },

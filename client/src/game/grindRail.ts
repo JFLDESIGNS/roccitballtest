@@ -22,6 +22,7 @@ export const GRIND_RAIL = {
   activeHorizontalM: 2.8,
   contactVerticalM: 1.05,
   entryMinSpeed: 5.5,
+  maxSpeedSprintMul: 3,
   minRideSpeed: 1.8,
   decelMps2: 3.4,
   jumpOutwardSpeed: 5.5,
