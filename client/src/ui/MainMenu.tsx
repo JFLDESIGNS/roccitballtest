@@ -500,6 +500,13 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
           <footer className="main-menu-play">
             <button
               type="button"
+              className="btn-play-aux"
+              onClick={() => launchOfflineMatch(false)}
+            >
+              Practice Mode
+            </button>
+            <button
+              type="button"
               className="btn-play-now"
               onClick={openServerBrowser}
             >
