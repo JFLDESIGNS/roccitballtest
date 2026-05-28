@@ -437,7 +437,19 @@ export function Player({
       }
       _grapplePlanarDir.normalize();
       grapplePlanarDir.current.copy(_grapplePlanarDir);
-      grappleAnchor.current.set(hitX, ceilingY, hitZ);
+      const anchorHoriz = Math.hypot(hitX - origin.x, hitZ - origin.z);
+      let anchorX = hitX;
+      let anchorZ = hitZ;
+      if (anchorHoriz < MOVEMENT.grappleMinAnchorForwardM) {
+        anchorX =
+          origin.x + _grapplePlanarDir.x * MOVEMENT.grappleMinAnchorForwardM;
+        anchorZ =
+          origin.z + _grapplePlanarDir.z * MOVEMENT.grappleMinAnchorForwardM;
+        const clamped = clampToHex(anchorX, anchorZ, ARENA.hexRadius - 1.4, 0);
+        anchorX = clamped.x;
+        anchorZ = clamped.z;
+      }
+      grappleAnchor.current.set(anchorX, ceilingY, anchorZ);
       const initialLength = Math.max(
         4.5,
         grappleAnchor.current.distanceTo(origin),
@@ -1428,7 +1440,7 @@ export function Player({
         );
         grappleLength.current = Math.min(
           grappleLength.current,
-          grappleTargetLength.current + 0.9,
+          grappleTargetLength.current + 3.5,
         );
         grappleNeedsSetup.current = false;
       }
@@ -1505,10 +1517,40 @@ export function Player({
           }
           grappleKickPending.current = false;
         }
+        _grappleLaunchTangent.set(
+          velocity.current.x - ropeDir.x * radialSpeed,
+          velocity.current.y - ropeDir.y * radialSpeed,
+          velocity.current.z - ropeDir.z * radialSpeed,
+        );
+        if (_grappleLaunchTangent.lengthSq() < 1.4) {
+          _grappleLaunchTangent
+            .copy(grapplePlanarDir.current)
+            .sub(
+              ropeDir.clone().multiplyScalar(
+                grapplePlanarDir.current.dot(ropeDir),
+              ),
+            );
+        }
+        if (_grappleLaunchTangent.lengthSq() > 0.001) {
+          _grappleLaunchTangent.normalize();
+          const swingDamp = Math.pow(
+            MOVEMENT.grappleSwingDamping,
+            dt * 60,
+          );
+          velocity.current.x =
+            velocity.current.x * swingDamp +
+            _grappleLaunchTangent.x * MOVEMENT.grappleSwingDrive * dt;
+          velocity.current.y =
+            velocity.current.y * swingDamp +
+            _grappleLaunchTangent.y * MOVEMENT.grappleSwingDrive * dt;
+          velocity.current.z =
+            velocity.current.z * swingDamp +
+            _grappleLaunchTangent.z * MOVEMENT.grappleSwingDrive * dt;
+        }
         if (dist > grappleLength.current) {
           const tighten = dist - grappleLength.current;
           if (radialSpeed > 0) {
-            const radialTrim = radialSpeed * 0.45;
+            const radialTrim = radialSpeed * 0.32;
             velocity.current.x -= ropeDir.x * radialTrim;
             velocity.current.y -= ropeDir.y * radialTrim;
             velocity.current.z -= ropeDir.z * radialTrim;
