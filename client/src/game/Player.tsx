@@ -124,7 +124,11 @@ import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
-import { GRIND_RAIL, sampleGrindRailContact } from './grindRail';
+import {
+  GRIND_RAIL,
+  sampleGrindRailContact,
+  setGrindRailGlow,
+} from './grindRail';
 
 const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
@@ -338,6 +342,7 @@ export function Player({
       grindRailActive.current = false;
       setGrindRailActive(false);
     }
+    setGrindRailGlow({ active: false });
     grindRailSpeed.current = 0;
     if (cooldownSec > 0) {
       grindRailCooldown.current = cooldownSec;
@@ -1105,20 +1110,11 @@ export function Player({
           railContact.segmentT >= 1 - edgeThreshold &&
           tangentX * railContact.tangentX + tangentZ * railContact.tangentZ > 0;
         if (movingTowardStart || movingTowardEnd) {
-          const launchSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
-          stopGrindRailRide(GRIND_RAIL.jumpCooldownSec * 0.6);
-          railJumpVy = tuningStore.getJumpImpulse(0) * 0.78;
-          grounded.current = false;
-          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
-          coyoteTime.current = 0;
-          velocity.current.x = tangentX * launchSpeed;
-          velocity.current.z = tangentZ * launchSpeed;
-          const tr = body.translation();
-          const nextX = tr.x + tangentX * 0.42;
-          const nextY = tr.y + MOVEMENT.jumpLiftY * 0.8;
-          const nextZ = tr.z + tangentZ * 0.42;
-          body.setTranslation({ x: nextX, y: nextY, z: nextZ }, true);
-          pos.set(nextX, nextY, nextZ);
+          const exitSpeed = Math.max(grindRailSpeed.current, horizontalSpeed);
+          stopGrindRailRide(GRIND_RAIL.jumpCooldownSec * 0.35);
+          velocity.current.x = tangentX * exitSpeed;
+          velocity.current.z = tangentZ * exitSpeed;
+          velocity.current.y = linvel.y;
         } else {
           grindRailSpeed.current = Math.max(
             0,
@@ -1133,6 +1129,13 @@ export function Player({
           velocity.current.x = tangentX * grindRailSpeed.current;
           velocity.current.z = tangentZ * grindRailSpeed.current;
           velocity.current.y = 0;
+          setGrindRailGlow({
+            active: true,
+            x: railContact.x,
+            y: GRIND_RAIL.y,
+            z: railContact.z,
+            yaw: Math.atan2(-tangentZ, tangentX),
+          });
           grounded.current = false;
           jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.08);
           coyoteTime.current = 0;

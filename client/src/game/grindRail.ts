@@ -14,12 +14,12 @@ const railPathInsetM =
 
 export const GRIND_RAIL = {
   y: ARENA.arenaLogoBannerY - ARENA.arenaLogoBannerHeightM * 0.5,
-  radius: 0.22,
+  radius: 0.66,
   pathInsetM: railPathInsetM,
   goalGapM: RAIL_GOAL_GAP_M,
-  rideOffsetM: 0.06,
-  contactHorizontalM: 1.45,
-  activeHorizontalM: 2.15,
+  rideOffsetM: 0.02,
+  contactHorizontalM: 2.1,
+  activeHorizontalM: 2.8,
   contactVerticalM: 1.05,
   entryMinSpeed: 5.5,
   minRideSpeed: 1.8,
@@ -63,6 +63,24 @@ export type GrindRailContact = {
 };
 
 let cachedSegments: GrindRailSegment[] | null = null;
+let cachedPaths: THREE.Vector3[][] | null = null;
+
+type GrindRailGlowState = {
+  active: boolean;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+};
+
+const glowListeners = new Set<() => void>();
+let glowState: GrindRailGlowState = {
+  active: false,
+  x: 0,
+  y: GRIND_RAIL.y,
+  z: 0,
+  yaw: 0,
+};
 
 function buildSegment(
   start: THREE.Vector2,
@@ -110,13 +128,12 @@ function trimTowards(from: THREE.Vector2, to: THREE.Vector2, distance: number) {
   return from.clone().add(out);
 }
 
-function appendRoundedCornerSegments(
-  segments: GrindRailSegment[],
+function appendRoundedCornerPoints(
+  path: THREE.Vector2[],
   start: THREE.Vector2,
   corner: THREE.Vector2,
   end: THREE.Vector2,
 ) {
-  let last = start;
   for (let i = 1; i <= RAIL_CORNER_SEGMENTS; i += 1) {
     const t = i / RAIL_CORNER_SEGMENTS;
     const point = new THREE.Vector2()
@@ -124,13 +141,39 @@ function appendRoundedCornerSegments(
       .multiplyScalar((1 - t) * (1 - t))
       .add(corner.clone().multiplyScalar(2 * (1 - t) * t))
       .add(end.clone().multiplyScalar(t * t));
-    segments.push(buildSegment(last, point));
-    last = point;
+    path.push(point);
   }
 }
 
-export function getGrindRailSegments(): GrindRailSegment[] {
-  if (cachedSegments) return cachedSegments;
+function edgeGapPoints(
+  trimmedVerts: Array<{
+    corner: THREE.Vector2;
+    inPoint: THREE.Vector2;
+    outPoint: THREE.Vector2;
+  }>,
+  edgeIndex: number,
+) {
+  const a = trimmedVerts[edgeIndex]!;
+  const b = trimmedVerts[(edgeIndex + 1) % trimmedVerts.length]!;
+  const dx = b.inPoint.x - a.outPoint.x;
+  const dz = b.inPoint.y - a.outPoint.y;
+  const length = Math.hypot(dx, dz);
+  const tangentX = dx / length;
+  const tangentZ = dz / length;
+  const keep = (length - GRIND_RAIL.goalGapM) * 0.5;
+  return {
+    firstEnd: new THREE.Vector2(
+      a.outPoint.x + tangentX * keep,
+      a.outPoint.y + tangentZ * keep,
+    ),
+    secondStart: new THREE.Vector2(
+      b.inPoint.x - tangentX * keep,
+      b.inPoint.y - tangentZ * keep,
+    ),
+  };
+}
+
+function buildRailPaths2d() {
   const verts = hexVertices(ARENA.hexRadius - GRIND_RAIL.pathInsetM);
   const trimmedVerts = verts.map((corner, i) => {
     const prev = verts[(i - 1 + verts.length) % verts.length]!;
@@ -141,48 +184,117 @@ export function getGrindRailSegments(): GrindRailSegment[] {
       outPoint: trimTowards(corner, next, RAIL_CORNER_CUT_M),
     };
   });
-  const segments: GrindRailSegment[] = [];
-  for (let i = 0; i < trimmedVerts.length; i++) {
-    const a = trimmedVerts[i]!;
-    const b = trimmedVerts[(i + 1) % trimmedVerts.length]!;
-    const dx = b.inPoint.x - a.outPoint.x;
-    const dz = b.inPoint.y - a.outPoint.y;
-    const length = Math.hypot(dx, dz);
-    const tangentX = dx / length;
-    const tangentZ = dz / length;
+  const gap0 = edgeGapPoints(trimmedVerts, 0);
+  const gap3 = edgeGapPoints(trimmedVerts, 3);
 
-    if ((i === 0 || i === 3) && length > GRIND_RAIL.goalGapM + 8) {
-      const keep = (length - GRIND_RAIL.goalGapM) * 0.5;
+  const pathA: THREE.Vector2[] = [gap0.secondStart.clone(), trimmedVerts[1]!.inPoint.clone()];
+  appendRoundedCornerPoints(
+    pathA,
+    trimmedVerts[1]!.inPoint,
+    trimmedVerts[1]!.corner,
+    trimmedVerts[1]!.outPoint,
+  );
+  pathA.push(trimmedVerts[2]!.inPoint.clone());
+  appendRoundedCornerPoints(
+    pathA,
+    trimmedVerts[2]!.inPoint,
+    trimmedVerts[2]!.corner,
+    trimmedVerts[2]!.outPoint,
+  );
+  pathA.push(trimmedVerts[3]!.inPoint.clone());
+  appendRoundedCornerPoints(
+    pathA,
+    trimmedVerts[3]!.inPoint,
+    trimmedVerts[3]!.corner,
+    trimmedVerts[3]!.outPoint,
+  );
+  pathA.push(gap3.firstEnd.clone());
+
+  const pathB: THREE.Vector2[] = [gap3.secondStart.clone(), trimmedVerts[4]!.inPoint.clone()];
+  appendRoundedCornerPoints(
+    pathB,
+    trimmedVerts[4]!.inPoint,
+    trimmedVerts[4]!.corner,
+    trimmedVerts[4]!.outPoint,
+  );
+  pathB.push(trimmedVerts[5]!.inPoint.clone());
+  appendRoundedCornerPoints(
+    pathB,
+    trimmedVerts[5]!.inPoint,
+    trimmedVerts[5]!.corner,
+    trimmedVerts[5]!.outPoint,
+  );
+  pathB.push(trimmedVerts[0]!.inPoint.clone());
+  appendRoundedCornerPoints(
+    pathB,
+    trimmedVerts[0]!.inPoint,
+    trimmedVerts[0]!.corner,
+    trimmedVerts[0]!.outPoint,
+  );
+  pathB.push(gap0.firstEnd.clone());
+
+  return [pathA, pathB];
+}
+
+export function getGrindRailPaths(): THREE.Vector3[][] {
+  if (cachedPaths) return cachedPaths;
+  cachedPaths = buildRailPaths2d().map((path) =>
+    path.map((point) => new THREE.Vector3(point.x, GRIND_RAIL.y, point.y)),
+  );
+  return cachedPaths;
+}
+
+export function getGrindRailSegments(): GrindRailSegment[] {
+  if (cachedSegments) return cachedSegments;
+  const segments: GrindRailSegment[] = [];
+  const paths = buildRailPaths2d();
+  for (const path of paths) {
+    for (let i = 0; i < path.length - 1; i += 1) {
       segments.push(
         buildSegment(
-          a.outPoint,
-          new THREE.Vector2(
-            a.outPoint.x + tangentX * keep,
-            a.outPoint.y + tangentZ * keep,
-          ),
-          false,
-          true,
+          path[i]!,
+          path[i + 1]!,
+          i === 0,
+          i === path.length - 2,
         ),
       );
-      segments.push(
-        buildSegment(
-          new THREE.Vector2(
-            b.inPoint.x - tangentX * keep,
-            b.inPoint.y - tangentZ * keep,
-          ),
-          b.inPoint,
-          true,
-          false,
-        ),
-      );
-    } else {
-      segments.push(buildSegment(a.outPoint, b.inPoint));
     }
-    appendRoundedCornerSegments(segments, a.outPoint, b.corner, b.inPoint);
   }
   cachedSegments = segments;
   return cachedSegments;
 }
+
+function emitGlow() {
+  glowListeners.forEach((listener) => listener());
+}
+
+export function setGrindRailGlow(
+  next:
+    | {
+        active: true;
+        x: number;
+        y: number;
+        z: number;
+        yaw: number;
+      }
+    | { active: false },
+) {
+  glowState =
+    next.active
+      ? next
+      : { active: false, x: 0, y: GRIND_RAIL.y, z: 0, yaw: 0 };
+  emitGlow();
+}
+
+export const grindRailGlowStore = {
+  subscribe(listener: () => void) {
+    glowListeners.add(listener);
+    return () => glowListeners.delete(listener);
+  },
+  getState() {
+    return glowState;
+  },
+};
 
 const _nearest: GrindRailContact = {
   segmentIndex: -1,
