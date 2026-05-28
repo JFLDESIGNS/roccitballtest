@@ -134,12 +134,14 @@ const PLAYER_LOOSE_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
 const PLAYER_CARRY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const PLAYER_LOWER_COLLIDER = {
-  halfExtents: [0.76, 0.18, 0.98] as [number, number, number],
+  halfExtents: [0.78, 0.18, 1.24] as [number, number, number],
   centerY: 0.16,
+  centerZ: 0,
 };
 const PLAYER_UPPER_COLLIDER = {
   halfExtents: [0.42, 0.58, 0.54] as [number, number, number],
   centerY: 0.98,
+  centerZ: 0.7,
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
@@ -2448,13 +2450,13 @@ export function Player({
       >
         <CuboidCollider
           args={PLAYER_LOWER_COLLIDER.halfExtents}
-          position={[0, PLAYER_LOWER_COLLIDER.centerY, 0]}
+          position={[0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ]}
           friction={0.55}
           collisionGroups={playerCollisionGroups}
         />
         <CuboidCollider
           args={PLAYER_UPPER_COLLIDER.halfExtents}
-          position={[0, PLAYER_UPPER_COLLIDER.centerY, 0]}
+          position={[0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ]}
           friction={0.55}
           collisionGroups={playerCollisionGroups}
         />
