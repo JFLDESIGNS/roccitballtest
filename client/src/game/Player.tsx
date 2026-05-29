@@ -34,7 +34,12 @@ import {
 } from './beamPhysics';
 import { separateBallFromPlayer } from './ballPlayerSeparation';
 import { applyBallLaunchImpulse, applyBallRocketHitSpin, wakeBallBody } from './ballPhysics';
-import { clampToHex, isInsideHex } from './arenaHex';
+import {
+  clampToHex,
+  hexBoundaryNormal,
+  hexSlackToBoundary,
+  isInsideHex,
+} from './arenaHex';
 import { getTeamSpawn } from './goals';
 import {
   getCameraBasis,
@@ -169,6 +174,63 @@ function clampHorizontalVelocity(
   const scale = maxSpeed / horiz;
   velocity.x *= scale;
   velocity.z *= scale;
+}
+
+const PLAYER_ARENA_WALL_MARGIN = MOVEMENT.capsuleRadius + ARENA.wallThickness + 0.35;
+const PLAYER_ARENA_BUMPER_ZONE_M = 1.85;
+const PLAYER_ARENA_BUMPER_SAFE_SLACK_M = 0.18;
+const PLAYER_ARENA_BUMPER_RESTITUTION = 0.34;
+const PLAYER_ARENA_BUMPER_PUSH_SPEED = 10;
+const PLAYER_ARENA_GRAPPLE_DETACH_SPEED = 9;
+const _arenaWallNormal = new THREE.Vector2();
+
+function applyPlayerArenaWallBumper(
+  body: RapierRigidBody,
+  pos: THREE.Vector3,
+  velocity: THREE.Vector3,
+  dt: number,
+  detachGrapple: () => void,
+  grappleActive: boolean,
+): void {
+  const playRadius = ARENA.hexRadius - PLAYER_ARENA_WALL_MARGIN;
+  const slack = hexSlackToBoundary(pos.x, pos.z, playRadius);
+  if (slack > PLAYER_ARENA_BUMPER_ZONE_M) return;
+
+  _arenaWallNormal.copy(hexBoundaryNormal(pos.x, pos.z, playRadius));
+  const outwardSpeed =
+    velocity.x * _arenaWallNormal.x + velocity.z * _arenaWallNormal.y;
+
+  if (slack < PLAYER_ARENA_BUMPER_SAFE_SLACK_M) {
+    const pushIn = PLAYER_ARENA_BUMPER_SAFE_SLACK_M - slack;
+    pos.x -= _arenaWallNormal.x * pushIn;
+    pos.z -= _arenaWallNormal.y * pushIn;
+    body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
+  }
+
+  const closeT = THREE.MathUtils.clamp(
+    1 - slack / PLAYER_ARENA_BUMPER_ZONE_M,
+    0,
+    1,
+  );
+  if (outwardSpeed > 0) {
+    const restitution =
+      PLAYER_ARENA_BUMPER_RESTITUTION * (grappleActive ? 1.35 : 1);
+    velocity.x -= _arenaWallNormal.x * outwardSpeed * (1 + restitution);
+    velocity.z -= _arenaWallNormal.y * outwardSpeed * (1 + restitution);
+    if (grappleActive && outwardSpeed > PLAYER_ARENA_GRAPPLE_DETACH_SPEED) {
+      detachGrapple();
+    }
+  }
+
+  if (closeT > 0) {
+    const inwardSpeed =
+      PLAYER_ARENA_BUMPER_PUSH_SPEED *
+      closeT *
+      (grappleActive ? 1.4 : 1) *
+      Math.min(1, dt * 60);
+    velocity.x -= _arenaWallNormal.x * inwardSpeed;
+    velocity.z -= _arenaWallNormal.y * inwardSpeed;
+  }
 }
 
 const _moveVelXZ = new THREE.Vector3();
@@ -406,6 +468,7 @@ export function Player({
   const grappleSwingAxis = useRef(new THREE.Vector3(0, 0, -1));
   const grappleSwingPhase = useRef(0);
   const grappleSwingRadius = useRef(12);
+  const grappleSwingPower = useRef(1);
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
@@ -475,6 +538,7 @@ export function Player({
     grappleActive.current = false;
     grappleNeedsSetup.current = false;
     grappleKickPending.current = false;
+    grappleSwingPower.current = 1;
     const body = bodyRef.current;
     if (boost && body) {
       const lv = body.linvel();
@@ -533,6 +597,7 @@ export function Player({
       grappleSwingPhase.current = Math.asin(
         THREE.MathUtils.clamp(offsetAlong / swingRadius, -0.92, 0.92),
       );
+      grappleSwingPower.current = MOVEMENT.grapplePendulumStartPower;
       const initialLength = Math.max(
         4.5,
         grappleAnchor.current.distanceTo(origin),
@@ -1775,8 +1840,16 @@ export function Player({
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
 
+      grappleSwingPower.current = Math.max(
+        MOVEMENT.grapplePendulumMinPower,
+        grappleSwingPower.current *
+          Math.exp(-MOVEMENT.grapplePendulumPowerDecay * dt),
+      );
+      const swingPower = grappleSwingPower.current;
       grappleSwingPhase.current +=
-        MOVEMENT.grapplePendulumAngularSpeed * dt;
+        MOVEMENT.grapplePendulumAngularSpeed *
+        THREE.MathUtils.lerp(0.78, 1.08, swingPower) *
+        dt;
       const phase = grappleSwingPhase.current;
       const swingSin = Math.sin(phase);
       const swingCos = Math.cos(phase);
@@ -1790,12 +1863,14 @@ export function Player({
         grappleSwingAxis.current.x *
           swingCos *
           swingRadius *
-          MOVEMENT.grapplePendulumAngularSpeed,
+          MOVEMENT.grapplePendulumAngularSpeed *
+          swingPower,
         0,
         grappleSwingAxis.current.z *
           swingCos *
           swingRadius *
-          MOVEMENT.grapplePendulumAngularSpeed,
+          MOVEMENT.grapplePendulumAngularSpeed *
+          swingPower,
       );
       _grapplePlanarDir.set(
         _grapplePendulumTarget.x - chestX,
@@ -1913,6 +1988,15 @@ export function Player({
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.2);
     }
+
+    applyPlayerArenaWallBumper(
+      body,
+      pos,
+      velocity.current,
+      dt,
+      () => stopGrapple(false),
+      grappleActive.current,
+    );
 
     body.setLinvel(
       { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
