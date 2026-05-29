@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentRef,
@@ -46,6 +47,33 @@ const WIRE_COLORS: Record<StadiumLightKind, string> = {
   directional: '#fff4ea',
   rectArea: '#ffb86a',
 };
+
+const REALLY_BAD_STADIUM_LIGHT_LIMIT = 3;
+const REALLY_BAD_STADIUM_LIGHT_PRIORITY = [
+  'key-2-omni',
+  'key-3-omni',
+  'outdoor-key-1',
+];
+
+function pickReallyBadPuterLights(lights: StadiumLightDef[]): StadiumLightDef[] {
+  const enabled = lights.filter((light) => light.enabled);
+  const picked: StadiumLightDef[] = [];
+  const add = (light: StadiumLightDef | undefined) => {
+    if (!light || picked.some((existing) => existing.id === light.id)) return;
+    picked.push(light);
+  };
+
+  REALLY_BAD_STADIUM_LIGHT_PRIORITY.forEach((id) => {
+    add(enabled.find((light) => light.id === id));
+  });
+
+  enabled
+    .filter((light) => light.kind !== 'rectArea')
+    .forEach(add);
+  enabled.forEach(add);
+
+  return picked.slice(0, REALLY_BAD_STADIUM_LIGHT_LIMIT);
+}
 
 function computeIntensity(
   light: StadiumLightDef,
@@ -471,6 +499,10 @@ export function StadiumLightsRuntime() {
     stadiumLightStore.subscribe,
     stadiumLightStore.getState,
   );
+  const reallyBadPuter = useSyncExternalStore(
+    graphicsStore.subscribe,
+    () => graphicsStore.getState().reallyBadPuter,
+  );
   const [wireframesReady, setWireframesReady] = useState(false);
 
   const stadiumEditMode = debugFly || mapEditorActive;
@@ -486,6 +518,13 @@ export function StadiumLightsRuntime() {
 
   const { lights, selectedId, showWireframes } = lightState;
   const editorMode = stadiumEditMode;
+  const runtimeLights = useMemo(
+    () =>
+      reallyBadPuter && !editorMode
+        ? pickReallyBadPuterLights(lights)
+        : lights,
+    [editorMode, lights, reallyBadPuter],
+  );
   const wireVisible =
     editorMode &&
     (mapEditorActive || (wireframesReady && showWireframes));
@@ -493,7 +532,7 @@ export function StadiumLightsRuntime() {
   return (
     <>
       {debugFly && <StadiumLightPicking />}
-      {lights.map((light) => (
+      {runtimeLights.map((light) => (
         <StadiumLightNode
           key={light.id}
           light={light}

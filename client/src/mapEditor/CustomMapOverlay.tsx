@@ -7,6 +7,7 @@ import {
   getPlayModeStadiumGroups,
 } from './stadiumLayout';
 import { StadiumGroupLayer } from './StadiumGroupLayer';
+import { graphicsStore } from '../game/graphicsStore';
 
 function GroupedObject({ object }: { object: Parameters<typeof MapObjectMesh>[0]['object'] }) {
   const meshData = {
@@ -31,6 +32,10 @@ export function CustomMapOverlay() {
   const doc = useSyncExternalStore(
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapDocument(),
+  );
+  const reallyBadPuter = useSyncExternalStore(
+    graphicsStore.subscribe,
+    () => graphicsStore.getState().reallyBadPuter,
   );
 
   const isDefault = activeMapId === DEFAULT_MAP_ID;
@@ -71,6 +76,7 @@ export function CustomMapOverlay() {
           key={light.id}
           light={light}
           showBulb={false}
+          showGlow={!reallyBadPuter}
           castShadow={light.castShadow}
         />
       ))}
