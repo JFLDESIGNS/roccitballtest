@@ -130,13 +130,25 @@ export function goalBallSuckLerpPos(
   };
 }
 
-export function goalScoringCenter(
+function goalScoringCenterBase(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
   const inset = goalScoringWallInsetM(goal.size);
   const forward = goalScoringArenaForwardM(goal.size);
   const pullBack = goalScoringWallPullbackM(goal.size);
   return offsetAlongGoalAxis(goal, forward - pullBack - inset);
+}
+
+export function goalScoringCenter(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  const center = goalScoringCenterBase(goal);
+  if (goal.size !== 'small') return center;
+  return {
+    x: center.x,
+    y: center.y - GOAL_RINGS.scoringVolumeTopDropFt * FT,
+    z: center.z,
+  };
 }
 
 export function goalScoringSensorDepth(size: GoalSize): number {
@@ -247,7 +259,7 @@ export function goalBackCapDiscCenter(
 export function goalBackCapSquareCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
-  const center = goalScoringCenter(goal);
+  const center = goalScoringCenterBase(goal);
   if (goal.size !== 'small') return center;
   const towardCourt = goal.team === 'red' ? 1 : -1;
   return {
