@@ -120,7 +120,6 @@ import { triggerRocketRecoil } from './rocketRecoil';
 import { createRocket } from './rocketSystem';
 import { sampleTrampolineFloorY } from './arenaPadLayout';
 import {
-  applyPlayerStepUp,
   playerFeetY,
   probePlayerGround,
 } from './playerGroundProbe';
@@ -780,20 +779,6 @@ export function Player({
     if (gs.debugFreelook) return;
     if (gs.phase !== 'playing' && gs.phase !== 'countdown') {
       return;
-    }
-
-    if (
-      lastWishDir.current.lengthSq() > 0.01 &&
-      !holdingBall.current &&
-      gameStore.getState().ballHolderId !== 'local'
-    ) {
-      applyPlayerStepUp(
-        world,
-        body,
-        lastWishDir.current.x,
-        lastWishDir.current.z,
-        body,
-      );
     }
 
     const tr = body.translation();
