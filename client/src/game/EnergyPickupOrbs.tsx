@@ -36,7 +36,6 @@ export function EnergyPickupOrbs() {
           }}
           position={[orb.position.x, orb.position.y, orb.position.z]}
         >
-          <pointLight color="#44ffee" intensity={1.1} distance={9} decay={2} />
           <mesh>
             <sphereGeometry args={[0.52, 24, 16]} />
             <meshBasicMaterial
