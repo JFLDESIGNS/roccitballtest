@@ -559,21 +559,27 @@ function Scene({
     }
     multiplayerStore.drainRemoteBallActions();
     const ballForNetwork = ballBodyRef.current;
-    if (online && ballForNetwork) {
-      const isLocalHoldingBall = gameStore.getState().ballHolderId === 'local';
+    if (online) {
       if (isNetworkHost) {
         hostStateSendTimer.current -= dt;
         if (hostStateSendTimer.current <= 0) {
           hostStateSendTimer.current = 1 / 60;
-          const t = ballForNetwork.translation();
-          const v = ballForNetwork.linvel();
-          const av = ballForNetwork.angvel();
+          const t = ballForNetwork?.translation();
+          const v = ballForNetwork?.linvel();
+          const av = ballForNetwork?.angvel();
+          const fallbackBall = network.ball;
           const match = gameStore.getState();
           multiplayerStore.sendHostState({
             ball: {
-              position: { x: t.x, y: t.y, z: t.z },
-              velocity: { x: v.x, y: v.y, z: v.z },
-              angularVelocity: { x: av.x, y: av.y, z: av.z },
+              position: t
+                ? { x: t.x, y: t.y, z: t.z }
+                : fallbackBall?.position ?? { x: 0, y: 2.05, z: 0 },
+              velocity: v
+                ? { x: v.x, y: v.y, z: v.z }
+                : fallbackBall?.velocity ?? { x: 0, y: 0, z: 0 },
+              angularVelocity: av
+                ? { x: av.x, y: av.y, z: av.z }
+                : fallbackBall?.angularVelocity ?? { x: 0, y: 0, z: 0 },
             },
             match: {
               phase: match.phase,
@@ -587,6 +593,9 @@ function Scene({
           });
         }
       }
+    }
+    if (online && ballForNetwork) {
+      const isLocalHoldingBall = gameStore.getState().ballHolderId === 'local';
       if (isLocalHoldingBall) {
         networkBallReady.current = false;
       } else if (
