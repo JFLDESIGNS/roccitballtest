@@ -95,6 +95,8 @@ import {
 } from './announcements';
 import { setKickoffBallReleaseHandler } from './kickoffDrop';
 import { getLocalProfile } from './playerRoster';
+import { CoopAdventureCourse } from '../coop/CoopAdventureCourse';
+import { isCoopAdventureMode } from '../coop/coopAdventurePlayerThrow';
 
 function rocketToNetwork(r: ActiveRocket): Omit<NetworkRocketState, 'ownerId'> {
   return {
@@ -498,6 +500,12 @@ function Scene({
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().enabled,
   );
+  const multiplayerRoomMode = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.mode ?? null,
+  );
+  const coopAdventureEnabled =
+    multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
   const showBots = botsEnabled && !multiplayerEnabled;
 
   useEffect(() => {
@@ -1082,18 +1090,22 @@ function Scene({
         hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
       />
       <CustomMapOverlay />
-      <Ball
-        ref={ballRef}
-        onBotBallStrike={(actorId) => {
-          if (!showBots) return;
-          botBallStrikeFromPlayer(
-            botsRef.current,
-            actorId as BotId,
-            ballBodyRef,
-            botEnergyLevelsRef,
-          );
-        }}
-      />
+      {coopAdventureEnabled ? (
+        <CoopAdventureCourse playerPositionRef={playerPosRef} />
+      ) : (
+        <Ball
+          ref={ballRef}
+          onBotBallStrike={(actorId) => {
+            if (!showBots) return;
+            botBallStrikeFromPlayer(
+              botsRef.current,
+              actorId as BotId,
+              ballBodyRef,
+              botEnergyLevelsRef,
+            );
+          }}
+        />
+      )}
       {showBots && (
         <Bots
           botsRef={botsRef}

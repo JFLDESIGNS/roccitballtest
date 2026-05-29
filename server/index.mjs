@@ -821,10 +821,12 @@ function getRoom(roomId) {
 }
 
 function roomMaxPlayers(mode) {
+  if (mode === 'coop-adventure') return 2;
   return mode === '2v2' ? 4 : 2;
 }
 
 function sanitizeRoomMode(mode) {
+  if (mode === 'coop-adventure') return 'coop-adventure';
   return mode === '2v2' ? '2v2' : '1v1';
 }
 
@@ -1007,6 +1009,7 @@ function sanitizeProfile(profile = {}) {
 }
 
 function sanitizeTeam(team, room) {
+  if (room.mode === 'coop-adventure') return 'blue';
   let red = 0;
   let blue = 0;
   for (const player of room.players.values()) {
@@ -1798,6 +1801,43 @@ function handleClientMessage(socket, raw) {
         sendJson(peerSocket, packet);
       }
     }
+    return;
+  }
+
+  if (msg.type === 'coopAction') {
+    if (room.mode !== 'coop-adventure') return;
+    const targetId =
+      typeof msg.action?.targetId === 'string'
+        ? msg.action.targetId.slice(0, 80)
+        : '';
+    if (!targetId || !room.players.has(targetId) || targetId === client.id) return;
+    const kind =
+      msg.action?.kind === 'playerThrow' ? 'playerThrow' : 'playerPull';
+    const action = {
+      id:
+        typeof msg.action?.id === 'string'
+          ? msg.action.id.slice(0, 64)
+          : crypto.randomUUID(),
+      ownerId: client.id,
+      kind,
+      targetId,
+      position: sanitizeVec3(msg.action?.position, player.position),
+      velocity: sanitizeVec3(msg.action?.velocity),
+      holdPosition: msg.action?.holdPosition
+        ? sanitizeVec3(msg.action.holdPosition, player.position)
+        : undefined,
+    };
+    const packet = {
+      type: 'coopAction',
+      serverTime: Date.now(),
+      action,
+    };
+    for (const [peerSocket, peerClient] of clients) {
+      if (peerSocket !== socket && peerClient.roomId === room.id) {
+        sendJson(peerSocket, packet);
+      }
+    }
+    return;
   }
 }
 

@@ -60,10 +60,14 @@ type MainMenuProps = {
 };
 
 function roomModeLabel(mode: RoomMode): string {
+  if (mode === 'coop-adventure') return 'Coop Adventure';
   return mode === '2v2' ? '2v2' : '1v1';
 }
 
 function roomModeDescription(mode: RoomMode): string {
+  if (mode === 'coop-adventure') {
+    return 'Two-player platform adventure';
+  }
   return mode === '2v2'
     ? 'Four players, two per team'
     : 'Two players, one per team';
@@ -701,7 +705,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                       </div>
                       <div className="main-menu-browser-create">
                         <div className="main-menu-mode-toggle">
-                          {(['1v1', '2v2'] as RoomMode[]).map((mode) => (
+                          {(['1v1', '2v2', 'coop-adventure'] as RoomMode[]).map((mode) => (
                             <button
                               key={mode}
                               type="button"

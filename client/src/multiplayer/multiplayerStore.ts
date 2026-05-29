@@ -4,7 +4,7 @@ import { gameStore, type GamePhase } from '../game/gameStore';
 import { applyNetworkGoalScore } from '../game/goalScoreHandler';
 
 export type MultiplayerStatus = 'offline' | 'connecting' | 'online' | 'error';
-export type RoomMode = '1v1' | '2v2';
+export type RoomMode = '1v1' | '2v2' | 'coop-adventure';
 
 export type RoomSummary = {
   id: string;
@@ -73,6 +73,16 @@ export type NetworkBallAction = {
   ballState: 'loose' | 'launched';
 };
 
+export type NetworkCoopAction = {
+  id: string;
+  ownerId: string;
+  kind: 'playerPull' | 'playerThrow';
+  targetId: string;
+  position: Vec3;
+  velocity: Vec3;
+  holdPosition?: Vec3;
+};
+
 type NetworkMatchState = {
   phase: GamePhase;
   score: MatchScore;
@@ -98,6 +108,7 @@ type MultiplayerState = {
   playReady: boolean;
   remoteRockets: NetworkRocketState[];
   remoteBallActions: NetworkBallAction[];
+  remoteCoopActions: NetworkCoopAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
@@ -130,6 +141,11 @@ type ServerMessage =
       type: 'ballAction';
       serverTime: number;
       action: NetworkBallAction;
+    }
+  | {
+      type: 'coopAction';
+      serverTime: number;
+      action: NetworkCoopAction;
     }
   | {
       type: 'ballImpulse';
@@ -186,6 +202,7 @@ let state: MultiplayerState = {
   playReady: false,
   remoteRockets: [],
   remoteBallActions: [],
+  remoteCoopActions: [],
   remotePlayers: [],
 };
 
@@ -276,6 +293,7 @@ function handleMessage(raw: string) {
       playReady: false,
       remoteRockets: [],
       remoteBallActions: [],
+      remoteCoopActions: [],
       remotePlayers: [],
     });
     closeSocket();
@@ -327,6 +345,13 @@ function handleMessage(raw: string) {
   if (msg.type === 'ballAction') {
     patch({
       remoteBallActions: [...state.remoteBallActions, msg.action].slice(-24),
+    });
+    return;
+  }
+
+  if (msg.type === 'coopAction') {
+    patch({
+      remoteCoopActions: [...state.remoteCoopActions, msg.action].slice(-48),
     });
     return;
   }
@@ -398,6 +423,7 @@ export const multiplayerStore = {
       playReady: false,
       remoteRockets: [],
       remoteBallActions: [],
+      remoteCoopActions: [],
       remotePlayers: [],
     });
 
@@ -443,6 +469,7 @@ export const multiplayerStore = {
           playReady: false,
           remoteRockets: [],
           remoteBallActions: [],
+          remoteCoopActions: [],
           remotePlayers: [],
         });
       }
@@ -465,6 +492,7 @@ export const multiplayerStore = {
       playReady: false,
       remoteRockets: [],
       remoteBallActions: [],
+      remoteCoopActions: [],
       remotePlayers: [],
     });
   },
@@ -544,6 +572,18 @@ export const multiplayerStore = {
     });
   },
 
+  sendCoopAction(action: Omit<NetworkCoopAction, 'id' | 'ownerId'>): void {
+    if (!state.enabled || state.status !== 'online') return;
+    if (state.roomInfo?.mode !== 'coop-adventure') return;
+    sendJson({
+      type: 'coopAction',
+      action: {
+        id: crypto.randomUUID(),
+        ...action,
+      },
+    });
+  },
+
   drainRemoteRockets(): NetworkRocketState[] {
     const rockets = state.remoteRockets;
     if (rockets.length === 0) return [];
@@ -556,6 +596,14 @@ export const multiplayerStore = {
     const actions = state.remoteBallActions;
     if (actions.length === 0) return [];
     state = { ...state, remoteBallActions: [] };
+    emit();
+    return actions;
+  },
+
+  drainRemoteCoopActions(): NetworkCoopAction[] {
+    const actions = state.remoteCoopActions;
+    if (actions.length === 0) return [];
+    state = { ...state, remoteCoopActions: [] };
     emit();
     return actions;
   },

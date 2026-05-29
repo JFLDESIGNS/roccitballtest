@@ -132,6 +132,13 @@ import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import {
+  applyCoopAdventureActionToBody,
+  findCoopAdventureTarget,
+  isCoopAdventureMode,
+  makeCoopPullAction,
+  makeCoopThrowAction,
+} from '../coop/coopAdventurePlayerThrow';
+import {
   GRIND_RAIL,
   sampleGrindRailContact,
 } from './grindRail';
@@ -454,6 +461,9 @@ export function Player({
   /** After LMB ball shot, beam stays off until RMB is released and pressed again */
   const beamNeedsRepress = useRef(false);
   const beamNoLockSoundAt = useRef(0);
+  const coopCarryTargetId = useRef<string | null>(null);
+  const coopWasBeamDown = useRef(false);
+  const coopActionSendTimer = useRef(0);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -675,7 +685,9 @@ export function Player({
   const spawnPos = useMemo(() => {
     const team = gameStore.getState().localTeam;
     const teamPlayerCount =
-      multiplayerEnabled && multiplayerRoomMode === '2v2'
+      multiplayerEnabled &&
+      (multiplayerRoomMode === '2v2' ||
+        isCoopAdventureMode(multiplayerRoomMode))
         ? 2
         : 1;
     return getTeamSpawn(team, multiplayerTeamSlot, teamPlayerCount);
@@ -2202,6 +2214,87 @@ export function Player({
       multiplayerNow.enabled &&
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
+    const coopAdventureMode =
+      multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
+
+    if (coopAdventureMode) {
+      const selfId = multiplayerNow.selfId;
+      for (const action of multiplayerStore.drainRemoteCoopActions()) {
+        if (selfId && action.targetId === selfId) {
+          applyCoopAdventureActionToBody(body, action, dt);
+          if (action.kind === 'playerThrow') {
+            jumpsLeft.current = MOVEMENT.maxJumps;
+            grounded.current = false;
+            jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.12);
+          }
+        }
+      }
+
+      coopActionSendTimer.current = Math.max(0, coopActionSendTimer.current - dt);
+      const carryTarget =
+        coopCarryTargetId.current !== null
+          ? multiplayerNow.remotePlayers.find(
+              (player) => player.id === coopCarryTargetId.current,
+            ) ?? null
+          : null;
+      const target =
+        carryTarget ?? findCoopAdventureTarget(
+          multiplayerNow.remotePlayers,
+          chestPos.current,
+          lookDir,
+        );
+      const canCoopBeam =
+        beamDown &&
+        !knockStunned &&
+        !frozen &&
+        !grappleActive.current &&
+        target !== null;
+
+      if (canCoopBeam && target) {
+        coopCarryTargetId.current = target.id;
+        gameStore.setIsBeaming(true);
+        setBeamAttractActive(false);
+        if (coopActionSendTimer.current <= 0) {
+          coopActionSendTimer.current = 0.045;
+          multiplayerStore.sendCoopAction(
+            makeCoopPullAction(
+              target.id,
+              chestPos.current,
+              lookDir,
+              target.position,
+            ),
+          );
+        }
+      } else {
+        gameStore.setIsBeaming(false);
+        setBeamAttractActive(false);
+        if (beamDown && !coopWasBeamDown.current && now - beamNoLockSoundAt.current > 0.45) {
+          beamNoLockSoundAt.current = now;
+          playBeamNoLock();
+        }
+      }
+
+      if (!beamDown && coopWasBeamDown.current && coopCarryTargetId.current) {
+        const lv = body.linvel();
+        multiplayerStore.sendCoopAction(
+          makeCoopThrowAction(
+            coopCarryTargetId.current,
+            chestPos.current,
+            lookDir,
+            { x: lv.x, y: lv.y, z: lv.z },
+          ),
+        );
+        coopCarryTargetId.current = null;
+      }
+      if (!beamDown && !coopWasBeamDown.current) {
+        coopCarryTargetId.current = null;
+      }
+      coopWasBeamDown.current = beamDown;
+    } else {
+      coopCarryTargetId.current = null;
+      coopWasBeamDown.current = false;
+    }
+
     if (
       tune.grapplingHookEnabled &&
       grapplePressed &&
@@ -2223,6 +2316,7 @@ export function Player({
       }
     }
     const beamAttempt =
+      !coopAdventureMode &&
       beamDown &&
       !beamNeedsRepress.current &&
       !knockStunned &&
