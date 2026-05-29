@@ -142,6 +142,7 @@ import {
   makeCoopThrowAction,
 } from '../coop/coopAdventurePlayerThrow';
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
+import { sampleCoopAdventureRailContact } from '../coop/coopAdventureRails';
 import {
   GRIND_RAIL,
   sampleGrindRailContact,
@@ -1417,9 +1418,6 @@ export function Player({
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
     grindRailCooldown.current = Math.max(0, grindRailCooldown.current - dt);
-    if (coopAdventureMode && grindRailActive.current) {
-      stopGrindRailRide(0);
-    }
     if (ePropelTimer.current > 0) {
       ePropelElapsed.current += dt;
     }
@@ -1870,7 +1868,13 @@ export function Player({
       ? GRIND_RAIL.activeHorizontalM
       : GRIND_RAIL.contactHorizontalM;
     const railContact = coopAdventureMode
-      ? null
+      ? sampleCoopAdventureRailContact(
+          pos.x,
+          railCenterY,
+          pos.z,
+          railContactRange,
+          GRIND_RAIL.contactVerticalM + 1.8,
+        )
       : sampleGrindRailContact(
           pos.x,
           railCenterY,
@@ -1957,7 +1961,7 @@ export function Player({
           );
           const wobbleSide = Math.sin(grindRailWobble.current) * 0.1;
           const wobbleLift = Math.abs(Math.cos(grindRailWobble.current * 1.6)) * 0.05;
-          const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.31 + wobbleLift;
+          const rideY = railContact.y + GRIND_RAIL.radius - capCenterY + 0.31 + wobbleLift;
           const rideX = railContact.rideX + railContact.inwardX * wobbleSide;
           const rideZ = railContact.rideZ + railContact.inwardZ * wobbleSide;
           body.setTranslation(
@@ -1985,7 +1989,6 @@ export function Player({
         }
       }
     } else if (
-      !coopAdventureMode &&
       !jumpPressed &&
       !goalEjectMoveLocked &&
       grindRailCooldown.current <= 0 &&
@@ -2009,7 +2012,7 @@ export function Player({
         walkSpeed * 3,
         sprintSpeed * GRIND_RAIL.maxSpeedSprintMul,
       );
-      const rideY = GRIND_RAIL.y + GRIND_RAIL.radius - capCenterY + 0.31;
+      const rideY = railContact.y + GRIND_RAIL.radius - capCenterY + 0.31;
       body.setTranslation(
         { x: railContact.rideX, y: rideY, z: railContact.rideZ },
         true,
@@ -2475,6 +2478,8 @@ export function Player({
         !frozen &&
         !grappleActive.current &&
         target !== null;
+      const coopThrowPressed =
+        coopCarryTargetId.current !== null && inputManager.consumeFireEdge();
 
       if (canCoopBeam && target) {
         coopCarryTargetId.current = target.id;
@@ -2511,12 +2516,15 @@ export function Player({
         }
       }
 
-      if (!beamDown && coopWasBeamDown.current && coopCarryTargetId.current) {
+      if (
+        (coopThrowPressed || (!beamDown && coopWasBeamDown.current)) &&
+        coopCarryTargetId.current
+      ) {
         const lv = body.linvel();
         multiplayerStore.sendCoopAction(
           makeCoopThrowAction(
             coopCarryTargetId.current,
-            chestPos.current,
+            coopCarryProxyPos.current,
             lookDir,
             { x: lv.x, y: lv.y, z: lv.z },
           ),
@@ -3110,9 +3118,11 @@ export function Player({
       holdSocketSmoothReady.current = false;
     }
 
-    const clamped = clampToHex(pos.x, pos.z, ARENA.hexRadius, 2.5);
-    if (clamped.x !== pos.x || clamped.z !== pos.z) {
-      body.setTranslation({ x: clamped.x, y: pos.y, z: clamped.z }, true);
+    if (!coopAdventureMode) {
+      const clamped = clampToHex(pos.x, pos.z, ARENA.hexRadius, 2.5);
+      if (clamped.x !== pos.x || clamped.z !== pos.z) {
+        body.setTranslation({ x: clamped.x, y: pos.y, z: clamped.z }, true);
+      }
     }
 
     const grappleCable = grappleCableRef.current;

@@ -7,6 +7,10 @@ import pictureEndUrl from '../assets/images/ui/pictureend.png';
 import { inputManager } from '../game/InputManager';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
+import {
+  clearCoopAdventureRails,
+  setCoopAdventureRails,
+} from './coopAdventureRails';
 import { BTS_FACTS } from './btsFacts';
 
 const PLATFORM_COLLISION = interactionGroups(2, [0, 1, 2]);
@@ -236,26 +240,22 @@ function CoopSpawnedRail({
   start: THREE.Vector3;
   end: THREE.Vector3;
 }) {
-  const points = useMemo(
-    () => [
-      start.clone(),
-      start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, 1.35, 0)),
-      end.clone(),
-    ],
-    [start, end],
-  );
+  const points = useMemo(() => [start.clone(), end.clone()], [start, end]);
   const geometry = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
-    return new THREE.TubeGeometry(curve, 48, 0.26, 14, false);
+    return new THREE.TubeGeometry(curve, 14, 0.24, 10, false);
   }, [points]);
-  const colliderPoints = useMemo(() => {
-    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
-    const length = start.distanceTo(end);
-    const count = Math.max(8, Math.ceil(length / 2.1));
-    return Array.from({ length: count }, (_, i) =>
-      curve.getPoint(count <= 1 ? 0 : i / (count - 1)),
-    );
-  }, [end, points, start]);
+  const railDelta = useMemo(() => end.clone().sub(start), [end, start]);
+  const railLength = railDelta.length();
+  const railMid = useMemo(() => start.clone().lerp(end, 0.5), [end, start]);
+  const railQuat = useMemo(
+    () =>
+      new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(1, 0, 0),
+        railDelta.clone().normalize(),
+      ),
+    [railDelta],
+  );
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
@@ -280,17 +280,19 @@ function CoopSpawnedRail({
           toneMapped={false}
         />
       </mesh>
-      {colliderPoints.map((point, i) => (
-        <RigidBody key={i} type="fixed" colliders={false}>
-          <CuboidCollider
-            args={[0.95, 0.2, 0.68]}
-            position={[point.x, point.y, point.z]}
-            collisionGroups={PLATFORM_COLLISION}
-            friction={1}
-            restitution={0.02}
-          />
-        </RigidBody>
-      ))}
+      <RigidBody
+        type="fixed"
+        colliders={false}
+        position={[railMid.x, railMid.y, railMid.z]}
+        quaternion={railQuat}
+      >
+        <CuboidCollider
+          args={[railLength * 0.5, 0.24, 0.42]}
+          collisionGroups={PLATFORM_COLLISION}
+          friction={1}
+          restitution={0.02}
+        />
+      </RigidBody>
       <pointLight
         color="#28ffde"
         intensity={1.3}
@@ -313,6 +315,55 @@ function CoopSpawnedRail({
         <div className="coop-rail-label">HELP RAIL</div>
       </Html>
     </group>
+  );
+}
+
+function CoopSkyPlayBlock({ platforms }: { platforms: CoopAdventurePlatform[] }) {
+  const bounds = useMemo(() => {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    let minY = Infinity;
+    for (const platform of platforms) {
+      minX = Math.min(minX, platform.position.x - platform.size.x * 0.5);
+      maxX = Math.max(maxX, platform.position.x + platform.size.x * 0.5);
+      minZ = Math.min(minZ, platform.position.z - platform.size.z * 0.5);
+      maxZ = Math.max(maxZ, platform.position.z + platform.size.z * 0.5);
+      minY = Math.min(minY, platform.position.y - platform.size.y * 0.5);
+    }
+    const pad = 36;
+    const sizeX = Math.max(130, maxX - minX + pad * 2);
+    const sizeZ = Math.max(170, maxZ - minZ + pad * 2);
+    return {
+      x: (minX + maxX) * 0.5,
+      y: minY - 5.2,
+      z: (minZ + maxZ) * 0.5,
+      sizeX,
+      sizeZ,
+    };
+  }, [platforms]);
+
+  return (
+    <RigidBody type="fixed" colliders={false}>
+      <CuboidCollider
+        args={[bounds.sizeX * 0.5, 1.4, bounds.sizeZ * 0.5]}
+        position={[bounds.x, bounds.y, bounds.z]}
+        collisionGroups={PLATFORM_COLLISION}
+        friction={1}
+        restitution={0.02}
+      />
+      <mesh position={[bounds.x, bounds.y, bounds.z]} receiveShadow>
+        <boxGeometry args={[bounds.sizeX, 2.8, bounds.sizeZ]} />
+        <meshStandardMaterial
+          color="#4ef06c"
+          roughness={0.9}
+          metalness={0}
+          emissive="#18993c"
+          emissiveIntensity={0.05}
+        />
+      </mesh>
+    </RigidBody>
   );
 }
 
@@ -377,6 +428,24 @@ export function CoopAdventureCourse({
     setFactNotice(null);
     setActiveRails([]);
   }, [levelIndex, teamSlot]);
+
+  useEffect(() => {
+    const startPlatform = level.platforms[0]!;
+    setCoopAdventureRails(
+      activeRails.flatMap((rail) => {
+        const platform = level.platforms.find((candidate) => candidate.id === rail.platformId);
+        if (!platform) return [];
+        return [
+          {
+            key: rail.key,
+            start: railEndpoint(startPlatform),
+            end: railEndpoint(platform),
+          },
+        ];
+      }),
+    );
+    return () => clearCoopAdventureRails();
+  }, [activeRails, level]);
 
   useFrame((_, dt) => {
     advanceLock.current = Math.max(0, advanceLock.current - dt);
@@ -493,6 +562,7 @@ export function CoopAdventureCourse({
         castShadow
       />
       <CoopClouds />
+      <CoopSkyPlayBlock platforms={level.platforms} />
       {level.platforms.map((platform) => (
         <CoopPlatform key={platform.id} platform={platform} />
       ))}

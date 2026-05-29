@@ -94,8 +94,8 @@ export function makeCoopThrowAction(
     .multiplyScalar(COOP_THROW_SPEED)
     .add(new THREE.Vector3(holderVelocity.x * 0.5, 0, holderVelocity.z * 0.5));
   _velocity.y = Math.max(_velocity.y + COOP_THROW_UP_SPEED, COOP_THROW_UP_SPEED);
-  _hold.copy(holderPosition).addScaledVector(lookDir, COOP_HOLD_DISTANCE + 0.8);
-  _hold.y += 0.85;
+  _hold.copy(holderPosition).addScaledVector(lookDir, 0.85);
+  _hold.y += 0.35;
   return {
     kind: 'playerThrow',
     targetId,
