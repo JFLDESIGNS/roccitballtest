@@ -641,9 +641,9 @@ export const CAMERA = {
   pivotHeight: 1.5,
   shoulderOffset: 0,
   lookAhead: 24,
-  smooth: 60,
-  /** Body pivot follow on X/Z. High keeps the camera planted behind fast turns. */
-  pivotSmoothXZ: 24,
+  smooth: 42,
+  /** Body pivot follow on X/Z. Moderated so collision corrections do not read as camera shake. */
+  pivotSmoothXZ: 18,
   /** Body pivot follow vertically. */
   pivotSmoothY: 24,
   /** Never pull third-person cam closer than this to the pivot (avoids clipping inside capsule) */

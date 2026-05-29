@@ -167,8 +167,6 @@ const PLAYER_UPPER_COLLIDER = {
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
-const _scoopLowerLocal = new THREE.Vector3();
-const _scoopUpperLocal = new THREE.Vector3();
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -1031,42 +1029,34 @@ export function Player({
     const lower = lowerScoopColliderRef.current;
     const upper = upperScoopColliderRef.current;
     if (!lower && !upper) return;
+    if (!reset && scoopTiltReady.current) return;
 
-    const tilt = tiltRef.current;
-    const q =
-      reset || !tilt
-        ? scoopTiltQuat.current.identity()
-        : scoopTiltQuat.current.copy(tilt.quaternion);
-    if (!reset && scoopTiltReady.current && lastScoopTiltQuat.current.angleTo(q) < 0.003) {
+    const q = scoopTiltQuat.current.identity();
+    if (
+      reset &&
+      scoopTiltReady.current &&
+      lastScoopTiltQuat.current.angleTo(q) < 0.0001
+    ) {
       return;
     }
-    if (reset && scoopTiltReady.current && lastScoopTiltQuat.current.angleTo(q) < 0.0001) {
-      return;
-    }
-    lastScoopTiltQuat.current.copy(q);
+    lastScoopTiltQuat.current.identity();
     scoopTiltReady.current = true;
 
     const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
     lower?.setRotationWrtParent(rot);
     upper?.setRotationWrtParent(rot);
     if (lower) {
-      _scoopLowerLocal
-        .set(0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ)
-        .applyQuaternion(q);
       lower.setTranslationWrtParent({
-        x: _scoopLowerLocal.x,
-        y: _scoopLowerLocal.y,
-        z: _scoopLowerLocal.z,
+        x: 0,
+        y: PLAYER_LOWER_COLLIDER.centerY,
+        z: PLAYER_LOWER_COLLIDER.centerZ,
       });
     }
     if (upper) {
-      _scoopUpperLocal
-        .set(0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ)
-        .applyQuaternion(q);
       upper.setTranslationWrtParent({
-        x: _scoopUpperLocal.x,
-        y: _scoopUpperLocal.y,
-        z: _scoopUpperLocal.z,
+        x: 0,
+        y: PLAYER_UPPER_COLLIDER.centerY,
+        z: PLAYER_UPPER_COLLIDER.centerZ,
       });
     }
   }, []);
