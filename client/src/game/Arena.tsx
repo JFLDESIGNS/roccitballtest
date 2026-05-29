@@ -257,11 +257,8 @@ function GoalRing({
   const glowTube = tube * GOAL_RINGS.glowTubeScale;
   const scoreHalf = goalScoreHoleRadius(ringRadius, size);
   const tiltX = ringTiltX(team, size);
-  const litPullBack =
-    size === 'small' ? GOAL_RINGS.topRingLitWallPullBackFt * 0.3048 : 0;
-  const litWallLocalZ = litPullBack * (team === 'red' ? -1 : 1);
-  const litCenterX = center.x + Math.cos(tiltX) * litWallLocalZ;
-  const litCenterY = center.y - Math.sin(tiltX) * litWallLocalZ;
+  const litCenter =
+    size === 'small' ? goalBackRingCenter({ center, team, size }) : center;
   const radial = GOAL_RINGS.torusRadialSegments;
   const tubular = GOAL_RINGS.torusTubularSegments;
 
@@ -313,7 +310,7 @@ function GoalRing({
       <MaybeRigidBody
         type="fixed"
         colliders={false}
-        position={[litCenterX, litCenterY, center.z]}
+        position={[litCenter.x, litCenter.y, litCenter.z]}
       >
         <group rotation={[0, Math.PI / 2, 0]}>
           <group rotation={[tiltX, 0, 0]}>

@@ -52,17 +52,6 @@ export function goalRingCenterX(
   return team === 'red' ? wallX + standoff : wallX - standoff;
 }
 
-/** Logical goal X; visual-only lit ring offsets are applied in Arena.tsx. */
-function goalRingDisplayX(
-  centerX: number,
-  team: Team,
-  size: GoalSize,
-): number {
-  void team;
-  void size;
-  return centerX;
-}
-
 function goalScoringStickOutM(size: GoalSize): number {
   if (size === 'medium') return GOAL_RINGS.scoringVolumeStickOutMidM;
   if (size === 'small') return GOAL_RINGS.scoringVolumeStickOutTopM;
@@ -272,7 +261,7 @@ function buildWallRings(team: Team, wallX: number): GoalDef[] {
       size: t.size,
       points: t.points,
       center: {
-        x: goalRingDisplayX(x, team, t.size),
+        x,
         y: t.y,
         z: 0,
       },
