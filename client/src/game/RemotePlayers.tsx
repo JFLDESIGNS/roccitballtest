@@ -72,6 +72,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const blendedVel = useRef(new THREE.Vector3());
   const rotationQuat = useRef(new THREE.Quaternion());
   const visualRef = useRef<THREE.Group>(null);
+  const avatarRef = useRef<THREE.Group>(null);
   const nameplateRef = useRef<THREE.Group>(null);
   const ready = useRef(false);
 
@@ -199,6 +200,25 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       visual.position.copy(displayPos.current);
       visual.quaternion.copy(rotationQuat.current);
     }
+    if (avatarRef.current) {
+      if (player.coopRagdoll) {
+        const speed = Math.min(1, blendedVel.current.length() / 38);
+        const t = now * 0.012 + player.id.length;
+        avatarRef.current.rotation.x = Math.sin(t * 1.7) * (0.55 + speed * 0.65);
+        avatarRef.current.rotation.z = Math.cos(t * 1.25) * (0.45 + speed * 0.55);
+      } else {
+        avatarRef.current.rotation.x = THREE.MathUtils.lerp(
+          avatarRef.current.rotation.x,
+          0,
+          1 - Math.exp(-dt * 14),
+        );
+        avatarRef.current.rotation.z = THREE.MathUtils.lerp(
+          avatarRef.current.rotation.z,
+          0,
+          1 - Math.exp(-dt * 14),
+        );
+      }
+    }
     if (nameplate) {
       nameplate.position.set(
         displayPos.current.x,
@@ -225,7 +245,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         />
       </RigidBody>
       <group ref={visualRef} position={initialPosition.current}>
-        <group position={[0, capCenterY, 0]}>
+        <group ref={avatarRef} position={[0, capCenterY, 0]}>
           <PlayerAvatar team={player.team} />
         </group>
       </group>

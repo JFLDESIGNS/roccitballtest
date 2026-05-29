@@ -31,6 +31,7 @@ export type RemoteMultiplayerPlayer = {
   isBeaming: boolean;
   isHoldingBall: boolean;
   holdPosition: Vec3 | null;
+  coopRagdoll?: boolean;
   playReady?: boolean;
   loadReady?: boolean;
   updatedAt: number;
@@ -177,6 +178,7 @@ type LocalPlayerUpdate = {
   isBeaming: boolean;
   isHoldingBall: boolean;
   holdPosition: Vec3 | null;
+  coopRagdoll?: boolean;
 };
 
 const listeners = new Set<() => void>();

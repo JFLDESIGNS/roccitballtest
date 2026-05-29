@@ -12,9 +12,9 @@ export const COOP_ADVENTURE_MODE: RoomMode = 'coop-adventure';
 const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
 const COOP_HOLD_DISTANCE = 4.2;
-const COOP_PULL_SPEED = 22;
-const COOP_THROW_SPEED = 34;
-const COOP_THROW_UP_SPEED = 8;
+const COOP_PULL_SPEED = 34;
+const COOP_THROW_SPEED = 42;
+const COOP_THROW_UP_SPEED = 10;
 
 const _toTarget = new THREE.Vector3();
 const _targetPos = new THREE.Vector3();
@@ -115,20 +115,20 @@ export function applyCoopAdventureActionToBody(
     return;
   }
 
+  const hold = action.holdPosition ?? action.position;
   const t = body.translation();
   const current = body.linvel();
-  const hold = action.holdPosition ?? action.position;
   const toward = {
-    x: (hold.x - t.x) * 9,
-    y: (hold.y - t.y) * 9,
-    z: (hold.z - t.z) * 9,
+    x: (hold.x - t.x) * 18,
+    y: (hold.y - t.y) * 18,
+    z: (hold.z - t.z) * 18,
   };
-  const alpha = 1 - Math.exp(-dt * 13);
+  const alpha = 1 - Math.exp(-dt * 22);
   body.setLinvel(
     {
-      x: THREE.MathUtils.lerp(current.x, toward.x + action.velocity.x * 0.35, alpha),
-      y: THREE.MathUtils.lerp(current.y, toward.y + action.velocity.y * 0.35, alpha),
-      z: THREE.MathUtils.lerp(current.z, toward.z + action.velocity.z * 0.35, alpha),
+      x: THREE.MathUtils.lerp(current.x, toward.x + action.velocity.x * 0.2, alpha),
+      y: THREE.MathUtils.lerp(current.y, toward.y + action.velocity.y * 0.2, alpha),
+      z: THREE.MathUtils.lerp(current.z, toward.z + action.velocity.z * 0.2, alpha),
     },
     true,
   );

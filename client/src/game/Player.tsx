@@ -351,6 +351,7 @@ type PlayerProps = {
       isBeaming: boolean;
       isHoldingBall: boolean;
       holdPosition: { x: number; y: number; z: number } | null;
+      coopRagdoll?: boolean;
     },
   ) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
@@ -464,6 +465,13 @@ export function Player({
   const coopCarryTargetId = useRef<string | null>(null);
   const coopWasBeamDown = useRef(false);
   const coopActionSendTimer = useRef(0);
+  const coopCarriedUntil = useRef(0);
+  const coopThrownRagdollActive = useRef(false);
+  const coopThrowCollisionGraceUntil = useRef(0);
+  const coopThrowMinRagdollUntil = useRef(0);
+  const coopHeldTarget = useRef(new THREE.Vector3());
+  const coopHeldTargetReady = useRef(false);
+  const coopRagdollVisualActive = useRef(false);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -1353,6 +1361,59 @@ export function Player({
     const { forward, right } = getCameraBasis(rot.yaw);
     const beamDown = inputManager.isBeam();
     const grapplePressed = inputManager.consumeGrapple();
+    const multiplayerNow = multiplayerStore.getState();
+    const networkCoopAdventureMode =
+      multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
+    const nowSec = performance.now() / 1000;
+
+    if (networkCoopAdventureMode) {
+      const selfId = multiplayerNow.selfId;
+      for (const action of multiplayerStore.drainRemoteCoopActions()) {
+        if (!selfId || action.targetId !== selfId) continue;
+        if (action.kind === 'playerPull') {
+          const hold = action.holdPosition ?? action.position;
+          coopHeldTarget.current.set(hold.x, hold.y, hold.z);
+          if (
+            !coopHeldTargetReady.current ||
+            coopHeldTarget.current.distanceTo(pos) > 8
+          ) {
+            body.setTranslation(coopHeldTarget.current, true);
+            pos.copy(coopHeldTarget.current);
+          }
+          coopHeldTargetReady.current = true;
+          coopCarriedUntil.current = nowSec + 0.22;
+          coopThrownRagdollActive.current = false;
+          if (!coopRagdollVisualActive.current) {
+            impulseKnockVisualTumble(knockTumble.current);
+            coopRagdollVisualActive.current = true;
+          }
+          applyCoopAdventureActionToBody(body, action, dt);
+          const v = body.linvel();
+          velocity.current.set(v.x, v.y, v.z);
+          jumpsLeft.current = 0;
+          grounded.current = false;
+          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+        } else {
+          coopCarriedUntil.current = 0;
+          coopHeldTargetReady.current = false;
+          coopThrownRagdollActive.current = true;
+          coopThrowCollisionGraceUntil.current = nowSec + 0.18;
+          coopThrowMinRagdollUntil.current = nowSec + 0.42;
+          coopRagdollVisualActive.current = true;
+          impulseKnockVisualTumble(knockTumble.current);
+          applyCoopAdventureActionToBody(body, action, dt);
+          const v = body.linvel();
+          velocity.current.set(v.x, v.y, v.z);
+          grounded.current = false;
+          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+        }
+      }
+    } else {
+      coopCarriedUntil.current = 0;
+      coopThrownRagdollActive.current = false;
+      coopHeldTargetReady.current = false;
+      coopRagdollVisualActive.current = false;
+    }
 
     const pivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
@@ -1372,7 +1433,102 @@ export function Player({
               z: holdSocketSmoothed.current.z,
             }
           : null,
+      coopRagdoll:
+        networkCoopAdventureMode &&
+        (nowSec < coopCarriedUntil.current || coopThrownRagdollActive.current),
     });
+
+    const coopCarried = networkCoopAdventureMode && nowSec < coopCarriedUntil.current;
+    const coopThrown = networkCoopAdventureMode && coopThrownRagdollActive.current;
+    if (coopCarried || coopThrown) {
+      stopGrindRailRide();
+      if (grappleActive.current) stopGrapple(false);
+      holdingBall.current = false;
+      gameStore.setIsBeaming(false);
+      setBeamAttractActive(false);
+      setShiftWindActive(false);
+      thrusterThrottle.current = smoothAsymmetric(
+        thrusterThrottle.current,
+        0,
+        dt,
+        18,
+        22,
+      );
+
+      if (coopCarried && coopHeldTargetReady.current) {
+        const current = body.translation();
+        _posScratch.current.set(current.x, current.y, current.z);
+        _posScratch.current.lerp(
+          coopHeldTarget.current,
+          1 - Math.exp(-dt * 28),
+        );
+        body.setTranslation(_posScratch.current, true);
+        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        pos.copy(_posScratch.current);
+        velocity.current.set(0, 0, 0);
+      } else {
+        const v = body.linvel();
+        velocity.current.set(v.x, v.y + tune.gravity * dt * 1.15, v.z);
+        body.setLinvel(velocity.current, true);
+        const probe = probePlayerGround(
+          world,
+          pos.x,
+          pos.y,
+          pos.z,
+          velocity.current.y,
+          body,
+          MOVEMENT.groundProbeDist,
+          MOVEMENT.groundMaxVerticalSpeed,
+        );
+        if (
+          nowSec >= coopThrowMinRagdollUntil.current &&
+          probe.grounded &&
+          Math.abs(velocity.current.y) < 10
+        ) {
+          coopThrownRagdollActive.current = false;
+          coopRagdollVisualActive.current = false;
+          jumpsLeft.current = MOVEMENT.maxJumps;
+          jumpAirGrace.current = 0;
+          grounded.current = true;
+          clearKnockVisualTumble(knockTumble.current);
+        }
+      }
+
+      const after = body.translation();
+      pos.set(after.x, after.y, after.z);
+      chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
+      tickKnockVisualTumble(knockTumble.current, dt);
+      alignCharacterVisualUpright(
+        body,
+        visualPresentation,
+        rot.yaw,
+        knockTumble.current,
+        inputManager.getAimPitch(),
+      );
+      syncScoopColliderTilt();
+      const ragdollLv = body.linvel();
+      onPositionUpdate(pos, chestPos.current, {
+        yaw: rot.yaw,
+        pitch: inputManager.getAimPitch(),
+        velocity: { x: ragdollLv.x, y: ragdollLv.y, z: ragdollLv.z },
+        isBeaming: false,
+        isHoldingBall: false,
+        holdPosition: null,
+        coopRagdoll: true,
+      });
+      const ragdollPivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
+      updateThirdPersonCamera(
+        camera,
+        ragdollPivot,
+        rot.yaw,
+        inputManager.getAimPitch(),
+        dt,
+        false,
+        0,
+      );
+      return;
+    }
+
     const moveSpeed = Math.hypot(linvel.x, linvel.z);
     const goalEjectMoveLocked = isPlayerGoalEjectMoveLocked();
     const moveEarly = goalEjectMoveLocked
@@ -2214,27 +2370,12 @@ export function Player({
     const ballLooseCooldown = now >= ballReleaseLockUntil.current;
     const ball = ballBodyRef.current;
     const ballHolder = gameStore.getState().ballHolderId;
-    const multiplayerNow = multiplayerStore.getState();
     const remoteBallHeld =
       multiplayerNow.enabled &&
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
-    const networkCoopAdventureMode =
-      multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
 
     if (networkCoopAdventureMode) {
-      const selfId = multiplayerNow.selfId;
-      for (const action of multiplayerStore.drainRemoteCoopActions()) {
-        if (selfId && action.targetId === selfId) {
-          applyCoopAdventureActionToBody(body, action, dt);
-          if (action.kind === 'playerThrow') {
-            jumpsLeft.current = MOVEMENT.maxJumps;
-            grounded.current = false;
-            jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.12);
-          }
-        }
-      }
-
       coopActionSendTimer.current = Math.max(0, coopActionSendTimer.current - dt);
       const carryTarget =
         coopCarryTargetId.current !== null
@@ -2972,6 +3113,21 @@ export function Player({
         ccd
         userData={{ character: true, hitTarget: true, actorId: 'local' as const }}
         onCollisionEnter={(payload: CollisionEnterPayload) => {
+          const now = performance.now() / 1000;
+          if (
+            coopThrownRagdollActive.current &&
+            now >= coopThrowCollisionGraceUntil.current &&
+            now >= coopThrowMinRagdollUntil.current
+          ) {
+            coopThrownRagdollActive.current = false;
+            coopCarriedUntil.current = 0;
+            coopHeldTargetReady.current = false;
+            coopRagdollVisualActive.current = false;
+            jumpsLeft.current = MOVEMENT.maxJumps;
+            jumpAirGrace.current = 0;
+            grounded.current = true;
+            clearKnockVisualTumble(knockTumble.current);
+          }
           const n = payload.manifold.normal();
           if (n.y < -0.78) {
             const b = bodyRef.current;

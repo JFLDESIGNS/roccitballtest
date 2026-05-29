@@ -839,6 +839,7 @@ function Scene({
         isBeaming: boolean;
         isHoldingBall: boolean;
         holdPosition: { x: number; y: number; z: number } | null;
+        coopRagdoll?: boolean;
       },
     ) => {
       playerPosRef.current.copy(pos);
@@ -853,6 +854,7 @@ function Scene({
         isBeaming: pose.isBeaming,
         isHoldingBall: pose.isHoldingBall,
         holdPosition: pose.holdPosition,
+        coopRagdoll: Boolean(pose.coopRagdoll),
       });
     },
     [],

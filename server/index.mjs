@@ -1582,6 +1582,7 @@ function handleClientMessage(socket, raw) {
       isBeaming: false,
       isHoldingBall: false,
       holdPosition: null,
+      coopRagdoll: false,
       playReady: false,
       loadReady: false,
       updatedAt: Date.now(),
@@ -1631,6 +1632,7 @@ function handleClientMessage(socket, raw) {
     player.holdPosition = player.isHoldingBall && msg.holdPosition
       ? sanitizeVec3(msg.holdPosition, player.position)
       : null;
+    player.coopRagdoll = room.mode === 'coop-adventure' && Boolean(msg.coopRagdoll);
     if (
       !player.isHoldingBall &&
       player.releasedBallUntil &&
