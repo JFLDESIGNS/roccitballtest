@@ -177,13 +177,14 @@ function clampHorizontalVelocity(
   velocity.z *= scale;
 }
 
-const PLAYER_ARENA_WALL_MARGIN = MOVEMENT.capsuleRadius + ARENA.wallThickness + 0.35;
-const PLAYER_ARENA_BUMPER_ZONE_M = 1.85;
+const PLAYER_ARENA_WALL_MARGIN = MOVEMENT.capsuleRadius + ARENA.wallThickness + 0.85;
+const PLAYER_ARENA_BUMPER_ZONE_M = 2.4;
 const PLAYER_ARENA_BUMPER_SAFE_SLACK_M = 0.18;
 const PLAYER_ARENA_BUMPER_RESTITUTION = 0.34;
-const PLAYER_ARENA_BUMPER_PUSH_SPEED = 10;
+const PLAYER_ARENA_BUMPER_PUSH_SPEED = 14;
 const PLAYER_ARENA_GRAPPLE_DETACH_SPEED = 9;
 const _arenaWallNormal = new THREE.Vector2();
+const _grappleConstraintDir = new THREE.Vector3();
 
 function applyPlayerArenaWallBumper(
   body: RapierRigidBody,
@@ -194,10 +195,20 @@ function applyPlayerArenaWallBumper(
   grappleActive: boolean,
 ): void {
   const playRadius = ARENA.hexRadius - PLAYER_ARENA_WALL_MARGIN;
-  const slack = hexSlackToBoundary(pos.x, pos.z, playRadius);
+  const predictedX = pos.x + velocity.x * Math.min(dt, 1 / 30);
+  const predictedZ = pos.z + velocity.z * Math.min(dt, 1 / 30);
+  const currentSlack = hexSlackToBoundary(pos.x, pos.z, playRadius);
+  const predictedSlack = hexSlackToBoundary(predictedX, predictedZ, playRadius);
+  const slack = Math.min(currentSlack, predictedSlack);
   if (slack > PLAYER_ARENA_BUMPER_ZONE_M) return;
 
-  _arenaWallNormal.copy(hexBoundaryNormal(pos.x, pos.z, playRadius));
+  _arenaWallNormal.copy(
+    hexBoundaryNormal(
+      predictedSlack < currentSlack ? predictedX : pos.x,
+      predictedSlack < currentSlack ? predictedZ : pos.z,
+      playRadius,
+    ),
+  );
   const outwardSpeed =
     velocity.x * _arenaWallNormal.x + velocity.z * _arenaWallNormal.y;
 
@@ -576,18 +587,8 @@ export function Player({
       }
       _grapplePlanarDir.normalize();
       grapplePlanarDir.current.copy(_grapplePlanarDir);
-      const anchorHoriz = Math.hypot(hitX - origin.x, hitZ - origin.z);
       let anchorX = hitX;
       let anchorZ = hitZ;
-      if (anchorHoriz < MOVEMENT.grappleMinAnchorForwardM) {
-        anchorX =
-          origin.x + _grapplePlanarDir.x * MOVEMENT.grappleMinAnchorForwardM;
-        anchorZ =
-          origin.z + _grapplePlanarDir.z * MOVEMENT.grappleMinAnchorForwardM;
-        const clamped = clampToHex(anchorX, anchorZ, ARENA.hexRadius - 1.4, 0);
-        anchorX = clamped.x;
-        anchorZ = clamped.z;
-      }
       grappleAnchor.current.set(anchorX, ceilingY, anchorZ);
       grappleSwingAxis.current.copy(_grapplePlanarDir);
       const offsetAlong =
@@ -1439,9 +1440,11 @@ export function Player({
       wishDir.normalize();
       lastWishDir.current.copy(wishDir);
     }
+    const jumpRequested = inputManager.wantsJump();
     const jumpPressed =
       !goalEjectMoveLocked &&
-      jumpsLeft.current > 0 &&
+      (grappleActive.current || jumpsLeft.current > 0) &&
+      jumpRequested &&
       inputManager.consumeJump();
     const downSmashPressed =
       !goalEjectMoveLocked && inputManager.consumeDownSmash();
@@ -1879,10 +1882,6 @@ export function Player({
 
     velocity.current.y = vy;
     if (grappleActive.current) {
-      const safeGroundY = Math.max(ARENA.floorY, probe.groundY);
-      const safeFeetY =
-        safeGroundY + MOVEMENT.grappleHangFeetAboveGroundM;
-      const safeBodyY = safeFeetY - playerFeetY(0);
       const chestX = pos.x;
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
@@ -1903,7 +1902,7 @@ export function Player({
       const swingRadius = grappleSwingRadius.current;
       _grapplePendulumTarget.set(
         grappleAnchor.current.x + grappleSwingAxis.current.x * swingSin * swingRadius,
-        Math.max(safeBodyY, pos.y),
+        pos.y,
         grappleAnchor.current.z + grappleSwingAxis.current.z * swingSin * swingRadius,
       );
       _grapplePendulumVel.set(
@@ -1953,32 +1952,34 @@ export function Player({
         grappleAlpha,
       );
 
-      const targetBodyY = Math.max(safeBodyY, pos.y);
-      const liftError = safeBodyY - pos.y;
-      const anchorLift = THREE.MathUtils.clamp(
-        (grappleAnchor.current.y - chestY) * 0.42,
-        -1.8,
-        grappleKickPending.current ? 16 : 9,
+      _grappleConstraintDir.set(
+        chestX - grappleAnchor.current.x,
+        chestY - grappleAnchor.current.y,
+        chestZ - grappleAnchor.current.z,
       );
-      const desiredVy = Math.max(anchorLift, liftError * 9);
-      const liftAlpha = 1 - Math.exp(-MOVEMENT.grappleArcadeLiftAccel * dt);
-      velocity.current.y = THREE.MathUtils.lerp(
-        velocity.current.y,
-        desiredVy,
-        liftAlpha,
-      );
-      if (grappleKickPending.current) {
-        velocity.current.y = Math.max(velocity.current.y, 8);
-        grappleKickPending.current = false;
+      const ropeDist = _grappleConstraintDir.length();
+      if (ropeDist > Math.max(0.1, grappleLength.current)) {
+        _grappleConstraintDir.multiplyScalar(1 / ropeDist);
+        const correctedChest = _grapplePendulumTarget
+          .copy(grappleAnchor.current)
+          .addScaledVector(_grappleConstraintDir, grappleLength.current);
+        const correctedY = correctedChest.y - BEAM.chestHeight;
+        body.setTranslation(
+          { x: correctedChest.x, y: correctedY, z: correctedChest.z },
+          true,
+        );
+        pos.set(correctedChest.x, correctedY, correctedChest.z);
+        const radialVel =
+          velocity.current.x * _grappleConstraintDir.x +
+          velocity.current.y * _grappleConstraintDir.y +
+          velocity.current.z * _grappleConstraintDir.z;
+        if (radialVel > 0) {
+          velocity.current.x -= _grappleConstraintDir.x * radialVel;
+          velocity.current.y -= _grappleConstraintDir.y * radialVel;
+          velocity.current.z -= _grappleConstraintDir.z * radialVel;
+        }
       }
-      if (pos.y < safeBodyY) {
-        body.setTranslation({ x: pos.x, y: safeBodyY, z: pos.z }, true);
-        pos.set(pos.x, safeBodyY, pos.z);
-        if (velocity.current.y < 0) velocity.current.y = 0;
-      } else if (targetBodyY > pos.y) {
-        body.setTranslation({ x: pos.x, y: targetBodyY, z: pos.z }, true);
-        pos.set(pos.x, targetBodyY, pos.z);
-      }
+      grappleKickPending.current = false;
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
       clampHorizontalVelocity(
@@ -2044,6 +2045,22 @@ export function Player({
       () => stopGrapple(false),
       grappleActive.current,
     );
+
+    const ceilingMaxBodyY =
+      ARENA.wallHeight -
+      0.85 -
+      capCenterY -
+      capHalfH -
+      MOVEMENT.capsuleRadius;
+    if (pos.y > ceilingMaxBodyY) {
+      if (grappleActive.current) stopGrapple(false);
+      body.setTranslation(
+        { x: pos.x, y: ceilingMaxBodyY, z: pos.z },
+        true,
+      );
+      pos.y = ceilingMaxBodyY;
+      velocity.current.y = Math.min(velocity.current.y, -3);
+    }
 
     body.setLinvel(
       { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
