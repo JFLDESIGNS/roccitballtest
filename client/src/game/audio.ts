@@ -12,18 +12,13 @@ import goal1Url from '../assets/sounds/goal1.WAV';
 import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
 import jumpSoundUrl from '../assets/sounds/jumpsound.mp3';
 import grindRailUrl from '../assets/sounds/grind-rail.mp3';
-import electricSlapUrl from '../assets/sounds/electric-slap.mp3';
+import beamAttractLoopUrl from '../assets/sounds/beamattractloop.mp3';
+import newSlapUrl from '../assets/sounds/newslap.wav';
+import rimSoundUrl from '../assets/sounds/rimsound.mp3';
+import windUrl from '../assets/sounds/wind.mp3';
 
 let ctx: AudioContext | null = null;
 
-type BeamSound = {
-  osc: OscillatorNode;
-  gain: GainNode;
-  lfo: OscillatorNode;
-  lfoGain: GainNode;
-};
-
-let beamSound: BeamSound | null = null;
 let bounceNoiseBuffer: AudioBuffer | null = null;
 let lastBallShotAt = 0;
 
@@ -32,6 +27,10 @@ const SHOT_SAMPLE_BASE = 0.44;
 const ELECTRIC_SLAP_SAMPLE_BASE = 0.58;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
+const BEAM_ATTRACT_LOOP_GAIN = 0.13;
+const WIND_LOOP_GAIN = 0.24;
+const WIND_START_SPEED_MPS = 15;
+const WIND_FULL_SPEED_MPS = 54;
 /** Menu + in-match loops (Rocket Dope Tron) */
 export const BACKGROUND_MUSIC_ENABLED = true;
 
@@ -78,10 +77,12 @@ type TimedCrowdTrack = {
   peakGainCap: number;
 };
 
-const BEAM_LOCAL_GAIN = 0.028;
-
 let bgMusicTrack: LoopingTrack | null = null;
 let grindRailTrack: LoopingTrack | null = null;
+let beamAttractTrack: LoopingTrack | null = null;
+let beamAttractLoading = false;
+let windTrack: LoopingTrack | null = null;
+let windLoading = false;
 let bgMusicMode: 'menu' | 'game' | null = null;
 /** Bumps when a new start is requested or music stops — stale async loads bail out */
 let bgMusicStartGen = 0;
@@ -90,6 +91,8 @@ let bgMusicLoadingMode: 'menu' | 'game' | null = null;
 let cheerTrack: TimedCrowdTrack | null = null;
 let panicTrack: TimedCrowdTrack | null = null;
 let masterVolumeListenerBound = false;
+const activeBeamAttractKeys = new Set<string>();
+let windLevel = 0;
 
 const sampleBuffers = new Map<string, AudioBuffer | null>();
 const sampleLoads = new Map<string, Promise<AudioBuffer | null>>();
@@ -136,7 +139,10 @@ const GAME_AUDIO_PRELOAD_URLS = [
   rocketDopeTronUrl,
   jumpSoundUrl,
   grindRailUrl,
-  electricSlapUrl,
+  beamAttractLoopUrl,
+  newSlapUrl,
+  rimSoundUrl,
+  windUrl,
 ] as const;
 
 function preloadSamples(): void {
@@ -247,6 +253,78 @@ function playSample(
   });
 }
 
+export function setPlayerWindSpeed(speedMps: number, flying = false): void {
+  const ac = getCtx();
+  if (!ac) return;
+
+  const base = Math.max(
+    0,
+    Math.min(
+      1,
+      (speedMps - WIND_START_SPEED_MPS) /
+        (WIND_FULL_SPEED_MPS - WIND_START_SPEED_MPS),
+    ),
+  );
+  const target = Math.max(0, Math.min(1, base + (flying ? 0.18 : 0)));
+  windLevel = target;
+
+  if (target <= 0.01) {
+    if (!windTrack) {
+      windLoading = false;
+      return;
+    }
+    const { source, gain } = windTrack;
+    const t = ac.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.22);
+    try {
+      source.stop(t + 0.24);
+    } catch {
+      /* already stopped */
+    }
+    windTrack = null;
+    windLoading = false;
+    return;
+  }
+
+  if (windTrack) {
+    const t = ac.currentTime;
+    windTrack.gain.gain.cancelScheduledValues(t);
+    windTrack.gain.gain.setValueAtTime(windTrack.gain.gain.value, t);
+    windTrack.gain.gain.linearRampToValueAtTime(
+      sfxGain(WIND_LOOP_GAIN * target),
+      t + 0.12,
+    );
+    return;
+  }
+
+  if (windLoading) return;
+  windLoading = true;
+  void loadSample(windUrl).then((buffer) => {
+    const live = getCtx();
+    windLoading = false;
+    if (!buffer || !live || windTrack || windLevel <= 0.01) return;
+    const source = live.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const gain = live.createGain();
+    const t = live.currentTime;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(
+      sfxGain(WIND_LOOP_GAIN * windLevel),
+      t + 0.14,
+    );
+    source.connect(gain);
+    gain.connect(live.destination);
+    source.start(t);
+    windTrack = { source, gain };
+    source.onended = () => {
+      if (windTrack?.source === source) windTrack = null;
+    };
+  });
+}
+
 export function resumeAudio(): void {
   getCtx();
   preloadSamples();
@@ -302,6 +380,22 @@ function stopGrindRailLoop(): void {
   if (track) disconnectLoopingTrack(track);
 }
 
+function stopBeamAttractLoop(): void {
+  beamAttractLoading = false;
+  activeBeamAttractKeys.clear();
+  const track = beamAttractTrack;
+  beamAttractTrack = null;
+  if (track) disconnectLoopingTrack(track);
+}
+
+function stopWindLoop(): void {
+  windLoading = false;
+  windLevel = 0;
+  const track = windTrack;
+  windTrack = null;
+  if (track) disconnectLoopingTrack(track);
+}
+
 function isBgMusicActive(mode: 'menu' | 'game'): boolean {
   return bgMusicMode === mode && bgMusicTrack !== null;
 }
@@ -336,10 +430,20 @@ function applyActiveAudioMasterVolume(): void {
     grindRailTrack.gain.gain.setValueAtTime(sfxGain(0.09), t);
   }
 
-  if (beamSound) {
-    const peak = sfxGain(BEAM_LOCAL_GAIN);
-    beamSound.gain.gain.cancelScheduledValues(t);
-    beamSound.gain.gain.setValueAtTime(peak, t);
+  if (beamAttractTrack) {
+    beamAttractTrack.gain.gain.cancelScheduledValues(t);
+    beamAttractTrack.gain.gain.setValueAtTime(
+      sfxGain(BEAM_ATTRACT_LOOP_GAIN),
+      t,
+    );
+  }
+
+  if (windTrack) {
+    windTrack.gain.gain.cancelScheduledValues(t);
+    windTrack.gain.gain.setValueAtTime(
+      sfxGain(WIND_LOOP_GAIN * windLevel),
+      t,
+    );
   }
 
   for (const track of [cheerTrack, panicTrack]) {
@@ -896,57 +1000,66 @@ export function playGoalRimHit(impactSpeed: number) {
   const min = 2.2;
   if (impactSpeed < min) return;
   const t = Math.min(1, (impactSpeed - min) / 22);
-  const g = 0.038 + t * 0.05;
-
-  playTone(620 + t * 180, 0.1 + t * 0.04, 'square', g, 280, 0, true);
-  playTone(1040 + t * 320, 0.14 + t * 0.05, 'sawtooth', g * 0.75, 420, 0.02, true);
-  playTone(1680 + t * 400, 0.08 + t * 0.03, 'triangle', g * 0.45, 900, 0.04, true);
-  playNoiseBurst(0.035 + t * 0.025, g * 0.55, 0.01, true);
+  playSample(rimSoundUrl, 0.42 + t * 0.58, true, 0.96 + t * 0.08);
 }
 
 /** Continuous magnetic beam hum while attracting */
-export function setBeamAttractActive(active: boolean) {
+export function setBeamAttractActive(active: boolean, key = 'local') {
   const ac = getCtx();
   if (!ac) return;
 
-  if (active) {
-    if (beamSound) return;
+  if (active) activeBeamAttractKeys.add(key);
+  else activeBeamAttractKeys.delete(key);
 
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    const lfo = ac.createOscillator();
-    const lfoGain = ac.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.value = 165;
-    lfo.type = 'sine';
-    lfo.frequency.value = 6.5;
-    lfoGain.gain.value = 28;
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-
-    const peak = sfxGain(BEAM_LOCAL_GAIN);
-    gain.gain.setValueAtTime(0, ac.currentTime);
-    gain.gain.linearRampToValueAtTime(peak, ac.currentTime + 0.06);
-
-    osc.connect(gain);
-    gain.connect(ac.destination);
-    osc.start();
-    lfo.start();
-
-    beamSound = { osc, gain, lfo, lfoGain };
+  const shouldPlay = activeBeamAttractKeys.size > 0;
+  if (!shouldPlay) {
+    if (!beamAttractTrack) {
+      beamAttractLoading = false;
+      return;
+    }
+    const { source, gain } = beamAttractTrack;
+    const t = ac.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.08);
+    try {
+      source.stop(t + 0.09);
+    } catch {
+      /* already stopped */
+    }
+    beamAttractTrack = null;
+    beamAttractLoading = false;
     return;
   }
 
-  if (!beamSound) return;
-  const { osc, gain, lfo } = beamSound;
-  const t = ac.currentTime;
-  gain.gain.cancelScheduledValues(t);
-  gain.gain.setValueAtTime(gain.gain.value, t);
-  gain.gain.linearRampToValueAtTime(0, t + 0.07);
-  osc.stop(t + 0.08);
-  lfo.stop(t + 0.08);
-  beamSound = null;
+  if (active) {
+    if (beamAttractTrack || beamAttractLoading) return;
+    beamAttractLoading = true;
+    void loadSample(beamAttractLoopUrl).then((buffer) => {
+      const live = getCtx();
+      beamAttractLoading = false;
+      if (!buffer || !live || beamAttractTrack || activeBeamAttractKeys.size === 0) {
+        return;
+      }
+      const source = live.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const gain = live.createGain();
+      const t = live.currentTime;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(
+        sfxGain(BEAM_ATTRACT_LOOP_GAIN),
+        t + 0.08,
+      );
+      source.connect(gain);
+      gain.connect(live.destination);
+      source.start(t);
+      beamAttractTrack = { source, gain };
+      source.onended = () => {
+        if (beamAttractTrack?.source === source) beamAttractTrack = null;
+      };
+    });
+  }
 }
 
 export function setGrindRailActive(active: boolean) {
@@ -986,7 +1099,7 @@ export function playBallLaunch() {
   if (now - lastBallShotAt < BALL_SHOT_DEBOUNCE_MS) return;
   lastBallShotAt = now;
   playSample(
-    electricSlapUrl,
+    newSlapUrl,
     ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume,
   );
 }
@@ -1011,6 +1124,8 @@ export function playGoalCelebration() {
 
 export function stopMatchAudio(): void {
   stopGrindRailLoop();
+  stopBeamAttractLoop();
+  stopWindLoop();
   stopCheer();
   stopPanic();
   stopBgMusic();

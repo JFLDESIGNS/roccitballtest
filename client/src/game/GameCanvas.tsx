@@ -48,6 +48,7 @@ import {
   playRocketExplosion,
   playRocketFire,
   resumeAudio,
+  setBeamAttractActive,
   warmAudio,
 } from './audio';
 import {
@@ -216,6 +217,38 @@ function RemoteBeamVisuals({
       ))}
     </>
   );
+}
+
+function RemoteBeamAudio({
+  ballPosition,
+}: {
+  ballPosition: () => THREE.Vector3 | null;
+}) {
+  const players = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().remotePlayers,
+  );
+
+  useEffect(() => () => setBeamAttractActive(false, 'remote'), []);
+
+  useFrame(() => {
+    const ball = ballPosition();
+    const active =
+      !!ball &&
+      players.some((player) => {
+        if (!player.isBeaming) return false;
+        return (
+          Math.hypot(
+            player.position.x - ball.x,
+            player.position.y + BEAM.chestHeight - ball.y,
+            player.position.z - ball.z,
+          ) < BEAM.range
+        );
+      });
+    setBeamAttractActive(active, 'remote');
+  });
+
+  return null;
 }
 
 function MatchLoop({
@@ -1131,6 +1164,7 @@ function Scene({
         team={localTeam}
       />
       <RemoteBeamVisuals ballPosition={ballPos} />
+      <RemoteBeamAudio ballPosition={ballPos} />
       <RocketExplosionSprites poolRef={splashFxRef} />
       <FanGlassCrackFx />
       <PillarShakeSmoke />

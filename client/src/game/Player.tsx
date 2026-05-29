@@ -88,6 +88,7 @@ import {
   playEnergyPickup,
   setBeamAttractActive,
   setGrindRailActive,
+  setPlayerWindSpeed,
 } from './audio';
 import { triggerCeilingWallHit } from './visualShake';
 import {
@@ -694,7 +695,14 @@ export function Player({
     };
   }, [onRocketBoostRef]);
 
-  useEffect(() => () => setGrindRailActive(false), []);
+  useEffect(
+    () => () => {
+      setGrindRailActive(false);
+      setBeamAttractActive(false);
+      setPlayerWindSpeed(0);
+    },
+    [],
+  );
 
   const interruptBeamOnHit = useCallback(() => {
     const now = performance.now() / 1000;
@@ -1179,6 +1187,7 @@ export function Player({
         dt,
         true,
       );
+      setPlayerWindSpeed(0);
       return;
     }
 
@@ -1305,6 +1314,7 @@ export function Player({
         inputManager.getAimPitch(),
       );
       syncScoopColliderTilt();
+      setPlayerWindSpeed(Math.hypot(lv.x, lv.y, lv.z), false);
       return;
     }
     knockStunWasActive.current = false;
@@ -2132,6 +2142,10 @@ export function Player({
     body.setLinvel(
       { x: velocity.current.x, y: velocity.current.y, z: velocity.current.z },
       true,
+    );
+    setPlayerWindSpeed(
+      Math.hypot(velocity.current.x, velocity.current.y, velocity.current.z),
+      airFlying,
     );
 
     draining.current = false;
