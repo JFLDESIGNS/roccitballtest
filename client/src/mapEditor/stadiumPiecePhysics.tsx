@@ -34,6 +34,7 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
   const backRadius = goal.ringRadius * GOAL_RINGS.backRingScale;
   const backTube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
+  const litLocalX = goal.size === 'small' ? backLocalX : 0;
   const capColliderR = goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
   const capArenaNudge = goalBackCapArenaNudgeM(goal);
 
@@ -48,7 +49,7 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
 
   return (
     <>
-      <RigidBody type="fixed" colliders={false}>
+      <RigidBody type="fixed" colliders={false} position={[litLocalX, 0, 0]}>
         <group rotation={[0, Math.PI / 2, 0]}>
           <group rotation={[tiltX, 0, 0]}>
             <TrimeshCollider

@@ -145,6 +145,8 @@ export function StadiumGoalVisual({ goal }: { goal: GoalDef }) {
   const glowTube = tube * GOAL_RINGS.glowTubeScale;
   const scoreHalf = goalScoreHoleRadius(goal.ringRadius, goal.size);
   const tiltX = ringTiltX(goal.team, goal.size);
+  const litLocalX =
+    goal.size === 'small' ? goalBackRingCenterX(goal) - goal.center.x : 0;
   const radial = GOAL_RINGS.torusRadialSegments;
   const tubular = GOAL_RINGS.torusTubularSegments;
 
@@ -166,46 +168,48 @@ export function StadiumGoalVisual({ goal }: { goal: GoalDef }) {
   return (
     <>
       <GoalRingBackplateVisual goal={goal} />
-      <group rotation={[0, Math.PI / 2, 0]}>
-        <group rotation={[tiltX, 0, 0]}>
-          <mesh geometry={glowGeo} renderOrder={2}>
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={GOAL_RINGS.glowOpacity}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-          <mesh geometry={torusGeo} castShadow renderOrder={3}>
-            <meshStandardMaterial
-              color={color}
-              emissive={color}
-              emissiveIntensity={GOAL_RINGS.emissiveIntensity}
-              toneMapped={false}
-              metalness={0.15}
-              roughness={0.35}
-            />
-          </mesh>
-          <mesh renderOrder={2}>
-            <ringGeometry
-              args={[
-                scoreHalf * 0.75,
-                scoreHalf * 1.05,
-                GOAL_RINGS.ringCapSegments,
-              ]}
-            />
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={0.5}
-              side={THREE.DoubleSide}
-              blending={THREE.AdditiveBlending}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
+      <group position={[litLocalX, 0, 0]}>
+        <group rotation={[0, Math.PI / 2, 0]}>
+          <group rotation={[tiltX, 0, 0]}>
+            <mesh geometry={glowGeo} renderOrder={2}>
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={GOAL_RINGS.glowOpacity}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+            <mesh geometry={torusGeo} castShadow renderOrder={3}>
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={GOAL_RINGS.emissiveIntensity}
+                toneMapped={false}
+                metalness={0.15}
+                roughness={0.35}
+              />
+            </mesh>
+            <mesh renderOrder={2}>
+              <ringGeometry
+                args={[
+                  scoreHalf * 0.75,
+                  scoreHalf * 1.05,
+                  GOAL_RINGS.ringCapSegments,
+                ]}
+              />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.5}
+                side={THREE.DoubleSide}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+          </group>
         </group>
       </group>
     </>
