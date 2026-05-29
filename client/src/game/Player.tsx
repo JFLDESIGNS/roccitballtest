@@ -386,6 +386,8 @@ export function Player({
   const tiltRef = useRef<THREE.Group>(null);
   const bobRef = useRef<THREE.Group>(null);
   const scoopTiltQuat = useRef(new THREE.Quaternion());
+  const lastScoopTiltQuat = useRef(new THREE.Quaternion());
+  const scoopTiltReady = useRef(false);
   const pitchSmooth = useRef(0);
   const bobPhase = useRef(0);
   const visualRecovery = useRef(createVisualRecoveryState());
@@ -1016,6 +1018,15 @@ export function Player({
       reset || !tilt
         ? scoopTiltQuat.current.identity()
         : scoopTiltQuat.current.copy(tilt.quaternion);
+    if (!reset && scoopTiltReady.current && lastScoopTiltQuat.current.angleTo(q) < 0.003) {
+      return;
+    }
+    if (reset && scoopTiltReady.current && lastScoopTiltQuat.current.angleTo(q) < 0.0001) {
+      return;
+    }
+    lastScoopTiltQuat.current.copy(q);
+    scoopTiltReady.current = true;
+
     const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
     lower?.setRotationWrtParent(rot);
     upper?.setRotationWrtParent(rot);

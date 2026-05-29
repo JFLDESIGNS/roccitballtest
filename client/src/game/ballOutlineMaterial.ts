@@ -28,14 +28,11 @@ void main() {
   vec3 v = normalize(-vViewPosVS);
   float rim = 1.0 - abs(dot(n, v));
 
-  float px = max(length(vec2(dFdx(rim), dFdy(rim))), 1e-5);
-  float line = uLineWidthPx * px;
-  float feather = (uBlurPx + uSmoothingPx) * px;
-  float soft = smoothstep(1.0 - line - feather, 1.0, rim);
-  float core = smoothstep(1.0 - line * 0.85, 1.0, rim);
-  float glow = smoothstep(1.0 - line - feather * 1.65, 1.0 - line * 0.25, rim);
-  float alpha = max(core * 0.74, glow * 0.36) + soft * 0.18;
-  alpha = min(alpha, 0.92);
+  float line = max(uLineWidthPx, 0.1) * 0.018;
+  float feather = max(uBlurPx + uSmoothingPx, 0.1) * 0.012;
+  float inner = max(0.0, 1.0 - line - feather);
+  float outer = max(inner + 0.001, 1.0 - line * 0.22);
+  float alpha = smoothstep(inner, outer, rim) * 0.46;
 
   if (alpha < 0.01) discard;
   gl_FragColor = vec4(uColor, alpha);
