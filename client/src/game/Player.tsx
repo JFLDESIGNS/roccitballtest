@@ -148,10 +148,21 @@ const PLAYER_LOWER_COLLIDER = {
   centerY: 0.16,
   centerZ: 0,
 };
+const PLAYER_UPPER_COLLIDER_HALF_EXTENTS = [
+  0.54,
+  0.5,
+  0.46,
+] as [number, number, number];
 const PLAYER_UPPER_COLLIDER = {
-  halfExtents: [0.62, 0.58, 0.62] as [number, number, number],
-  centerY: 0.98,
-  centerZ: 1.02,
+  halfExtents: PLAYER_UPPER_COLLIDER_HALF_EXTENTS,
+  centerY:
+    PLAYER_LOWER_COLLIDER.centerY +
+    PLAYER_LOWER_COLLIDER.halfExtents[1] +
+    PLAYER_UPPER_COLLIDER_HALF_EXTENTS[1],
+  centerZ:
+    PLAYER_LOWER_COLLIDER.centerZ +
+    PLAYER_LOWER_COLLIDER.halfExtents[2] -
+    PLAYER_UPPER_COLLIDER_HALF_EXTENTS[2],
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
