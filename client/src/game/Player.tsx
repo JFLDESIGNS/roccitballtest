@@ -247,6 +247,7 @@ const _ballStompNormal = new THREE.Vector3();
 const _ballStompImpulse = new THREE.Vector3();
 const _ballStompContact = new THREE.Vector3();
 const BALL_STOMP_COOLDOWN_SEC = 0.22;
+const BALL_SCOOP_POP_POST_SHOT_LOCK_SEC = 0.3;
 const BALL_STOMP_MIN_FALL_SPEED = 2.35;
 const BALL_SCOOP_POP_MIN_UP_SPEED = 2.6;
 
@@ -415,6 +416,7 @@ export function Player({
   const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
   const ballStompCooldownUntil = useRef(0);
+  const ballScoopPopDisabledUntil = useRef(0);
   /** After rocket hit — no beam attract on player body */
   const playerBeamDenyUntil = useRef(0);
   const ballSeparationGraceUntil = useRef(0);
@@ -814,6 +816,7 @@ export function Player({
         PLAYER_LOWER_COLLIDER.halfExtents[2] + BALL.radius * 0.42;
     const horizToBall = Math.hypot(bt.x - tr.x, bt.z - tr.z);
     if (
+      now >= ballScoopPopDisabledUntil.current &&
       now >= ballStompCooldownUntil.current &&
       pv.y > BALL_SCOOP_POP_MIN_UP_SPEED &&
       ballBottomY >= scoopTopY - 0.42 &&
@@ -2219,6 +2222,10 @@ export function Player({
         true,
       );
       applyBallLaunchImpulse(ball, velocity, swingVel, lookDir);
+      if (ballState === 'launched') {
+        ballScoopPopDisabledUntil.current =
+          now + BALL_SCOOP_POP_POST_SHOT_LOCK_SEC;
+      }
       const av = ball.angvel();
       onBallReleased?.({
         position: {
