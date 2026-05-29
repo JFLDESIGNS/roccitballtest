@@ -1,27 +1,26 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef, useSyncExternalStore } from 'react';
+import { useRef } from 'react';
 import * as THREE from 'three';
 import {
-  getEnergyOrbSnapshot,
-  subscribeEnergyOrbs,
+  ENERGY_ORB_LAYOUT,
+  isEnergyOrbReady,
   tickEnergyOrbs,
 } from './energyOrbStore';
 
 export function EnergyPickupOrbs() {
-  const snapshot = useSyncExternalStore(
-    subscribeEnergyOrbs,
-    getEnergyOrbSnapshot,
-  );
   const refs = useRef<Array<THREE.Group | null>>([]);
 
   useFrame(({ clock }) => {
-    tickEnergyOrbs(performance.now() / 1000);
+    const now = performance.now() / 1000;
+    tickEnergyOrbs(now);
     const t = clock.elapsedTime;
-    for (const [i, group] of refs.current.entries()) {
+    for (let i = 0; i < ENERGY_ORB_LAYOUT.length; i += 1) {
+      const group = refs.current[i];
       if (!group) continue;
+      const orb = ENERGY_ORB_LAYOUT[i];
+      group.visible = isEnergyOrbReady(orb.id, now);
       const bob = Math.sin(t * 2.2 + i * 0.8) * 0.22;
-      group.position.y = snapshot.orbs[i]?.position.y ?? 0;
-      group.position.y += bob;
+      group.position.y = orb.position.y + bob;
       group.rotation.y = t * 1.4 + i;
       group.rotation.x = Math.sin(t * 1.1 + i) * 0.18;
     }
@@ -29,14 +28,13 @@ export function EnergyPickupOrbs() {
 
   return (
     <group name="EnergyPickupOrbs">
-      {snapshot.orbs.map((orb, i) => (
+      {ENERGY_ORB_LAYOUT.map((orb, i) => (
         <group
           key={orb.id}
           ref={(node) => {
             refs.current[i] = node;
           }}
           position={[orb.position.x, orb.position.y, orb.position.z]}
-          visible={orb.ready}
         >
           <pointLight color="#44ffee" intensity={1.1} distance={9} decay={2} />
           <mesh>

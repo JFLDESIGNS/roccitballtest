@@ -59,6 +59,13 @@ export function getEnergyOrbSnapshot(): EnergyOrbSnapshot {
   return snapshot;
 }
 
+export function isEnergyOrbReady(
+  id: string,
+  nowSec = performance.now() / 1000,
+): boolean {
+  return (respawnAt.get(id) ?? 0) <= nowSec;
+}
+
 export function tickEnergyOrbs(nowSec: number): void {
   let changed = false;
   for (const orb of ENERGY_ORB_LAYOUT) {
