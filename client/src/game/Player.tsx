@@ -576,30 +576,16 @@ export function Player({
   }, [setPlayerCollisionGroups]);
   const writeCameraPivot = useCallback(
     (x: number, y: number, z: number, dt: number, snap = false) => {
+      void dt;
+      void snap;
       const target = cameraPivotTarget.current.set(
         x,
         y + CAMERA.pivotHeight,
         z,
       );
       const pivot = pivotRef.current;
-      const smoothCamera = tuningStore.getState().cameraSmoothingEnabled;
-      if (
-        snap ||
-        !smoothCamera ||
-        !cameraPivotReady.current ||
-        pivot.distanceToSquared(target) > 64 ||
-        dt <= 0
-      ) {
-        pivot.copy(target);
-        cameraPivotReady.current = true;
-        return pivot;
-      }
-
-      const xzAlpha = 1 - Math.exp(-CAMERA.pivotSmoothXZ * dt);
-      const yAlpha = 1 - Math.exp(-CAMERA.pivotSmoothY * dt);
-      pivot.x += (target.x - pivot.x) * xzAlpha;
-      pivot.z += (target.z - pivot.z) * xzAlpha;
-      pivot.y += (target.y - pivot.y) * yAlpha;
+      pivot.copy(target);
+      cameraPivotReady.current = true;
       return pivot;
     },
     [],

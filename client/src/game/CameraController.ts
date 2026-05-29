@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { ARENA, CAMERA } from '../shared/Constants';
-import { isInsideHex } from './arenaHex';
+import { CAMERA } from '../shared/Constants';
 import { tuningStore } from './tuningStore';
 
 const _lookDir = new THREE.Vector3();
@@ -8,11 +7,9 @@ const _behind = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _lift = new THREE.Vector3();
 const _desired = new THREE.Vector3();
-const _lookTarget = new THREE.Vector3();
+const _actualLookTarget = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
-const _fromPivot = new THREE.Vector3();
 const _toRef = new THREE.Vector3();
-const _wallTest = new THREE.Vector3();
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -23,7 +20,7 @@ function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   return out.normalize();
 }
 
-/** Full 3D aim — used for rockets, beam, throw (crosshair-aligned) */
+/** Full 3D aim, used for rockets, beam, throw, and crosshair-aligned actions. */
 export function getLookDirection(yaw: number, aimPitch: number): THREE.Vector3 {
   return setLookDirection(yaw, aimPitch, new THREE.Vector3());
 }
@@ -36,47 +33,15 @@ export function writeLookDirection(
   return setLookDirection(yaw, aimPitch, out);
 }
 
-/** Movement on XZ from camera yaw */
+/** Movement on XZ from camera yaw. */
 export function getCameraBasis(yaw: number) {
   const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).normalize();
   const right = new THREE.Vector3(-Math.cos(yaw), 0, Math.sin(yaw)).normalize();
   return { forward, right };
 }
 
-function clampCameraFloor(pos: THREE.Vector3, pivotY: number) {
-  const minY = Math.max(
-    ARENA.floorY + CAMERA.groundClearance,
-    pivotY - CAMERA.maxDropBelowPivot,
-  );
-  if (pos.y < minY) pos.y = minY;
-}
-
-function clampCameraArenaWalls(pos: THREE.Vector3, pivot: THREE.Vector3) {
-  if (pos.y > ARENA.wallHeight + 1.5) return;
-
-  const radius = ARENA.hexRadius - ARENA.wallThickness - CAMERA.collisionPadding;
-  if (isInsideHex(pos.x, pos.z, radius)) return;
-  if (!isInsideHex(pivot.x, pivot.z, radius)) {
-    pos.copy(pivot);
-    return;
-  }
-
-  let insideT = 0;
-  let outsideT = 1;
-  for (let i = 0; i < 14; i += 1) {
-    const t = (insideT + outsideT) * 0.5;
-    _wallTest.lerpVectors(pivot, pos, t);
-    if (isInsideHex(_wallTest.x, _wallTest.z, radius)) {
-      insideT = t;
-    } else {
-      outsideT = t;
-    }
-  }
-  pos.lerpVectors(pivot, pos, Math.max(0, insideT - 0.015));
-}
-
 /**
- * World point on the crosshair aim ray (camera → lookDir) near `depthRef` (e.g. chest).
+ * World point on the crosshair aim ray near `depthRef` (for example, chest).
  * Keeps rocket spawn on the same line as the HUD reticle.
  */
 export function pointOnCrosshairAimRay(
@@ -92,7 +57,10 @@ export function pointOnCrosshairAimRay(
 }
 
 /**
- * Third-person camera — forward matches lookDir so the HUD center reticle is true aim.
+ * Simple third-person camera.
+ *
+ * Yaw/pitch drive the view directly every frame, so fast mouse reversals do not
+ * fight a delayed look target. Only the camera position eases behind the player.
  */
 export function updateThirdPersonCamera(
   camera: THREE.Camera,
@@ -103,15 +71,13 @@ export function updateThirdPersonCamera(
   snap = false,
   extraDistance = 0,
 ) {
-  const {
-    cameraSmoothingEnabled,
-    cameraCollisionProbeEnabled,
-  } = tuningStore.getState();
+  const { cameraSmoothingEnabled } = tuningStore.getState();
+  void extraDistance;
 
   setLookDirection(yaw, aimPitch, _lookDir);
 
-  _behind.copy(_lookDir).multiplyScalar(-(CAMERA.distance + extraDistance));
-  _behind.y *= CAMERA.verticalInfluence;
+  _behind.copy(_lookDir).multiplyScalar(-CAMERA.distance);
+  _behind.y = 0;
 
   _side.crossVectors(_worldUp, _lookDir);
   if (_side.lengthSq() < 1e-5) {
@@ -122,49 +88,29 @@ export function updateThirdPersonCamera(
   _side.multiplyScalar(CAMERA.shoulderOffset);
 
   _lift.copy(_worldUp).multiplyScalar(CAMERA.height);
-
   _desired.copy(pivot).add(_behind).add(_lift).add(_side);
 
-  _fromPivot.subVectors(_desired, pivot);
-  const pivotDist = _fromPivot.length();
-  if (pivotDist < CAMERA.minDistanceFromPivot) {
-    if (pivotDist > 1e-4) {
-      _fromPivot.multiplyScalar(CAMERA.minDistanceFromPivot / pivotDist);
-    } else {
-      _fromPivot.copy(_behind).setLength(CAMERA.minDistanceFromPivot);
-    }
-    _desired.copy(pivot).add(_fromPivot);
-  }
-
-  clampCameraFloor(_desired, pivot.y);
-  if (cameraCollisionProbeEnabled) {
-    clampCameraArenaWalls(_desired, pivot);
-  }
-
-  if (snap || !cameraSmoothingEnabled) {
+  if (snap || !cameraSmoothingEnabled || dt <= 0) {
     camera.position.copy(_desired);
   } else {
     const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
     camera.position.lerp(_desired, smooth);
   }
 
-  clampCameraFloor(camera.position, pivot.y);
-  if (cameraCollisionProbeEnabled) {
-    clampCameraArenaWalls(camera.position, pivot);
-  }
-
-  _lookTarget.copy(_desired).addScaledVector(_lookDir, CAMERA.lookAhead);
-
   const valid =
     Number.isFinite(camera.position.x) &&
-    Number.isFinite(_lookTarget.x) &&
-    Number.isFinite(_desired.x);
+    Number.isFinite(camera.position.y) &&
+    Number.isFinite(camera.position.z) &&
+    Number.isFinite(_lookDir.x) &&
+    Number.isFinite(_lookDir.y) &&
+    Number.isFinite(_lookDir.z);
 
   if (!valid) {
-    camera.position.set(pivot.x - 6, pivot.y + 4, pivot.z + 10);
-    _lookTarget.set(pivot.x, pivot.y + 1.2, pivot.z);
+    camera.position.set(pivot.x - 6, pivot.y + CAMERA.height, pivot.z + 10);
+    setLookDirection(yaw, aimPitch, _lookDir);
   }
 
-  camera.lookAt(_lookTarget);
+  _actualLookTarget.copy(camera.position).add(_lookDir);
+  camera.lookAt(_actualLookTarget);
   camera.updateMatrixWorld();
 }
