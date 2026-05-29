@@ -1,139 +1,166 @@
 import type { Vec3 } from '../shared/Types';
 
+export type CoopAdventurePlatformKind = 'start' | 'step' | 'finish';
+
 export type CoopAdventurePlatform = {
   id: string;
   position: Vec3;
   size: Vec3;
-  color: string;
+  kind: CoopAdventurePlatformKind;
+  grass: string;
+  side: string;
 };
 
 export type CoopAdventureLevel = {
   id: number;
   name: string;
   tip: string;
+  spawn: Vec3;
   platforms: CoopAdventurePlatform[];
   goal: Vec3;
 };
 
-const base = [
-  { id: 'spawn-a', position: { x: 0, y: 3.2, z: 18 }, size: { x: 14, y: 0.55, z: 10 }, color: '#27476f' },
-  { id: 'spawn-b', position: { x: 0, y: 3.2, z: 3 }, size: { x: 12, y: 0.55, z: 8 }, color: '#213a5f' },
+type PadSpec = {
+  x: number;
+  y: number;
+  z: number;
+  sx: number;
+  sz: number;
+  kind?: CoopAdventurePlatformKind;
+};
+
+const THEMES = [
+  { grass: '#46c968', side: '#5b4531' },
+  { grass: '#63d36d', side: '#604632' },
+  { grass: '#3fc486', side: '#594537' },
+  { grass: '#89c95b', side: '#635139' },
+  { grass: '#52c5a2', side: '#4f4838' },
 ];
 
+function pad(
+  id: string,
+  spec: PadSpec,
+  themeIndex: number,
+): CoopAdventurePlatform {
+  const theme = THEMES[themeIndex % THEMES.length]!;
+  return {
+    id,
+    position: { x: spec.x, y: spec.y, z: spec.z },
+    size: { x: spec.sx, y: spec.kind === 'start' ? 1.2 : 0.9, z: spec.sz },
+    kind: spec.kind ?? 'step',
+    grass: theme.grass,
+    side: theme.side,
+  };
+}
+
+function buildLevel(
+  id: number,
+  name: string,
+  tip: string,
+  specs: PadSpec[],
+): CoopAdventureLevel {
+  const platforms = specs.map((spec, i) =>
+    pad(`level-${id}-platform-${i}`, spec, id + i),
+  );
+  const start = platforms[0]!;
+  const finish = platforms[platforms.length - 1]!;
+  return {
+    id,
+    name,
+    tip,
+    spawn: {
+      x: start.position.x,
+      y: start.position.y + start.size.y * 0.5 + 2.1,
+      z: start.position.z,
+    },
+    platforms,
+    goal: {
+      x: finish.position.x,
+      y: finish.position.y + finish.size.y * 0.5 + 3.1,
+      z: finish.position.z,
+    },
+  };
+}
+
 export const COOP_ADVENTURE_LEVELS: CoopAdventureLevel[] = [
-  {
-    id: 1,
-    name: 'First Toss',
-    tip: 'Attract your partner, release RMB, and throw them to the lit pad.',
-    platforms: [
-      ...base,
-      { id: 'first-goal', position: { x: 0, y: 7.4, z: -12 }, size: { x: 10, y: 0.55, z: 7 }, color: '#1d5563' },
-    ],
-    goal: { x: 0, y: 9.1, z: -12 },
-  },
-  {
-    id: 2,
-    name: 'Split Step',
-    tip: 'One player crosses, then throws the other up the staggered pads.',
-    platforms: [
-      ...base,
-      { id: 'split-left', position: { x: -12, y: 7.8, z: -7 }, size: { x: 8, y: 0.55, z: 7 }, color: '#37506b' },
-      { id: 'split-right', position: { x: 13, y: 11.2, z: -20 }, size: { x: 8, y: 0.55, z: 7 }, color: '#1d6b67' },
-    ],
-    goal: { x: 13, y: 12.9, z: -20 },
-  },
-  {
-    id: 3,
-    name: 'High Five',
-    tip: 'Throw upward. The goal is higher than it looks.',
-    platforms: [
-      ...base,
-      { id: 'high-low', position: { x: 0, y: 8, z: -8 }, size: { x: 9, y: 0.55, z: 7 }, color: '#3d3c72' },
-      { id: 'high-top', position: { x: 0, y: 15, z: -22 }, size: { x: 8, y: 0.55, z: 7 }, color: '#5d376d' },
-    ],
-    goal: { x: 0, y: 16.7, z: -22 },
-  },
-  {
-    id: 4,
-    name: 'Corner Catch',
-    tip: 'Aim across the lane and catch your teammate on the corner island.',
-    platforms: [
-      ...base,
-      { id: 'corner-left', position: { x: -17, y: 7.2, z: -11 }, size: { x: 8, y: 0.55, z: 8 }, color: '#284d71' },
-      { id: 'corner-right', position: { x: 17, y: 10.6, z: -24 }, size: { x: 8, y: 0.55, z: 8 }, color: '#714135' },
-    ],
-    goal: { x: 17, y: 12.3, z: -24 },
-  },
-  {
-    id: 5,
-    name: 'Needle Run',
-    tip: 'Short controlled throws are better than one huge launch.',
-    platforms: [
-      ...base,
-      { id: 'needle-a', position: { x: -8, y: 7, z: -8 }, size: { x: 6, y: 0.55, z: 6 }, color: '#324f7a' },
-      { id: 'needle-b', position: { x: 8, y: 9, z: -18 }, size: { x: 6, y: 0.55, z: 6 }, color: '#2b6960' },
-      { id: 'needle-c', position: { x: 0, y: 12, z: -28 }, size: { x: 6, y: 0.55, z: 6 }, color: '#6c5430' },
-    ],
-    goal: { x: 0, y: 13.7, z: -28 },
-  },
-  {
-    id: 6,
-    name: 'Elevator Toss',
-    tip: 'Stand under the target and throw almost straight up.',
-    platforms: [
-      ...base,
-      { id: 'elevator-mid', position: { x: 0, y: 8.5, z: -6 }, size: { x: 10, y: 0.55, z: 7 }, color: '#305d79' },
-      { id: 'elevator-top', position: { x: 0, y: 18.5, z: -9 }, size: { x: 9, y: 0.55, z: 7 }, color: '#713a5b' },
-    ],
-    goal: { x: 0, y: 20.2, z: -9 },
-  },
-  {
-    id: 7,
-    name: 'Wide Wing',
-    tip: 'Cross the arena wall side, then throw back toward center.',
-    platforms: [
-      ...base,
-      { id: 'wing-a', position: { x: 22, y: 7.5, z: -3 }, size: { x: 8, y: 0.55, z: 8 }, color: '#36516d' },
-      { id: 'wing-b', position: { x: 26, y: 10.5, z: -20 }, size: { x: 8, y: 0.55, z: 8 }, color: '#2f6d53' },
-      { id: 'wing-c', position: { x: 9, y: 13.4, z: -29 }, size: { x: 8, y: 0.55, z: 8 }, color: '#6b333d' },
-    ],
-    goal: { x: 9, y: 15.1, z: -29 },
-  },
-  {
-    id: 8,
-    name: 'Twin Towers',
-    tip: 'Use the low towers as setup throws for the final high landing.',
-    platforms: [
-      ...base,
-      { id: 'tower-left', position: { x: -15, y: 8.5, z: -8 }, size: { x: 7, y: 0.55, z: 7 }, color: '#274f77' },
-      { id: 'tower-right', position: { x: 15, y: 8.5, z: -8 }, size: { x: 7, y: 0.55, z: 7 }, color: '#663c70' },
-      { id: 'tower-top', position: { x: 0, y: 16.8, z: -24 }, size: { x: 8, y: 0.55, z: 7 }, color: '#316c66' },
-    ],
-    goal: { x: 0, y: 18.5, z: -24 },
-  },
-  {
-    id: 9,
-    name: 'The Skip',
-    tip: 'Throw past the middle island or use it as a rescue pad.',
-    platforms: [
-      ...base,
-      { id: 'skip-small', position: { x: 0, y: 6.5, z: -4 }, size: { x: 5, y: 0.55, z: 5 }, color: '#424f6d' },
-      { id: 'skip-left', position: { x: -20, y: 12.4, z: -20 }, size: { x: 9, y: 0.55, z: 8 }, color: '#6d5640' },
-      { id: 'skip-goal', position: { x: 5, y: 17, z: -31 }, size: { x: 8, y: 0.55, z: 7 }, color: '#30616a' },
-    ],
-    goal: { x: 5, y: 18.7, z: -31 },
-  },
-  {
-    id: 10,
-    name: 'Final Relay',
-    tip: 'Trade throws all the way up. The final pad is the victory gate.',
-    platforms: [
-      ...base,
-      { id: 'final-a', position: { x: -14, y: 8, z: -6 }, size: { x: 7, y: 0.55, z: 7 }, color: '#365a75' },
-      { id: 'final-b', position: { x: 14, y: 11, z: -16 }, size: { x: 7, y: 0.55, z: 7 }, color: '#634979' },
-      { id: 'final-c', position: { x: -8, y: 15, z: -26 }, size: { x: 7, y: 0.55, z: 7 }, color: '#65623a' },
-      { id: 'final-d', position: { x: 8, y: 20, z: -34 }, size: { x: 8, y: 0.55, z: 7 }, color: '#2f7167' },
-    ],
-    goal: { x: 8, y: 21.7, z: -34 },
-  },
+  buildLevel(1, 'Cloud Steps', 'Warm up on wider jumps, then throw your teammate to the gate.', [
+    { x: 0, y: 8, z: 26, sx: 24, sz: 18, kind: 'start' },
+    { x: 0, y: 9.5, z: 4, sx: 13, sz: 10 },
+    { x: 13, y: 11.2, z: -14, sx: 12, sz: 9 },
+    { x: -8, y: 13.7, z: -32, sx: 11, sz: 9 },
+    { x: 10, y: 16.2, z: -51, sx: 11, sz: 8 },
+    { x: 0, y: 18.6, z: -72, sx: 14, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(2, 'Split Breeze', 'One player sets the angle while the other crosses the long side gaps.', [
+    { x: 0, y: 10, z: 28, sx: 24, sz: 18, kind: 'start' },
+    { x: -16, y: 11.5, z: 5, sx: 12, sz: 9 },
+    { x: 15, y: 14, z: -13, sx: 11, sz: 9 },
+    { x: -17, y: 15.5, z: -32, sx: 10, sz: 8 },
+    { x: 5, y: 18.8, z: -51, sx: 10, sz: 8 },
+    { x: 22, y: 21.5, z: -70, sx: 13, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(3, 'Updraft Alley', 'Throw higher than normal and catch each other on the rising islands.', [
+    { x: 0, y: 8, z: 26, sx: 24, sz: 18, kind: 'start' },
+    { x: 8, y: 12, z: 5, sx: 12, sz: 9 },
+    { x: -7, y: 16, z: -13, sx: 11, sz: 8 },
+    { x: 10, y: 20.5, z: -30, sx: 10, sz: 8 },
+    { x: -10, y: 25, z: -47, sx: 10, sz: 8 },
+    { x: 0, y: 29, z: -65, sx: 14, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(4, 'Long Catch', 'The middle platforms are smaller. Use controlled throws, not panic launches.', [
+    { x: 0, y: 9, z: 28, sx: 24, sz: 18, kind: 'start' },
+    { x: 0, y: 10.5, z: 1, sx: 12, sz: 8 },
+    { x: -19, y: 12.2, z: -17, sx: 9, sz: 8 },
+    { x: 10, y: 15.7, z: -36, sx: 9, sz: 7 },
+    { x: 25, y: 18.6, z: -56, sx: 9, sz: 7 },
+    { x: 3, y: 21.5, z: -77, sx: 13, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(5, 'Staircase Sky', 'Trade throws upward and keep one teammate ready to rescue the other.', [
+    { x: 0, y: 8, z: 28, sx: 24, sz: 18, kind: 'start' },
+    { x: -8, y: 12.5, z: 6, sx: 12, sz: 9 },
+    { x: 8, y: 17, z: -12, sx: 11, sz: 8 },
+    { x: -8, y: 21.5, z: -30, sx: 10, sz: 8 },
+    { x: 8, y: 26, z: -48, sx: 10, sz: 8 },
+    { x: 0, y: 31, z: -68, sx: 14, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(6, 'Crosswind', 'The route bends hard left and right. Aim throws ahead of the platform.', [
+    { x: 0, y: 10, z: 30, sx: 24, sz: 18, kind: 'start' },
+    { x: 20, y: 12, z: 9, sx: 12, sz: 9 },
+    { x: 2, y: 14, z: -12, sx: 11, sz: 8 },
+    { x: -22, y: 16.5, z: -31, sx: 10, sz: 8 },
+    { x: -2, y: 19, z: -52, sx: 10, sz: 8 },
+    { x: 20, y: 22, z: -73, sx: 13, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(7, 'Tiny Islands', 'Small pads make catching matter. Throw one player, then pull the other across.', [
+    { x: 0, y: 9, z: 28, sx: 24, sz: 18, kind: 'start' },
+    { x: -10, y: 11.5, z: 4, sx: 10, sz: 8 },
+    { x: 10, y: 13, z: -16, sx: 8.5, sz: 7 },
+    { x: -12, y: 16, z: -36, sx: 8.5, sz: 7 },
+    { x: 12, y: 19.5, z: -56, sx: 8.5, sz: 7 },
+    { x: 0, y: 23, z: -78, sx: 12, sz: 9, kind: 'finish' },
+  ]),
+  buildLevel(8, 'High Relay', 'This one is about vertical timing. Throw up, land, and reset for the next toss.', [
+    { x: 0, y: 8, z: 28, sx: 24, sz: 18, kind: 'start' },
+    { x: 0, y: 13, z: 4, sx: 13, sz: 9 },
+    { x: 16, y: 18, z: -14, sx: 11, sz: 8 },
+    { x: -5, y: 24, z: -31, sx: 10, sz: 8 },
+    { x: -20, y: 29, z: -51, sx: 10, sz: 8 },
+    { x: 0, y: 35, z: -70, sx: 14, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(9, 'Skyhook Swerve', 'Long diagonal throws are the trick. Keep the receiver facing the next island.', [
+    { x: 0, y: 10, z: 30, sx: 24, sz: 18, kind: 'start' },
+    { x: -22, y: 13, z: 8, sx: 11, sz: 8 },
+    { x: -5, y: 16, z: -15, sx: 10, sz: 8 },
+    { x: 20, y: 19, z: -36, sx: 10, sz: 8 },
+    { x: 2, y: 23, z: -58, sx: 10, sz: 8 },
+    { x: -22, y: 27, z: -80, sx: 13, sz: 10, kind: 'finish' },
+  ]),
+  buildLevel(10, 'Cloud Crown', 'Final relay. Big distance, big height, and one clean finish gate.', [
+    { x: 0, y: 9, z: 30, sx: 26, sz: 19, kind: 'start' },
+    { x: 18, y: 13, z: 8, sx: 12, sz: 9 },
+    { x: -14, y: 17, z: -14, sx: 11, sz: 8 },
+    { x: 16, y: 22, z: -36, sx: 10, sz: 8 },
+    { x: -16, y: 28, z: -58, sx: 10, sz: 8 },
+    { x: 0, y: 36, z: -84, sx: 16, sz: 11, kind: 'finish' },
+  ]),
 ];

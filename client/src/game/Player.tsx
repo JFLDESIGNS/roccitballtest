@@ -1083,6 +1083,8 @@ export function Player({
   useFrame((_, dt) => {
     const body = bodyRef.current;
     if (!body) return;
+    const coopAdventureMode =
+      multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
 
     if (debugFreelook) {
       syncScoopColliderTilt(true);
@@ -2114,6 +2116,7 @@ export function Player({
     velocity.current.y = vy;
 
     if (
+      !coopAdventureMode &&
       !grappleActive.current &&
       tickGoalEntryCharacterBounce(
         body,
@@ -2132,14 +2135,16 @@ export function Player({
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.2);
     }
 
-    applyPlayerArenaWallBumper(
-      body,
-      pos,
-      velocity.current,
-      dt,
-      () => stopGrapple(false),
-      grappleActive.current,
-    );
+    if (!coopAdventureMode) {
+      applyPlayerArenaWallBumper(
+        body,
+        pos,
+        velocity.current,
+        dt,
+        () => stopGrapple(false),
+        grappleActive.current,
+      );
+    }
 
     const ceilingMaxBodyY =
       ARENA.wallHeight -
@@ -2147,7 +2152,7 @@ export function Player({
       capCenterY -
       capHalfH -
       MOVEMENT.capsuleRadius;
-    if (pos.y > ceilingMaxBodyY) {
+    if (!coopAdventureMode && pos.y > ceilingMaxBodyY) {
       if (grappleActive.current) stopGrapple(false);
       body.setTranslation(
         { x: pos.x, y: ceilingMaxBodyY, z: pos.z },
@@ -2214,10 +2219,10 @@ export function Player({
       multiplayerNow.enabled &&
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
-    const coopAdventureMode =
+    const networkCoopAdventureMode =
       multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
 
-    if (coopAdventureMode) {
+    if (networkCoopAdventureMode) {
       const selfId = multiplayerNow.selfId;
       for (const action of multiplayerStore.drainRemoteCoopActions()) {
         if (selfId && action.targetId === selfId) {
@@ -2316,7 +2321,7 @@ export function Player({
       }
     }
     const beamAttempt =
-      !coopAdventureMode &&
+      !networkCoopAdventureMode &&
       beamDown &&
       !beamNeedsRepress.current &&
       !knockStunned &&

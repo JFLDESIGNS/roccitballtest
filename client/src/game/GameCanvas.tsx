@@ -1090,14 +1090,21 @@ function Scene({
 
   return (
     <>
-      <Arena
-        hiddenGoalIds={stadiumHidden.hiddenGoalIds}
-        hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
-        hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
-      />
-      <CustomMapOverlay />
+      {!coopAdventureEnabled && (
+        <>
+          <Arena
+            hiddenGoalIds={stadiumHidden.hiddenGoalIds}
+            hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
+            hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
+          />
+          <CustomMapOverlay />
+        </>
+      )}
       {coopAdventureEnabled ? (
-        <CoopAdventureCourse playerPositionRef={playerPosRef} />
+        <CoopAdventureCourse
+          playerPositionRef={playerPosRef}
+          playerBodyRef={playerBodyRef}
+        />
       ) : (
         <Ball
           ref={ballRef}
@@ -1173,15 +1180,19 @@ function Scene({
       />
       <RemotePlayers />
       <DebugFreelook />
-      <BeamVisual
-        pullActive={pullActive}
-        chestPosition={() => playerChestRef.current}
-        ballPosition={ballPos}
-        lowEnergy={beamLowEnergy}
-        team={localTeam}
-      />
-      <RemoteBeamVisuals ballPosition={ballPos} />
-      <RemoteBeamAudio ballPosition={ballPos} />
+      {!coopAdventureEnabled && (
+        <>
+          <BeamVisual
+            pullActive={pullActive}
+            chestPosition={() => playerChestRef.current}
+            ballPosition={ballPos}
+            lowEnergy={beamLowEnergy}
+            team={localTeam}
+          />
+          <RemoteBeamVisuals ballPosition={ballPos} />
+          <RemoteBeamAudio ballPosition={ballPos} />
+        </>
+      )}
       <RocketExplosionSprites poolRef={splashFxRef} />
       <FanGlassCrackFx />
       <PillarShakeSmoke />
@@ -1192,7 +1203,7 @@ function Scene({
       <BeamDenyZonesVisual />
       <GoalFireworks />
       <GroundSmashDust />
-      <ArenaPadMonitor ballBodyRef={ballBodyRef} />
+      {!coopAdventureEnabled && <ArenaPadMonitor ballBodyRef={ballBodyRef} />}
       <RocketRecoilFx />
       <RocketTrailSmoke />
       <Rockets
@@ -1256,8 +1267,8 @@ function Scene({
         ballPos={ballPos}
         ballVel={ballVel}
       />
-      <MatchLoop ballRef={ballRef} botsRef={botsRef} />
-      <PreMatchArenaFlyover />
+      {!coopAdventureEnabled && <MatchLoop ballRef={ballRef} botsRef={botsRef} />}
+      {!coopAdventureEnabled && <PreMatchArenaFlyover />}
     </>
   );
 }
