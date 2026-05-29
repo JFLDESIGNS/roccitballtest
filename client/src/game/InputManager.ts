@@ -36,6 +36,8 @@ class InputManager {
   private lastGamepadPollAt = 0;
   private yaw = 0;
   private aimPitch: number = AIM.defaultPitch;
+  private pendingMouseLookX = 0;
+  private pendingMouseLookY = 0;
   private throwQueued = false;
   private ePropelQueued = false;
   private fireQueued = false;
@@ -97,6 +99,11 @@ class InputManager {
     }
     this.pointerCaptureId = null;
     this.hasLastClient = false;
+  }
+
+  private flushPendingMouseLook(): void {
+    this.pendingMouseLookX = 0;
+    this.pendingMouseLookY = 0;
   }
 
   private beginPointerCaptureFallback(e: PointerEvent): void {
@@ -166,6 +173,7 @@ class InputManager {
   /** Release lock so the OS cursor works for the light editor panel */
   exitPointerLock(): void {
     this.releasePointerCaptureFallback();
+    this.flushPendingMouseLook();
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
@@ -185,12 +193,14 @@ class InputManager {
     this.exitPointerLock();
     this.mouseButtons.right = false;
     this.hasLastClient = false;
+    this.flushPendingMouseLook();
   }
 
   /** After tuning menu or alt-tab — sync lock state; next click re-captures mouse */
   onGameplayResume(): void {
     this.syncPointerLockState();
     this.releasePointerCaptureFallback();
+    this.flushPendingMouseLook();
     this.lookWarmupUntil = 0;
     const canvas = this.canvas;
     if (canvas && typeof canvas.focus === 'function') {
@@ -203,6 +213,7 @@ class InputManager {
     this.canvasListenerAbort = null;
     this.releasePointerCaptureFallback();
     this.hasLastClient = false;
+    this.flushPendingMouseLook();
     this.canvas = null;
   }
 
@@ -392,6 +403,7 @@ class InputManager {
       if (this.mouseButtons.left) this.setFireDown(false);
       this.mouseButtons.right = false;
       this.releasePointerCaptureFallback();
+      this.flushPendingMouseLook();
       this.syncPointerLockState();
     };
     const onWindowMouseMove = (e: MouseEvent) => {
@@ -557,6 +569,11 @@ class InputManager {
     return this.mouseButtons.left || this.controllerFireDown;
   }
 
+  private syncLookInput(): void {
+    this.applyPendingMouseLook();
+    this.pollGamepad();
+  }
+
   private setFireDown(down: boolean) {
     const wasAnyFireDown = this.isAnyFireDown();
     this.mouseButtons.left = down;
@@ -579,8 +596,23 @@ class InputManager {
     }
 
     const cap = CAMERA.maxMouseDelta;
-    const mx = THREE.MathUtils.clamp(movementX, -cap, cap);
-    const my = THREE.MathUtils.clamp(movementY, -cap, cap);
+    this.pendingMouseLookX += THREE.MathUtils.clamp(movementX, -cap, cap);
+    this.pendingMouseLookY += THREE.MathUtils.clamp(movementY, -cap, cap);
+  }
+
+  private applyPendingMouseLook(): void {
+    if (this.pendingMouseLookX === 0 && this.pendingMouseLookY === 0) return;
+    if (
+      !gameStore.getState().debugFreelook &&
+      performance.now() < this.lookWarmupUntil
+    ) {
+      this.flushPendingMouseLook();
+      return;
+    }
+
+    const mx = this.pendingMouseLookX;
+    const my = this.pendingMouseLookY;
+    this.flushPendingMouseLook();
 
     const sens = tuningStore.getState().mouseSensitivity;
     this.yaw -= mx * CAMERA.mouseSensitivityX * sens;
@@ -628,13 +660,13 @@ class InputManager {
     }
 
     try {
-      const promise = el.requestPointerLock({
-        unadjustedMovement: true,
-      });
+      const promise = el.requestPointerLock();
       void promise?.catch?.(() => {});
     } catch {
       try {
-        const promise = el.requestPointerLock();
+        const promise = el.requestPointerLock({
+          unadjustedMovement: true,
+        });
         void promise?.catch?.(() => {});
       } catch {
         /* blocked by browser, Game Bar overlay, etc. */
@@ -643,7 +675,7 @@ class InputManager {
   }
 
   getMoveVector(): { x: number; y: number } {
-    this.pollGamepad();
+    this.syncLookInput();
     let x = 0;
     let y = 0;
     if (this.keys['KeyW'] || this.keys['ArrowUp']) y += 1;
@@ -661,21 +693,21 @@ class InputManager {
   }
 
   consumeThrow(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.throwQueued) return false;
     this.throwQueued = false;
     return true;
   }
 
   consumeEPropel(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.ePropelQueued) return false;
     this.ePropelQueued = false;
     return true;
   }
 
   consumeFireEdge(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.fireEdge) return false;
     this.fireEdge = false;
     this.fireQueued = false;
@@ -683,21 +715,21 @@ class InputManager {
   }
 
   consumeFireRelease(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.fireReleaseEdge) return false;
     this.fireReleaseEdge = false;
     return true;
   }
 
   consumeFire(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.fireQueued) return false;
     this.fireQueued = false;
     return true;
   }
 
   isFireDown(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     return this.isAnyFireDown();
   }
 
@@ -710,26 +742,26 @@ class InputManager {
   }
 
   consumeSpawnBall(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.spawnBallQueued) return false;
     this.spawnBallQueued = false;
     return true;
   }
 
   consumeBallRespawn(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.ballRespawnQueued) return false;
     this.ballRespawnQueued = false;
     return true;
   }
 
   wantsJump(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     return this.jumpQueued;
   }
 
   consumeJump(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.jumpQueued) return false;
     const nowSec = performance.now() / 1000;
     if (this.jumpBufferUntil > 0 && nowSec > this.jumpBufferUntil) {
@@ -743,28 +775,28 @@ class InputManager {
   }
 
   consumeGrapple(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.grappleQueued) return false;
     this.grappleQueued = false;
     return true;
   }
 
   consumeDashBoost(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.dashBoostQueued) return false;
     this.dashBoostQueued = false;
     return true;
   }
 
   consumeDownSmash(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     if (!this.downSmashQueued) return false;
     this.downSmashQueued = false;
     return true;
   }
 
   isSprint(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     return (
       !!this.keys['ShiftLeft'] ||
       !!this.keys['ShiftRight'] ||
@@ -773,7 +805,7 @@ class InputManager {
   }
 
   isBeam(): boolean {
-    this.pollGamepad();
+    this.syncLookInput();
     return this.mouseButtons.right || this.controllerBeamDown;
   }
 
@@ -782,17 +814,17 @@ class InputManager {
   }
 
   getRotation() {
-    this.pollGamepad();
+    this.syncLookInput();
     return { yaw: this.yaw, pitch: this.aimPitch };
   }
 
   getAimPitch() {
-    this.pollGamepad();
+    this.syncLookInput();
     return this.aimPitch;
   }
 
   getLookDirection(): THREE.Vector3 {
-    this.pollGamepad();
+    this.syncLookInput();
     return getLookDirection(this.yaw, this.aimPitch);
   }
 }
