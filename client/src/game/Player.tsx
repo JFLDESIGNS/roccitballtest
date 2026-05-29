@@ -7,6 +7,7 @@ import {
   useAfterPhysicsStep,
   useRapier,
   type CollisionEnterPayload,
+  type RapierCollider,
   type RapierRigidBody,
 } from '@react-three/rapier';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -377,9 +378,12 @@ export function Player({
     () => multiplayerStore.getState().teamSlot,
   );
   const bodyRef = useRef<RapierRigidBody>(null);
+  const lowerScoopColliderRef = useRef<RapierCollider>(null);
+  const upperScoopColliderRef = useRef<RapierCollider>(null);
   const visualRef = useRef<THREE.Group>(null);
   const tiltRef = useRef<THREE.Group>(null);
   const bobRef = useRef<THREE.Group>(null);
+  const scoopTiltQuat = useRef(new THREE.Quaternion());
   const pitchSmooth = useRef(0);
   const bobPhase = useRef(0);
   const visualRecovery = useRef(createVisualRecoveryState());
@@ -1000,11 +1004,27 @@ export function Player({
 
   const flyModeActive = useRef(false);
 
+  const syncScoopColliderTilt = useCallback((reset = false) => {
+    const lower = lowerScoopColliderRef.current;
+    const upper = upperScoopColliderRef.current;
+    if (!lower && !upper) return;
+
+    const tilt = tiltRef.current;
+    const q =
+      reset || !tilt
+        ? scoopTiltQuat.current.identity()
+        : scoopTiltQuat.current.copy(tilt.quaternion);
+    const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
+    lower?.setRotationWrtParent(rot);
+    upper?.setRotationWrtParent(rot);
+  }, []);
+
   useFrame((_, dt) => {
     const body = bodyRef.current;
     if (!body) return;
 
     if (debugFreelook) {
+      syncScoopColliderTilt(true);
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       if (!flyModeActive.current) {
@@ -1065,6 +1085,7 @@ export function Player({
       resetCharacterVisualGroups(visualPresentation);
       pitchSmooth.current = 0;
       alignCharacterVisualUpright(body, visualPresentation, yaw, null, 0);
+      syncScoopColliderTilt();
     };
 
     if (phase === 'intro' || phase === 'loading') {
@@ -1239,6 +1260,7 @@ export function Player({
         knockTumble.current,
         inputManager.getAimPitch(),
       );
+      syncScoopColliderTilt();
       return;
     }
     knockStunWasActive.current = false;
@@ -1357,6 +1379,7 @@ export function Player({
         'local',
       );
     }
+    syncScoopColliderTilt();
     const holdingNow =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
 
@@ -2813,12 +2836,14 @@ export function Player({
           collisionGroups={playerBodyCollisionGroups}
         />
         <CuboidCollider
+          ref={lowerScoopColliderRef}
           args={PLAYER_LOWER_COLLIDER.halfExtents}
           position={[0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ]}
           friction={0.55}
           collisionGroups={playerBallCollisionGroups}
         />
         <CuboidCollider
+          ref={upperScoopColliderRef}
           args={PLAYER_UPPER_COLLIDER.halfExtents}
           position={[0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ]}
           friction={0.55}
