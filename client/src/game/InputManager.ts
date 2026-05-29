@@ -19,9 +19,21 @@ import { shouldIgnoreGameplayKeys } from './uiFocus';
 
 type Keys = Record<string, boolean>;
 
+const GAMEPAD_DEADZONE = 0.16;
+const GAMEPAD_TRIGGER_THRESHOLD = 0.35;
+const GAMEPAD_MAX_DT = 1 / 20;
+const GAMEPAD_LOOK_YAW_SPEED = 3.2;
+const GAMEPAD_LOOK_PITCH_SPEED = 2.45;
+
 class InputManager {
   private keys: Keys = {};
   private mouseButtons = { left: false, right: false };
+  private controllerFireDown = false;
+  private controllerBeamDown = false;
+  private controllerSprintDown = false;
+  private controllerMove = { x: 0, y: 0 };
+  private controllerButtons: boolean[] = [];
+  private lastGamepadPollAt = 0;
   private yaw = 0;
   private aimPitch: number = AIM.defaultPitch;
   private throwQueued = false;
@@ -422,15 +434,140 @@ class InputManager {
     document.addEventListener('visibilitychange', onVisibilityChange);
   }
 
-  private setFireDown(down: boolean) {
-    if (down && !this.mouseButtons.left) {
+  private shapeGamepadAxis(value: number): number {
+    const abs = Math.abs(value);
+    if (abs <= GAMEPAD_DEADZONE) return 0;
+    const scaled = (abs - GAMEPAD_DEADZONE) / (1 - GAMEPAD_DEADZONE);
+    return Math.sign(value) * scaled * scaled;
+  }
+
+  private isGamepadButtonDown(
+    gamepad: Gamepad,
+    index: number,
+    threshold = 0.5,
+  ): boolean {
+    const button = gamepad.buttons[index];
+    return !!button && (button.pressed || button.value >= threshold);
+  }
+
+  private consumeGamepadButton(
+    index: number,
+    down: boolean,
+    onPress: () => void,
+    onRelease?: () => void,
+  ): void {
+    const wasDown = this.controllerButtons[index] ?? false;
+    if (down && !wasDown) onPress();
+    if (!down && wasDown) onRelease?.();
+    this.controllerButtons[index] = down;
+  }
+
+  private setControllerFireDown(down: boolean): void {
+    const wasAnyFireDown = this.isAnyFireDown();
+    this.controllerFireDown = down;
+    const isAnyFireDown = this.isAnyFireDown();
+    if (isAnyFireDown && !wasAnyFireDown) {
       this.fireEdge = true;
       this.fireQueued = true;
     }
-    if (!down && this.mouseButtons.left) {
+    if (!isAnyFireDown && wasAnyFireDown) {
       this.fireReleaseEdge = true;
     }
+  }
+
+  private pollGamepad(): void {
+    const now = performance.now();
+    if (now - this.lastGamepadPollAt < 1) return;
+    const dt = this.lastGamepadPollAt
+      ? THREE.MathUtils.clamp(
+          (now - this.lastGamepadPollAt) / 1000,
+          0,
+          GAMEPAD_MAX_DT,
+        )
+      : 1 / 60;
+    this.lastGamepadPollAt = now;
+
+    const gamepads = navigator.getGamepads?.();
+    const gamepad = gamepads
+      ? Array.from(gamepads).find((pad) => pad?.connected)
+      : null;
+
+    if (!gamepad) {
+      this.controllerMove.x = 0;
+      this.controllerMove.y = 0;
+      this.controllerSprintDown = false;
+      this.controllerBeamDown = false;
+      if (this.controllerFireDown) this.setControllerFireDown(false);
+      this.controllerButtons = [];
+      return;
+    }
+
+    this.controllerMove.x = this.shapeGamepadAxis(gamepad.axes[0] ?? 0);
+    this.controllerMove.y = -this.shapeGamepadAxis(gamepad.axes[1] ?? 0);
+
+    if (!tuningStore.getState().showMenu) {
+      const lookX = this.shapeGamepadAxis(gamepad.axes[2] ?? 0);
+      const lookY = this.shapeGamepadAxis(gamepad.axes[3] ?? 0);
+      if (lookX !== 0 || lookY !== 0) {
+        const sens = tuningStore.getState().mouseSensitivity;
+        this.yaw -= lookX * GAMEPAD_LOOK_YAW_SPEED * sens * dt;
+        this.aimPitch -= lookY * GAMEPAD_LOOK_PITCH_SPEED * sens * dt;
+        this.aimPitch = THREE.MathUtils.clamp(
+          this.aimPitch,
+          AIM.pitchMin,
+          AIM.pitchMax,
+        );
+      }
+    }
+
+    this.setControllerFireDown(
+      this.isGamepadButtonDown(gamepad, 7, GAMEPAD_TRIGGER_THRESHOLD),
+    );
+    this.controllerBeamDown = this.isGamepadButtonDown(
+      gamepad,
+      6,
+      GAMEPAD_TRIGGER_THRESHOLD,
+    );
+    this.controllerSprintDown =
+      this.isGamepadButtonDown(gamepad, 4) ||
+      this.isGamepadButtonDown(gamepad, 10);
+
+    this.consumeGamepadButton(0, this.isGamepadButtonDown(gamepad, 0), () => {
+      this.jumpQueued = true;
+      this.jumpBufferUntil = performance.now() / 1000 + BALL.jumpBufferSec;
+    });
+    this.consumeGamepadButton(1, this.isGamepadButtonDown(gamepad, 1), () => {
+      if (gameStore.getState().debugFreelook) return;
+      this.throwQueued = true;
+      this.ePropelQueued = true;
+      triggerThrowFlipEmotes();
+    });
+    this.consumeGamepadButton(2, this.isGamepadButtonDown(gamepad, 2), () => {
+      this.spawnBallQueued = true;
+    });
+    this.consumeGamepadButton(5, this.isGamepadButtonDown(gamepad, 5), () => {
+      this.grappleQueued = true;
+    });
+    this.consumeGamepadButton(13, this.isGamepadButtonDown(gamepad, 13), () => {
+      this.downSmashQueued = true;
+    });
+  }
+
+  private isAnyFireDown(): boolean {
+    return this.mouseButtons.left || this.controllerFireDown;
+  }
+
+  private setFireDown(down: boolean) {
+    const wasAnyFireDown = this.isAnyFireDown();
     this.mouseButtons.left = down;
+    const isAnyFireDown = this.isAnyFireDown();
+    if (isAnyFireDown && !wasAnyFireDown) {
+      this.fireEdge = true;
+      this.fireQueued = true;
+    }
+    if (!isAnyFireDown && wasAnyFireDown) {
+      this.fireReleaseEdge = true;
+    }
   }
 
   private applyMouseLook(movementX: number, movementY: number) {
@@ -506,12 +643,15 @@ class InputManager {
   }
 
   getMoveVector(): { x: number; y: number } {
+    this.pollGamepad();
     let x = 0;
     let y = 0;
     if (this.keys['KeyW'] || this.keys['ArrowUp']) y += 1;
     if (this.keys['KeyS'] || this.keys['ArrowDown']) y -= 1;
     if (this.keys['KeyA'] || this.keys['ArrowLeft']) x -= 1;
     if (this.keys['KeyD'] || this.keys['ArrowRight']) x += 1;
+    x += this.controllerMove.x;
+    y += this.controllerMove.y;
     const len = Math.hypot(x, y);
     if (len > 1) {
       x /= len;
@@ -521,18 +661,21 @@ class InputManager {
   }
 
   consumeThrow(): boolean {
+    this.pollGamepad();
     if (!this.throwQueued) return false;
     this.throwQueued = false;
     return true;
   }
 
   consumeEPropel(): boolean {
+    this.pollGamepad();
     if (!this.ePropelQueued) return false;
     this.ePropelQueued = false;
     return true;
   }
 
   consumeFireEdge(): boolean {
+    this.pollGamepad();
     if (!this.fireEdge) return false;
     this.fireEdge = false;
     this.fireQueued = false;
@@ -540,45 +683,53 @@ class InputManager {
   }
 
   consumeFireRelease(): boolean {
+    this.pollGamepad();
     if (!this.fireReleaseEdge) return false;
     this.fireReleaseEdge = false;
     return true;
   }
 
   consumeFire(): boolean {
+    this.pollGamepad();
     if (!this.fireQueued) return false;
     this.fireQueued = false;
     return true;
   }
 
   isFireDown(): boolean {
-    return this.mouseButtons.left;
+    this.pollGamepad();
+    return this.isAnyFireDown();
   }
 
   flushFireInput(): void {
     this.mouseButtons.left = false;
+    this.controllerFireDown = false;
     this.fireEdge = false;
     this.fireReleaseEdge = false;
     this.fireQueued = false;
   }
 
   consumeSpawnBall(): boolean {
+    this.pollGamepad();
     if (!this.spawnBallQueued) return false;
     this.spawnBallQueued = false;
     return true;
   }
 
   consumeBallRespawn(): boolean {
+    this.pollGamepad();
     if (!this.ballRespawnQueued) return false;
     this.ballRespawnQueued = false;
     return true;
   }
 
   wantsJump(): boolean {
+    this.pollGamepad();
     return this.jumpQueued;
   }
 
   consumeJump(): boolean {
+    this.pollGamepad();
     if (!this.jumpQueued) return false;
     const nowSec = performance.now() / 1000;
     if (this.jumpBufferUntil > 0 && nowSec > this.jumpBufferUntil) {
@@ -592,29 +743,38 @@ class InputManager {
   }
 
   consumeGrapple(): boolean {
+    this.pollGamepad();
     if (!this.grappleQueued) return false;
     this.grappleQueued = false;
     return true;
   }
 
   consumeDashBoost(): boolean {
+    this.pollGamepad();
     if (!this.dashBoostQueued) return false;
     this.dashBoostQueued = false;
     return true;
   }
 
   consumeDownSmash(): boolean {
+    this.pollGamepad();
     if (!this.downSmashQueued) return false;
     this.downSmashQueued = false;
     return true;
   }
 
   isSprint(): boolean {
-    return !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'];
+    this.pollGamepad();
+    return (
+      !!this.keys['ShiftLeft'] ||
+      !!this.keys['ShiftRight'] ||
+      this.controllerSprintDown
+    );
   }
 
   isBeam(): boolean {
-    return this.mouseButtons.right;
+    this.pollGamepad();
+    return this.mouseButtons.right || this.controllerBeamDown;
   }
 
   isEscape(): boolean {
@@ -622,14 +782,17 @@ class InputManager {
   }
 
   getRotation() {
+    this.pollGamepad();
     return { yaw: this.yaw, pitch: this.aimPitch };
   }
 
   getAimPitch() {
+    this.pollGamepad();
     return this.aimPitch;
   }
 
   getLookDirection(): THREE.Vector3 {
+    this.pollGamepad();
     return getLookDirection(this.yaw, this.aimPitch);
   }
 }
