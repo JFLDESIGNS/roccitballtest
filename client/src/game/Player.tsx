@@ -166,6 +166,8 @@ const PLAYER_UPPER_COLLIDER = {
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
+const _scoopLowerLocal = new THREE.Vector3();
+const _scoopUpperLocal = new THREE.Vector3();
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -504,18 +506,49 @@ export function Player({
   const grappleSwingPower = useRef(1);
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
-    const body = bodyRef.current;
-    if (!body) return;
+    const lower = lowerScoopColliderRef.current;
+    const upper = upperScoopColliderRef.current;
+    if (!lower && !upper) return;
     _bodyYawQuat.setFromAxisAngle(_bodyYawAxis, yaw);
-    body.setRotation(
-      {
-        x: _bodyYawQuat.x,
-        y: _bodyYawQuat.y,
-        z: _bodyYawQuat.z,
-        w: _bodyYawQuat.w,
-      },
-      true,
-    );
+    if (
+      scoopTiltReady.current &&
+      lastScoopTiltQuat.current.angleTo(_bodyYawQuat) < 0.0015
+    ) {
+      return;
+    }
+
+    lastScoopTiltQuat.current.copy(_bodyYawQuat);
+    scoopTiltReady.current = true;
+
+    const rot = {
+      x: _bodyYawQuat.x,
+      y: _bodyYawQuat.y,
+      z: _bodyYawQuat.z,
+      w: _bodyYawQuat.w,
+    };
+    lower?.setRotationWrtParent(rot);
+    upper?.setRotationWrtParent(rot);
+
+    if (lower) {
+      _scoopLowerLocal
+        .set(0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ)
+        .applyQuaternion(_bodyYawQuat);
+      lower.setTranslationWrtParent({
+        x: _scoopLowerLocal.x,
+        y: _scoopLowerLocal.y,
+        z: _scoopLowerLocal.z,
+      });
+    }
+    if (upper) {
+      _scoopUpperLocal
+        .set(0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ)
+        .applyQuaternion(_bodyYawQuat);
+      upper.setTranslationWrtParent({
+        x: _scoopUpperLocal.x,
+        y: _scoopUpperLocal.y,
+        z: _scoopUpperLocal.z,
+      });
+    }
   }, []);
   const setPlayerCollisionGroups = useCallback((bodyGroups: number, ballGroups: number) => {
     if (playerBodyCollisionGroupsRef.current !== bodyGroups) {
