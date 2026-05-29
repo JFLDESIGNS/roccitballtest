@@ -52,16 +52,14 @@ export function goalRingCenterX(
   return team === 'red' ? wallX + standoff : wallX - standoff;
 }
 
-/** Lit ring mesh X — top ring uses full wall standoff toward the court */
-export function goalRingDisplayX(
+/** Logical goal X; visual-only lit ring offsets are applied in Arena.tsx. */
+function goalRingDisplayX(
   centerX: number,
   team: Team,
   size: GoalSize,
 ): number {
-  if (size === 'small') {
-    const pullBack = GOAL_RINGS.topRingLitWallPullBackFt * FT;
-    return team === 'red' ? centerX - pullBack : centerX + pullBack;
-  }
+  void team;
+  void size;
   return centerX;
 }
 

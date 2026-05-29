@@ -1116,8 +1116,8 @@ export const GOAL_RINGS = {
   topBackRingCourtForwardFt: 1,
   /** Top (small) ring — standoff from wall toward center court (feet) */
   topRingWallStandoffFt: 15,
-  /** Lit top ring pull-back toward wall (feet); 0 = full standoff toward court */
-  topRingLitWallPullBackFt: 0,
+  /** Visual/collision pull-back for the lit 5-point ring only; scoring stays put. */
+  topRingLitWallPullBackFt: 7.25,
   /** Top black back ring — offset from lit center toward wall (m) */
   topRingBackWallOffsetM: 2.35,
   /** Extra lift for top ring only (feet, toward ceiling) */
