@@ -824,8 +824,11 @@ export function Player({
     }
 
     const tr = body.translation();
-    const padY = sampleTrampolineFloorY(tr.x, tr.z);
-    if (padY !== null) {
+    const multiplayerNow = multiplayerStore.getState();
+    const coopAdventureMode =
+      multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
+    const padY = coopAdventureMode ? null : sampleTrampolineFloorY(tr.x, tr.z);
+    if (!coopAdventureMode && padY !== null) {
       const feet = playerFeetY(tr.y);
       const gap = feet - padY;
       if (gap > 0.05 && gap < 1.2) {
@@ -1349,6 +1352,9 @@ export function Player({
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
     grindRailCooldown.current = Math.max(0, grindRailCooldown.current - dt);
+    if (coopAdventureMode && grindRailActive.current) {
+      stopGrindRailRide(0);
+    }
     if (ePropelTimer.current > 0) {
       ePropelElapsed.current += dt;
     }
@@ -1628,10 +1634,13 @@ export function Player({
       maxVy,
     );
 
-    const padFloorY = sampleTrampolineFloorY(pos.x, pos.z);
+    const padFloorY = coopAdventureMode ? null : sampleTrampolineFloorY(pos.x, pos.z);
     const feetY = playerFeetY(pos.y);
-    const inTrampZone = isPlayerInTrampolineZone(pos.x, pos.z, feetY);
-    const overTrampDeck = inTrampZone || isPlayerOverTrampolineDeck(pos.x, pos.z, feetY);
+    const inTrampZone =
+      !coopAdventureMode && isPlayerInTrampolineZone(pos.x, pos.z, feetY);
+    const overTrampDeck =
+      inTrampZone ||
+      (!coopAdventureMode && isPlayerOverTrampolineDeck(pos.x, pos.z, feetY));
     let padGap = MOVEMENT.groundProbeDist + 1;
     if (padFloorY !== null) {
       padGap = feetY - padFloorY;
@@ -1794,13 +1803,15 @@ export function Player({
     const railContactRange = grindRailActive.current
       ? GRIND_RAIL.activeHorizontalM
       : GRIND_RAIL.contactHorizontalM;
-    const railContact = sampleGrindRailContact(
-      pos.x,
-      railCenterY,
-      pos.z,
-      railContactRange,
-      GRIND_RAIL.contactVerticalM,
-    );
+    const railContact = coopAdventureMode
+      ? null
+      : sampleGrindRailContact(
+          pos.x,
+          railCenterY,
+          pos.z,
+          railContactRange,
+          GRIND_RAIL.contactVerticalM,
+        );
     const horizontalSpeed = Math.hypot(linvel.x, linvel.z);
 
     if (grindRailActive.current) {
@@ -1908,6 +1919,7 @@ export function Player({
         }
       }
     } else if (
+      !coopAdventureMode &&
       !jumpPressed &&
       !goalEjectMoveLocked &&
       grindRailCooldown.current <= 0 &&
@@ -2243,6 +2255,7 @@ export function Player({
     }
     const feetNow = playerFeetY(pos.y);
     const padLaunched =
+      !coopAdventureMode &&
       !grappleActive.current &&
       tryPlayerPads(
         body,
