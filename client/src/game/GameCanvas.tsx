@@ -374,6 +374,45 @@ function MatchLoop({
   return null;
 }
 
+function CoopAdventureMatchLoop() {
+  const matchTimer = useRef<number>(MATCH.durationSec);
+  const matchGeneration = useSyncExternalStore(
+    gameStore.subscribe,
+    () => gameStore.getState().matchGeneration,
+  );
+
+  useEffect(() => {
+    matchTimer.current = MATCH.durationSec;
+  }, [matchGeneration]);
+
+  useFrame((_, dt) => {
+    const multiplayer = multiplayerStore.getState();
+    if (
+      multiplayer.enabled &&
+      multiplayer.status === 'online' &&
+      multiplayer.selfId !== multiplayer.hostId
+    ) {
+      return;
+    }
+
+    const state = gameStore.getState();
+    if (state.phase !== 'playing') return;
+
+    matchTimer.current = Math.max(0, matchTimer.current - dt);
+    gameStore.syncNetworkMatch({
+      phase: 'playing',
+      score: state.score,
+      timeLeft: matchTimer.current,
+      countdown: 0,
+      arenaSettleCountdown: 0,
+      loadCountdown: 0,
+      ballFrozen: false,
+    });
+  });
+
+  return null;
+}
+
 function PreMatchArenaFlyover() {
   const { camera } = useThree();
   const startedAt = useRef(0);
@@ -1269,7 +1308,11 @@ function Scene({
         ballPos={ballPos}
         ballVel={ballVel}
       />
-      {!coopAdventureEnabled && <MatchLoop ballRef={ballRef} botsRef={botsRef} />}
+      {coopAdventureEnabled ? (
+        <CoopAdventureMatchLoop />
+      ) : (
+        <MatchLoop ballRef={ballRef} botsRef={botsRef} />
+      )}
       {!coopAdventureEnabled && <PreMatchArenaFlyover />}
     </>
   );

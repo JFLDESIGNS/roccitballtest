@@ -37,6 +37,8 @@ const THEMES = [
   { grass: '#52c5a2', side: '#4f4838' },
 ];
 
+const COOP_PLATFORM_DISTANCE_SCALE = 1.16;
+
 function pad(
   id: string,
   spec: PadSpec,
@@ -59,7 +61,17 @@ function buildLevel(
   tip: string,
   specs: PadSpec[],
 ): CoopAdventureLevel {
-  const platforms = specs.map((spec, i) =>
+  const startSpec = specs[0]!;
+  const spacedSpecs = specs.map((spec, i) =>
+    i === 0
+      ? spec
+      : {
+          ...spec,
+          x: startSpec.x + (spec.x - startSpec.x) * COOP_PLATFORM_DISTANCE_SCALE,
+          z: startSpec.z + (spec.z - startSpec.z) * COOP_PLATFORM_DISTANCE_SCALE,
+        },
+  );
+  const platforms = spacedSpecs.map((spec, i) =>
     pad(`level-${id}-platform-${i}`, spec, id + i),
   );
   const start = platforms[0]!;
