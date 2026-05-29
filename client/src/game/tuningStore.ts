@@ -3,7 +3,7 @@ import { integrateFallGravity } from './movementGravity';
 import { inputManager } from './InputManager';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v22';
+const STORAGE_KEY = 'rocketball-tuning-v23';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;
@@ -179,7 +179,7 @@ const defaults: TuningValues = {
   looseVisualPosSmooth: BALL.looseVisualPosSmooth,
   looseVisualRotSmooth: BALL.looseVisualRotSmooth,
   looseVisualMaxLagM: BALL.looseVisualMaxLagM,
-  looseVisualSpeedBoostMax: 12,
+  looseVisualSpeedBoostMax: 4,
 };
 
 const listeners = new Set<() => void>();

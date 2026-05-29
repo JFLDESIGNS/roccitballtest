@@ -844,13 +844,13 @@ export const BALL = {
   /** Blend held proxy into physics ball on release (seconds) */
   holdReleaseVisualLerpSec: 0.22,
   /** Loose proxy — filter raw physics position (reduces jitter) */
-  looseVisualTargetSmooth: 48,
+  looseVisualTargetSmooth: 30,
   /** Loose proxy display follow — higher = snappier */
-  looseVisualPosSmooth: 44,
+  looseVisualPosSmooth: 34,
   /** Loose proxy spin follow — higher = snappier */
-  looseVisualRotSmooth: 84,
+  looseVisualRotSmooth: 72,
   /** Soft catch-up if display drifts farther than this from filtered target (m) */
-  looseVisualMaxLagM: 0.38,
+  looseVisualMaxLagM: 0.52,
   /** Low-pass on ramp/floor support height while held */
   holdSupportSmooth: 32,
   /** How long Space stays buffered if jump was early (seconds) */

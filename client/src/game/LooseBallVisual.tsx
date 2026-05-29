@@ -157,7 +157,7 @@ export function LooseBallVisual({
       if (lagToFiltered > maxLagM || lagToPhysics > maxLagM * 1.15) {
         const overflow =
           Math.max(lagToFiltered, lagToPhysics * 0.92) / Math.max(maxLagM, 1e-4);
-        const catchT = THREE.MathUtils.clamp((overflow - 1) * 0.35, 0, 0.72);
+        const catchT = THREE.MathUtils.clamp((overflow - 1) * 0.18, 0, 0.42);
         _followPos.lerpVectors(_filteredPos, _targetPos, catchT);
       } else {
         _followPos.copy(_filteredPos);
