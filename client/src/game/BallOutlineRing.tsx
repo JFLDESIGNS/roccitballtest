@@ -6,13 +6,13 @@ import {
   createBallOutlineMaterial,
 } from './ballOutlineMaterial';
 
-/** White screen-space rim on the ball silhouette; visible through geometry. */
+/** Soft screen-space rim inset from the ball silhouette; visible through geometry. */
 export function BallOutlineRing() {
   const geometry = useMemo(
-    () => new THREE.SphereGeometry(BALL.radius * 1.045, 48, 36),
+    () => new THREE.SphereGeometry(BALL.radius * 0.88, 48, 36),
     [],
   );
-  const material = useMemo(() => createBallOutlineMaterial(2, 2, 2), []);
+  const material = useMemo(() => createBallOutlineMaterial(2.35, 2.35, 2.5), []);
 
   useEffect(
     () => () => {
