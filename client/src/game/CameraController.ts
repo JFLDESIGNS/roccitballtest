@@ -12,6 +12,12 @@ const _worldUp = new THREE.Vector3(0, 1, 0);
 const _fromPivot = new THREE.Vector3();
 const _toRef = new THREE.Vector3();
 const _wallTest = new THREE.Vector3();
+let _lastYaw = 0;
+let _hasLastYaw = false;
+
+function angleDelta(a: number, b: number): number {
+  return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+}
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -133,10 +139,17 @@ export function updateThirdPersonCamera(
   clampCameraFloor(_desired, pivot.y);
   clampCameraArenaWalls(_desired, pivot);
 
+  const yawDelta = _hasLastYaw ? Math.abs(angleDelta(yaw, _lastYaw)) : 0;
+  _lastYaw = yaw;
+  _hasLastYaw = true;
+  const yawRate = dt > 1e-5 ? yawDelta / dt : 0;
+  const turnCatchup = THREE.MathUtils.clamp((yawRate - 3.2) / 13, 0, 1);
+  const cameraSmooth = CAMERA.smooth * (1 + turnCatchup * 2.35);
+
   if (snap) {
     camera.position.copy(_desired);
   } else {
-    const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
+    const smooth = 1 - Math.exp(-cameraSmooth * dt);
     camera.position.lerp(_desired, smooth);
   }
 
