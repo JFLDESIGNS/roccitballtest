@@ -461,8 +461,8 @@ export function Player({
         return pivot;
       }
 
-      const xzAlpha = 1 - Math.exp(-18 * dt);
-      const yAlpha = 1 - Math.exp(-24 * dt);
+      const xzAlpha = 1 - Math.exp(-30 * dt);
+      const yAlpha = 1 - Math.exp(-28 * dt);
       pivot.x += (target.x - pivot.x) * xzAlpha;
       pivot.z += (target.z - pivot.z) * xzAlpha;
       pivot.y += (target.y - pivot.y) * yAlpha;

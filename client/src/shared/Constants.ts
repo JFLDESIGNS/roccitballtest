@@ -641,7 +641,7 @@ export const CAMERA = {
   pivotHeight: 1.5,
   shoulderOffset: 0,
   lookAhead: 24,
-  smooth: 20,
+  smooth: 28,
   /** Never pull third-person cam closer than this to the pivot (avoids clipping inside capsule) */
   minDistanceFromPivot: 4.5,
   /** Min height above arena floor (m) */
@@ -700,8 +700,8 @@ export const MOVEMENT = {
   jumpMomentumBoost: 1.12,
   groundAccel: 22,
   /** Local player mesh follow — higher = snappier, lower = smoother */
-  playerVisualPosSmooth: 24,
-  playerVisualAirPosSmooth: 30,
+  playerVisualPosSmooth: 34,
+  playerVisualAirPosSmooth: 38,
   capsuleHeight: 1.8,
   capsuleRadius: 0.35,
   /** Max gap (m) between feet and surface to count as grounded */
