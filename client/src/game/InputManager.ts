@@ -628,13 +628,13 @@ class InputManager {
     }
 
     try {
-      const promise = el.requestPointerLock({
-        unadjustedMovement: true,
-      });
+      const promise = el.requestPointerLock();
       void promise?.catch?.(() => {});
     } catch {
       try {
-        const promise = el.requestPointerLock();
+        const promise = el.requestPointerLock({
+          unadjustedMovement: true,
+        });
         void promise?.catch?.(() => {});
       } catch {
         /* blocked by browser, Game Bar overlay, etc. */
