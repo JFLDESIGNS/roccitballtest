@@ -658,7 +658,8 @@ export const CAMERA = {
   verticalInfluence: 0.55,
   /** Ignore mouse deltas briefly after pointer lock (browser spike) */
   lockWarmupMs: 220,
-  maxMouseDelta: 90,
+  /** High cap only filters browser spikes; fast flicks should keep full travel. */
+  maxMouseDelta: 1200,
   mouseSensitivityX: 0.0026,
   mouseSensitivityY: 0.002,
   /** Extra follow distance (m) at full sprint */
