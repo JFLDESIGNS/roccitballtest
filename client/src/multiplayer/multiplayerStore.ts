@@ -77,11 +77,14 @@ export type NetworkBallAction = {
 export type NetworkCoopAction = {
   id: string;
   ownerId: string;
-  kind: 'playerPull' | 'playerThrow';
-  targetId: string;
+  kind: 'playerPull' | 'playerThrow' | 'railSpawn';
+  targetId?: string;
   position: Vec3;
   velocity: Vec3;
   holdPosition?: Vec3;
+  railKey?: string;
+  levelId?: number;
+  platformId?: string;
 };
 
 type NetworkMatchState = {
@@ -110,6 +113,7 @@ type MultiplayerState = {
   remoteRockets: NetworkRocketState[];
   remoteBallActions: NetworkBallAction[];
   remoteCoopActions: NetworkCoopAction[];
+  remoteCoopRailActions: NetworkCoopAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
@@ -205,6 +209,7 @@ let state: MultiplayerState = {
   remoteRockets: [],
   remoteBallActions: [],
   remoteCoopActions: [],
+  remoteCoopRailActions: [],
   remotePlayers: [],
 };
 
@@ -296,6 +301,7 @@ function handleMessage(raw: string) {
       remoteRockets: [],
       remoteBallActions: [],
       remoteCoopActions: [],
+      remoteCoopRailActions: [],
       remotePlayers: [],
     });
     closeSocket();
@@ -352,6 +358,12 @@ function handleMessage(raw: string) {
   }
 
   if (msg.type === 'coopAction') {
+    if (msg.action.kind === 'railSpawn') {
+      patch({
+        remoteCoopRailActions: [...state.remoteCoopRailActions, msg.action].slice(-32),
+      });
+      return;
+    }
     patch({
       remoteCoopActions: [...state.remoteCoopActions, msg.action].slice(-48),
     });
@@ -426,6 +438,7 @@ export const multiplayerStore = {
       remoteRockets: [],
       remoteBallActions: [],
       remoteCoopActions: [],
+      remoteCoopRailActions: [],
       remotePlayers: [],
     });
 
@@ -472,6 +485,7 @@ export const multiplayerStore = {
           remoteRockets: [],
           remoteBallActions: [],
           remoteCoopActions: [],
+          remoteCoopRailActions: [],
           remotePlayers: [],
         });
       }
@@ -495,6 +509,7 @@ export const multiplayerStore = {
       remoteRockets: [],
       remoteBallActions: [],
       remoteCoopActions: [],
+      remoteCoopRailActions: [],
       remotePlayers: [],
     });
   },
@@ -606,6 +621,14 @@ export const multiplayerStore = {
     const actions = state.remoteCoopActions;
     if (actions.length === 0) return [];
     state = { ...state, remoteCoopActions: [] };
+    emit();
+    return actions;
+  },
+
+  drainRemoteCoopRailActions(): NetworkCoopAction[] {
+    const actions = state.remoteCoopRailActions;
+    if (actions.length === 0) return [];
+    state = { ...state, remoteCoopRailActions: [] };
     emit();
     return actions;
   },

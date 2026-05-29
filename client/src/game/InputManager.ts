@@ -42,6 +42,7 @@ class InputManager {
   private aimPitch: number = AIM.defaultPitch;
   private throwQueued = false;
   private ePropelQueued = false;
+  private interactQueued = false;
   private fireQueued = false;
   private jumpQueued = false;
   private grappleQueued = false;
@@ -315,6 +316,7 @@ class InputManager {
       if (e.code === 'KeyE' && !e.repeat && !gameStore.getState().debugFreelook) {
         this.throwQueued = true;
         this.ePropelQueued = true;
+        this.interactQueued = true;
         triggerThrowFlipEmotes();
       }
       if (e.code === 'KeyF') this.spawnBallQueued = true;
@@ -544,6 +546,7 @@ class InputManager {
       if (gameStore.getState().debugFreelook) return;
       this.throwQueued = true;
       this.ePropelQueued = true;
+      this.interactQueued = true;
       triggerThrowFlipEmotes();
     });
     this.consumeGamepadButton(2, this.isGamepadButtonDown(gamepad, 2), () => {
@@ -763,6 +766,13 @@ class InputManager {
     this.pollGamepad();
     if (!this.ePropelQueued) return false;
     this.ePropelQueued = false;
+    return true;
+  }
+
+  consumeInteract(): boolean {
+    this.pollGamepad();
+    if (!this.interactQueued) return false;
+    this.interactQueued = false;
     return true;
   }
 

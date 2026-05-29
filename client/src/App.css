@@ -3257,6 +3257,67 @@ body,
   letter-spacing: 0;
 }
 
+.coop-rail-button {
+  min-width: 4.4rem;
+  padding: 0.28rem 0.44rem;
+  border: 1px solid rgba(255, 217, 104, 0.75);
+  border-radius: 8px;
+  background: rgba(14, 11, 4, 0.76);
+  color: #fff1b9;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 0 16px rgba(255, 207, 72, 0.24);
+}
+
+.coop-rail-button--active {
+  border-color: rgba(105, 247, 200, 0.76);
+  background: rgba(3, 18, 17, 0.8);
+  color: #dffff4;
+  box-shadow: 0 0 16px rgba(49, 255, 183, 0.2);
+}
+
+.coop-adventure-fact {
+  position: fixed;
+  left: 50%;
+  top: 17%;
+  width: min(680px, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(118, 201, 255, 0.58);
+  border-radius: 8px;
+  background: rgba(2, 8, 19, 0.86);
+  color: #f4fbff;
+  text-align: center;
+  pointer-events: none;
+  box-shadow:
+    0 0 28px rgba(92, 176, 255, 0.22),
+    inset 0 0 18px rgba(105, 247, 200, 0.08);
+}
+
+.coop-adventure-fact strong {
+  color: #69f7c8;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+}
+
+.coop-adventure-fact span {
+  color: #ffd66b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.coop-adventure-fact p {
+  margin: 0;
+  color: #d9ecff;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 .main-menu-browser-divider {
   height: 1px;
   background: rgba(95, 153, 225, 0.18);

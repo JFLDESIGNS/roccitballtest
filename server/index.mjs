@@ -1808,6 +1808,42 @@ function handleClientMessage(socket, raw) {
 
   if (msg.type === 'coopAction') {
     if (room.mode !== 'coop-adventure') return;
+    if (msg.action?.kind === 'railSpawn') {
+      const action = {
+        id:
+          typeof msg.action?.id === 'string'
+            ? msg.action.id.slice(0, 64)
+            : crypto.randomUUID(),
+        ownerId: client.id,
+        kind: 'railSpawn',
+        targetId: '',
+        railKey:
+          typeof msg.action?.railKey === 'string'
+            ? msg.action.railKey.slice(0, 96)
+            : '',
+        levelId: Number.isFinite(msg.action?.levelId)
+          ? Math.max(1, Math.min(10, Math.floor(msg.action.levelId)))
+          : 1,
+        platformId:
+          typeof msg.action?.platformId === 'string'
+            ? msg.action.platformId.slice(0, 96)
+            : '',
+        position: sanitizeVec3(msg.action?.position, player.position),
+        velocity: sanitizeVec3(msg.action?.velocity),
+      };
+      if (!action.railKey || !action.platformId) return;
+      const packet = {
+        type: 'coopAction',
+        serverTime: Date.now(),
+        action,
+      };
+      for (const [peerSocket, peerClient] of clients) {
+        if (peerSocket !== socket && peerClient.roomId === room.id) {
+          sendJson(peerSocket, packet);
+        }
+      }
+      return;
+    }
     const targetId =
       typeof msg.action?.targetId === 'string'
         ? msg.action.targetId.slice(0, 80)

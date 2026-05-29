@@ -1717,6 +1717,7 @@ export function Player({
       !grappleActive.current &&
       !isPlayerKnockStunActive() &&
       !holdingBall.current &&
+      !networkCoopAdventureMode &&
       ePropelCooldown.current <= 0 &&
       inputManager.consumeEPropel()
     ) {
@@ -2389,6 +2390,7 @@ export function Player({
     const canBeamBall = ballHolder === null && !remoteBallHeld;
 
     if (networkCoopAdventureMode) {
+      inputManager.consumeEPropel();
       coopActionSendTimer.current = Math.max(0, coopActionSendTimer.current - dt);
       const carryTarget =
         coopCarryTargetId.current !== null

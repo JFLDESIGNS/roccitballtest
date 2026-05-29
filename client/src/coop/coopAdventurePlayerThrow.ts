@@ -11,10 +11,10 @@ export const COOP_ADVENTURE_MODE: RoomMode = 'coop-adventure';
 
 const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
-const COOP_HOLD_DISTANCE = 4.2;
-const COOP_PULL_SPEED = 34;
-const COOP_THROW_SPEED = 42;
-const COOP_THROW_UP_SPEED = 10;
+const COOP_HOLD_DISTANCE = 4.0;
+const COOP_PULL_SPEED = 38;
+const COOP_THROW_SPEED = 48;
+const COOP_THROW_UP_SPEED = 12;
 
 const _toTarget = new THREE.Vector3();
 const _targetPos = new THREE.Vector3();
@@ -92,7 +92,7 @@ export function makeCoopThrowAction(
   _velocity
     .copy(lookDir)
     .multiplyScalar(COOP_THROW_SPEED)
-    .add(new THREE.Vector3(holderVelocity.x * 0.35, 0, holderVelocity.z * 0.35));
+    .add(new THREE.Vector3(holderVelocity.x * 0.5, 0, holderVelocity.z * 0.5));
   _velocity.y = Math.max(_velocity.y + COOP_THROW_UP_SPEED, COOP_THROW_UP_SPEED);
   _hold.copy(holderPosition).addScaledVector(lookDir, COOP_HOLD_DISTANCE + 0.8);
   _hold.y += 0.85;

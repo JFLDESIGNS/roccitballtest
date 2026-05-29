@@ -4,20 +4,39 @@ import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import pictureEndUrl from '../assets/images/ui/pictureend.png';
+import { inputManager } from '../game/InputManager';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
+import { BTS_FACTS } from './btsFacts';
 
 const PLATFORM_COLLISION = interactionGroups(2, [0, 1, 2]);
 const FALL_RESCUE_Y = -28;
 const GOAL_RADIUS = 4.4;
+const RAIL_BUTTON_RADIUS = 4.2;
+const RAIL_BUTTON_VERTICAL_RADIUS = 4.6;
+const FACT_DISPLAY_SEC = 6;
 
 const _goalPos = new THREE.Vector3();
 const _remotePos = new THREE.Vector3();
 const _spawnPos = new THREE.Vector3();
+const _buttonPos = new THREE.Vector3();
+const _railStart = new THREE.Vector3();
+const _railEnd = new THREE.Vector3();
 
 type CloudSpec = {
   position: [number, number, number];
   scale: [number, number, number];
+};
+
+type ActiveRail = {
+  key: string;
+  platformId: string;
+};
+
+type FactNotice = {
+  fact: string;
+  levelName: string;
+  completeAfter: boolean;
 };
 
 const COURSE_CLOUDS: CloudSpec[] = [
@@ -154,6 +173,118 @@ function CoopPlatform({ platform }: { platform: CoopAdventurePlatform }) {
   );
 }
 
+function platformTopY(platform: CoopAdventurePlatform): number {
+  return platform.position.y + platform.size.y * 0.5;
+}
+
+function railButtonPosition(platform: CoopAdventurePlatform): THREE.Vector3 {
+  return _buttonPos.set(
+    platform.position.x,
+    platformTopY(platform) + 0.42,
+    platform.position.z + platform.size.z * 0.28,
+  );
+}
+
+function railEndpoint(platform: CoopAdventurePlatform): THREE.Vector3 {
+  return new THREE.Vector3(
+    platform.position.x,
+    platformTopY(platform) + 1.08,
+    platform.position.z,
+  );
+}
+
+function railKey(levelId: number, platformId: string): string {
+  return `coop-rail-${levelId}-${platformId}`;
+}
+
+function CoopRailButton({
+  platform,
+  active,
+}: {
+  platform: CoopAdventurePlatform;
+  active: boolean;
+}) {
+  const p = railButtonPosition(platform).clone();
+  const color = active ? '#63ffd0' : '#ffd45e';
+  return (
+    <group position={[p.x, p.y, p.z]}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.9, 0.9, 0.28, 24]} />
+        <meshStandardMaterial
+          color={active ? '#183d36' : '#352911'}
+          emissive={color}
+          emissiveIntensity={active ? 0.65 : 0.95}
+          roughness={0.48}
+          metalness={0.18}
+          toneMapped={false}
+        />
+      </mesh>
+      <pointLight color={color} intensity={active ? 0.9 : 1.4} distance={8} />
+      <Html center distanceFactor={12} position={[0, 0.8, 0]}>
+        <div className={`coop-rail-button ${active ? 'coop-rail-button--active' : ''}`}>
+          {active ? 'RAIL LIVE' : 'PRESS E'}
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function CoopSpawnedRail({
+  start,
+  end,
+}: {
+  start: THREE.Vector3;
+  end: THREE.Vector3;
+}) {
+  const points = useMemo(
+    () => [
+      start.clone(),
+      start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, 1.35, 0)),
+      end.clone(),
+    ],
+    [start, end],
+  );
+  const geometry = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+    return new THREE.TubeGeometry(curve, 48, 0.26, 14, false);
+  }, [points]);
+  const colliderPoints = useMemo(() => {
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+    const length = start.distanceTo(end);
+    const count = Math.max(8, Math.ceil(length / 2.1));
+    return Array.from({ length: count }, (_, i) =>
+      curve.getPoint(count <= 1 ? 0 : i / (count - 1)),
+    );
+  }, [end, points, start]);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <group>
+      <mesh geometry={geometry} castShadow>
+        <meshStandardMaterial
+          color="#07090d"
+          emissive="#0d635c"
+          emissiveIntensity={0.22}
+          metalness={0.42}
+          roughness={0.24}
+        />
+      </mesh>
+      {colliderPoints.map((point, i) => (
+        <RigidBody key={i} type="fixed" colliders={false}>
+          <CuboidCollider
+            args={[0.82, 0.16, 0.58]}
+            position={[point.x, point.y, point.z]}
+            collisionGroups={PLATFORM_COLLISION}
+            friction={1}
+            restitution={0.02}
+          />
+        </RigidBody>
+      ))}
+    </group>
+  );
+}
+
 function CoopGoalPicture({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
@@ -191,7 +322,13 @@ export function CoopAdventureCourse({
 }) {
   const [levelIndex, setLevelIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const [activeRails, setActiveRails] = useState<ActiveRail[]>([]);
+  const [factNotice, setFactNotice] = useState<FactNotice | null>(null);
   const advanceLock = useRef(0);
+  const pendingAdvance = useRef<{
+    at: number;
+    completeAfter: boolean;
+  } | null>(null);
   const teleportedLevel = useRef(-1);
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
   const remotePlayers = useSyncExternalStore(
@@ -205,10 +342,29 @@ export function CoopAdventureCourse({
 
   useEffect(() => {
     teleportedLevel.current = -1;
+    pendingAdvance.current = null;
+    setFactNotice(null);
+    setActiveRails([]);
   }, [levelIndex, teamSlot]);
 
   useFrame((_, dt) => {
     advanceLock.current = Math.max(0, advanceLock.current - dt);
+    for (const action of multiplayerStore.drainRemoteCoopRailActions()) {
+      if (
+        action.kind !== 'railSpawn' ||
+        action.levelId !== level.id ||
+        !action.railKey ||
+        !action.platformId
+      ) {
+        continue;
+      }
+      setActiveRails((rails) =>
+        rails.some((rail) => rail.key === action.railKey)
+          ? rails
+          : [...rails, { key: action.railKey!, platformId: action.platformId! }],
+      );
+    }
+
     const body = playerBodyRef.current;
     if (body && teleportedLevel.current !== levelIndex) {
       const spawn = playerSpawnForLevel(levelIndex, teamSlot);
@@ -224,7 +380,52 @@ export function CoopAdventureCourse({
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       playerPositionRef.current.copy(spawn);
     }
-    if (advanceLock.current > 0 || completed) return;
+    const pending = pendingAdvance.current;
+    if (pending && pending.at <= performance.now() / 1000) {
+      pendingAdvance.current = null;
+      setFactNotice(null);
+      if (pending.completeAfter || levelIndex >= COOP_ADVENTURE_LEVELS.length - 1) {
+        setCompleted(true);
+      } else {
+        setLevelIndex((index) =>
+          Math.min(COOP_ADVENTURE_LEVELS.length - 1, index + 1),
+        );
+      }
+      return;
+    }
+
+    if (inputManager.consumeInteract() && !completed) {
+      const nearest = level.platforms.find((platform) => {
+        if (platform.kind === 'start') return false;
+        const key = railKey(level.id, platform.id);
+        if (activeRails.some((rail) => rail.key === key)) return false;
+        const p = railButtonPosition(platform);
+        const vertical = Math.abs(playerPositionRef.current.y - p.y);
+        if (vertical > RAIL_BUTTON_VERTICAL_RADIUS) return false;
+        const dx = playerPositionRef.current.x - p.x;
+        const dz = playerPositionRef.current.z - p.z;
+        return Math.hypot(dx, dz) <= RAIL_BUTTON_RADIUS;
+      });
+      if (nearest) {
+        const key = railKey(level.id, nearest.id);
+        setActiveRails((rails) =>
+          rails.some((rail) => rail.key === key)
+            ? rails
+            : [...rails, { key, platformId: nearest.id }],
+        );
+        multiplayerStore.sendCoopAction({
+          kind: 'railSpawn',
+          targetId: '',
+          railKey: key,
+          levelId: level.id,
+          platformId: nearest.id,
+          position: nearest.position,
+          velocity: { x: 0, y: 0, z: 0 },
+        });
+      }
+    }
+
+    if (advanceLock.current > 0 || completed || pendingAdvance.current) return;
 
     _goalPos.set(level.goal.x, level.goal.y, level.goal.z);
     const localReached = playerPositionRef.current.distanceTo(_goalPos) < GOAL_RADIUS;
@@ -235,12 +436,20 @@ export function CoopAdventureCourse({
     if (!localReached && !remoteReached) return;
 
     advanceLock.current = 1.4;
-    if (levelIndex >= COOP_ADVENTURE_LEVELS.length - 1) {
-      setCompleted(true);
-      return;
-    }
-    setLevelIndex((index) => Math.min(COOP_ADVENTURE_LEVELS.length - 1, index + 1));
+    const completeAfter = levelIndex >= COOP_ADVENTURE_LEVELS.length - 1;
+    const factIndex = (levelIndex * 3) % BTS_FACTS.length;
+    setFactNotice({
+      fact: BTS_FACTS[factIndex]!,
+      levelName: level.name,
+      completeAfter,
+    });
+    pendingAdvance.current = {
+      at: performance.now() / 1000 + FACT_DISPLAY_SEC,
+      completeAfter,
+    };
   });
+
+  const railStartPlatform = level.platforms[0]!;
 
   return (
     <group>
@@ -256,6 +465,31 @@ export function CoopAdventureCourse({
       {level.platforms.map((platform) => (
         <CoopPlatform key={platform.id} platform={platform} />
       ))}
+      {level.platforms
+        .filter((platform) => platform.kind !== 'start')
+        .map((platform) => {
+          const key = railKey(level.id, platform.id);
+          return (
+            <CoopRailButton
+              key={key}
+              platform={platform}
+              active={activeRails.some((rail) => rail.key === key)}
+            />
+          );
+        })}
+      {activeRails.map((rail) => {
+        const platform = level.platforms.find((candidate) => candidate.id === rail.platformId);
+        if (!platform) return null;
+        _railStart.copy(railEndpoint(railStartPlatform));
+        _railEnd.copy(railEndpoint(platform));
+        return (
+          <CoopSpawnedRail
+            key={rail.key}
+            start={_railStart.clone()}
+            end={_railEnd.clone()}
+          />
+        );
+      })}
       <group position={[level.goal.x, level.goal.y, level.goal.z]}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[2.15, 0.18, 12, 48]} />
@@ -291,6 +525,15 @@ export function CoopAdventureCourse({
           </span>
           <em>RMB attracts a teammate in this mode. Release to throw.</em>
         </div>
+        {factNotice && (
+          <div className="coop-adventure-fact">
+            <strong>
+              {factNotice.completeAfter ? 'Adventure Complete' : `${factNotice.levelName} Clear`}
+            </strong>
+            <span>BTS fact</span>
+            <p>{factNotice.fact}</p>
+          </div>
+        )}
       </Html>
     </group>
   );
