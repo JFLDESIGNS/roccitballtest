@@ -82,7 +82,6 @@ import {
 } from './Bots';
 import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
-import { EnergyPickupOrbs } from './EnergyPickupOrbs';
 import {
   multiplayerStore,
   type NetworkBallState,
@@ -1176,7 +1175,6 @@ function Scene({
       <GoalFireworks />
       <GroundSmashDust />
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
-      <EnergyPickupOrbs />
       <RocketRecoilFx />
       <RocketTrailSmoke />
       <Rockets
