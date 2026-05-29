@@ -1,8 +1,9 @@
 import { Html } from '@react-three/drei';
 import { CuboidCollider, interactionGroups, RigidBody, type RapierRigidBody } from '@react-three/rapier';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
+import pictureEndUrl from '../assets/images/ui/pictureend.png';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
 
@@ -153,6 +154,34 @@ function CoopPlatform({ platform }: { platform: CoopAdventurePlatform }) {
   );
 }
 
+function CoopGoalPicture({ position }: { position: [number, number, number] }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const { camera } = useThree();
+  const texture = useLoader(THREE.TextureLoader, pictureEndUrl);
+
+  useEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    texture.needsUpdate = true;
+  }, [texture]);
+
+  useFrame(() => {
+    if (!ref.current) return;
+    ref.current.quaternion.copy(camera.quaternion);
+  });
+
+  return (
+    <mesh ref={ref} position={position} renderOrder={3}>
+      <planeGeometry args={[12, 8]} />
+      <meshBasicMaterial
+        map={texture}
+        side={THREE.DoubleSide}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 export function CoopAdventureCourse({
   playerPositionRef,
   playerBodyRef,
@@ -245,6 +274,9 @@ export function CoopAdventureCourse({
           <div className="coop-adventure-goal">NEXT</div>
         </Html>
       </group>
+      <CoopGoalPicture
+        position={[level.goal.x, level.goal.y + 6.2, level.goal.z - 6.5]}
+      />
       <Html fullscreen>
         <div className="coop-adventure-hud">
           <strong>
