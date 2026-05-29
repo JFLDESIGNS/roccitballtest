@@ -3295,12 +3295,12 @@ body,
 .coop-adventure-fact {
   position: fixed;
   left: 50%;
-  top: 17%;
-  width: min(680px, calc(100vw - 2rem));
+  bottom: 6.2rem;
+  width: min(760px, calc(100vw - 2rem));
   transform: translateX(-50%);
   display: grid;
   gap: 0.25rem;
-  padding: 1rem 1.15rem;
+  padding: 0.82rem 1.05rem;
   border: 1px solid rgba(118, 201, 255, 0.58);
   border-radius: 8px;
   background: rgba(2, 8, 19, 0.86);
@@ -3314,7 +3314,7 @@ body,
 
 .coop-adventure-fact strong {
   color: #69f7c8;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   text-transform: uppercase;
 }
 
@@ -3328,7 +3328,7 @@ body,
 .coop-adventure-fact p {
   margin: 0;
   color: #d9ecff;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   line-height: 1.35;
 }
 

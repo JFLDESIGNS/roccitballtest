@@ -18,11 +18,13 @@ const FALL_RESCUE_Y = -28;
 const GOAL_RADIUS = 4.4;
 const RAIL_BUTTON_RADIUS = 4.2;
 const RAIL_BUTTON_VERTICAL_RADIUS = 4.6;
-const FACT_DISPLAY_SEC = 6;
+const FACT_DISPLAY_SEC = 10;
+const START_READY_RADIUS = 8;
 
 const _goalPos = new THREE.Vector3();
 const _remotePos = new THREE.Vector3();
 const _spawnPos = new THREE.Vector3();
+const _remoteSpawnPos = new THREE.Vector3();
 const _buttonPos = new THREE.Vector3();
 const _railStart = new THREE.Vector3();
 const _railEnd = new THREE.Vector3();
@@ -55,6 +57,36 @@ const COURSE_CLOUDS: CloudSpec[] = [
   { position: [64, 18, 52], scale: [18, 6, 10] },
 ];
 
+function buildRouteClouds(platforms: CoopAdventurePlatform[]): CloudSpec[] {
+  const clouds: CloudSpec[] = [];
+  for (let i = 0; i < platforms.length - 1; i += 1) {
+    const a = platforms[i]!;
+    const b = platforms[i + 1]!;
+    const midX = (a.position.x + b.position.x) * 0.5;
+    const midY = Math.max(a.position.y, b.position.y) + 4.2 + (i % 2) * 1.3;
+    const midZ = (a.position.z + b.position.z) * 0.5;
+    const dx = b.position.x - a.position.x;
+    const dz = b.position.z - a.position.z;
+    const distance = Math.hypot(dx, dz);
+    const sideX = distance > 0.01 ? -dz / distance : 1;
+    const sideZ = distance > 0.01 ? dx / distance : 0;
+    const side = i % 2 === 0 ? 1 : -1;
+    clouds.push({
+      position: [
+        midX + sideX * side * Math.min(10, distance * 0.16),
+        midY,
+        midZ + sideZ * side * Math.min(10, distance * 0.16),
+      ],
+      scale: [
+        THREE.MathUtils.clamp(distance * 0.12, 9, 18),
+        3.6,
+        THREE.MathUtils.clamp(distance * 0.08, 6, 12),
+      ],
+    });
+  }
+  return clouds;
+}
+
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
   const side = teamSlot % 2 === 0 ? -1 : 1;
@@ -65,7 +97,11 @@ function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector
   );
 }
 
-function CoopClouds() {
+function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
+  const clouds = useMemo(
+    () => [...COURSE_CLOUDS, ...buildRouteClouds(platforms)],
+    [platforms],
+  );
   const geo = useMemo(() => new THREE.SphereGeometry(1, 14, 10), []);
   const mat = useMemo(
     () =>
@@ -80,8 +116,19 @@ function CoopClouds() {
 
   return (
     <group>
-      {COURSE_CLOUDS.map((cloud, i) => (
-        <group key={i} position={cloud.position}>
+      {clouds.map((cloud, i) => (
+        <RigidBody
+          key={i}
+          type="fixed"
+          colliders={false}
+          position={cloud.position}
+        >
+          <CuboidCollider
+            args={[cloud.scale[0] * 0.78, cloud.scale[1] * 0.42, cloud.scale[2] * 0.72]}
+            collisionGroups={PLATFORM_COLLISION}
+            friction={0.18}
+            restitution={1.18}
+          />
           <mesh geometry={geo} material={mat} scale={cloud.scale} />
           <mesh
             geometry={geo}
@@ -103,7 +150,7 @@ function CoopClouds() {
               cloud.scale[2] * 0.62,
             ]}
           />
-        </group>
+        </RigidBody>
       ))}
     </group>
   );
@@ -318,55 +365,6 @@ function CoopSpawnedRail({
   );
 }
 
-function CoopSkyPlayBlock({ platforms }: { platforms: CoopAdventurePlatform[] }) {
-  const bounds = useMemo(() => {
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-    let minY = Infinity;
-    for (const platform of platforms) {
-      minX = Math.min(minX, platform.position.x - platform.size.x * 0.5);
-      maxX = Math.max(maxX, platform.position.x + platform.size.x * 0.5);
-      minZ = Math.min(minZ, platform.position.z - platform.size.z * 0.5);
-      maxZ = Math.max(maxZ, platform.position.z + platform.size.z * 0.5);
-      minY = Math.min(minY, platform.position.y - platform.size.y * 0.5);
-    }
-    const pad = 36;
-    const sizeX = Math.max(130, maxX - minX + pad * 2);
-    const sizeZ = Math.max(170, maxZ - minZ + pad * 2);
-    return {
-      x: (minX + maxX) * 0.5,
-      y: minY - 5.2,
-      z: (minZ + maxZ) * 0.5,
-      sizeX,
-      sizeZ,
-    };
-  }, [platforms]);
-
-  return (
-    <RigidBody type="fixed" colliders={false}>
-      <CuboidCollider
-        args={[bounds.sizeX * 0.5, 1.4, bounds.sizeZ * 0.5]}
-        position={[bounds.x, bounds.y, bounds.z]}
-        collisionGroups={PLATFORM_COLLISION}
-        friction={1}
-        restitution={0.02}
-      />
-      <mesh position={[bounds.x, bounds.y, bounds.z]} receiveShadow>
-        <boxGeometry args={[bounds.sizeX, 2.8, bounds.sizeZ]} />
-        <meshStandardMaterial
-          color="#4ef06c"
-          roughness={0.9}
-          metalness={0}
-          emissive="#18993c"
-          emissiveIntensity={0.05}
-        />
-      </mesh>
-    </RigidBody>
-  );
-}
-
 function CoopGoalPicture({ position }: { position: [number, number, number] }) {
   const ref = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
@@ -411,11 +409,16 @@ export function CoopAdventureCourse({
     at: number;
     completeAfter: boolean;
   } | null>(null);
+  const queuedFact = useRef<FactNotice | null>(null);
   const teleportedLevel = useRef(-1);
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
   const remotePlayers = useSyncExternalStore(
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().remotePlayers,
+  );
+  const coopRails = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().coopRails,
   );
   const teamSlot = useSyncExternalStore(
     multiplayerStore.subscribe,
@@ -428,6 +431,32 @@ export function CoopAdventureCourse({
     setFactNotice(null);
     setActiveRails([]);
   }, [levelIndex, teamSlot]);
+
+  useEffect(() => {
+    const levelRails = coopRails
+      .filter(
+        (action) =>
+          action.kind === 'railSpawn' &&
+          action.levelId === level.id &&
+          action.railKey &&
+          action.platformId,
+      )
+      .map((action) => ({
+        key: action.railKey!,
+        platformId: action.platformId!,
+      }));
+    if (levelRails.length === 0) return;
+    setActiveRails((rails) => {
+      let changed = false;
+      const next = [...rails];
+      for (const rail of levelRails) {
+        if (next.some((candidate) => candidate.key === rail.key)) continue;
+        next.push(rail);
+        changed = true;
+      }
+      return changed ? next : rails;
+    });
+  }, [coopRails, level.id]);
 
   useEffect(() => {
     const startPlatform = level.platforms[0]!;
@@ -480,18 +509,38 @@ export function CoopAdventureCourse({
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       playerPositionRef.current.copy(spawn);
     }
+    const nowSec = performance.now() / 1000;
     const pending = pendingAdvance.current;
-    if (pending && pending.at <= performance.now() / 1000) {
+    if (pending && pending.at <= nowSec) {
       pendingAdvance.current = null;
       setFactNotice(null);
-      if (pending.completeAfter || levelIndex >= COOP_ADVENTURE_LEVELS.length - 1) {
+      if (pending.completeAfter) {
         setCompleted(true);
-      } else {
-        setLevelIndex((index) =>
-          Math.min(COOP_ADVENTURE_LEVELS.length - 1, index + 1),
-        );
       }
       return;
+    }
+
+    if (!pending && queuedFact.current && !factNotice) {
+      const localSpawn = playerSpawnForLevel(levelIndex, teamSlot).clone();
+      const localAtStart =
+        playerPositionRef.current.distanceTo(localSpawn) <= START_READY_RADIUS;
+      const remoteAtStart =
+        remotePlayers.length > 0 &&
+        remotePlayers.every((player) => {
+          _remotePos.set(player.position.x, player.position.y, player.position.z);
+          _remoteSpawnPos.copy(playerSpawnForLevel(levelIndex, player.teamSlot));
+          return _remotePos.distanceTo(_remoteSpawnPos) <= START_READY_RADIUS;
+        });
+      if (localAtStart && remoteAtStart) {
+        const notice = queuedFact.current;
+        queuedFact.current = null;
+        setFactNotice(notice);
+        pendingAdvance.current = {
+          at: nowSec + FACT_DISPLAY_SEC,
+          completeAfter: false,
+        };
+        return;
+      }
     }
 
     if (inputManager.consumeInteract() && !completed) {
@@ -533,20 +582,28 @@ export function CoopAdventureCourse({
       _remotePos.set(player.position.x, player.position.y, player.position.z);
       return _remotePos.distanceTo(_goalPos) < GOAL_RADIUS;
     });
-    if (!localReached && !remoteReached) return;
+    if (!localReached || !remoteReached) return;
 
     advanceLock.current = 1.4;
     const completeAfter = levelIndex >= COOP_ADVENTURE_LEVELS.length - 1;
     const factIndex = (levelIndex * 3) % BTS_FACTS.length;
-    setFactNotice({
+    const notice = {
       fact: BTS_FACTS[factIndex]!,
       levelName: level.name,
       completeAfter,
-    });
-    pendingAdvance.current = {
-      at: performance.now() / 1000 + FACT_DISPLAY_SEC,
-      completeAfter,
     };
+    if (completeAfter) {
+      setFactNotice(notice);
+      pendingAdvance.current = {
+        at: nowSec + FACT_DISPLAY_SEC,
+        completeAfter,
+      };
+    } else {
+      queuedFact.current = notice;
+      setLevelIndex((index) =>
+        Math.min(COOP_ADVENTURE_LEVELS.length - 1, index + 1),
+      );
+    }
   });
 
   const railStartPlatform = level.platforms[0]!;
@@ -561,8 +618,7 @@ export function CoopAdventureCourse({
         position={[-28, 56, 34]}
         castShadow
       />
-      <CoopClouds />
-      <CoopSkyPlayBlock platforms={level.platforms} />
+      <CoopClouds platforms={level.platforms} />
       {level.platforms.map((platform) => (
         <CoopPlatform key={platform.id} platform={platform} />
       ))}
@@ -624,7 +680,7 @@ export function CoopAdventureCourse({
               ? 'You cleared every sky course. Nice throws.'
               : level.tip}
           </span>
-          <em>RMB attracts a teammate in this mode. Release to throw.</em>
+          <em>RMB holds a teammate. LMB throws. E builds a help rail.</em>
         </div>
         {factNotice && (
           <div className="coop-adventure-fact">

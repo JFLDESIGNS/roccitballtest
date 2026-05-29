@@ -855,6 +855,7 @@ function createRoomRecord(id, options = {}) {
     ballPadUntil: 0,
     ballDropCollisionDisabledUntil: 0,
     lastTouch: null,
+    coopRails: [],
     createdAt: Date.now(),
   };
 }
@@ -1832,13 +1833,17 @@ function handleClientMessage(socket, raw) {
         velocity: sanitizeVec3(msg.action?.velocity),
       };
       if (!action.railKey || !action.platformId) return;
+      room.coopRails = [
+        ...(room.coopRails ?? []).filter((rail) => rail.railKey !== action.railKey),
+        action,
+      ].slice(-80);
       const packet = {
         type: 'coopAction',
         serverTime: Date.now(),
         action,
       };
       for (const [peerSocket, peerClient] of clients) {
-        if (peerSocket !== socket && peerClient.roomId === room.id) {
+        if (peerClient.roomId === room.id) {
           sendJson(peerSocket, packet);
         }
       }
@@ -1891,6 +1896,7 @@ function broadcastSnapshots() {
       match: room.match,
       room: roomSummary(room),
       players,
+      coopRails: room.coopRails ?? [],
     });
     for (const [socket, client] of clients) {
       if (client.roomId === room.id) sendFrame(socket, packet);

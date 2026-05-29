@@ -1515,6 +1515,10 @@ export function Player({
       holdingBall.current = false;
       gameStore.setIsBeaming(false);
       setBeamAttractActive(false);
+      coopCarryTargetId.current = null;
+      coopWasBeamDown.current = false;
+      coopCarryVisualStore.setHeldTarget(null);
+      if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
       setShiftWindActive(false);
       thrusterThrottle.current = smoothAsymmetric(
         thrusterThrottle.current,
@@ -1538,6 +1542,28 @@ export function Player({
       } else {
         const v = body.linvel();
         velocity.current.set(v.x, v.y + tune.gravity * dt * 1.15, v.z);
+        const thrownMove = inputManager.getMoveVector();
+        if (Math.hypot(thrownMove.x, thrownMove.y) > 0.01) {
+          cameraMoveTargetXZ(
+            _moveVelXZ,
+            forward,
+            right,
+            thrownMove,
+            effectiveWalkSpeed * 0.55,
+          );
+          const steerAlpha = 1 - Math.exp(-dt * 1.35);
+          velocity.current.x = THREE.MathUtils.lerp(
+            velocity.current.x,
+            _moveVelXZ.x,
+            steerAlpha,
+          );
+          velocity.current.z = THREE.MathUtils.lerp(
+            velocity.current.z,
+            _moveVelXZ.z,
+            steerAlpha,
+          );
+          clampHorizontalVelocity(velocity.current, effectiveSprintSpeed * 1.25);
+        }
         body.setLinvel(velocity.current, true);
         const probe = probePlayerGround(
           world,

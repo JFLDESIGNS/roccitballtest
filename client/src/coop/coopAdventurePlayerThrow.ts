@@ -13,8 +13,8 @@ const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
 const COOP_HOLD_DISTANCE = 4.0;
 const COOP_PULL_SPEED = 38;
-const COOP_THROW_SPEED = 48;
-const COOP_THROW_UP_SPEED = 12;
+const COOP_THROW_SPEED = 30;
+const COOP_THROW_UP_SPEED = 7.5;
 
 const _toTarget = new THREE.Vector3();
 const _targetPos = new THREE.Vector3();
@@ -38,6 +38,7 @@ export function findCoopAdventureTarget(
   let bestScore = -Infinity;
 
   for (const player of players) {
+    if (player.coopRagdoll) continue;
     _targetPos.set(player.position.x, player.position.y + 1.1, player.position.z);
     _toTarget.subVectors(_targetPos, origin);
     const distance = _toTarget.length();
@@ -92,8 +93,12 @@ export function makeCoopThrowAction(
   _velocity
     .copy(lookDir)
     .multiplyScalar(COOP_THROW_SPEED)
-    .add(new THREE.Vector3(holderVelocity.x * 0.5, 0, holderVelocity.z * 0.5));
-  _velocity.y = Math.max(_velocity.y + COOP_THROW_UP_SPEED, COOP_THROW_UP_SPEED);
+    .add(new THREE.Vector3(holderVelocity.x * 0.28, 0, holderVelocity.z * 0.28));
+  _velocity.y = THREE.MathUtils.clamp(
+    _velocity.y + COOP_THROW_UP_SPEED,
+    COOP_THROW_UP_SPEED * 0.65,
+    COOP_THROW_UP_SPEED + 7,
+  );
   _hold.copy(holderPosition).addScaledVector(lookDir, 0.85);
   _hold.y += 0.35;
   return {

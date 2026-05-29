@@ -114,6 +114,7 @@ type MultiplayerState = {
   remoteBallActions: NetworkBallAction[];
   remoteCoopActions: NetworkCoopAction[];
   remoteCoopRailActions: NetworkCoopAction[];
+  coopRails: NetworkCoopAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
 
@@ -136,6 +137,7 @@ type ServerMessage =
       match: NetworkMatchState | null;
       room: RoomInfo;
       players: RemoteMultiplayerPlayer[];
+      coopRails?: NetworkCoopAction[];
     }
   | {
       type: 'rocketFire';
@@ -210,6 +212,7 @@ let state: MultiplayerState = {
   remoteBallActions: [],
   remoteCoopActions: [],
   remoteCoopRailActions: [],
+  coopRails: [],
   remotePlayers: [],
 };
 
@@ -226,6 +229,17 @@ function patch(next: Partial<MultiplayerState>) {
   ).__roccitballMultiplayerOnline =
     state.enabled && state.status === 'online';
   emit();
+}
+
+function upsertCoopRail(
+  rails: NetworkCoopAction[],
+  action: NetworkCoopAction,
+): NetworkCoopAction[] {
+  if (action.kind !== 'railSpawn' || !action.railKey) return rails;
+  return [
+    ...rails.filter((rail) => rail.railKey !== action.railKey),
+    action,
+  ].slice(-80);
 }
 
 function websocketUrl(): string {
@@ -302,6 +316,7 @@ function handleMessage(raw: string) {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      coopRails: [],
       remotePlayers: [],
     });
     closeSocket();
@@ -331,6 +346,7 @@ function handleMessage(raw: string) {
       ball,
       match: msg.match,
       roomInfo: msg.room,
+      coopRails: msg.coopRails ?? state.coopRails,
       team: selfPlayer?.team ?? state.team,
       teamSlot: selfPlayer?.teamSlot ?? state.teamSlot,
       remotePlayers: msg.players
@@ -360,6 +376,7 @@ function handleMessage(raw: string) {
   if (msg.type === 'coopAction') {
     if (msg.action.kind === 'railSpawn') {
       patch({
+        coopRails: upsertCoopRail(state.coopRails, msg.action),
         remoteCoopRailActions: [...state.remoteCoopRailActions, msg.action].slice(-32),
       });
       return;
@@ -439,6 +456,7 @@ export const multiplayerStore = {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      coopRails: [],
       remotePlayers: [],
     });
 
@@ -486,6 +504,7 @@ export const multiplayerStore = {
           remoteBallActions: [],
           remoteCoopActions: [],
           remoteCoopRailActions: [],
+          coopRails: [],
           remotePlayers: [],
         });
       }
@@ -510,6 +529,7 @@ export const multiplayerStore = {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      coopRails: [],
       remotePlayers: [],
     });
   },
