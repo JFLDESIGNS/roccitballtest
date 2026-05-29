@@ -155,6 +155,8 @@ const PLAYER_UPPER_COLLIDER = {
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
+const _scoopLowerLocal = new THREE.Vector3();
+const _scoopUpperLocal = new THREE.Vector3();
 
 /** Smooth 0→1 ramp for speed-based camera pull-back */
 function speedCameraFactor(
@@ -1017,6 +1019,26 @@ export function Player({
     const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
     lower?.setRotationWrtParent(rot);
     upper?.setRotationWrtParent(rot);
+    if (lower) {
+      _scoopLowerLocal
+        .set(0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ)
+        .applyQuaternion(q);
+      lower.setTranslationWrtParent({
+        x: _scoopLowerLocal.x,
+        y: _scoopLowerLocal.y,
+        z: _scoopLowerLocal.z,
+      });
+    }
+    if (upper) {
+      _scoopUpperLocal
+        .set(0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ)
+        .applyQuaternion(q);
+      upper.setTranslationWrtParent({
+        x: _scoopUpperLocal.x,
+        y: _scoopUpperLocal.y,
+        z: _scoopUpperLocal.z,
+      });
+    }
   }, []);
 
   useFrame((_, dt) => {
