@@ -641,13 +641,11 @@ export const CAMERA = {
   pivotHeight: 1.5,
   shoulderOffset: 0,
   lookAhead: 24,
-  smooth: 18,
-  /** Body pivot follow on X/Z. Lower removes strafe snap while keeping aim instant. */
-  pivotSmoothXZ: 16,
+  smooth: 60,
+  /** Body pivot follow on X/Z. High keeps the camera planted behind fast turns. */
+  pivotSmoothXZ: 24,
   /** Body pivot follow vertically. */
   pivotSmoothY: 24,
-  /** Hard cap on third-person camera travel so fast yaw/strafe cannot snap the view. */
-  maxMoveSpeed: 54,
   /** Never pull third-person cam closer than this to the pivot (avoids clipping inside capsule) */
   minDistanceFromPivot: 4.5,
   /** Min height above arena floor (m) */

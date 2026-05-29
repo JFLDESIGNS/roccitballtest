@@ -12,7 +12,6 @@ const _worldUp = new THREE.Vector3(0, 1, 0);
 const _fromPivot = new THREE.Vector3();
 const _toRef = new THREE.Vector3();
 const _wallTest = new THREE.Vector3();
-const _cameraStep = new THREE.Vector3();
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -138,12 +137,7 @@ export function updateThirdPersonCamera(
     camera.position.copy(_desired);
   } else {
     const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
-    _cameraStep.subVectors(_desired, camera.position).multiplyScalar(smooth);
-    const maxStep = CAMERA.maxMoveSpeed * Math.max(0.001, Math.min(dt, 1 / 30));
-    if (_cameraStep.lengthSq() > maxStep * maxStep) {
-      _cameraStep.setLength(maxStep);
-    }
-    camera.position.add(_cameraStep);
+    camera.position.lerp(_desired, smooth);
   }
 
   clampCameraFloor(camera.position, pivot.y);
