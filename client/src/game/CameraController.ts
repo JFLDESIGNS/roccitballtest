@@ -143,7 +143,7 @@ export function updateThirdPersonCamera(
   clampCameraFloor(camera.position, pivot.y);
   clampCameraArenaWalls(camera.position, pivot);
 
-  _lookTarget.copy(_desired).addScaledVector(_lookDir, CAMERA.lookAhead);
+  _lookTarget.copy(camera.position).addScaledVector(_lookDir, CAMERA.lookAhead);
 
   const valid =
     Number.isFinite(camera.position.x) &&
