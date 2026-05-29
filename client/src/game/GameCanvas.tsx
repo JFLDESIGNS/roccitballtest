@@ -500,12 +500,9 @@ function Scene({
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().enabled,
   );
-  const multiplayerRoomMode = useSyncExternalStore(
-    multiplayerStore.subscribe,
-    () => multiplayerStore.getState().roomInfo?.mode ?? null,
-  );
   const coopAdventureEnabled =
-    multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
+    multiplayerEnabled &&
+    isCoopAdventureMode(multiplayerStore.getState().roomInfo?.mode);
   const showBots = botsEnabled && !multiplayerEnabled;
 
   useEffect(() => {
