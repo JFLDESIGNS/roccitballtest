@@ -143,6 +143,37 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             checked={tune.wwDashEnabled}
             onChange={tuningStore.setWwDashEnabled}
           />
+          <h3 className="tuning-section">Jitter isolation</h3>
+          <ToggleRow
+            label="Camera smoothing"
+            hint="Off = camera and pivot lock directly to the player."
+            checked={tune.cameraSmoothingEnabled}
+            onChange={tuningStore.setCameraSmoothingEnabled}
+          />
+          <ToggleRow
+            label="Rocket League colliders"
+            hint="Off = disables the car-style ball scoop hitboxes."
+            checked={tune.rocketLeagueCollidersEnabled}
+            onChange={tuningStore.setRocketLeagueCollidersEnabled}
+          />
+          <ToggleRow
+            label="Grappling hook"
+            hint="Off = Q grapple will not start."
+            checked={tune.grapplingHookEnabled}
+            onChange={tuningStore.setGrapplingHookEnabled}
+          />
+          <ToggleRow
+            label="Air fly mode"
+            hint="Off = Shift will not add fly impulses while airborne."
+            checked={tune.airFlyModeEnabled}
+            onChange={tuningStore.setAirFlyModeEnabled}
+          />
+          <ToggleRow
+            label="Camera collision probe"
+            hint="Off = camera no longer pulls inward from arena walls."
+            checked={tune.cameraCollisionProbeEnabled}
+            onChange={tuningStore.setCameraCollisionProbeEnabled}
+          />
           <SliderRow
             label="SS smash interval"
             hint="Double-tap S or Down within this window while airborne to dive straight down."

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ARENA, CAMERA } from '../shared/Constants';
 import { isInsideHex } from './arenaHex';
+import { tuningStore } from './tuningStore';
 
 const _lookDir = new THREE.Vector3();
 const _behind = new THREE.Vector3();
@@ -102,6 +103,11 @@ export function updateThirdPersonCamera(
   snap = false,
   extraDistance = 0,
 ) {
+  const {
+    cameraSmoothingEnabled,
+    cameraCollisionProbeEnabled,
+  } = tuningStore.getState();
+
   setLookDirection(yaw, aimPitch, _lookDir);
 
   _behind.copy(_lookDir).multiplyScalar(-(CAMERA.distance + extraDistance));
@@ -131,9 +137,11 @@ export function updateThirdPersonCamera(
   }
 
   clampCameraFloor(_desired, pivot.y);
-  clampCameraArenaWalls(_desired, pivot);
+  if (cameraCollisionProbeEnabled) {
+    clampCameraArenaWalls(_desired, pivot);
+  }
 
-  if (snap) {
+  if (snap || !cameraSmoothingEnabled) {
     camera.position.copy(_desired);
   } else {
     const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
@@ -141,7 +149,9 @@ export function updateThirdPersonCamera(
   }
 
   clampCameraFloor(camera.position, pivot.y);
-  clampCameraArenaWalls(camera.position, pivot);
+  if (cameraCollisionProbeEnabled) {
+    clampCameraArenaWalls(camera.position, pivot);
+  }
 
   _lookTarget.copy(camera.position).addScaledVector(_lookDir, CAMERA.lookAhead);
 

@@ -58,6 +58,16 @@ export type TuningValues = {
   mouseSensitivity: number;
   /** Double-tap W forward dash */
   wwDashEnabled: boolean;
+  /** Diagnostic toggle: smooth camera/pivot follow */
+  cameraSmoothingEnabled: boolean;
+  /** Diagnostic toggle: car-like ball scoop colliders */
+  rocketLeagueCollidersEnabled: boolean;
+  /** Diagnostic toggle: Q grapple hook */
+  grapplingHookEnabled: boolean;
+  /** Diagnostic toggle: Shift air fly impulses */
+  airFlyModeEnabled: boolean;
+  /** Diagnostic toggle: arena wall camera collision clamp */
+  cameraCollisionProbeEnabled: boolean;
   /** Double-tap S / Down input interval for air ground-smash */
   groundSmashDoubleTapWindowSec: number;
   /** Match ball variant — same entity for beam, bots, and goals */
@@ -165,6 +175,11 @@ const defaults: TuningValues = {
   /** Multiplier on CAMERA.mouseSensitivityX/Y */
   mouseSensitivity: 1,
   wwDashEnabled: false,
+  cameraSmoothingEnabled: true,
+  rocketLeagueCollidersEnabled: true,
+  grapplingHookEnabled: true,
+  airFlyModeEnabled: true,
+  cameraCollisionProbeEnabled: true,
   groundSmashDoubleTapWindowSec: MOVEMENT.groundSmashDoubleTapWindowSec,
   ballType: 'superball',
   releaseSystem: 'superrelease',
@@ -317,6 +332,16 @@ export const tuningStore = {
   setMouseSensitivity: (v: number) =>
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
   setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
+  setCameraSmoothingEnabled: (v: boolean) =>
+    patch({ cameraSmoothingEnabled: v }),
+  setRocketLeagueCollidersEnabled: (v: boolean) =>
+    patch({ rocketLeagueCollidersEnabled: v }),
+  setGrapplingHookEnabled: (v: boolean) =>
+    patch({ grapplingHookEnabled: v }),
+  setAirFlyModeEnabled: (v: boolean) =>
+    patch({ airFlyModeEnabled: v }),
+  setCameraCollisionProbeEnabled: (v: boolean) =>
+    patch({ cameraCollisionProbeEnabled: v }),
   setGroundSmashDoubleTapWindowSec: (v: number) =>
     patch({ groundSmashDoubleTapWindowSec: Math.max(0.12, Math.min(0.6, v)) }),
   setBallType: (v: BallTypeId) => patch({ ballType: v }),

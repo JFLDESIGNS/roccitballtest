@@ -565,9 +565,12 @@ export function Player({
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
     const suppressBallCollider =
       carrying || nowSec < ballColliderDisabledUntil.current;
+    const scoopEnabled = tuningStore.getState().rocketLeagueCollidersEnabled;
     setPlayerCollisionGroups(
       PLAYER_BODY_COLLISION,
-      suppressBallCollider ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
+      suppressBallCollider || !scoopEnabled
+        ? PLAYER_DEBUG_NOCLIP
+        : PLAYER_BALL_SCOOP_COLLISION,
     );
     playerCarryingBall.current = carrying;
   }, [setPlayerCollisionGroups]);
@@ -579,8 +582,10 @@ export function Player({
         z,
       );
       const pivot = pivotRef.current;
+      const smoothCamera = tuningStore.getState().cameraSmoothingEnabled;
       if (
         snap ||
+        !smoothCamera ||
         !cameraPivotReady.current ||
         pivot.distanceToSquared(target) > 64 ||
         dt <= 0
@@ -1170,6 +1175,9 @@ export function Player({
     if (tuningStore.getState().showMenu) return;
 
     const tune = tuningStore.getState();
+    if (!tune.grapplingHookEnabled && grappleActive.current) {
+      stopGrapple(false);
+    }
     const effectiveWalkSpeed = Math.max(tune.walkSpeed, MOVEMENT.walkSpeed);
     const effectiveSprintSpeed = Math.max(tune.sprintSpeed, MOVEMENT.sprintSpeed);
     if (gameStore.getState().arenaSettleCountdown > 0) {
@@ -1891,6 +1899,7 @@ export function Player({
       );
     }
     airFlying =
+      tune.airFlyModeEnabled &&
       sprintInput &&
       energy.current > 0 &&
       !goalEjectMoveLocked &&
@@ -2215,6 +2224,7 @@ export function Player({
       multiplayerNow.remotePlayers.some((player) => player.isHoldingBall);
     const canBeamBall = ballHolder === null && !remoteBallHeld;
     if (
+      tune.grapplingHookEnabled &&
       grapplePressed &&
       !grappleActive.current &&
       !holdingBall.current &&
