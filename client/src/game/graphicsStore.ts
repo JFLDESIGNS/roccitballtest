@@ -118,7 +118,7 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
 export type GraphicsSettings = {
   /** Low-end computer mode: local-only faster rendering path. */
   badPuter: boolean;
-  /** Ultra-low-end mode: strips expensive map reflections/shaders/post FX. */
+  /** Ultra-low-end mode: strips expensive map reflections/shaders. */
   reallyBadPuter: boolean;
   shadows: boolean;
   shadowMapType: ShadowMapTypeId;
@@ -273,8 +273,8 @@ function applyBadPuterSettings(v: GraphicsSettings): GraphicsSettings {
   }
   return {
     ...base,
-    bloom: false,
-    bloomIntensity: 0,
+    bloom: true,
+    bloomIntensity: Math.min(0.18, Math.max(0.1, v.bloomIntensity)),
     arenaBrightness: Math.max(1, v.arenaBrightness),
     exposure: Math.min(1.15, Math.max(0.85, v.exposure)),
     stadiumStripLightIntensity: Math.min(v.stadiumStripLightIntensity, 1.2),
@@ -339,8 +339,8 @@ export const graphicsStore = {
             badPuter: true,
             reallyBadPuter: true,
             shadows: false,
-            bloom: false,
-            bloomIntensity: 0,
+            bloom: true,
+            bloomIntensity: 0.14,
             ao: false,
             fog: false,
             atmosphere: false,
