@@ -8,6 +8,7 @@ import { ArenaLoadScreen } from './game/ArenaLoadScreen';
 import { MapLoadTimer } from './game/MapLoadTimer';
 import { MatchIntroSplash } from './game/MatchIntroSplash';
 import { MatchIntroTimer } from './game/MatchIntroTimer';
+import { MobileControls } from './game/MobileControls';
 import { gameStore } from './game/gameStore';
 import { MapEditor } from './mapEditor/MapEditor';
 import { MainMenu } from './ui/MainMenu';
@@ -96,6 +97,7 @@ function App() {
             <>
               <HUD onMainMenu={exitGame} />
               <TuningMenu />
+              <MobileControls />
             </>
           )}
         </>

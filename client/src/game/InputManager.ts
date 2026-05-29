@@ -32,6 +32,10 @@ class InputManager {
   private controllerBeamDown = false;
   private controllerSprintDown = false;
   private controllerMove = { x: 0, y: 0 };
+  private virtualFireDown = false;
+  private virtualBeamDown = false;
+  private virtualSprintDown = false;
+  private virtualMove = { x: 0, y: 0 };
   private controllerButtons: boolean[] = [];
   private lastGamepadPollAt = 0;
   private yaw = 0;
@@ -554,12 +558,25 @@ class InputManager {
   }
 
   private isAnyFireDown(): boolean {
-    return this.mouseButtons.left || this.controllerFireDown;
+    return this.mouseButtons.left || this.controllerFireDown || this.virtualFireDown;
   }
 
   private setFireDown(down: boolean) {
     const wasAnyFireDown = this.isAnyFireDown();
     this.mouseButtons.left = down;
+    const isAnyFireDown = this.isAnyFireDown();
+    if (isAnyFireDown && !wasAnyFireDown) {
+      this.fireEdge = true;
+      this.fireQueued = true;
+    }
+    if (!isAnyFireDown && wasAnyFireDown) {
+      this.fireReleaseEdge = true;
+    }
+  }
+
+  private setVirtualFireDown(down: boolean) {
+    const wasAnyFireDown = this.isAnyFireDown();
+    this.virtualFireDown = down;
     const isAnyFireDown = this.isAnyFireDown();
     if (isAnyFireDown && !wasAnyFireDown) {
       this.fireEdge = true;
@@ -590,6 +607,79 @@ class InputManager {
       AIM.pitchMin,
       AIM.pitchMax,
     );
+  }
+
+  applyVirtualLook(movementX: number, movementY: number): void {
+    const cap = CAMERA.maxMouseDelta;
+    const mx = THREE.MathUtils.clamp(movementX, -cap, cap);
+    const my = THREE.MathUtils.clamp(movementY, -cap, cap);
+    const sens = tuningStore.getState().mouseSensitivity;
+    this.yaw -= mx * CAMERA.mouseSensitivityX * sens;
+    this.aimPitch -= my * CAMERA.mouseSensitivityY * sens;
+    this.aimPitch = THREE.MathUtils.clamp(
+      this.aimPitch,
+      AIM.pitchMin,
+      AIM.pitchMax,
+    );
+  }
+
+  setVirtualMove(x: number, y: number): void {
+    const len = Math.hypot(x, y);
+    if (len > 1) {
+      this.virtualMove.x = x / len;
+      this.virtualMove.y = y / len;
+      return;
+    }
+    this.virtualMove.x = x;
+    this.virtualMove.y = y;
+  }
+
+  setVirtualButton(
+    button: 'fire' | 'beam' | 'sprint',
+    down: boolean,
+  ): void {
+    if (button === 'fire') {
+      this.setVirtualFireDown(down);
+      return;
+    }
+    if (button === 'beam') {
+      this.virtualBeamDown = down;
+      return;
+    }
+    this.virtualSprintDown = down;
+  }
+
+  tapVirtualButton(
+    button: 'jump' | 'throw' | 'grapple' | 'spawnBall' | 'downSmash',
+  ): void {
+    if (button === 'jump') {
+      this.jumpQueued = true;
+      this.jumpBufferUntil = performance.now() / 1000 + BALL.jumpBufferSec;
+      return;
+    }
+    if (button === 'throw') {
+      this.throwQueued = true;
+      this.ePropelQueued = true;
+      triggerThrowFlipEmotes();
+      return;
+    }
+    if (button === 'grapple') {
+      this.grappleQueued = true;
+      return;
+    }
+    if (button === 'downSmash') {
+      this.downSmashQueued = true;
+      return;
+    }
+    this.spawnBallQueued = true;
+  }
+
+  resetVirtualControls(): void {
+    this.virtualMove.x = 0;
+    this.virtualMove.y = 0;
+    if (this.virtualFireDown) this.setVirtualFireDown(false);
+    this.virtualBeamDown = false;
+    this.virtualSprintDown = false;
   }
 
   /** Face toward center ball at match start */
@@ -652,6 +742,8 @@ class InputManager {
     if (this.keys['KeyD'] || this.keys['ArrowRight']) x += 1;
     x += this.controllerMove.x;
     y += this.controllerMove.y;
+    x += this.virtualMove.x;
+    y += this.virtualMove.y;
     const len = Math.hypot(x, y);
     if (len > 1) {
       x /= len;
@@ -704,6 +796,7 @@ class InputManager {
   flushFireInput(): void {
     this.mouseButtons.left = false;
     this.controllerFireDown = false;
+    this.virtualFireDown = false;
     this.fireEdge = false;
     this.fireReleaseEdge = false;
     this.fireQueued = false;
@@ -768,13 +861,14 @@ class InputManager {
     return (
       !!this.keys['ShiftLeft'] ||
       !!this.keys['ShiftRight'] ||
-      this.controllerSprintDown
+      this.controllerSprintDown ||
+      this.virtualSprintDown
     );
   }
 
   isBeam(): boolean {
     this.pollGamepad();
-    return this.mouseButtons.right || this.controllerBeamDown;
+    return this.mouseButtons.right || this.controllerBeamDown || this.virtualBeamDown;
   }
 
   isEscape(): boolean {

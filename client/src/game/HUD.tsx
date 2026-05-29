@@ -5,6 +5,7 @@ import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
 import { inputManager } from './InputManager';
+import { isMobileControlsLikely } from './mobileInput';
 import {
   isMatchOver,
   matchEndHeadline,
@@ -217,7 +218,8 @@ export function HUD({ onMainMenu }: HUDProps) {
       {!state.pointerLocked &&
         state.phase === 'playing' &&
         !matchOver &&
-        !state.debugFreelook && (
+        !state.debugFreelook &&
+        !isMobileControlsLikely() && (
           <div
             className="hud-hint"
             role="button"

@@ -4,6 +4,7 @@ import { inputManager } from './InputManager';
 import { resumeAudio, warmAudio } from './audio';
 import { tuningStore } from './tuningStore';
 import { isMatchOver } from './matchEnd';
+import { isMobileControlsLikely } from './mobileInput';
 
 function isPointerCapturePhase(phase: string): boolean {
   return (
@@ -74,6 +75,7 @@ export function GamePointerCapture() {
     !(phase === 'paused' && matchOver) &&
     !showMenu &&
     !debugFreelook &&
+    !isMobileControlsLikely() &&
     !pointerLocked;
 
   if (!showCapture) return null;
