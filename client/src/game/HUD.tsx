@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { tuningStore } from './tuningStore';
 import { FpsCounter } from './FpsCounter';
 import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
+import { FullscreenButton } from './FullscreenButton';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
 import { inputManager } from './InputManager';
@@ -155,35 +156,7 @@ export function HUD({ onMainMenu }: HUDProps) {
           ) : null}
         </div>
         <div className="hud-top-right">
-          <div className="hud-speed-panel">
-            <div className="hud-speed-row">
-              <svg className="hud-speed-icon" viewBox="0 0 24 24" aria-hidden>
-                <circle cx="12" cy="5" r="3" fill="currentColor" />
-                <path
-                  d="M6 21v-2a6 6 0 0 1 12 0v2"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="hud-speed-value">{state.playerSpeed.toFixed(1)}</span>
-              <span className="hud-speed-unit">m/s</span>
-            </div>
-            <div className="hud-speed-row">
-              <svg className="hud-speed-icon hud-speed-icon--ball" viewBox="0 0 24 24" aria-hidden>
-                <circle cx="12" cy="12" r="7" fill="currentColor" />
-                <path
-                  d="M4 12h2M18 12h2M12 4v2M12 18v2"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="hud-speed-value">{state.ballSpeed.toFixed(1)}</span>
-              <span className="hud-speed-unit">m/s</span>
-            </div>
-          </div>
+          <FullscreenButton />
         </div>
       </div>
 

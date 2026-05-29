@@ -2258,6 +2258,51 @@ body,
   letter-spacing: 0.05em;
 }
 
+.hud-fullscreen-btn {
+  min-width: 5.6rem;
+  min-height: 2.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.72rem;
+  border: 1px solid rgba(110, 180, 255, 0.38);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(22, 52, 94, 0.86), rgba(5, 12, 24, 0.78)),
+    rgba(5, 12, 24, 0.72);
+  color: #eaf8ff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow:
+    0 0 22px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.hud-fullscreen-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hud-fullscreen-btn:hover,
+.hud-fullscreen-btn:active {
+  border-color: rgba(105, 225, 255, 0.7);
+  background:
+    linear-gradient(180deg, rgba(36, 86, 145, 0.92), rgba(8, 30, 61, 0.86)),
+    rgba(8, 26, 50, 0.82);
+}
+
 .hud-energy {
   position: absolute;
   bottom: 2rem;
