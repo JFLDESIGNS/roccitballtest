@@ -68,6 +68,8 @@ export type TuningValues = {
   airFlyModeEnabled: boolean;
   /** Diagnostic toggle: arena wall camera collision clamp */
   cameraCollisionProbeEnabled: boolean;
+  /** Diagnostic toggle: pull the camera back as player speed rises */
+  cameraSpeedPullbackEnabled: boolean;
   /** Double-tap S / Down input interval for air ground-smash */
   groundSmashDoubleTapWindowSec: number;
   /** Match ball variant — same entity for beam, bots, and goals */
@@ -180,6 +182,7 @@ const defaults: TuningValues = {
   grapplingHookEnabled: true,
   airFlyModeEnabled: true,
   cameraCollisionProbeEnabled: true,
+  cameraSpeedPullbackEnabled: true,
   groundSmashDoubleTapWindowSec: MOVEMENT.groundSmashDoubleTapWindowSec,
   ballType: 'superball',
   releaseSystem: 'superrelease',
@@ -342,6 +345,8 @@ export const tuningStore = {
     patch({ airFlyModeEnabled: v }),
   setCameraCollisionProbeEnabled: (v: boolean) =>
     patch({ cameraCollisionProbeEnabled: v }),
+  setCameraSpeedPullbackEnabled: (v: boolean) =>
+    patch({ cameraSpeedPullbackEnabled: v }),
   setGroundSmashDoubleTapWindowSec: (v: number) =>
     patch({ groundSmashDoubleTapWindowSec: Math.max(0.12, Math.min(0.6, v)) }),
   setBallType: (v: BallTypeId) => patch({ ballType: v }),

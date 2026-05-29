@@ -174,6 +174,12 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             checked={tune.cameraCollisionProbeEnabled}
             onChange={tuningStore.setCameraCollisionProbeEnabled}
           />
+          <ToggleRow
+            label="Camera speed pullback"
+            hint="Off = camera distance stops changing with player speed."
+            checked={tune.cameraSpeedPullbackEnabled}
+            onChange={tuningStore.setCameraSpeedPullbackEnabled}
+          />
           <SliderRow
             label="SS smash interval"
             hint="Double-tap S or Down within this window while airborne to dive straight down."

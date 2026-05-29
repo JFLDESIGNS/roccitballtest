@@ -102,6 +102,7 @@ export function updateThirdPersonCamera(
   dt: number,
   snap = false,
   extraDistance = 0,
+  fastFollow = false,
 ) {
   const {
     cameraSmoothingEnabled,
@@ -144,7 +145,8 @@ export function updateThirdPersonCamera(
   if (snap || !cameraSmoothingEnabled) {
     camera.position.copy(_desired);
   } else {
-    const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
+    const smoothRate = fastFollow ? CAMERA.fastTurnSmooth : CAMERA.smooth;
+    const smooth = 1 - Math.exp(-smoothRate * dt);
     camera.position.lerp(_desired, smooth);
   }
 

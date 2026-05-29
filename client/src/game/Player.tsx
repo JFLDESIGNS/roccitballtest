@@ -325,6 +325,10 @@ function smoothAsymmetric(
   return current + (target - current) * alpha;
 }
 
+function shortestYawDelta(to: number, from: number): number {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
 type PlayerProps = {
   ballBodyRef: React.RefObject<RapierRigidBody | null>;
   onRocketFired: (rocket: ReturnType<typeof createRocket>) => void;
@@ -465,6 +469,8 @@ export function Player({
   const cameraPivotTarget = useRef(new THREE.Vector3());
   const cameraPivotReady = useRef(false);
   const cameraSnapped = useRef(false);
+  const lastCameraYaw = useRef<number | null>(null);
+  const lastCameraYawDelta = useRef(0);
   const lastPhaseRef = useRef<GamePhase>('menu');
   const launchMomentumSamples = useRef<THREE.Vector3[]>([]);
   const launchMomentumTimer = useRef(0);
@@ -1125,6 +1131,8 @@ export function Player({
       spawnApplied.current = false;
       cameraSnapped.current = false;
       cameraPivotReady.current = false;
+      lastCameraYaw.current = null;
+      lastCameraYawDelta.current = 0;
       camSpeedExtra.current = 0;
       thrusterThrottle.current = 0;
       thrusterJumpBoost.current = 0;
@@ -1271,7 +1279,8 @@ export function Player({
       );
       camSpeedExtra.current = smoothAsymmetric(
         camSpeedExtra.current,
-        stunFactor * CAMERA.speedDistanceMax,
+        stunFactor *
+          (tune.cameraSpeedPullbackEnabled ? CAMERA.speedDistanceMax : 0),
         dt,
         CAMERA.speedDistanceSmoothIn,
         CAMERA.speedDistanceSmoothOut,
@@ -1396,7 +1405,8 @@ export function Player({
     );
     camSpeedExtra.current = smoothAsymmetric(
       camSpeedExtra.current,
-      speedFactor * CAMERA.speedDistanceMax,
+      speedFactor *
+        (tune.cameraSpeedPullbackEnabled ? CAMERA.speedDistanceMax : 0),
       dt,
       CAMERA.speedDistanceSmoothIn,
       CAMERA.speedDistanceSmoothOut,
@@ -1416,6 +1426,18 @@ export function Player({
     if (!locked) cameraSnapped.current = false;
     const snapCam = locked && !cameraSnapped.current;
     if (snapCam) cameraSnapped.current = true;
+    let fastYawFollow = false;
+    if (lastCameraYaw.current !== null && dt > 0) {
+      const yawDelta = shortestYawDelta(rot.yaw, lastCameraYaw.current);
+      const yawRate = Math.abs(yawDelta) / Math.max(dt, 1 / 240);
+      const reversedFast =
+        yawDelta * lastCameraYawDelta.current < 0 &&
+        Math.abs(yawDelta) >= CAMERA.fastTurnMinDelta &&
+        Math.abs(lastCameraYawDelta.current) >= CAMERA.fastTurnMinDelta;
+      fastYawFollow = yawRate >= CAMERA.fastTurnYawRate || reversedFast;
+      lastCameraYawDelta.current = yawDelta;
+    }
+    lastCameraYaw.current = rot.yaw;
 
     updateThirdPersonCamera(
       camera,
@@ -1425,6 +1447,7 @@ export function Player({
       dt,
       snapCam,
       camSpeedExtra.current,
+      fastYawFollow,
     );
 
     const aimPitch = inputManager.getAimPitch();

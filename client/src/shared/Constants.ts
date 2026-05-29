@@ -642,6 +642,12 @@ export const CAMERA = {
   shoulderOffset: 0,
   lookAhead: 24,
   smooth: 42,
+  /** Higher camera follow rate during fast mouse turns / direction reversals. */
+  fastTurnSmooth: 180,
+  /** Yaw speed (rad/s) where camera switches to fast follow. */
+  fastTurnYawRate: 8,
+  /** Minimum per-frame yaw delta for direction-reversal fast follow. */
+  fastTurnMinDelta: 0.025,
   /** Body pivot follow on X/Z. Moderated so collision corrections do not read as camera shake. */
   pivotSmoothXZ: 18,
   /** Body pivot follow vertically. */
