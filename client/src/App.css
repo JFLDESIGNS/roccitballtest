@@ -3278,6 +3278,20 @@ body,
   box-shadow: 0 0 16px rgba(49, 255, 183, 0.2);
 }
 
+.coop-rail-label {
+  min-width: 5.6rem;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid rgba(105, 247, 226, 0.74);
+  border-radius: 8px;
+  background: rgba(2, 10, 15, 0.8);
+  color: #dffff9;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px rgba(31, 255, 220, 0.26);
+}
+
 .coop-adventure-fact {
   position: fixed;
   left: 50%;

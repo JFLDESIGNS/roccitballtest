@@ -130,7 +130,10 @@ import {
 import { PLAYER_RIM_PROBE_RADIUS } from './goalRingBounce';
 import { tickGoalEntryCharacterBounce } from './goalNetBounce';
 import { tryBallGoalScoreAtPoint } from './goalScoreHandler';
-import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import {
+  multiplayerStore,
+  type RemoteMultiplayerPlayer,
+} from '../multiplayer/multiplayerStore';
 import {
   applyCoopAdventureActionToBody,
   findCoopAdventureTarget,
@@ -138,6 +141,7 @@ import {
   makeCoopPullAction,
   makeCoopThrowAction,
 } from '../coop/coopAdventurePlayerThrow';
+import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import {
   GRIND_RAIL,
   sampleGrindRailContact,
@@ -330,6 +334,57 @@ function smoothAsymmetric(
   return current + (target - current) * alpha;
 }
 
+function CoopHeldPlayerProxy({
+  player,
+  positionRef,
+  lookDirRef,
+}: {
+  player: RemoteMultiplayerPlayer | null;
+  positionRef: React.MutableRefObject<THREE.Vector3>;
+  lookDirRef: React.MutableRefObject<THREE.Vector3>;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const avatarRef = useRef<THREE.Group>(null);
+  const displayPos = useRef(new THREE.Vector3());
+  const displayQuat = useRef(new THREE.Quaternion());
+  const ready = useRef(false);
+
+  useEffect(() => {
+    ready.current = false;
+  }, [player?.id]);
+
+  useFrame((_, dtRaw) => {
+    const group = groupRef.current;
+    if (!group || !player) return;
+    const dt = Math.min(0.05, Math.max(1 / 120, dtRaw));
+    if (!ready.current) {
+      displayPos.current.copy(positionRef.current);
+      ready.current = true;
+    } else {
+      displayPos.current.lerp(positionRef.current, 1 - Math.exp(-dt * 34));
+    }
+    group.position.copy(displayPos.current);
+    const yaw = Math.atan2(-lookDirRef.current.x, -lookDirRef.current.z);
+    displayQuat.current.setFromEuler(new THREE.Euler(0.35, yaw, -0.18));
+    group.quaternion.slerp(displayQuat.current, 1 - Math.exp(-dt * 18));
+    if (avatarRef.current) {
+      const t = performance.now() * 0.008;
+      avatarRef.current.rotation.x = Math.sin(t * 1.7) * 0.18;
+      avatarRef.current.rotation.z = Math.cos(t * 1.25) * 0.16;
+    }
+  });
+
+  if (!player) return null;
+
+  return (
+    <group ref={groupRef} renderOrder={CHARACTER_MESH_RENDER_ORDER + 2}>
+      <group ref={avatarRef} scale={0.96}>
+        <PlayerAvatar team={player.team} />
+      </group>
+    </group>
+  );
+}
+
 type PlayerProps = {
   ballBodyRef: React.RefObject<RapierRigidBody | null>;
   onRocketFired: (rocket: ReturnType<typeof createRocket>) => void;
@@ -472,6 +527,10 @@ export function Player({
   const coopHeldTarget = useRef(new THREE.Vector3());
   const coopHeldTargetReady = useRef(false);
   const coopRagdollVisualActive = useRef(false);
+  const coopCarryProxyPos = useRef(new THREE.Vector3());
+  const coopCarryProxyLookDir = useRef(new THREE.Vector3(0, 0, -1));
+  const [coopCarryProxyPlayer, setCoopCarryProxyPlayer] =
+    useState<RemoteMultiplayerPlayer | null>(null);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -576,6 +635,12 @@ export function Player({
       setPlayerBallCollisionGroupsState(ballGroups);
     }
   }, []);
+  useEffect(
+    () => () => {
+      coopCarryVisualStore.setHeldTarget(null);
+    },
+    [],
+  );
   const refreshPlayerBallCollision = useCallback((nowSec: number) => {
     const carrying =
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
@@ -2413,6 +2478,15 @@ export function Player({
 
       if (canCoopBeam && target) {
         coopCarryTargetId.current = target.id;
+        coopCarryProxyPos.current
+          .copy(chestPos.current)
+          .addScaledVector(lookDir, 4.0);
+        coopCarryProxyPos.current.y += 0.5;
+        coopCarryProxyLookDir.current.copy(lookDir);
+        coopCarryVisualStore.setHeldTarget(target.id);
+        if (coopCarryProxyPlayer?.id !== target.id) {
+          setCoopCarryProxyPlayer(target);
+        }
         gameStore.setIsBeaming(true);
         setBeamAttractActive(false);
         if (coopActionSendTimer.current <= 0) {
@@ -2427,6 +2501,8 @@ export function Player({
           );
         }
       } else {
+        coopCarryVisualStore.setHeldTarget(null);
+        if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
         gameStore.setIsBeaming(false);
         setBeamAttractActive(false);
         if (beamDown && !coopWasBeamDown.current && now - beamNoLockSoundAt.current > 0.45) {
@@ -2446,14 +2522,20 @@ export function Player({
           ),
         );
         coopCarryTargetId.current = null;
+        coopCarryVisualStore.setHeldTarget(null);
+        if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
       }
       if (!beamDown && !coopWasBeamDown.current) {
         coopCarryTargetId.current = null;
+        coopCarryVisualStore.setHeldTarget(null);
+        if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
       }
       coopWasBeamDown.current = beamDown;
     } else {
       coopCarryTargetId.current = null;
       coopWasBeamDown.current = false;
+      coopCarryVisualStore.setHeldTarget(null);
+      if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
     }
 
     if (
@@ -3102,6 +3184,11 @@ export function Player({
         />
       </mesh>
       <PlayerMotionRibbons bodyRef={bodyRef} />
+      <CoopHeldPlayerProxy
+        player={coopCarryProxyPlayer}
+        positionRef={coopCarryProxyPos}
+        lookDirRef={coopCarryProxyLookDir}
+      />
       {playerVisualProxy ? (
         <PlayerVisualProxy
           bodyRef={bodyRef}

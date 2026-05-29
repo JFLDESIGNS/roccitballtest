@@ -1238,7 +1238,7 @@ function Scene({
       <FanGlassCrackFx />
       <PillarShakeSmoke />
       <ImpactSparks />
-      <GameplayCollisionDebug />
+      {!coopAdventureEnabled && <GameplayCollisionDebug />}
       <RocketWallImpactFx poolRef={wallImpactFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
@@ -1330,6 +1330,16 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     gameStore.subscribe,
     () => gameStore.getState().debugFreelook,
   );
+  const multiplayerEnabled = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().enabled,
+  );
+  const multiplayerRoomMode = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.mode ?? null,
+  );
+  const coopAdventureEnabled =
+    multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
   const matchOver = useSyncExternalStore(gameStore.subscribe, () =>
     isMatchOver(gameStore.getState()),
   );
@@ -1412,7 +1422,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
           <Physics
             gravity={[0, tune.gravity, 0]}
             timeStep={1 / 60}
-            debug={showColliderDebug}
+            debug={showColliderDebug && !coopAdventureEnabled}
           >
             <Scene onExit={onExit} rocketsRef={rocketsRef} />
           </Physics>

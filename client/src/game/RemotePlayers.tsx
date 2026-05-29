@@ -13,6 +13,7 @@ import {
   multiplayerStore,
   type RemoteMultiplayerPlayer,
 } from '../multiplayer/multiplayerStore';
+import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import { PlayerAvatar } from './PlayerAvatar';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
@@ -266,14 +267,20 @@ export function RemotePlayers() {
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().remotePlayers,
   );
+  const heldTargetId = useSyncExternalStore(
+    coopCarryVisualStore.subscribe,
+    () => coopCarryVisualStore.getState().heldTargetId,
+  );
 
   if (players.length === 0) return null;
 
   return (
     <>
-      {players.map((player) => (
-        <RemotePlayer key={player.id} player={player} />
-      ))}
+      {players
+        .filter((player) => player.id !== heldTargetId)
+        .map((player) => (
+          <RemotePlayer key={player.id} player={player} />
+        ))}
     </>
   );
 }

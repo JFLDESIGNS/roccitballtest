@@ -263,17 +263,27 @@ function CoopSpawnedRail({
     <group>
       <mesh geometry={geometry} castShadow>
         <meshStandardMaterial
-          color="#07090d"
-          emissive="#0d635c"
-          emissiveIntensity={0.22}
-          metalness={0.42}
-          roughness={0.24}
+          color="#05070a"
+          emissive="#18ffdc"
+          emissiveIntensity={0.72}
+          metalness={0.36}
+          roughness={0.2}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh geometry={geometry}>
+        <meshBasicMaterial
+          color="#a6fff2"
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+          toneMapped={false}
         />
       </mesh>
       {colliderPoints.map((point, i) => (
         <RigidBody key={i} type="fixed" colliders={false}>
           <CuboidCollider
-            args={[0.82, 0.16, 0.58]}
+            args={[0.95, 0.2, 0.68]}
             position={[point.x, point.y, point.z]}
             collisionGroups={PLATFORM_COLLISION}
             friction={1}
@@ -281,6 +291,27 @@ function CoopSpawnedRail({
           />
         </RigidBody>
       ))}
+      <pointLight
+        color="#28ffde"
+        intensity={1.3}
+        distance={16}
+        position={[
+          (start.x + end.x) * 0.5,
+          (start.y + end.y) * 0.5 + 1.35,
+          (start.z + end.z) * 0.5,
+        ]}
+      />
+      <Html
+        center
+        distanceFactor={18}
+        position={[
+          (start.x + end.x) * 0.5,
+          (start.y + end.y) * 0.5 + 2.4,
+          (start.z + end.z) * 0.5,
+        ]}
+      >
+        <div className="coop-rail-label">HELP RAIL</div>
+      </Html>
     </group>
   );
 }
