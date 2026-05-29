@@ -560,8 +560,8 @@ export function Player({
         return pivot;
       }
 
-      const xzAlpha = 1 - Math.exp(-30 * dt);
-      const yAlpha = 1 - Math.exp(-28 * dt);
+      const xzAlpha = 1 - Math.exp(-CAMERA.pivotSmoothXZ * dt);
+      const yAlpha = 1 - Math.exp(-CAMERA.pivotSmoothY * dt);
       pivot.x += (target.x - pivot.x) * xzAlpha;
       pivot.z += (target.z - pivot.z) * xzAlpha;
       pivot.y += (target.y - pivot.y) * yAlpha;
