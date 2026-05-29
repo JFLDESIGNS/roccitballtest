@@ -514,6 +514,10 @@ export function Player({
       grappleNeedsSetup.current = true;
       grappleKickPending.current = true;
       grappleActive.current = true;
+      dashActiveTimer.current = 0;
+      ePropelTimer.current = 0;
+      ePropelElapsed.current = 0;
+      ePropelVyBoost.current = null;
       return true;
     },
     [],
@@ -1346,6 +1350,7 @@ export function Player({
     if (
       !goalEjectMoveLocked &&
       !grindRailActive.current &&
+      !grappleActive.current &&
       !isPlayerKnockStunActive() &&
       !holdingBall.current &&
       ePropelCooldown.current <= 0 &&
@@ -1380,7 +1385,10 @@ export function Player({
 
     const ePropelling = ePropelTimer.current > 0;
     const dashing = dashActiveTimer.current > 0 && !ePropelling;
-    if (ePropelling) {
+    if (grappleActive.current) {
+      velocity.current.x = linvel.x;
+      velocity.current.z = linvel.z;
+    } else if (ePropelling) {
       while (
         ePropelImpulsesApplied.current < MOVEMENT.ePropelImpulseCount &&
         ePropelElapsed.current >=
@@ -1743,153 +1751,92 @@ export function Player({
       const safeFeetY =
         safeGroundY + MOVEMENT.grappleHangFeetAboveGroundM;
       const safeBodyY = safeFeetY - playerFeetY(0);
-      const safeChestY = safeBodyY + BEAM.chestHeight;
-      if (grappleNeedsSetup.current) {
-        grappleTargetLength.current = Math.max(
-          4.2,
-          grappleAnchor.current.y -
-            safeChestY +
-            MOVEMENT.grappleArcadeSlackM,
-        );
-        grappleLength.current = Math.min(
-          grappleLength.current,
-          grappleTargetLength.current + 3.5,
-        );
-        grappleNeedsSetup.current = false;
-      }
-      if (grappleLength.current > grappleTargetLength.current) {
-        grappleLength.current = Math.max(
-          grappleTargetLength.current,
-          grappleLength.current - MOVEMENT.grappleRetractSpeed * dt,
-        );
-      } else {
-        grappleLength.current = THREE.MathUtils.lerp(
-          grappleLength.current,
-          grappleTargetLength.current,
-          Math.min(1, MOVEMENT.grappleRetractSpeed * 0.55 * dt),
-        );
-      }
       const chestX = pos.x;
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
+
       _grappleToChest.set(
         chestX - grappleAnchor.current.x,
-        chestY - grappleAnchor.current.y,
+        0,
         chestZ - grappleAnchor.current.z,
       );
-      const dist = _grappleToChest.length();
-      if (dist > 0.001) {
-        _grappleToChest.multiplyScalar(1 / dist);
-        const ropeDir = _grappleToChest;
-        const radialSpeed =
-          velocity.current.x * ropeDir.x +
-          velocity.current.y * ropeDir.y +
-          velocity.current.z * ropeDir.z;
-        if (grappleKickPending.current) {
-          _grappleLaunchTangent
-            .copy(grapplePlanarDir.current)
-            .sub(
-              _grappleToChest.clone().multiplyScalar(
-                grapplePlanarDir.current.dot(ropeDir),
-              ),
-            );
-          if (_grappleLaunchTangent.lengthSq() < 0.001) {
-            _grappleLaunchTangent.set(
-              velocity.current.x,
-              velocity.current.y,
-              velocity.current.z,
-            );
-            _grappleLaunchTangent.sub(
-              ropeDir.clone().multiplyScalar(
-                _grappleLaunchTangent.dot(ropeDir),
-              ),
-            );
-          }
-          if (_grappleLaunchTangent.lengthSq() > 0.001) {
-            _grappleLaunchTangent.normalize();
-            const currentHoriz = Math.hypot(
-              velocity.current.x,
-              velocity.current.z,
-            );
-            const launchSpeed = THREE.MathUtils.clamp(
-              Math.max(
-                currentHoriz * MOVEMENT.grappleLaunchSpeedMul,
-                sprintSpeed * MOVEMENT.grappleMinLaunchSpeedSprintMul,
-              ),
-              sprintSpeed * 1.15,
-              sprintSpeed * MOVEMENT.grappleMaxHorizontalSpeedSprintMul,
-            );
-            velocity.current.x =
-              _grappleLaunchTangent.x * launchSpeed;
-            velocity.current.y = Math.max(
-              velocity.current.y,
-              _grappleLaunchTangent.y * launchSpeed + 2.8,
-            );
-            velocity.current.z =
-              _grappleLaunchTangent.z * launchSpeed;
-          }
-          grappleKickPending.current = false;
-        }
-        _grappleLaunchTangent.set(
-          velocity.current.x - ropeDir.x * radialSpeed,
-          velocity.current.y - ropeDir.y * radialSpeed,
-          velocity.current.z - ropeDir.z * radialSpeed,
-        );
-        if (_grappleLaunchTangent.lengthSq() < 1.4) {
-          _grappleLaunchTangent
-            .copy(grapplePlanarDir.current)
-            .sub(
-              ropeDir.clone().multiplyScalar(
-                grapplePlanarDir.current.dot(ropeDir),
-              ),
-            );
-        }
-        if (_grappleLaunchTangent.lengthSq() > 0.001) {
-          _grappleLaunchTangent.normalize();
-          const swingDamp = Math.pow(
-            MOVEMENT.grappleSwingDamping,
-            dt * 60,
-          );
-          velocity.current.x =
-            velocity.current.x * swingDamp +
-            _grappleLaunchTangent.x * MOVEMENT.grappleSwingDrive * dt;
-          velocity.current.y =
-            velocity.current.y * swingDamp +
-            _grappleLaunchTangent.y * MOVEMENT.grappleSwingDrive * dt;
-          velocity.current.z =
-            velocity.current.z * swingDamp +
-            _grappleLaunchTangent.z * MOVEMENT.grappleSwingDrive * dt;
-        }
-        if (dist > grappleLength.current) {
-          const tighten = dist - grappleLength.current;
-          if (radialSpeed > 0) {
-            const radialTrim = radialSpeed * 0.32;
-            velocity.current.x -= ropeDir.x * radialTrim;
-            velocity.current.y -= ropeDir.y * radialTrim;
-            velocity.current.z -= ropeDir.z * radialTrim;
-          }
-          velocity.current.x -= ropeDir.x * tighten * MOVEMENT.grapplePullTightness;
-          velocity.current.y -= ropeDir.y * tighten * MOVEMENT.grapplePullTightness;
-          velocity.current.z -= ropeDir.z * tighten * MOVEMENT.grapplePullTightness;
-          const nextChestX = grappleAnchor.current.x + ropeDir.x * grappleLength.current;
-          const nextChestY = grappleAnchor.current.y + ropeDir.y * grappleLength.current;
-          const nextChestZ = grappleAnchor.current.z + ropeDir.z * grappleLength.current;
-          const nextBodyY = nextChestY - BEAM.chestHeight;
-          body.setTranslation(
-            {
-              x: nextChestX,
-              y: Math.max(nextBodyY, safeBodyY),
-              z: nextChestZ,
-            },
-            true,
-          );
-          pos.set(nextChestX, Math.max(nextBodyY, safeBodyY), nextChestZ);
-        }
+      const radialLen = _grappleToChest.length();
+      if (radialLen > 0.001) {
+        _grappleToChest.multiplyScalar(1 / radialLen);
+      } else {
+        _grappleToChest
+          .copy(grapplePlanarDir.current)
+          .multiplyScalar(-1)
+          .setY(0)
+          .normalize();
+      }
+      _grappleLaunchTangent.set(
+        -_grappleToChest.z,
+        0,
+        _grappleToChest.x,
+      );
+      if (_grappleLaunchTangent.dot(grapplePlanarDir.current) < 0) {
+        _grappleLaunchTangent.multiplyScalar(-1);
+      }
+      _grapplePlanarDir.set(
+        grappleAnchor.current.x - chestX,
+        0,
+        grappleAnchor.current.z - chestZ,
+      );
+      if (_grapplePlanarDir.lengthSq() > 0.001) {
+        _grapplePlanarDir.normalize();
+      }
+      _airFlyAimDir
+        .copy(_grappleLaunchTangent)
+        .multiplyScalar(MOVEMENT.grappleArcadeTangentBlend)
+        .addScaledVector(_grapplePlanarDir, MOVEMENT.grappleArcadePullBlend);
+      if (wishDir.lengthSq() > 0.001) {
+        _airFlyAimDir.addScaledVector(wishDir, MOVEMENT.grappleArcadeInputBlend);
+      }
+      if (_airFlyAimDir.lengthSq() > 0.001) {
+        _airFlyAimDir.normalize();
+      } else {
+        _airFlyAimDir.copy(grapplePlanarDir.current);
+      }
+
+      const grappleSpeed = sprintSpeed * MOVEMENT.grappleArcadeSpeedSprintMul;
+      const grappleAlpha = 1 - Math.exp(-MOVEMENT.grappleArcadeAccel * dt);
+      velocity.current.x = THREE.MathUtils.lerp(
+        velocity.current.x,
+        _airFlyAimDir.x * grappleSpeed,
+        grappleAlpha,
+      );
+      velocity.current.z = THREE.MathUtils.lerp(
+        velocity.current.z,
+        _airFlyAimDir.z * grappleSpeed,
+        grappleAlpha,
+      );
+
+      const targetBodyY = Math.max(safeBodyY, pos.y);
+      const liftError = safeBodyY - pos.y;
+      const anchorLift = THREE.MathUtils.clamp(
+        (grappleAnchor.current.y - chestY) * 0.42,
+        -1.8,
+        grappleKickPending.current ? 16 : 9,
+      );
+      const desiredVy = Math.max(anchorLift, liftError * 9);
+      const liftAlpha = 1 - Math.exp(-MOVEMENT.grappleArcadeLiftAccel * dt);
+      velocity.current.y = THREE.MathUtils.lerp(
+        velocity.current.y,
+        desiredVy,
+        liftAlpha,
+      );
+      if (grappleKickPending.current) {
+        velocity.current.y = Math.max(velocity.current.y, 8);
+        grappleKickPending.current = false;
       }
       if (pos.y < safeBodyY) {
         body.setTranslation({ x: pos.x, y: safeBodyY, z: pos.z }, true);
         pos.set(pos.x, safeBodyY, pos.z);
         if (velocity.current.y < 0) velocity.current.y = 0;
+      } else if (targetBodyY > pos.y) {
+        body.setTranslation({ x: pos.x, y: targetBodyY, z: pos.z }, true);
+        pos.set(pos.x, targetBodyY, pos.z);
       }
       grounded.current = false;
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.06);
@@ -1897,22 +1844,25 @@ export function Player({
         velocity.current,
         sprintSpeed * MOVEMENT.grappleMaxHorizontalSpeedSprintMul,
       );
+      vy = velocity.current.y;
     }
     const feetNow = playerFeetY(pos.y);
-    const padLaunched = tryPlayerPads(
-      body,
-      velocity.current,
-      tune.gravity,
-      tune.trampolineStrength,
-      { feetY: feetNow, vy },
-    );
+    const padLaunched =
+      !grappleActive.current &&
+      tryPlayerPads(
+        body,
+        velocity.current,
+        tune.gravity,
+        tune.trampolineStrength,
+        { feetY: feetNow, vy },
+      );
     if (padLaunched) {
       vy = velocity.current.y;
       grounded.current = false;
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = 0;
       jumpAirGrace.current = 0;
-    } else if (padFloorY !== null && !inTrampZone) {
+    } else if (!grappleActive.current && padFloorY !== null && !inTrampZone) {
       const currentFeet = playerFeetY(pos.y);
       const gap = currentFeet - padFloorY;
       if (gap > 0.04 && gap <= MOVEMENT.groundProbeDist + 0.35 && vy <= 0.6) {
@@ -1927,6 +1877,7 @@ export function Player({
     velocity.current.y = vy;
 
     if (
+      !grappleActive.current &&
       tickGoalEntryCharacterBounce(
         body,
         pos.x,
@@ -1953,7 +1904,7 @@ export function Player({
     if (airFlying) {
       energy.current -= ENERGY.airFlyDrain * dt;
       draining.current = true;
-    } else if (sprinting && wishDir.lengthSq() > 0) {
+    } else if (!grappleActive.current && sprinting && wishDir.lengthSq() > 0) {
       energy.current -= ENERGY.sprintDrain * dt;
       draining.current = true;
     }
