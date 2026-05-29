@@ -15,6 +15,7 @@ import grindRailUrl from '../assets/sounds/grind-rail.mp3';
 import beamAttractLoopUrl from '../assets/sounds/beamattractloop.mp3';
 import newSlapUrl from '../assets/sounds/newslap.wav';
 import rimSoundUrl from '../assets/sounds/rimsound.mp3';
+import windUrl from '../assets/sounds/wind.mp3';
 
 let ctx: AudioContext | null = null;
 
@@ -27,6 +28,7 @@ const ELECTRIC_SLAP_SAMPLE_BASE = 0.58;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
 const BEAM_ATTRACT_LOOP_GAIN = 0.13;
+const SHIFT_WIND_LOOP_GAIN = 0.12;
 /** Menu + in-match loops (Rocket Dope Tron) */
 export const BACKGROUND_MUSIC_ENABLED = true;
 
@@ -77,6 +79,8 @@ let bgMusicTrack: LoopingTrack | null = null;
 let grindRailTrack: LoopingTrack | null = null;
 let beamAttractTrack: LoopingTrack | null = null;
 let beamAttractLoading = false;
+let shiftWindTrack: LoopingTrack | null = null;
+let shiftWindLoading = false;
 let bgMusicMode: 'menu' | 'game' | null = null;
 /** Bumps when a new start is requested or music stops — stale async loads bail out */
 let bgMusicStartGen = 0;
@@ -135,6 +139,7 @@ const GAME_AUDIO_PRELOAD_URLS = [
   beamAttractLoopUrl,
   newSlapUrl,
   rimSoundUrl,
+  windUrl,
 ] as const;
 
 function preloadSamples(): void {
@@ -308,6 +313,13 @@ function stopBeamAttractLoop(): void {
   if (track) disconnectLoopingTrack(track);
 }
 
+function stopShiftWindLoop(): void {
+  shiftWindLoading = false;
+  const track = shiftWindTrack;
+  shiftWindTrack = null;
+  if (track) disconnectLoopingTrack(track);
+}
+
 function isBgMusicActive(mode: 'menu' | 'game'): boolean {
   return bgMusicMode === mode && bgMusicTrack !== null;
 }
@@ -348,6 +360,11 @@ function applyActiveAudioMasterVolume(): void {
       sfxGain(BEAM_ATTRACT_LOOP_GAIN),
       t,
     );
+  }
+
+  if (shiftWindTrack) {
+    shiftWindTrack.gain.gain.cancelScheduledValues(t);
+    shiftWindTrack.gain.gain.setValueAtTime(sfxGain(SHIFT_WIND_LOOP_GAIN), t);
   }
 
   for (const track of [cheerTrack, panicTrack]) {
@@ -996,6 +1013,53 @@ export function setGrindRailActive(active: boolean) {
 }
 
 /** Ball shot / throw — user sample only (no procedural fallback) */
+export function setShiftWindActive(active: boolean) {
+  const ac = getCtx();
+  if (!ac) return;
+
+  if (!active) {
+    if (!shiftWindTrack) {
+      shiftWindLoading = false;
+      return;
+    }
+    const { source, gain } = shiftWindTrack;
+    const t = ac.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + 0.12);
+    try {
+      source.stop(t + 0.14);
+    } catch {
+      /* already stopped */
+    }
+    shiftWindTrack = null;
+    shiftWindLoading = false;
+    return;
+  }
+
+  if (shiftWindTrack || shiftWindLoading) return;
+  shiftWindLoading = true;
+  void loadSample(windUrl).then((buffer) => {
+    const live = getCtx();
+    shiftWindLoading = false;
+    if (!buffer || !live || shiftWindTrack) return;
+    const source = live.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const gain = live.createGain();
+    const t = live.currentTime;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(sfxGain(SHIFT_WIND_LOOP_GAIN), t + 0.1);
+    source.connect(gain);
+    gain.connect(live.destination);
+    source.start(t);
+    shiftWindTrack = { source, gain };
+    source.onended = () => {
+      if (shiftWindTrack?.source === source) shiftWindTrack = null;
+    };
+  });
+}
+
 export function playBallLaunch() {
   if (!getCtx()) return;
   suppressBallBounceUntil = performance.now() + 200;
@@ -1029,6 +1093,7 @@ export function playGoalCelebration() {
 export function stopMatchAudio(): void {
   stopGrindRailLoop();
   stopBeamAttractLoop();
+  stopShiftWindLoop();
   stopCheer();
   stopPanic();
   stopBgMusic();

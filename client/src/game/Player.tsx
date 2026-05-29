@@ -88,6 +88,7 @@ import {
   playEnergyPickup,
   setBeamAttractActive,
   setGrindRailActive,
+  setShiftWindActive,
 } from './audio';
 import { triggerCeilingWallHit } from './visualShake';
 import {
@@ -698,6 +699,7 @@ export function Player({
     () => () => {
       setGrindRailActive(false);
       setBeamAttractActive(false);
+      setShiftWindActive(false);
     },
     [],
   );
@@ -1185,6 +1187,7 @@ export function Player({
         dt,
         true,
       );
+      setShiftWindActive(false);
       return;
     }
 
@@ -1311,6 +1314,7 @@ export function Player({
         inputManager.getAimPitch(),
       );
       syncScoopColliderTilt();
+      setShiftWindActive(false);
       return;
     }
     knockStunWasActive.current = false;
@@ -1366,6 +1370,9 @@ export function Player({
       ((moveEarly.x !== 0 || moveEarly.y !== 0) || !grounded.current)
         ? 1
         : 0;
+    setShiftWindActive(
+      !goalEjectMoveLocked && inputManager.isSprint() && energy.current > 0,
+    );
     const speedFactor = speedCameraFactor(
       moveSpeed,
       effectiveWalkSpeed,
