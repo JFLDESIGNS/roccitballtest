@@ -471,6 +471,7 @@ export function Player({
   const cameraSnapped = useRef(false);
   const lastCameraYaw = useRef<number | null>(null);
   const lastCameraYawDelta = useRef(0);
+  const cameraFastFollowTimer = useRef(0);
   const lastPhaseRef = useRef<GamePhase>('menu');
   const launchMomentumSamples = useRef<THREE.Vector3[]>([]);
   const launchMomentumTimer = useRef(0);
@@ -1133,6 +1134,7 @@ export function Player({
       cameraPivotReady.current = false;
       lastCameraYaw.current = null;
       lastCameraYawDelta.current = 0;
+      cameraFastFollowTimer.current = 0;
       camSpeedExtra.current = 0;
       thrusterThrottle.current = 0;
       thrusterJumpBoost.current = 0;
@@ -1426,7 +1428,10 @@ export function Player({
     if (!locked) cameraSnapped.current = false;
     const snapCam = locked && !cameraSnapped.current;
     if (snapCam) cameraSnapped.current = true;
-    let fastYawFollow = false;
+    cameraFastFollowTimer.current = Math.max(
+      0,
+      cameraFastFollowTimer.current - dt,
+    );
     if (lastCameraYaw.current !== null && dt > 0) {
       const yawDelta = shortestYawDelta(rot.yaw, lastCameraYaw.current);
       const yawRate = Math.abs(yawDelta) / Math.max(dt, 1 / 240);
@@ -1434,7 +1439,9 @@ export function Player({
         yawDelta * lastCameraYawDelta.current < 0 &&
         Math.abs(yawDelta) >= CAMERA.fastTurnMinDelta &&
         Math.abs(lastCameraYawDelta.current) >= CAMERA.fastTurnMinDelta;
-      fastYawFollow = yawRate >= CAMERA.fastTurnYawRate || reversedFast;
+      if (yawRate >= CAMERA.fastTurnYawRate || reversedFast) {
+        cameraFastFollowTimer.current = CAMERA.fastTurnHoldSec;
+      }
       lastCameraYawDelta.current = yawDelta;
     }
     lastCameraYaw.current = rot.yaw;
@@ -1447,7 +1454,7 @@ export function Player({
       dt,
       snapCam,
       camSpeedExtra.current,
-      fastYawFollow,
+      cameraFastFollowTimer.current > 0,
     );
 
     const aimPitch = inputManager.getAimPitch();
