@@ -28,7 +28,7 @@ const ELECTRIC_SLAP_SAMPLE_BASE = 0.58;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
 const BEAM_ATTRACT_LOOP_GAIN = 0.13;
-const SHIFT_WIND_LOOP_GAIN = 0.36;
+const SHIFT_WIND_LOOP_GAIN = 0.72;
 /** Menu + in-match loops (Rocket Dope Tron) */
 export const BACKGROUND_MUSIC_ENABLED = true;
 
@@ -1038,6 +1038,10 @@ export function setShiftWindActive(active: boolean) {
   }
 
   if (shiftWindTrack || shiftWindLoading) return;
+  playSample(
+    newSlapUrl,
+    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume * 0.5,
+  );
   shiftWindLoading = true;
   void loadSample(windUrl).then((buffer) => {
     const live = getCtx();
