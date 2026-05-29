@@ -4,6 +4,7 @@ import { isInsideHex } from './arenaHex';
 import { tuningStore } from './tuningStore';
 
 const _lookDir = new THREE.Vector3();
+const _orbitDir = new THREE.Vector3();
 const _behind = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _lift = new THREE.Vector3();
@@ -103,18 +104,21 @@ export function updateThirdPersonCamera(
   snap = false,
   extraDistance = 0,
   fastFollow = false,
+  lookYaw = yaw,
+  lookPitch = aimPitch,
 ) {
   const {
     cameraSmoothingEnabled,
     cameraCollisionProbeEnabled,
   } = tuningStore.getState();
 
-  setLookDirection(yaw, aimPitch, _lookDir);
+  setLookDirection(lookYaw, lookPitch, _lookDir);
+  setLookDirection(yaw, aimPitch, _orbitDir);
 
-  _behind.copy(_lookDir).multiplyScalar(-(CAMERA.distance + extraDistance));
+  _behind.copy(_orbitDir).multiplyScalar(-(CAMERA.distance + extraDistance));
   _behind.y *= CAMERA.verticalInfluence;
 
-  _side.crossVectors(_worldUp, _lookDir);
+  _side.crossVectors(_worldUp, _orbitDir);
   if (_side.lengthSq() < 1e-5) {
     _side.copy(getCameraBasis(yaw).right);
   } else {

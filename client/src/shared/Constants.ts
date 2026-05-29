@@ -642,14 +642,18 @@ export const CAMERA = {
   shoulderOffset: 0,
   lookAhead: 24,
   smooth: 42,
+  /** Camera orbit yaw follows raw aim with a small cushion (higher = less lag). */
+  orbitYawSmooth: 24,
+  /** Slightly faster orbit catch-up during hard turns without snapping. */
+  orbitYawFastSmooth: 36,
   /** Higher camera follow rate during fast mouse turns / direction reversals. */
-  fastTurnSmooth: 360,
+  fastTurnSmooth: 120,
   /** Yaw speed (rad/s) where camera switches to fast follow. */
   fastTurnYawRate: 8,
   /** Minimum per-frame yaw delta for direction-reversal fast follow. */
   fastTurnMinDelta: 0.025,
   /** Keep fast follow alive briefly after hard yaw changes / reversals. */
-  fastTurnHoldSec: 0.12,
+  fastTurnHoldSec: 0.1,
   /** Body pivot follow on X/Z. Moderated so collision corrections do not read as camera shake. */
   pivotSmoothXZ: 18,
   /** Body pivot follow vertically. */

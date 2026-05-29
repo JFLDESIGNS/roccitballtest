@@ -472,6 +472,8 @@ export function Player({
   const lastCameraYaw = useRef<number | null>(null);
   const lastCameraYawDelta = useRef(0);
   const cameraFastFollowTimer = useRef(0);
+  const cameraOrbitYaw = useRef(0);
+  const cameraOrbitYawReady = useRef(false);
   const lastPhaseRef = useRef<GamePhase>('menu');
   const launchMomentumSamples = useRef<THREE.Vector3[]>([]);
   const launchMomentumTimer = useRef(0);
@@ -1135,6 +1137,7 @@ export function Player({
       lastCameraYaw.current = null;
       lastCameraYawDelta.current = 0;
       cameraFastFollowTimer.current = 0;
+      cameraOrbitYawReady.current = false;
       camSpeedExtra.current = 0;
       thrusterThrottle.current = 0;
       thrusterJumpBoost.current = 0;
@@ -1445,16 +1448,30 @@ export function Player({
       lastCameraYawDelta.current = yawDelta;
     }
     lastCameraYaw.current = rot.yaw;
+    if (snapCam || !cameraOrbitYawReady.current) {
+      cameraOrbitYaw.current = rot.yaw;
+      cameraOrbitYawReady.current = true;
+    } else {
+      const orbitRate =
+        cameraFastFollowTimer.current > 0
+          ? CAMERA.orbitYawFastSmooth
+          : CAMERA.orbitYawSmooth;
+      const orbitAlpha = 1 - Math.exp(-orbitRate * dt);
+      cameraOrbitYaw.current +=
+        shortestYawDelta(rot.yaw, cameraOrbitYaw.current) * orbitAlpha;
+    }
 
     updateThirdPersonCamera(
       camera,
       pivot,
-      rot.yaw,
+      cameraOrbitYaw.current,
       inputManager.getAimPitch(),
       dt,
       snapCam,
       camSpeedExtra.current,
       cameraFastFollowTimer.current > 0,
+      rot.yaw,
+      inputManager.getAimPitch(),
     );
 
     const aimPitch = inputManager.getAimPitch();
