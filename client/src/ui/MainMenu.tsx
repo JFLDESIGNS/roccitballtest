@@ -101,6 +101,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     graphicsStore.subscribe,
     () => graphicsStore.getState().badPuter,
   );
+  const reallyBadPuter = useSyncExternalStore(
+    graphicsStore.subscribe,
+    () => graphicsStore.getState().reallyBadPuter,
+  );
   const activeMapId = useSyncExternalStore(
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapId(),
@@ -357,25 +361,37 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                     {formatJersey(jerseyNumber)}
                   </span>
                 </label>
-                <label className="menu-option menu-option--dock-bots">
-                  <input
-                    type="checkbox"
-                    checked={multiplayer.enabled ? false : botsEnabled}
-                    disabled={multiplayer.enabled}
-                    onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
-                  />
-                  <span>
-                    {multiplayer.enabled ? 'Bots off online' : 'Practice bots'}
-                  </span>
-                </label>
-                <label className="menu-option menu-option--dock-bad-puter">
-                  <input
-                    type="checkbox"
-                    checked={badPuter}
-                    onChange={(e) => graphicsStore.setBadPuter(e.target.checked)}
-                  />
-                  <span>Bad Puter</span>
-                </label>
+                <div className="menu-option-row menu-option-row--dock-flags">
+                  <label className="menu-option menu-option--dock-bots">
+                    <input
+                      type="checkbox"
+                      checked={multiplayer.enabled ? false : botsEnabled}
+                      disabled={multiplayer.enabled}
+                      onChange={(e) => gameStore.setBotsEnabled(e.target.checked)}
+                    />
+                    <span>
+                      {multiplayer.enabled ? 'Bots off online' : 'Practice bots'}
+                    </span>
+                  </label>
+                  <label className="menu-option menu-option--dock-bad-puter">
+                    <input
+                      type="checkbox"
+                      checked={badPuter}
+                      onChange={(e) => graphicsStore.setBadPuter(e.target.checked)}
+                    />
+                    <span>Bad Puter</span>
+                  </label>
+                  <label className="menu-option menu-option--dock-really-bad-puter">
+                    <input
+                      type="checkbox"
+                      checked={reallyBadPuter}
+                      onChange={(e) =>
+                        graphicsStore.setReallyBadPuter(e.target.checked)
+                      }
+                    />
+                    <span>Really Bad Puter</span>
+                  </label>
+                </div>
                 <label className="menu-field menu-map-picker menu-field--dock-map">
                   <span>Arena map</span>
                   <select

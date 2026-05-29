@@ -34,6 +34,7 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
     ...defaults,
     ...raw,
     badPuter: raw.badPuter ?? defaults.badPuter,
+    reallyBadPuter: raw.reallyBadPuter ?? defaults.reallyBadPuter,
     chromaticAberration: raw.chromaticAberration ?? defaults.chromaticAberration,
     chromaticAberrationIntensity:
       raw.chromaticAberrationIntensity ?? defaults.chromaticAberrationIntensity,
@@ -117,6 +118,8 @@ function normalizeSettings(raw: Partial<GraphicsSettings>): GraphicsSettings {
 export type GraphicsSettings = {
   /** Low-end computer mode: local-only faster rendering path. */
   badPuter: boolean;
+  /** Ultra-low-end mode: strips expensive map reflections/shaders/post FX. */
+  reallyBadPuter: boolean;
   shadows: boolean;
   shadowMapType: ShadowMapTypeId;
   bloom: boolean;
@@ -176,6 +179,7 @@ type GraphicsState = GraphicsSettings;
 
 const defaults: GraphicsSettings = {
   badPuter: false,
+  reallyBadPuter: false,
   shadows: true,
   shadowMapType: 'basic',
   bloom: true,
@@ -246,11 +250,11 @@ function persist(v: GraphicsSettings) {
 }
 
 function applyBadPuterSettings(v: GraphicsSettings): GraphicsSettings {
-  if (!v.badPuter) return v;
-  return {
+  if (!v.badPuter && !v.reallyBadPuter) return v;
+  const base = {
     ...v,
+    badPuter: v.badPuter || v.reallyBadPuter,
     shadows: false,
-    bloom: true,
     ao: false,
     fog: false,
     atmosphere: false,
@@ -260,6 +264,21 @@ function applyBadPuterSettings(v: GraphicsSettings): GraphicsSettings {
     lensFlare: false,
     keyLight2CastShadow: false,
     keyLight3CastShadow: false,
+  };
+  if (!v.reallyBadPuter) {
+    return {
+      ...base,
+      bloom: true,
+    };
+  }
+  return {
+    ...base,
+    bloom: false,
+    bloomIntensity: 0,
+    arenaBrightness: Math.max(1, v.arenaBrightness),
+    exposure: Math.min(1.15, Math.max(0.85, v.exposure)),
+    stadiumStripLightIntensity: Math.min(v.stadiumStripLightIntensity, 1.2),
+    mapLightGlowOpacity: Math.min(v.mapLightGlowOpacity, 0.45),
   };
 }
 
@@ -311,7 +330,30 @@ export const graphicsStore = {
             keyLight2CastShadow: false,
             keyLight3CastShadow: false,
           }
-        : { badPuter: false },
+        : { badPuter: false, reallyBadPuter: false },
+    ),
+  setReallyBadPuter: (v: boolean) =>
+    patch(
+      v
+        ? {
+            badPuter: true,
+            reallyBadPuter: true,
+            shadows: false,
+            bloom: false,
+            bloomIntensity: 0,
+            ao: false,
+            fog: false,
+            atmosphere: false,
+            particleCount: 0,
+            chromaticAberration: false,
+            fisheye: false,
+            lensFlare: false,
+            keyLight2CastShadow: false,
+            keyLight3CastShadow: false,
+            stadiumStripLightIntensity: 1.2,
+            mapLightGlowOpacity: 0.45,
+          }
+        : { reallyBadPuter: false },
     ),
   setShadows: (v: boolean) => patch({ shadows: v }),
   setShadowMapType: (v: ShadowMapTypeId) => patch({ shadowMapType: v }),

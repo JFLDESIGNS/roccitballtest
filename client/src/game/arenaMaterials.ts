@@ -263,6 +263,8 @@ export const arenaCeilingMaterial = new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide,
 });
 
+let arenaReallyBadPuterMaterials = false;
+
 function applyAllConcreteMaps(): void {
   const pillarRep = cylinderConcreteRepeat(
     ARENA_PILLAR.radiusTop,
@@ -289,6 +291,101 @@ function applyAllConcreteMaps(): void {
   arenaHexFloorMaterial.needsUpdate = true;
   bindConcrete(arenaPillarMaterial, pillarRep.u, pillarRep.v);
   bindConcrete(arenaPadStoneMaterial, padRep.u, padRep.v);
+  if (arenaReallyBadPuterMaterials) simplifyArenaMaterials();
 }
 
 onArenaConcreteReady(applyAllConcreteMaps);
+
+type ArenaMaterialSnapshot = {
+  map: THREE.Texture | null;
+  roughnessMap: THREE.Texture | null;
+  envMap: THREE.Texture | null;
+  envMapIntensity: number;
+  metalness: number;
+  roughness: number;
+  fog: boolean;
+  onBeforeCompile: THREE.MeshStandardMaterial['onBeforeCompile'];
+  customProgramCacheKey: THREE.MeshStandardMaterial['customProgramCacheKey'];
+};
+
+const arenaPerformanceMaterials = [
+  arenaWallMaterial,
+  arenaPillarMaterial,
+  arenaBlackMetalMaterial,
+  arenaFloorMaterial,
+  arenaHexFloorMaterial,
+  arenaPadStoneMaterial,
+  arenaPlatformMaterial,
+  arenaPlatformTopMaterial,
+  arenaPadMetalMaterial,
+  arenaCeilingMaterial,
+];
+
+const arenaMaterialSnapshots = new Map<
+  THREE.MeshStandardMaterial,
+  ArenaMaterialSnapshot
+>();
+
+function captureArenaMaterialSnapshot(
+  mat: THREE.MeshStandardMaterial,
+): ArenaMaterialSnapshot {
+  return {
+    map: mat.map,
+    roughnessMap: mat.roughnessMap,
+    envMap: mat.envMap,
+    envMapIntensity: mat.envMapIntensity,
+    metalness: mat.metalness,
+    roughness: mat.roughness,
+    fog: mat.fog,
+    onBeforeCompile: mat.onBeforeCompile,
+    customProgramCacheKey: mat.customProgramCacheKey,
+  };
+}
+
+function simplifyArenaMaterial(mat: THREE.MeshStandardMaterial): void {
+  if (!arenaMaterialSnapshots.has(mat)) {
+    arenaMaterialSnapshots.set(mat, captureArenaMaterialSnapshot(mat));
+  }
+  mat.map = null;
+  mat.roughnessMap = null;
+  mat.envMap = null;
+  mat.envMapIntensity = 0;
+  mat.metalness = Math.min(mat.metalness, 0.08);
+  mat.roughness = Math.max(mat.roughness, 0.82);
+  mat.fog = false;
+  mat.onBeforeCompile = () => {};
+  mat.customProgramCacheKey = () => 'really-bad-puter-simple';
+  mat.needsUpdate = true;
+}
+
+function simplifyArenaMaterials(): void {
+  for (const mat of arenaPerformanceMaterials) {
+    simplifyArenaMaterial(mat);
+  }
+}
+
+function restoreArenaMaterials(): void {
+  for (const [mat, snapshot] of arenaMaterialSnapshots.entries()) {
+    mat.map = snapshot.map;
+    mat.roughnessMap = snapshot.roughnessMap;
+    mat.envMap = snapshot.envMap;
+    mat.envMapIntensity = snapshot.envMapIntensity;
+    mat.metalness = snapshot.metalness;
+    mat.roughness = snapshot.roughness;
+    mat.fog = snapshot.fog;
+    mat.onBeforeCompile = snapshot.onBeforeCompile;
+    mat.customProgramCacheKey = snapshot.customProgramCacheKey;
+    mat.needsUpdate = true;
+  }
+  applyAllConcreteMaps();
+}
+
+export function setArenaReallyBadPuterMaterials(enabled: boolean): void {
+  if (arenaReallyBadPuterMaterials === enabled) return;
+  arenaReallyBadPuterMaterials = enabled;
+  if (enabled) {
+    simplifyArenaMaterials();
+  } else {
+    restoreArenaMaterials();
+  }
+}

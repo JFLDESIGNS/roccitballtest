@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { getArenaEnvMap } from './arenaEnvMap';
+import { setArenaReallyBadPuterMaterials } from './arenaMaterials';
 import { graphicsStore } from './graphicsStore';
 import { shadowMapTypeToThree } from './shadowMapType';
 
@@ -18,6 +19,10 @@ export function SceneEnvironment() {
   const brightness = gfx.arenaBrightness ?? 1;
 
   useEffect(() => {
+    if (gfx.reallyBadPuter) {
+      scene.environment = null;
+      return;
+    }
     const pmrem = new THREE.PMREMGenerator(gl);
     pmrem.compileCubemapShader();
     scene.environment = pmrem.fromCubemap(getArenaEnvMap()).texture;
@@ -27,7 +32,12 @@ export function SceneEnvironment() {
       pmrem.dispose();
       pmremRef.current = null;
     };
-  }, [gl, scene]);
+  }, [gfx.reallyBadPuter, gl, scene]);
+
+  useEffect(() => {
+    setArenaReallyBadPuterMaterials(gfx.reallyBadPuter);
+    return () => setArenaReallyBadPuterMaterials(false);
+  }, [gfx.reallyBadPuter]);
 
   useEffect(() => {
     gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -55,17 +65,17 @@ export function SceneEnvironment() {
   }, [gfx.exposure, gfx.fog, gfx.fogDensity, brightness, gl, scene]);
 
   useEffect(() => {
-    const shadowsOn = gfx.shadows;
+    const shadowsOn = gfx.shadows && !gfx.reallyBadPuter;
     gl.shadowMap.enabled = shadowsOn;
     if (shadowsOn) {
       gl.shadowMap.type = shadowMapTypeToThree(gfx.shadowMapType);
       gl.shadowMap.needsUpdate = true;
     }
-  }, [gfx.shadows, gfx.shadowMapType, gl]);
+  }, [gfx.reallyBadPuter, gfx.shadows, gfx.shadowMapType, gl]);
 
   useFrame(() => {
     gl.toneMappingExposure = gfx.exposure * brightness;
-    scene.environmentIntensity = 0.26;
+    scene.environmentIntensity = gfx.reallyBadPuter ? 0 : 0.26;
     if (gfx.fog && scene.fog instanceof THREE.FogExp2) {
       scene.fog.density = gfx.fogDensity / Math.max(0.85, brightness);
     }

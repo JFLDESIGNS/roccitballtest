@@ -20,6 +20,7 @@ Scratchpad for follow-ups, experiments, and things to try next. Add bullets here
 ### In progress / watch
 
 - *(add active threads here)*
+- Fall/out-of-arena teleport recovery is intentionally disabled for now. Restore by re-adding `FallRecoveryMonitor` import/render in `client/src/game/GameCanvas.tsx`; the helper files are still `client/src/game/FallRecoveryMonitor.tsx` and `client/src/game/fallRecovery.ts`.
 
 ### Done recently (promote to Recent gameplay changes when stable)
 

@@ -42,6 +42,7 @@ export function ScenePostFX() {
 
   if (
     menuOpen ||
+    gfx.reallyBadPuter ||
     (!gfx.bloom && !gfx.ao && !showChromatic && !showFisheye && !showLensFlare)
   ) {
     return null;

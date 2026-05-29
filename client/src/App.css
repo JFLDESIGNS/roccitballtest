@@ -186,11 +186,13 @@ body,
   grid-row: 2;
 }
 
-.main-menu-dock .menu-option--dock-bots {
-  grid-column: 2;
+.main-menu-dock .menu-option-row--dock-flags {
+  grid-column: 2 / -1;
   grid-row: 2;
-  align-self: end;
-  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .main-menu-dock .menu-field--dock-map {
@@ -206,13 +208,6 @@ body,
 .main-menu-dock .menu-field--dock-online {
   grid-column: 1 / -1;
   grid-row: 5;
-}
-
-.main-menu-dock .menu-option--dock-bad-puter {
-  grid-column: 3;
-  grid-row: 2;
-  align-self: end;
-  margin: 0;
 }
 
 .menu-online {
@@ -540,14 +535,10 @@ body,
     grid-row: 2;
   }
 
-  .main-menu-dock .menu-option--dock-bots {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .main-menu-dock .menu-option--dock-bad-puter {
+  .main-menu-dock .menu-option-row--dock-flags {
     grid-column: 1 / -1;
     grid-row: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .main-menu-dock .menu-field--dock-map {
@@ -674,21 +665,33 @@ body,
 }
 
 .main-menu-dock .menu-option--dock-bots,
-.main-menu-dock .menu-option--dock-bad-puter {
+.main-menu-dock .menu-option--dock-bad-puter,
+.main-menu-dock .menu-option--dock-really-bad-puter {
   min-height: 1.75rem;
   padding: 0.32rem 0.48rem;
   font-size: 0.74rem;
   gap: 0.35rem;
   align-items: center;
+  min-width: 0;
+  margin: 0;
   border-color: rgba(100, 152, 230, 0.38);
   background: linear-gradient(180deg, rgba(21, 34, 58, 0.9), rgba(12, 19, 35, 0.9));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
 .main-menu-dock .menu-option--dock-bots input,
-.main-menu-dock .menu-option--dock-bad-puter input {
+.main-menu-dock .menu-option--dock-bad-puter input,
+.main-menu-dock .menu-option--dock-really-bad-puter input {
   width: 0.82rem;
   height: 0.82rem;
+}
+
+.main-menu-dock .menu-option--dock-bots span,
+.main-menu-dock .menu-option--dock-bad-puter span,
+.main-menu-dock .menu-option--dock-really-bad-puter span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main-menu-dock .menu-jersey-preview {

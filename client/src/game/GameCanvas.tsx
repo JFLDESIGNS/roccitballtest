@@ -78,7 +78,6 @@ import {
   type BotId,
   type BotRuntime,
 } from './Bots';
-import { FallRecoveryMonitor } from './FallRecoveryMonitor';
 import { playerFeetY } from './playerGroundProbe';
 import { ArenaPadMonitor } from './ArenaPadMonitor';
 import { EnergyPickupOrbs } from './EnergyPickupOrbs';
@@ -1142,16 +1141,6 @@ function Scene({
       <GoalFireworks />
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
       <EnergyPickupOrbs />
-      <FallRecoveryMonitor
-        playerBodyRef={playerBodyRef}
-        ballBodyRef={ballBodyRef}
-        botsRef={botsRef}
-        onRecoverPlayer={() => {
-          holdingBallRef.current = false;
-          holdingBallRef.current = false;
-        }}
-        onRecoverBall={() => gameStore.clearBallHolder()}
-      />
       <RocketRecoilFx />
       <RocketTrailSmoke />
       <Rockets
@@ -1224,7 +1213,7 @@ function Scene({
 export function GameCanvas({ onExit }: { onExit: () => void }) {
   const tune = useSyncExternalStore(tuningStore.subscribe, tuningStore.getState);
   const gfx = useSyncExternalStore(graphicsStore.subscribe, graphicsStore.getState);
-  const effectiveShadows = gfx.shadows;
+  const effectiveShadows = gfx.shadows && !gfx.reallyBadPuter;
   const showColliderDebug = useSyncExternalStore(
     gameStore.subscribe,
     () => gameStore.getState().showColliderDebug,
@@ -1272,9 +1261,15 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
       <Canvas
         style={{ background: '#181c22' }}
         camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
-        dpr={gfx.badPuter ? [1, 1] : [RENDER.dprMin, RENDER.dprMax]}
+        dpr={
+          gfx.reallyBadPuter
+            ? [0.75, 0.75]
+            : gfx.badPuter
+              ? [1, 1]
+              : [RENDER.dprMin, RENDER.dprMax]
+        }
         gl={{
-          antialias: gfx.badPuter ? false : RENDER.antialias,
+          antialias: gfx.badPuter || gfx.reallyBadPuter ? false : RENDER.antialias,
           powerPreference: 'high-performance',
           alpha: false,
           stencil: false,
