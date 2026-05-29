@@ -1,7 +1,7 @@
 import type { RapierRigidBody } from '@react-three/rapier';
 import type { MutableRefObject } from 'react';
 import * as THREE from 'three';
-import { MOVEMENT } from '../shared/Constants';
+import { AIM, MOVEMENT } from '../shared/Constants';
 import { getForwardFlipPitchX } from './forwardFlipEmote';
 import { getRocketRecoilPitch } from './rocketRecoil';
 
@@ -11,7 +11,7 @@ export const CHARACTER_INDICATOR_RENDER_ORDER = 160;
 const BOB_MAX_Y = 0.085;
 const BOB_SPEED_BASE = 9;
 const PITCH_VISUAL_SCALE = 1;
-const PITCH_VISUAL_CLAMP = 1.05;
+const PITCH_VISUAL_CLAMP = AIM.pitchMax;
 const PITCH_SMOOTH = 16;
 
 const _uprightQ = new THREE.Quaternion();

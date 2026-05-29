@@ -674,8 +674,8 @@ export const DEBUG_FREELOOK = {
 /** Aim pitch (full range for shooting) */
 export const AIM = {
   defaultPitch: 0,
-  pitchMin: -1.15,
-  pitchMax: 1.15,
+  pitchMin: -1.55,
+  pitchMax: 1.55,
 } as const;
 
 /** Player movement */
