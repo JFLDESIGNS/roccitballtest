@@ -142,9 +142,9 @@ const PLAYER_LOWER_COLLIDER = {
   centerZ: 0,
 };
 const PLAYER_UPPER_COLLIDER = {
-  halfExtents: [0.42, 0.58, 0.54] as [number, number, number],
+  halfExtents: [0.62, 0.58, 0.62] as [number, number, number],
   centerY: 0.98,
-  centerZ: 0.7,
+  centerZ: 1.02,
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
@@ -174,13 +174,13 @@ function clampHorizontalVelocity(
 const _moveVelXZ = new THREE.Vector3();
 const _airFlyAimDir = new THREE.Vector3();
 const _ePropelDir = new THREE.Vector3();
-const _grappleToChest = new THREE.Vector3();
-const _grappleLaunchTangent = new THREE.Vector3();
 const _grapplePlanarDir = new THREE.Vector3();
 const _grappleMidpoint = new THREE.Vector3();
 const _grappleCableDir = new THREE.Vector3();
 const _grappleCableUp = new THREE.Vector3(0, 1, 0);
 const _grappleCableQuat = new THREE.Quaternion();
+const _grapplePendulumTarget = new THREE.Vector3();
+const _grapplePendulumVel = new THREE.Vector3();
 const _ballStompNormal = new THREE.Vector3();
 const _ballStompImpulse = new THREE.Vector3();
 const _ballStompContact = new THREE.Vector3();
@@ -396,12 +396,16 @@ export function Player({
   const grindRailWobble = useRef(0);
   const grindRailSparkTimer = useRef(0);
   const grappleActive = useRef(false);
+  const ballColliderDisabledUntil = useRef(0);
   const grappleAnchor = useRef(new THREE.Vector3());
   const grappleLength = useRef(0);
   const grappleTargetLength = useRef(0);
   const grappleNeedsSetup = useRef(false);
   const grappleKickPending = useRef(false);
   const grapplePlanarDir = useRef(new THREE.Vector3(0, 0, -1));
+  const grappleSwingAxis = useRef(new THREE.Vector3(0, 0, -1));
+  const grappleSwingPhase = useRef(0);
+  const grappleSwingRadius = useRef(12);
   const grappleCableRef = useRef<THREE.Mesh>(null);
   const alignPlayerBodyYaw = useCallback((yaw: number) => {
     const body = bodyRef.current;
@@ -427,6 +431,17 @@ export function Player({
       setPlayerBallCollisionGroupsState(ballGroups);
     }
   }, []);
+  const refreshPlayerBallCollision = useCallback((nowSec: number) => {
+    const carrying =
+      holdingBall.current || gameStore.getState().ballHolderId === 'local';
+    const suppressBallCollider =
+      carrying || nowSec < ballColliderDisabledUntil.current;
+    setPlayerCollisionGroups(
+      PLAYER_BODY_COLLISION,
+      suppressBallCollider ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
+    );
+    playerCarryingBall.current = carrying;
+  }, [setPlayerCollisionGroups]);
   const writeCameraPivot = useCallback(
     (x: number, y: number, z: number, dt: number, snap = false) => {
       const target = cameraPivotTarget.current.set(
@@ -505,6 +520,19 @@ export function Player({
         anchorZ = clamped.z;
       }
       grappleAnchor.current.set(anchorX, ceilingY, anchorZ);
+      grappleSwingAxis.current.copy(_grapplePlanarDir);
+      const offsetAlong =
+        (origin.x - anchorX) * grappleSwingAxis.current.x +
+        (origin.z - anchorZ) * grappleSwingAxis.current.z;
+      const swingRadius = THREE.MathUtils.clamp(
+        Math.max(Math.abs(offsetAlong), MOVEMENT.grapplePendulumMinRadius),
+        MOVEMENT.grapplePendulumMinRadius,
+        MOVEMENT.grapplePendulumMaxRadius,
+      );
+      grappleSwingRadius.current = swingRadius;
+      grappleSwingPhase.current = Math.asin(
+        THREE.MathUtils.clamp(offsetAlong / swingRadius, -0.92, 0.92),
+      );
       const initialLength = Math.max(
         4.5,
         grappleAnchor.current.distanceTo(origin),
@@ -605,6 +633,10 @@ export function Player({
       holdingBall.current || gameStore.getState().ballHolderId === 'local';
     if (wasHolding) {
       holdingBall.current = false;
+      ballColliderDisabledUntil.current = Math.max(
+        ballColliderDisabledUntil.current,
+        now + 0.4,
+      );
       if (gameStore.getState().ballHolderId === 'local') {
         gameStore.clearBallHolder(true);
       }
@@ -912,23 +944,9 @@ export function Player({
 
     if (flyModeActive.current) {
       flyModeActive.current = false;
-      const carrying =
-        holdingBall.current || gameStore.getState().ballHolderId === 'local';
-      setPlayerCollisionGroups(
-        PLAYER_BODY_COLLISION,
-        carrying ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
-      );
+      refreshPlayerBallCollision(performance.now() / 1000);
     }
-
-    const carryingBall =
-      holdingBall.current || gameStore.getState().ballHolderId === 'local';
-    if (carryingBall !== playerCarryingBall.current) {
-      playerCarryingBall.current = carryingBall;
-      setPlayerCollisionGroups(
-        PLAYER_BODY_COLLISION,
-        carryingBall ? PLAYER_DEBUG_NOCLIP : PLAYER_BALL_SCOOP_COLLISION,
-      );
-    }
+    refreshPlayerBallCollision(performance.now() / 1000);
 
     if (!spawnApplied.current && applyTeamSpawn()) {
       const t = body.translation();
@@ -1449,6 +1467,7 @@ export function Player({
     const horizontalSpeed = Math.hypot(linvel.x, linvel.z);
 
     if (grindRailActive.current) {
+      jumpsLeft.current = MOVEMENT.maxJumps;
       if (jumpPressed) {
         railConsumedJump = true;
         const jumpIndex = MOVEMENT.maxJumps - jumpsLeft.current;
@@ -1566,6 +1585,7 @@ export function Player({
       }
       grindRailActive.current = true;
       setGrindRailActive(true);
+      jumpsLeft.current = MOVEMENT.maxJumps;
       grindRailDir.current.set(tangentX, tangentZ);
       grindRailWobble.current = 0;
       grindRailSparkTimer.current = 0;
@@ -1755,60 +1775,59 @@ export function Player({
       const chestY = pos.y + BEAM.chestHeight;
       const chestZ = pos.z;
 
-      _grappleToChest.set(
-        chestX - grappleAnchor.current.x,
-        0,
-        chestZ - grappleAnchor.current.z,
+      grappleSwingPhase.current +=
+        MOVEMENT.grapplePendulumAngularSpeed * dt;
+      const phase = grappleSwingPhase.current;
+      const swingSin = Math.sin(phase);
+      const swingCos = Math.cos(phase);
+      const swingRadius = grappleSwingRadius.current;
+      _grapplePendulumTarget.set(
+        grappleAnchor.current.x + grappleSwingAxis.current.x * swingSin * swingRadius,
+        Math.max(safeBodyY, pos.y),
+        grappleAnchor.current.z + grappleSwingAxis.current.z * swingSin * swingRadius,
       );
-      const radialLen = _grappleToChest.length();
-      if (radialLen > 0.001) {
-        _grappleToChest.multiplyScalar(1 / radialLen);
-      } else {
-        _grappleToChest
-          .copy(grapplePlanarDir.current)
-          .multiplyScalar(-1)
-          .setY(0)
-          .normalize();
-      }
-      _grappleLaunchTangent.set(
-        -_grappleToChest.z,
+      _grapplePendulumVel.set(
+        grappleSwingAxis.current.x *
+          swingCos *
+          swingRadius *
+          MOVEMENT.grapplePendulumAngularSpeed,
         0,
-        _grappleToChest.x,
+        grappleSwingAxis.current.z *
+          swingCos *
+          swingRadius *
+          MOVEMENT.grapplePendulumAngularSpeed,
       );
-      if (_grappleLaunchTangent.dot(grapplePlanarDir.current) < 0) {
-        _grappleLaunchTangent.multiplyScalar(-1);
-      }
       _grapplePlanarDir.set(
-        grappleAnchor.current.x - chestX,
+        _grapplePendulumTarget.x - chestX,
         0,
-        grappleAnchor.current.z - chestZ,
+        _grapplePendulumTarget.z - chestZ,
       );
       if (_grapplePlanarDir.lengthSq() > 0.001) {
         _grapplePlanarDir.normalize();
       }
-      _airFlyAimDir
-        .copy(_grappleLaunchTangent)
-        .multiplyScalar(MOVEMENT.grappleArcadeTangentBlend)
-        .addScaledVector(_grapplePlanarDir, MOVEMENT.grappleArcadePullBlend);
-      if (wishDir.lengthSq() > 0.001) {
-        _airFlyAimDir.addScaledVector(wishDir, MOVEMENT.grappleArcadeInputBlend);
-      }
-      if (_airFlyAimDir.lengthSq() > 0.001) {
-        _airFlyAimDir.normalize();
-      } else {
-        _airFlyAimDir.copy(grapplePlanarDir.current);
-      }
 
       const grappleSpeed = sprintSpeed * MOVEMENT.grappleArcadeSpeedSprintMul;
       const grappleAlpha = 1 - Math.exp(-MOVEMENT.grappleArcadeAccel * dt);
+      const targetVelX =
+        _grapplePendulumVel.x +
+        (_grapplePendulumTarget.x - chestX) * MOVEMENT.grapplePendulumFollow +
+        (wishDir.lengthSq() > 0.001
+          ? wishDir.x * grappleSpeed * MOVEMENT.grappleArcadeInputBlend
+          : 0);
+      const targetVelZ =
+        _grapplePendulumVel.z +
+        (_grapplePendulumTarget.z - chestZ) * MOVEMENT.grapplePendulumFollow +
+        (wishDir.lengthSq() > 0.001
+          ? wishDir.z * grappleSpeed * MOVEMENT.grappleArcadeInputBlend
+          : 0);
       velocity.current.x = THREE.MathUtils.lerp(
         velocity.current.x,
-        _airFlyAimDir.x * grappleSpeed,
+        THREE.MathUtils.clamp(targetVelX, -grappleSpeed, grappleSpeed),
         grappleAlpha,
       );
       velocity.current.z = THREE.MathUtils.lerp(
         velocity.current.z,
-        _airFlyAimDir.z * grappleSpeed,
+        THREE.MathUtils.clamp(targetVelZ, -grappleSpeed, grappleSpeed),
         grappleAlpha,
       );
 
@@ -2021,6 +2040,10 @@ export function Player({
 
     const clearHoldState = () => {
       holdingBall.current = false;
+      ballColliderDisabledUntil.current = Math.max(
+        ballColliderDisabledUntil.current,
+        now + 0.4,
+      );
       if (gameStore.getState().ballHolderId === 'local') {
         gameStore.clearBallHolder(true);
       }
