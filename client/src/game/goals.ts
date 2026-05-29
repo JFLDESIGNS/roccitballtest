@@ -214,6 +214,21 @@ export function goalBackRingCenter(
   return offsetAlongGoalAxis(goal, courtForward - backOffset);
 }
 
+/** Lit ring display/collider center. Top goal sits just off the black backing ring. */
+export function goalLitRingCenter(
+  goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
+): { x: number; y: number; z: number } {
+  if (goal.size !== 'small') return goal.center;
+  const back = goalBackRingCenter(goal);
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  const forward = GOAL_RINGS.topLitRingCourtForwardFt * FT * towardCourt;
+  return {
+    x: back.x + forward,
+    y: back.y,
+    z: back.z,
+  };
+}
+
 /** Black hole disc collider radius — matches Arena GoalRingBackCapCollider */
 export function goalBackCapColliderRadius(
   goal: Pick<GoalDef, 'ringRadius' | 'size'>,
@@ -232,7 +247,14 @@ export function goalBackCapDiscCenter(
 export function goalBackCapSquareCenter(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): { x: number; y: number; z: number } {
-  return goalScoringCenter(goal);
+  const center = goalScoringCenter(goal);
+  if (goal.size !== 'small') return center;
+  const towardCourt = goal.team === 'red' ? 1 : -1;
+  return {
+    x: center.x + GOAL_RINGS.topRingBackCapExtraCourtForwardFt * FT * towardCourt,
+    y: center.y,
+    z: center.z,
+  };
 }
 
 /** Local +X nudge for backup cap square along hole axis (after ring tilt). */
@@ -240,7 +262,7 @@ export function goalBackCapArenaNudgeM(
   goal: Pick<GoalDef, 'center' | 'team' | 'size'>,
 ): number {
   const disc = goalBackCapDiscCenter(goal);
-  const scoring = goalScoringCenter(goal);
+  const scoring = goalBackCapSquareCenter(goal);
   const towardCourt = goal.team === 'red' ? 1 : -1;
   return (scoring.x - disc.x) * towardCourt;
 }

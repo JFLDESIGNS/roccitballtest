@@ -8,6 +8,7 @@ import {
   ARENA_GOALS,
   goalBackCapArenaNudgeM,
   goalBackRingCenter,
+  goalLitRingCenter,
   goalScoringCenter,
   goalScoringCylinderParams,
   GOAL_SCORING_CYLINDER_ROTATION,
@@ -257,8 +258,7 @@ function GoalRing({
   const glowTube = tube * GOAL_RINGS.glowTubeScale;
   const scoreHalf = goalScoreHoleRadius(ringRadius, size);
   const tiltX = ringTiltX(team, size);
-  const litCenter =
-    size === 'small' ? goalBackRingCenter({ center, team, size }) : center;
+  const litCenter = goalLitRingCenter({ center, team, size });
   const radial = GOAL_RINGS.torusRadialSegments;
   const tubular = GOAL_RINGS.torusTubularSegments;
 

@@ -11,6 +11,7 @@ import {
   buildTorusTrimesh,
   goalBackCapArenaNudgeM,
   goalBackRingCenterX,
+  goalLitRingCenter,
   goalScoreHoleRadius,
   ringTiltX,
   ringTube,
@@ -34,7 +35,7 @@ function StadiumGoalColliders({ goal }: { goal: GoalDef }) {
   const backRadius = goal.ringRadius * GOAL_RINGS.backRingScale;
   const backTube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
   const backLocalX = goalBackRingCenterX(goal) - goal.center.x;
-  const litLocalX = goal.size === 'small' ? backLocalX : 0;
+  const litLocalX = goalLitRingCenter(goal).x - goal.center.x;
   const capColliderR = goalScoreHoleRadius(goal.ringRadius, goal.size) * 0.38;
   const capArenaNudge = goalBackCapArenaNudgeM(goal);
 

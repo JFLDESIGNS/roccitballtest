@@ -1114,6 +1114,8 @@ export const GOAL_RINGS = {
   midTopBackRingWallExtraFt: 0.75,
   /** Top (5 pt) backup plate — nudge toward court from wall-backed position (ft) */
   topBackRingCourtForwardFt: 1,
+  /** Top (5 pt) lit ring extra standoff from the black backplate (ft) */
+  topLitRingCourtForwardFt: 0.85,
   /** Top (small) ring — standoff from wall toward center court (feet) */
   topRingWallStandoffFt: 15,
   /** Top black back ring — offset from lit center toward wall (m) */
@@ -1136,6 +1138,8 @@ export const GOAL_RINGS = {
   midRingBackCapCourtOffsetFt: 2.75,
   /** Top (5 pt) backup cap square — out from black disc toward court (feet) */
   topRingBackCapCourtOffsetFt: 2.75,
+  /** Top (5 pt) backup square extra standoff from the black backplate (ft) */
+  topRingBackCapExtraCourtForwardFt: 0.65,
   /** Middle ring back-cap square — extra push toward wall (feet) */
   midRingCapWallOffsetFt: 0,
   /** Top (5 pt) scoring cylinder — lift toward ring center (feet) */

@@ -6,6 +6,7 @@ import type { GoalDef } from '../shared/Types';
 import { ARENA_PILLAR } from '../game/arenaPillars';
 import {
   goalBackRingCenterX,
+  goalLitRingCenter,
   goalScoreHoleRadius,
   ringTiltX,
   ringTube,
@@ -145,8 +146,7 @@ export function StadiumGoalVisual({ goal }: { goal: GoalDef }) {
   const glowTube = tube * GOAL_RINGS.glowTubeScale;
   const scoreHalf = goalScoreHoleRadius(goal.ringRadius, goal.size);
   const tiltX = ringTiltX(goal.team, goal.size);
-  const litLocalX =
-    goal.size === 'small' ? goalBackRingCenterX(goal) - goal.center.x : 0;
+  const litLocalX = goalLitRingCenter(goal).x - goal.center.x;
   const radial = GOAL_RINGS.torusRadialSegments;
   const tubular = GOAL_RINGS.torusTubularSegments;
 
