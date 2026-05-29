@@ -4,7 +4,6 @@ import { isInsideHex } from './arenaHex';
 import { tuningStore } from './tuningStore';
 
 const _lookDir = new THREE.Vector3();
-const _orbitDir = new THREE.Vector3();
 const _behind = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _lift = new THREE.Vector3();
@@ -103,22 +102,18 @@ export function updateThirdPersonCamera(
   dt: number,
   snap = false,
   extraDistance = 0,
-  fastFollow = false,
-  lookYaw = yaw,
-  lookPitch = aimPitch,
 ) {
   const {
     cameraSmoothingEnabled,
     cameraCollisionProbeEnabled,
   } = tuningStore.getState();
 
-  setLookDirection(lookYaw, lookPitch, _lookDir);
-  setLookDirection(yaw, aimPitch, _orbitDir);
+  setLookDirection(yaw, aimPitch, _lookDir);
 
-  _behind.copy(_orbitDir).multiplyScalar(-(CAMERA.distance + extraDistance));
+  _behind.copy(_lookDir).multiplyScalar(-(CAMERA.distance + extraDistance));
   _behind.y *= CAMERA.verticalInfluence;
 
-  _side.crossVectors(_worldUp, _orbitDir);
+  _side.crossVectors(_worldUp, _lookDir);
   if (_side.lengthSq() < 1e-5) {
     _side.copy(getCameraBasis(yaw).right);
   } else {
@@ -149,8 +144,7 @@ export function updateThirdPersonCamera(
   if (snap || !cameraSmoothingEnabled) {
     camera.position.copy(_desired);
   } else {
-    const smoothRate = fastFollow ? CAMERA.fastTurnSmooth : CAMERA.smooth;
-    const smooth = 1 - Math.exp(-smoothRate * dt);
+    const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
     camera.position.lerp(_desired, smooth);
   }
 
@@ -159,7 +153,7 @@ export function updateThirdPersonCamera(
     clampCameraArenaWalls(camera.position, pivot);
   }
 
-  _lookTarget.copy(camera.position).addScaledVector(_lookDir, CAMERA.lookAhead);
+  _lookTarget.copy(_desired).addScaledVector(_lookDir, CAMERA.lookAhead);
 
   const valid =
     Number.isFinite(camera.position.x) &&
