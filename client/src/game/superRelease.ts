@@ -109,8 +109,9 @@ export function computeSuperReleaseDropVelocity(
       tune.superReleaseThrowPower *
       tune.superReleaseShotStrength *
       tune.releaseMomentumScale *
-      0.35;
+      0.45;
     out.addScaledVector(_aim, toss);
+    out.addScaledVector(ballSwing, tune.releaseMomentumScale * 0.85);
     out.y += tune.superReleaseArcLift * 0.35;
   } else {
     out.y = Math.max(0, out.y);

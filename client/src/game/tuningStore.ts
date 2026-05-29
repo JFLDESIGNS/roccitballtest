@@ -3,7 +3,7 @@ import { integrateFallGravity } from './movementGravity';
 import { inputManager } from './InputManager';
 
 const SPRINT_RATIO = MOVEMENT.sprintSpeed / MOVEMENT.walkSpeed;
-const STORAGE_KEY = 'rocketball-tuning-v23';
+const STORAGE_KEY = 'rocketball-tuning-v24';
 export type TuningValues = {
   jumpForce: number;
   walkSpeed: number;
@@ -58,6 +58,8 @@ export type TuningValues = {
   mouseSensitivity: number;
   /** Double-tap W forward dash */
   wwDashEnabled: boolean;
+  /** Double-tap S / Down input interval for air ground-smash */
+  groundSmashDoubleTapWindowSec: number;
   /** Match ball variant — same entity for beam, bots, and goals */
   ballType: BallTypeId;
   /** Classic momentum release vs Torque-style super release */
@@ -134,11 +136,11 @@ const defaults: TuningValues = {
   swingToShot: 1,
   moveSpeedToShot: 0.15,
   releaseSwingMinSpeed: 0.3,
-  releaseMomentumScale: 0.65,
+  releaseMomentumScale: 0.85,
   releaseIdleSwingScale: 0.26,
   releaseIdlePlayerScale: 0.16,
   releaseIdleMaxSpeed: 3.8,
-  releaseMaxActiveSpeed: 22.5,
+  releaseMaxActiveSpeed: 30,
   pullStrength: 1.35,
   masterVolume: 0.85,
   impactVolume: 0.45,
@@ -163,6 +165,7 @@ const defaults: TuningValues = {
   /** Multiplier on CAMERA.mouseSensitivityX/Y */
   mouseSensitivity: 1,
   wwDashEnabled: false,
+  groundSmashDoubleTapWindowSec: MOVEMENT.groundSmashDoubleTapWindowSec,
   ballType: 'superball',
   releaseSystem: 'superrelease',
   superReleaseInheritedVel: 0.75,
@@ -314,6 +317,8 @@ export const tuningStore = {
   setMouseSensitivity: (v: number) =>
     patch({ mouseSensitivity: Math.max(0.2, Math.min(2.5, v)) }),
   setWwDashEnabled: (v: boolean) => patch({ wwDashEnabled: v }),
+  setGroundSmashDoubleTapWindowSec: (v: number) =>
+    patch({ groundSmashDoubleTapWindowSec: Math.max(0.12, Math.min(0.6, v)) }),
   setBallType: (v: BallTypeId) => patch({ ballType: v }),
   setReleaseSystem: (v: ReleaseSystemId) => patch({ releaseSystem: v }),
   setSuperReleaseInheritedVel: (v: number) =>

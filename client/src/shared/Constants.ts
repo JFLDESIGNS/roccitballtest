@@ -732,6 +732,12 @@ export const MOVEMENT = {
   dashDurationSec: 0.9,
   /** Upward pop at dash start (m/s) */
   dashUpSpeed: 2,
+  /** Double-tap S / Down input window for air ground-smash (seconds) */
+  groundSmashDoubleTapWindowSec: 0.28,
+  /** Arcade downward speed when double-tapping S in air */
+  groundSmashDownSpeed: 52,
+  /** Slight pause after a smash before another can start */
+  groundSmashCooldownSec: 0.3,
   /** E — leap + forward propel (flip stays on keydown) */
   ePropelDurationSec: 1.15,
   ePropelImpulseCount: 4,

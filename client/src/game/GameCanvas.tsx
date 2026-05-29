@@ -68,6 +68,7 @@ import {
   type BotRagdollBurstHandle,
 } from './BotRagdollBurstFx';
 import { GoalFireworks } from './GoalFireworks';
+import { GroundSmashDust } from './GroundSmashDust';
 import { registerBeamDenyZone } from './beamDenyZones';
 import { BeamDenyZonesVisual } from './beamDenyZonesVisual';
 import {
@@ -1139,6 +1140,7 @@ function Scene({
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
       <GoalFireworks />
+      <GroundSmashDust />
       <ArenaPadMonitor ballBodyRef={ballBodyRef} />
       <EnergyPickupOrbs />
       <RocketRecoilFx />

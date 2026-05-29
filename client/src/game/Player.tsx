@@ -137,6 +137,7 @@ import {
 } from './grindRail';
 import { burstGrindRailSparks } from './impactSparks';
 import { tryCollectEnergyOrb } from './energyOrbStore';
+import { burstGroundSmashDust } from './GroundSmashDust';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [0, 2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
@@ -397,6 +398,8 @@ export function Player({
   const ePropelElapsed = useRef(0);
   const ePropelImpulsesApplied = useRef(0);
   const ePropelCooldown = useRef(0);
+  const groundSmashCooldown = useRef(0);
+  const groundSmashActive = useRef(false);
   const ePropelVyBoost = useRef<number | null>(null);
   const airFlyPulseTimer = useRef(0);
   const airFlyDirReady = useRef(false);
@@ -1241,6 +1244,7 @@ export function Player({
     const localTeam = gameStore.getState().localTeam;
     dashCooldown.current = Math.max(0, dashCooldown.current - dt);
     ePropelCooldown.current = Math.max(0, ePropelCooldown.current - dt);
+    groundSmashCooldown.current = Math.max(0, groundSmashCooldown.current - dt);
     rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
@@ -1392,6 +1396,14 @@ export function Player({
     }
 
     if (grounded.current && jumpAirGrace.current <= 0) {
+      if (groundSmashActive.current) {
+        const dustY =
+          padFloorY !== null && Math.abs(feetY - padFloorY) < 2
+            ? padFloorY
+            : probe.groundY;
+        burstGroundSmashDust(pos.x, dustY, pos.z);
+        groundSmashActive.current = false;
+      }
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = MOVEMENT.coyoteTimeSec;
     } else if (!grounded.current) {
@@ -1431,6 +1443,8 @@ export function Player({
       !goalEjectMoveLocked &&
       jumpsLeft.current > 0 &&
       inputManager.consumeJump();
+    const downSmashPressed =
+      !goalEjectMoveLocked && inputManager.consumeDownSmash();
     let railConsumedJump = false;
 
     if (
@@ -1687,6 +1701,36 @@ export function Player({
     if (ePropelVyBoost.current !== null) {
       vy = ePropelVyBoost.current;
       ePropelVyBoost.current = null;
+    }
+
+    if (
+      downSmashPressed &&
+      !grounded.current &&
+      !grappleActive.current &&
+      !grindRailActive.current &&
+      groundSmashCooldown.current <= 0
+    ) {
+      groundSmashActive.current = true;
+      groundSmashCooldown.current = MOVEMENT.groundSmashCooldownSec;
+      vy = -MOVEMENT.groundSmashDownSpeed;
+      velocity.current.x *= 0.35;
+      velocity.current.z *= 0.35;
+      jumpAirGrace.current = 0;
+      coyoteTime.current = 0;
+    }
+
+    if (groundSmashActive.current && !grounded.current) {
+      vy = Math.min(vy, -MOVEMENT.groundSmashDownSpeed);
+      velocity.current.x = THREE.MathUtils.lerp(
+        velocity.current.x,
+        0,
+        1 - Math.exp(-10 * dt),
+      );
+      velocity.current.z = THREE.MathUtils.lerp(
+        velocity.current.z,
+        0,
+        1 - Math.exp(-10 * dt),
+      );
     }
 
     if (

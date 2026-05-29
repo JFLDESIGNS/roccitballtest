@@ -31,7 +31,9 @@ class InputManager {
   private grappleQueued = false;
   private jumpBufferUntil = 0;
   private lastForwardTapAt = 0;
+  private lastDownTapAt = 0;
   private dashBoostQueued = false;
+  private downSmashQueued = false;
   private spawnBallQueued = false;
   private ballRespawnQueued = false;
   private bound = false;
@@ -279,6 +281,19 @@ class InputManager {
           this.lastForwardTapAt = 0;
         } else {
           this.lastForwardTapAt = nowSec;
+        }
+      }
+      if ((e.code === 'KeyS' || e.code === 'ArrowDown') && !e.repeat) {
+        const nowSec = performance.now() / 1000;
+        if (
+          this.lastDownTapAt > 0 &&
+          nowSec - this.lastDownTapAt <=
+            tuningStore.getState().groundSmashDoubleTapWindowSec
+        ) {
+          this.downSmashQueued = true;
+          this.lastDownTapAt = 0;
+        } else {
+          this.lastDownTapAt = nowSec;
         }
       }
       if (e.code === 'KeyE' && !e.repeat && !gameStore.getState().debugFreelook) {
@@ -585,6 +600,12 @@ class InputManager {
   consumeDashBoost(): boolean {
     if (!this.dashBoostQueued) return false;
     this.dashBoostQueued = false;
+    return true;
+  }
+
+  consumeDownSmash(): boolean {
+    if (!this.downSmashQueued) return false;
+    this.downSmashQueued = false;
     return true;
   }
 

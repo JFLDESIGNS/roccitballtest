@@ -144,6 +144,16 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setWwDashEnabled}
           />
           <SliderRow
+            label="SS smash interval"
+            hint="Double-tap S or Down within this window while airborne to dive straight down."
+            value={tune.groundSmashDoubleTapWindowSec}
+            min={0.12}
+            max={0.6}
+            step={0.01}
+            onChange={tuningStore.setGroundSmashDoubleTapWindowSec}
+            format={(v) => `${v.toFixed(2)}s`}
+          />
+          <SliderRow
             label="Jump height"
             value={tune.jumpForce}
             min={6}
