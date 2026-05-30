@@ -95,9 +95,9 @@ export function LightGlowProximityVeil() {
             vec2 uv = vUv;
             vec2 center = uv - 0.5;
             float vignette = 1.0 - smoothstep(0.42, 0.78, length(center));
-            vec2 scrollUv = uv * vec2(2.6, 1.7) + vec2(uTime * 0.018, -uNoiseOffset);
+            vec2 scrollUv = uv * vec2(5.2, 3.6) + vec2(uTime * 0.014, uNoiseOffset);
             float coarse = fbm(scrollUv);
-            float fine = fbm(scrollUv * 3.2 + vec2(9.2, 1.7));
+            float fine = fbm(scrollUv * 3.8 + vec2(9.2, 1.7));
             float cloud = coarse * 0.72 + fine * 0.28;
             float mask = smoothstep(0.24, 0.82, cloud);
             float strands = smoothstep(0.28, 0.72, fbm(scrollUv * vec2(0.68, 2.9)));
@@ -131,9 +131,9 @@ export function LightGlowProximityVeil() {
 
     const factor = Number.isFinite(bestDist) ? veilFactor(bestDist) : 0;
     mesh.visible = factor > 0.01;
-    material.uniforms.uOpacity.value = factor * 0.32;
+    material.uniforms.uOpacity.value = factor * 0.18;
     material.uniforms.uTime.value = state.clock.elapsedTime;
-    driftRef.current += delta * (0.24 + (1 - factor) * 0.18);
+    driftRef.current += delta * (0.09 + (1 - factor) * 0.05);
     material.uniforms.uNoiseOffset.value = driftRef.current;
     if (bestColor) {
       _bestColor.copy(bestColor);

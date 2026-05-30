@@ -4,7 +4,7 @@ import * as THREE from 'three';
 export const LIGHT_GLOW_MAX_PUNCHES = 48;
 
 /** Rocket crater heal time (s). */
-export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25;
+export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25 * 0.5;
 
 /** Rocket smoke-ring trail diameter multiplier (normal rockets). */
 export const LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER = 0.64 * 0.8;
@@ -18,6 +18,7 @@ export const LIGHT_GLOW_PUNCH_REGEN_S = LIGHT_GLOW_ROCKET_PUNCH_REGEN_S;
 
 const HOLE_RADIUS_M = 3.2 * 0.7 * 0.72 * 1.2;
 const HOLE_RADIUS_EXPLOSIVE_M = 5.8 * 0.7 * 0.72 * 1.2;
+const LIGHT_GLOW_GLOBAL_PUNCH_RADIUS_SCALE = 0.8;
 
 /** Ball punch radius vs base hole (was 2×; now 75% of that). */
 export const LIGHT_GLOW_BALL_RADIUS_MULTIPLIER = 2 * 0.75;
@@ -88,7 +89,7 @@ function lightGlowHoleRadius(
   radiusMultiplier = 1,
 ): number {
   const base = explosive ? HOLE_RADIUS_EXPLOSIVE_M : HOLE_RADIUS_M;
-  return base * radiusMultiplier;
+  return base * radiusMultiplier * LIGHT_GLOW_GLOBAL_PUNCH_RADIUS_SCALE;
 }
 
 export function punchLightGlowHoleAtWorld(

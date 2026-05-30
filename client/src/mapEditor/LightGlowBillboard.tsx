@@ -56,8 +56,8 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
   uniform vec3 uBillboardNormal;
 
   vec2 lightGlowPunchMask(vec3 worldPos) {
-    float vis = 1.0;
-    float nearestSigned = 9999.0;
+    float cutUnion = 0.0;
+    float nearestBoundary = 9999.0;
     float nearestStrength = 0.0;
     for (int i = 0; i < ${LIGHT_GLOW_MAX_PUNCHES}; i++) {
       if (i >= uPunchCount) break;
@@ -67,16 +67,19 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
       float strength = uPunchStrengths[i];
       float normDist = dist / max(r, 0.001);
       float keep = smoothstep(0.028, 1.12, normDist);
-      float signedDist = normDist - 1.0;
-      if (signedDist < nearestSigned) {
-        nearestSigned = signedDist;
+      float cut = (1.0 - keep) * strength;
+      float boundary = abs(normDist - 1.0);
+      if (boundary < nearestBoundary) {
+        nearestBoundary = boundary;
         nearestStrength = strength;
       }
-      vis *= mix(1.0, keep, strength);
+      cutUnion = max(cutUnion, cut);
     }
-    float outerEdge = 1.0 - smoothstep(0.0, 0.38, abs(nearestSigned));
+    float vis = clamp(1.0 - cutUnion, 0.0, 1.0);
+    float outerEdge = 1.0 - smoothstep(0.0, 0.38, nearestBoundary);
     float edgeOnly = outerEdge * smoothstep(0.18, 0.82, vis);
-    float fastFade = nearestStrength * nearestStrength * nearestStrength;
+    float fastFade =
+      nearestStrength * nearestStrength * nearestStrength * nearestStrength;
     return vec2(vis, edgeOnly * fastFade);
   }
 `;
