@@ -4,14 +4,14 @@ import * as THREE from 'three';
 export const LIGHT_GLOW_MAX_PUNCHES = 48;
 
 /** Rocket crater heal time (s). */
-export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25 * 0.5;
+export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 3.35;
 
 /** Rocket smoke-ring trail diameter multiplier (normal rockets). */
 export const LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER = 0.64 * 0.8;
 
 /** Ball crater heal — faster than legacy 2× rocket duration. */
 export const LIGHT_GLOW_BALL_PUNCH_REGEN_S =
-  LIGHT_GLOW_ROCKET_PUNCH_REGEN_S * 2 * 0.7;
+  LIGHT_GLOW_ROCKET_PUNCH_REGEN_S * 1.55;
 
 /** @deprecated Use LIGHT_GLOW_ROCKET_PUNCH_REGEN_S */
 export const LIGHT_GLOW_PUNCH_REGEN_S = LIGHT_GLOW_ROCKET_PUNCH_REGEN_S;
