@@ -1,3 +1,4 @@
+import { useRapier } from '@react-three/rapier';
 import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { useSyncExternalStore } from 'react';
@@ -31,6 +32,35 @@ const _unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
 const _unitEdges = new THREE.EdgesGeometry(_unitBoxGeo);
 const _basis = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
+
+function RapierColliderDebug() {
+  const { world } = useRapier();
+  const lineRef = useRef<THREE.LineSegments>(null);
+
+  useFrame(() => {
+    const lines = lineRef.current;
+    if (!lines) return;
+    const buffers = world.debugRender();
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(buffers.vertices, 3),
+    );
+    geometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(buffers.colors, 4),
+    );
+    lines.geometry.dispose();
+    lines.geometry = geometry;
+  });
+
+  return (
+    <lineSegments ref={lineRef} frustumCulled={false} renderOrder={260}>
+      <lineBasicMaterial vertexColors transparent opacity={0.9} depthWrite={false} />
+      <bufferGeometry />
+    </lineSegments>
+  );
+}
 
 function OrientedWireBox({
   position,
@@ -171,6 +201,7 @@ export function GameplayCollisionDebug() {
 
   return (
     <group ref={groupRef} name="gameplay-collision-debug">
+      <RapierColliderDebug />
       <RocketCollisionDebug />
       <GrindRailHitWire />
       {panels.map((panel) => (
