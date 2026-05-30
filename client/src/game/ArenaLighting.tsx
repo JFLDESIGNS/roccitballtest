@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { graphicsStore } from './graphicsStore';
-import { LightGlowProximityVeil } from './LightGlowProximityVeil';
 import { StadiumLightsRuntime } from './StadiumLightsRuntime';
 
 /** Neutral indoor bounce — avoid blue/cyan fill */
@@ -30,7 +29,6 @@ export function ArenaLighting() {
         color={new THREE.Color('#7a756c')}
       />
       <StadiumLightsRuntime />
-      <LightGlowProximityVeil />
     </>
   );
 }

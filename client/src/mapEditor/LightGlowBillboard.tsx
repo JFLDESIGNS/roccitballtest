@@ -79,7 +79,12 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
     float outerEdge = 1.0 - smoothstep(0.0, 0.38, nearestBoundary);
     float edgeOnly = outerEdge * smoothstep(0.18, 0.82, vis);
     float fastFade =
-      nearestStrength * nearestStrength * nearestStrength * nearestStrength;
+      nearestStrength *
+      nearestStrength *
+      nearestStrength *
+      nearestStrength *
+      nearestStrength *
+      nearestStrength;
     return vec2(vis, edgeOnly * fastFade);
   }
 `;
