@@ -311,8 +311,10 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     prevBallPos.current.set(BALL_SPAWN.x, nextY, BALL_SPAWN.z);
     _ballTo.current.copy(prevBallPos.current);
     hasPrevBallPos.current = true;
+    // Only ignore glow-plane punches during the instant hidden teleport into the drop.
+    // Once the ball is released, normal plane contact should work immediately.
     ballDropGlowPunchSuppressedUntil.current =
-      performance.now() + (release ? 1200 : 10000);
+      performance.now() + (release ? 0 : 350);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     gameStore.setBallState('loose');
     gameStore.setIsHoldingBall(false);
