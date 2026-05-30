@@ -9,7 +9,6 @@ import chingUrl from '../assets/sounds/ching.mp3';
 import cheerUrl from '../assets/sounds/cheering.wav';
 import panicUrl from '../assets/sounds/panic.wav';
 import goal1Url from '../assets/sounds/goal1.WAV';
-import rocketDopeTronUrl from '../assets/sounds/rocket-dope-tron.mp3';
 import jumpSoundUrl from '../assets/sounds/jumpsound.mp3';
 import grindRailUrl from '../assets/sounds/grind-rail.mp3';
 import beamAttractLoopUrl from '../assets/sounds/beamattractloop.mp3';
@@ -29,8 +28,8 @@ const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
 const BEAM_ATTRACT_LOOP_GAIN = 0.13;
 const SHIFT_WIND_LOOP_GAIN = 0.72;
-/** Menu + in-match loops (Rocket Dope Tron) */
-export const BACKGROUND_MUSIC_ENABLED = true;
+/** Background music is disabled during development. */
+export const BACKGROUND_MUSIC_ENABLED = false;
 
 /** Menu / title screen — kept low under master + menu slider */
 const BG_MUSIC_MENU_BASE = 0.035;
@@ -133,7 +132,6 @@ const GAME_AUDIO_PRELOAD_URLS = [
   cheerUrl,
   panicUrl,
   goal1Url,
-  rocketDopeTronUrl,
   jumpSoundUrl,
   grindRailUrl,
   beamAttractLoopUrl,
@@ -396,53 +394,8 @@ function applyMenuBgMusicGain(): void {
 }
 
 function startBgMusicLoop(mode: 'menu' | 'game'): void {
-  const ac = getCtx();
-  if (!ac) return;
-
-  if (isBgMusicActive(mode)) {
-    if (mode === 'menu') applyMenuBgMusicGain();
-    else if (bgMusicTrack) bgMusicTrack.gain.gain.value = gameBgMusicGain();
-    return;
-  }
-  if (bgMusicLoadingMode === mode) return;
-
+  void mode;
   stopBgMusic();
-  bgMusicLoadingMode = mode;
-  const startGen = bgMusicStartGen;
-
-  void loadSample(rocketDopeTronUrl).then((buffer) => {
-    if (startGen !== bgMusicStartGen) return;
-    if (bgMusicLoadingMode !== mode) return;
-
-    const live = getCtx();
-    if (!buffer || !live) {
-      if (bgMusicLoadingMode === mode) bgMusicLoadingMode = null;
-      return;
-    }
-
-    if (isBgMusicActive(mode)) {
-      bgMusicLoadingMode = null;
-      return;
-    }
-
-    const stale = bgMusicTrack;
-    if (stale) disconnectLoopingTrack(stale);
-
-    const source = live.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-
-    const gain = live.createGain();
-    gain.gain.value = mode === 'menu' ? menuBgMusicGain() : gameBgMusicGain();
-
-    source.connect(gain);
-    gain.connect(live.destination);
-    source.start(0);
-
-    bgMusicTrack = { source, gain };
-    bgMusicMode = mode;
-    bgMusicLoadingMode = null;
-  });
 }
 
 /** Stop menu or match background loop (e.g. leaving menu for arena) */

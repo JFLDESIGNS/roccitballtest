@@ -159,28 +159,50 @@ function MobileMoveStick() {
   );
 }
 
-function MobileLookPad() {
+function MobileLookStick() {
+  const knobRef = useRef<HTMLDivElement>(null);
   const activePointer = useRef<number | null>(null);
   const last = useRef({ x: 0, y: 0 });
+  const origin = useRef({ x: 0, y: 0 });
+
+  const updateKnob = (clientX: number, clientY: number) => {
+    const dx = clientX - origin.current.x;
+    const dy = clientY - origin.current.y;
+    const len = Math.hypot(dx, dy);
+    const scale = len > STICK_RADIUS ? STICK_RADIUS / len : 1;
+    const kx = dx * scale;
+    const ky = dy * scale;
+    if (knobRef.current) {
+      knobRef.current.style.transform = `translate(${kx}px, ${ky}px)`;
+    }
+  };
 
   const release = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (activePointer.current !== e.pointerId) return;
     stopTouch(e);
     activePointer.current = null;
+    if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
   };
 
   return (
     <div
-      className="mobile-look-pad"
+      className="mobile-stick mobile-look-stick"
       onPointerDown={(e) => {
         stopTouch(e);
         activePointer.current = e.pointerId;
         e.currentTarget.setPointerCapture(e.pointerId);
+        const rect = e.currentTarget.getBoundingClientRect();
+        origin.current = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
         last.current = { x: e.clientX, y: e.clientY };
+        updateKnob(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {
         if (activePointer.current !== e.pointerId) return;
         stopTouch(e);
+        updateKnob(e.clientX, e.clientY);
         inputManager.applyVirtualLook(
           (e.clientX - last.current.x) * LOOK_SCALE,
           (e.clientY - last.current.y) * LOOK_SCALE,
@@ -191,9 +213,12 @@ function MobileLookPad() {
       onPointerCancel={release}
       onLostPointerCapture={() => {
         activePointer.current = null;
+        if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
       }}
       aria-label="Look"
-    />
+    >
+      <div className="mobile-stick-knob mobile-look-stick-knob" ref={knobRef} />
+    </div>
   );
 }
 
@@ -232,8 +257,8 @@ export function MobileControls() {
 
   return (
     <div className="mobile-controls" aria-label="Mobile controls">
-      <MobileLookPad />
       <MobileMoveStick />
+      <MobileLookStick />
       <div className="mobile-actions mobile-actions--primary">
         <HoldButton className="mobile-btn mobile-btn--fire" label="Fire" button="fire" />
         <HoldButton className="mobile-btn mobile-btn--beam" label="Beam" button="beam" />

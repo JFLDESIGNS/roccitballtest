@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   resumeAudio,
-  setMenuBackgroundMusicVolume,
   startMenuBackgroundMusic,
   stopBackgroundMusic,
 } from '../game/audio';
-import { getMenuMusicVolume } from '../game/menuAudioSettings';
 import { gameStore } from '../game/gameStore';
 import { graphicsStore } from '../game/graphicsStore';
 import {
@@ -84,9 +82,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
   const [playerName, setPlayerName] = useState(saved.name);
   const [jerseyNumber, setJerseyNumber] = useState(saved.number);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
-  const [menuMusicVolume, setMenuMusicVolumeState] = useState(
-    () => getMenuMusicVolume(),
-  );
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showServerBrowser, setShowServerBrowser] = useState(false);
   const [browserRooms, setBrowserRooms] = useState<RoomSummary[]>([]);
@@ -411,26 +406,6 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                       </option>
                     ))}
                   </select>
-                </label>
-                <label className="menu-field menu-field--range menu-field--dock-music">
-                  <span>
-                    Menu music
-                    <em className="menu-range-val">
-                      {Math.round(menuMusicVolume * 100)}%
-                    </em>
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    value={Math.round(menuMusicVolume * 100)}
-                    onChange={(e) => {
-                      const v = Number(e.target.value) / 100;
-                      setMenuMusicVolumeState(v);
-                      setMenuBackgroundMusicVolume(v);
-                    }}
-                  />
                 </label>
                 <div className="menu-online menu-field--dock-online">
                   <button

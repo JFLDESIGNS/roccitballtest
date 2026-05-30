@@ -72,12 +72,12 @@ export function updateThirdPersonCamera(
   extraDistance = 0,
 ) {
   const { cameraSmoothingEnabled } = tuningStore.getState();
-  void extraDistance;
 
   setLookDirection(yaw, aimPitch, _lookDir);
 
-  _behind.copy(_lookDir).multiplyScalar(-CAMERA.distance);
-  _behind.y = 0;
+  const distance = CAMERA.distance + extraDistance;
+  _lift.copy(_worldUp).multiplyScalar(CAMERA.height);
+  _behind.copy(_lookDir).multiplyScalar(-distance);
 
   _side.crossVectors(_worldUp, _lookDir);
   if (_side.lengthSq() < 1e-5) {
@@ -87,8 +87,11 @@ export function updateThirdPersonCamera(
   }
   _side.multiplyScalar(CAMERA.shoulderOffset);
 
-  _lift.copy(_worldUp).multiplyScalar(CAMERA.height);
   _desired.copy(pivot).add(_behind).add(_lift).add(_side);
+  _desired.y = Math.max(
+    _desired.y,
+    pivot.y - CAMERA.maxDropBelowPivot,
+  );
 
   if (snap || !cameraSmoothingEnabled || dt <= 0) {
     camera.position.copy(_desired);
