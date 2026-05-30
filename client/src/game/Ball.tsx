@@ -170,8 +170,9 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
   const glowTick = useRef(0);
   const lastHolderId = useRef<BallHolderId>(null);
   const prevBallPos = useRef(new THREE.Vector3());
-const _ballTo = useRef(new THREE.Vector3());
-const hasPrevBallPos = useRef(false);
+  const _ballTo = useRef(new THREE.Vector3());
+  const hasPrevBallPos = useRef(false);
+  const ballDropGlowPunchSuppressedUntil = useRef(0);
 
   const surfaceMap = useMemo(
     () => createBallPolkaTexture(RENDER.ballPolkaTextureSize, 'original'),
@@ -295,9 +296,11 @@ const hasPrevBallPos = useRef(false);
   const placeAtDrop = (release: boolean) => {
     const body = bodyRef.current;
     if (!body) return;
+    let nextY = getBallDropLayout().spawnY;
     if (release) releaseBallPhysics(body);
     if (release) {
       const { releaseY } = getBallDropLayout();
+      nextY = releaseY;
       body.setTranslation({ x: BALL_SPAWN.x, y: releaseY, z: BALL_SPAWN.z }, true);
       body.setLinvel({ x: 0, y: -5.5, z: 0 }, true);
       armBallDropCollisionGrace(5);
@@ -305,6 +308,11 @@ const hasPrevBallPos = useRef(false);
     } else {
       parkBallAtDropSpawn(body);
     }
+    prevBallPos.current.set(BALL_SPAWN.x, nextY, BALL_SPAWN.z);
+    _ballTo.current.copy(prevBallPos.current);
+    hasPrevBallPos.current = true;
+    ballDropGlowPunchSuppressedUntil.current =
+      performance.now() + (release ? 1200 : 10000);
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     gameStore.setBallState('loose');
     gameStore.setIsHoldingBall(false);
@@ -351,10 +359,12 @@ const hasPrevBallPos = useRef(false);
     _ballTo.current.set(t.x, t.y, t.z);
     const from = prevBallPos.current;
     const hadPrevPos = hasPrevBallPos.current;
-    if (hadPrevPos) {
-      punchLightGlowForBall(from, _ballTo.current, BALL.radius);
-    } else {
-      punchLightGlowForBall(_ballTo.current, _ballTo.current, BALL.radius);
+    if (performance.now() >= ballDropGlowPunchSuppressedUntil.current) {
+      if (hadPrevPos) {
+        punchLightGlowForBall(from, _ballTo.current, BALL.radius);
+      } else {
+        punchLightGlowForBall(_ballTo.current, _ballTo.current, BALL.radius);
+      }
     }
 
     if (gameStore.getState().ballHolderId) {
