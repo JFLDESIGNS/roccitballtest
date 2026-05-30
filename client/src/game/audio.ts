@@ -26,7 +26,9 @@ const SHOT_SAMPLE_BASE = 0.44;
 const ELECTRIC_SLAP_SAMPLE_BASE = 0.58;
 const CHING_SAMPLE_BASE = 0.92;
 const JUMP_SAMPLE_BASE = 0.62;
-const BEAM_ATTRACT_LOOP_GAIN = 0.13;
+const BEAM_ATTRACT_LOOP_GAIN = 0.26;
+const GRIND_RAIL_LOOP_GAIN = 0.09;
+const GRIND_RAIL_LOOP_START_OFFSETS_SEC = [0.6, 0.9, 1.2, 1.5] as const;
 const SHIFT_WIND_LOOP_GAIN = 0.72;
 /** Background music is disabled during development. */
 export const BACKGROUND_MUSIC_ENABLED = false;
@@ -80,6 +82,8 @@ type TimedCrowdTrack = {
 
 let bgMusicTrack: LoopingTrack | null = null;
 let grindRailTrack: LoopingTrack | null = null;
+let grindRailLoading = false;
+let grindRailWanted = false;
 let beamAttractTrack: LoopingTrack | null = null;
 let beamAttractLoading = false;
 let shiftWindTrack: LoopingTrack | null = null;
@@ -305,9 +309,41 @@ function stopBgMusic(): void {
 }
 
 function stopGrindRailLoop(): void {
+  grindRailWanted = false;
+  grindRailLoading = false;
   const track = grindRailTrack;
   grindRailTrack = null;
   if (track) disconnectLoopingTrack(track);
+}
+
+function randomGrindRailStartOffset(buffer: AudioBuffer): number {
+  const maxOffset = Math.max(0, buffer.duration - 0.05);
+  const offsets = GRIND_RAIL_LOOP_START_OFFSETS_SEC.filter(
+    (offset) => offset <= maxOffset,
+  );
+  if (offsets.length === 0) return 0;
+  return offsets[Math.floor(Math.random() * offsets.length)] ?? offsets[0]!;
+}
+
+function startGrindRailSegment(
+  buffer: AudioBuffer,
+  gain: GainNode,
+): AudioBufferSourceNode | null {
+  const live = getCtx();
+  if (!live || !grindRailWanted) return null;
+  const source = live.createBufferSource();
+  source.buffer = buffer;
+  source.loop = false;
+  source.connect(gain);
+  source.onended = () => {
+    if (grindRailTrack?.source !== source || !grindRailWanted) return;
+    const next = startGrindRailSegment(buffer, gain);
+    if (next && grindRailTrack?.source === source) {
+      grindRailTrack.source = next;
+    }
+  };
+  source.start(live.currentTime, randomGrindRailStartOffset(buffer));
+  return source;
 }
 
 function stopBeamAttractLoop(): void {
@@ -391,7 +427,7 @@ function applyActiveAudioMasterVolume(): void {
 
   if (grindRailTrack) {
     grindRailTrack.gain.gain.cancelScheduledValues(t);
-    grindRailTrack.gain.gain.setValueAtTime(sfxGain(0.09), t);
+    grindRailTrack.gain.gain.setValueAtTime(sfxGain(GRIND_RAIL_LOOP_GAIN), t);
   }
 
   if (beamAttractTrack) {
@@ -989,29 +1025,33 @@ export function setBeamAttractActive(active: boolean, key = 'local') {
 export function setGrindRailActive(active: boolean) {
   const ac = getCtx();
   if (!ac) return;
+  grindRailWanted = active;
 
   if (!active) {
     stopGrindRailLoop();
     return;
   }
 
-  if (grindRailTrack) return;
+  if (grindRailTrack || grindRailLoading) return;
 
+  grindRailLoading = true;
   void loadSample(grindRailUrl).then((buffer) => {
     const live = getCtx();
-    if (!buffer || !live || grindRailTrack) return;
-    const source = live.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
+    grindRailLoading = false;
+    if (!buffer || !live || grindRailTrack || !grindRailWanted) return;
     const gain = live.createGain();
-    gain.gain.value = sfxGain(0.09);
-    source.connect(gain);
+    gain.gain.value = sfxGain(GRIND_RAIL_LOOP_GAIN);
     gain.connect(live.destination);
-    source.start(0);
+    const source = startGrindRailSegment(buffer, gain);
+    if (!source) {
+      try {
+        gain.disconnect();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
     grindRailTrack = { source, gain };
-    source.onended = () => {
-      if (grindRailTrack?.source === source) grindRailTrack = null;
-    };
   });
 }
 
