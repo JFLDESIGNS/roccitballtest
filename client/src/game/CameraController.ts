@@ -59,8 +59,8 @@ export function pointOnCrosshairAimRay(
 /**
  * Simple third-person camera.
  *
- * Yaw/pitch drive the view directly every frame, so fast mouse reversals do not
- * fight a delayed look target. Only the camera position eases behind the player.
+ * Yaw/pitch and horizontal follow are direct every frame, so fast mouse
+ * reversals do not fight a delayed look target. Vertical follow can ease a bit.
  */
 export function updateThirdPersonCamera(
   camera: THREE.Camera,
@@ -96,8 +96,14 @@ export function updateThirdPersonCamera(
   if (snap || !cameraSmoothingEnabled || dt <= 0) {
     camera.position.copy(_desired);
   } else {
-    const smooth = 1 - Math.exp(-CAMERA.smooth * dt);
-    camera.position.lerp(_desired, smooth);
+    const ySmooth = 1 - Math.exp(-CAMERA.smooth * dt);
+    camera.position.x = _desired.x;
+    camera.position.z = _desired.z;
+    camera.position.y = THREE.MathUtils.lerp(
+      camera.position.y,
+      _desired.y,
+      ySmooth,
+    );
   }
 
   const valid =
