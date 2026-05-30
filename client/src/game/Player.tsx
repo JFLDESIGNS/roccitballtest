@@ -462,12 +462,12 @@ export function Player({
     () => multiplayerStore.getState().teamSlot,
   );
   const bodyRef = useRef<RapierRigidBody>(null);
+  const capsuleColliderRef = useRef<RapierCollider>(null);
   const lowerScoopColliderRef = useRef<RapierCollider>(null);
   const upperScoopColliderRef = useRef<RapierCollider>(null);
   const visualRef = useRef<THREE.Group>(null);
   const tiltRef = useRef<THREE.Group>(null);
   const bobRef = useRef<THREE.Group>(null);
-  const scoopTiltQuat = useRef(new THREE.Quaternion());
   const lastScoopTiltQuat = useRef(new THREE.Quaternion());
   const scoopTiltReady = useRef(false);
   const pitchSmooth = useRef(0);
@@ -593,12 +593,14 @@ export function Player({
   const grappleSwingRadius = useRef(12);
   const grappleSwingPower = useRef(1);
   const grappleCableRef = useRef<THREE.Mesh>(null);
-  const alignPlayerBodyYaw = useCallback((yaw: number) => {
+  const alignPlayerBodyYaw = useCallback((yaw: number, force = false) => {
+    const capsule = capsuleColliderRef.current;
     const lower = lowerScoopColliderRef.current;
     const upper = upperScoopColliderRef.current;
-    if (!lower && !upper) return;
+    if (!capsule && !lower && !upper) return;
     _bodyYawQuat.setFromAxisAngle(_bodyYawAxis, yaw);
     if (
+      !force &&
       scoopTiltReady.current &&
       lastScoopTiltQuat.current.angleTo(_bodyYawQuat) < 0.0015
     ) {
@@ -614,6 +616,7 @@ export function Player({
       z: _bodyYawQuat.z,
       w: _bodyYawQuat.w,
     };
+    capsule?.setRotationWrtParent(rot);
     lower?.setRotationWrtParent(rot);
     upper?.setRotationWrtParent(rot);
 
@@ -1134,40 +1137,8 @@ export function Player({
   const flyModeActive = useRef(false);
 
   const syncScoopColliderTilt = useCallback((reset = false) => {
-    const lower = lowerScoopColliderRef.current;
-    const upper = upperScoopColliderRef.current;
-    if (!lower && !upper) return;
-    if (!reset && scoopTiltReady.current) return;
-
-    const q = scoopTiltQuat.current.identity();
-    if (
-      reset &&
-      scoopTiltReady.current &&
-      lastScoopTiltQuat.current.angleTo(q) < 0.0001
-    ) {
-      return;
-    }
-    lastScoopTiltQuat.current.identity();
-    scoopTiltReady.current = true;
-
-    const rot = { x: q.x, y: q.y, z: q.z, w: q.w };
-    lower?.setRotationWrtParent(rot);
-    upper?.setRotationWrtParent(rot);
-    if (lower) {
-      lower.setTranslationWrtParent({
-        x: 0,
-        y: PLAYER_LOWER_COLLIDER.centerY,
-        z: PLAYER_LOWER_COLLIDER.centerZ,
-      });
-    }
-    if (upper) {
-      upper.setTranslationWrtParent({
-        x: 0,
-        y: PLAYER_UPPER_COLLIDER.centerY,
-        z: PLAYER_UPPER_COLLIDER.centerZ,
-      });
-    }
-  }, []);
+    alignPlayerBodyYaw(inputManager.getRotation().yaw, reset);
+  }, [alignPlayerBodyYaw]);
 
   useFrame((_, dt) => {
     const body = bodyRef.current;
@@ -3347,6 +3318,7 @@ export function Player({
         }}
       >
         <CapsuleCollider
+          ref={capsuleColliderRef}
           args={[capHalfH, MOVEMENT.capsuleRadius]}
           position={[0, capCenterY, 0]}
           friction={0.65}
