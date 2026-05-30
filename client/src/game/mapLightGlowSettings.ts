@@ -25,3 +25,8 @@ export const MAP_LIGHT_GLOW_GROUND_FADE_M = 2.4;
 export const MAP_LIGHT_GLOW_WOBBLE_RADIUS_FT = 30;
 /** Peak shader distortion strength at the lamp core (smoke warp + ripple). */
 export const MAP_LIGHT_GLOW_WOBBLE_STRENGTH = 1.35;
+
+/** Local view-facing light haze starts to appear inside this distance. */
+export const MAP_LIGHT_GLOW_VIEW_VEIL_START_FT = 55;
+/** Local view-facing light haze is fully visible inside this distance. */
+export const MAP_LIGHT_GLOW_VIEW_VEIL_FULL_FT = 20;

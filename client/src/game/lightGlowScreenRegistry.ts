@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export type RegisteredLightGlowScreen = {
   glowId: string;
   mesh: THREE.Object3D;
+  color?: THREE.Color;
 };
 
 const screens: RegisteredLightGlowScreen[] = [];
@@ -25,6 +26,10 @@ export function registerLightGlowScreen(
     const i = screens.indexOf(entry);
     if (i >= 0) screens.splice(i, 1);
   };
+}
+
+export function getRegisteredLightGlowScreens(): readonly RegisteredLightGlowScreen[] {
+  return screens;
 }
 
 export type LightGlowScreenHit = {

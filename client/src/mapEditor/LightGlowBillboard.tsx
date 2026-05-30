@@ -67,6 +67,20 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
     }
     return vis;
   }
+
+  float lightGlowPunchPool(vec3 worldPos) {
+    float pool = 0.0;
+    for (int i = 0; i < ${LIGHT_GLOW_MAX_PUNCHES}; i++) {
+      if (i >= uPunchCount) break;
+      vec3 delta = worldPos - uPunchCenters[i];
+      float dist = length(delta - uBillboardNormal * dot(delta, uBillboardNormal));
+      float r = uPunchRadii[i];
+      float inner = smoothstep(r * 0.62, r * 0.96, dist);
+      float outer = 1.0 - smoothstep(r * 0.98, r * 1.72, dist);
+      pool = max(pool, inner * outer * uPunchStrengths[i]);
+    }
+    return pool;
+  }
 `;
 
 /**
@@ -197,10 +211,12 @@ export function LightGlowBillboard({
             smokeWarp * 0.65;
           float holeMask = alphaHoleMask(nUv);
           float rocketPunch = lightGlowRocketPunchVisibility(vWorldPos);
+          float punchPool = lightGlowPunchPool(vWorldPos);
           float alpha = radial * uOpacity;
           float holeStr = mix(uHoleStrength, 1.0, (1.0 - uProximityFade) * 0.55);
           alpha *= mix(1.0, holeMask, holeStr);
           alpha *= rocketPunch;
+          alpha += punchPool * radial * uOpacity * 0.95;
 
           float coreDist = length(vUv - 0.5) * 2.0;
           float dissolve = 1.0 - clamp(uProximityFade, 0.0, 1.0);
@@ -281,6 +297,7 @@ export function LightGlowBillboard({
           vec3 rgb = uColor * (0.24 + radial * 0.76);
           rgb += uColor * (0.18 * uWobbleStrength * (0.4 + wobblePulse * rippleRing * 0.6));
           rgb = mix(rgb, rgb * (0.82 + smokeA * 0.28), uWobbleStrength * 0.32);
+          rgb = mix(rgb, vec3(1.0), punchPool * 0.62);
           gl_FragColor = vec4(rgb * alpha, alpha);
         }
       `,
@@ -297,8 +314,12 @@ export function LightGlowBillboard({
   useEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    return registerLightGlowScreen({ glowId, mesh });
-  }, [glowId]);
+    return registerLightGlowScreen({
+      glowId,
+      mesh,
+      color: material.uniforms.uColor.value as THREE.Color,
+    });
+  }, [glowId, material]);
 
   useFrame((state) => {
     const root = worldRef.current;

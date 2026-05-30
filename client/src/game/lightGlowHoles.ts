@@ -7,7 +7,7 @@ export const LIGHT_GLOW_MAX_PUNCHES = 24;
 export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25;
 
 /** Rocket smoke-ring trail diameter multiplier (normal rockets). */
-export const LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER = 0.64;
+export const LIGHT_GLOW_ROCKET_RADIUS_MULTIPLIER = 0.64 * 0.8;
 
 /** Ball crater heal — faster than legacy 2× rocket duration. */
 export const LIGHT_GLOW_BALL_PUNCH_REGEN_S =
