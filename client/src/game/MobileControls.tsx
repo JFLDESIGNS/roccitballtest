@@ -11,7 +11,20 @@ import { tuningStore } from './tuningStore';
 import { isMobileControlsLikely } from './mobileInput';
 
 const STICK_RADIUS = 56;
-const LOOK_SCALE = 1.25;
+const LOOK_DRAG_SCALE = 0.72;
+const STICK_DEADZONE = 0.06;
+
+function stickRadius(el: HTMLElement): number {
+  const rect = el.getBoundingClientRect();
+  return Math.max(42, Math.min(rect.width, rect.height) * 0.43);
+}
+
+function shapedAxis(v: number): number {
+  const a = Math.abs(v);
+  if (a <= STICK_DEADZONE) return 0;
+  const shaped = (a - STICK_DEADZONE) / (1 - STICK_DEADZONE);
+  return Math.sign(v) * Math.min(1, shaped);
+}
 
 function useMobileControlsAvailable(): boolean {
   const [available, setAvailable] = useState(isMobileControlsLikely);
@@ -104,27 +117,53 @@ function MobileMoveStick() {
   const knobRef = useRef<HTMLDivElement>(null);
   const activePointer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
+  const radiusRef = useRef(STICK_RADIUS);
+
+  const reset = () => {
+    activePointer.current = null;
+    inputManager.setVirtualMove(0, 0);
+    if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
+  };
 
   const updateStick = (clientX: number, clientY: number) => {
     const dx = clientX - origin.current.x;
     const dy = clientY - origin.current.y;
     const len = Math.hypot(dx, dy);
-    const scale = len > STICK_RADIUS ? STICK_RADIUS / len : 1;
+    const radius = radiusRef.current;
+    const scale = len > radius ? radius / len : 1;
     const kx = dx * scale;
     const ky = dy * scale;
     if (knobRef.current) {
       knobRef.current.style.transform = `translate(${kx}px, ${ky}px)`;
     }
-    inputManager.setVirtualMove(kx / STICK_RADIUS, -ky / STICK_RADIUS);
+    inputManager.setVirtualMove(
+      shapedAxis(kx / radius),
+      shapedAxis(-ky / radius),
+    );
   };
 
   const release = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (activePointer.current !== e.pointerId) return;
     stopTouch(e);
-    activePointer.current = null;
-    inputManager.setVirtualMove(0, 0);
-    if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
+    reset();
   };
+
+  useEffect(() => {
+    const onPointerDone = (e: PointerEvent) => {
+      if (activePointer.current === e.pointerId) reset();
+    };
+    const onHardReset = () => reset();
+    window.addEventListener('pointerup', onPointerDone, { passive: true });
+    window.addEventListener('pointercancel', onPointerDone, { passive: true });
+    window.addEventListener('blur', onHardReset);
+    document.addEventListener('visibilitychange', onHardReset);
+    return () => {
+      window.removeEventListener('pointerup', onPointerDone);
+      window.removeEventListener('pointercancel', onPointerDone);
+      window.removeEventListener('blur', onHardReset);
+      document.removeEventListener('visibilitychange', onHardReset);
+    };
+  }, []);
 
   return (
     <div
@@ -134,6 +173,7 @@ function MobileMoveStick() {
         activePointer.current = e.pointerId;
         e.currentTarget.setPointerCapture(e.pointerId);
         const rect = e.currentTarget.getBoundingClientRect();
+        radiusRef.current = stickRadius(e.currentTarget);
         origin.current = {
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2,
@@ -148,9 +188,7 @@ function MobileMoveStick() {
       onPointerUp={release}
       onPointerCancel={release}
       onLostPointerCapture={() => {
-        activePointer.current = null;
-        inputManager.setVirtualMove(0, 0);
-        if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
+        reset();
       }}
       aria-label="Move"
     >
@@ -164,25 +202,71 @@ function MobileLookStick() {
   const activePointer = useRef<number | null>(null);
   const last = useRef({ x: 0, y: 0 });
   const origin = useRef({ x: 0, y: 0 });
+  const radiusRef = useRef(STICK_RADIUS);
+  const look = useRef({ x: 0, y: 0 });
+  const rafRef = useRef<number | null>(null);
+  const lastFrameAt = useRef(0);
 
   const updateKnob = (clientX: number, clientY: number) => {
     const dx = clientX - origin.current.x;
     const dy = clientY - origin.current.y;
     const len = Math.hypot(dx, dy);
-    const scale = len > STICK_RADIUS ? STICK_RADIUS / len : 1;
+    const radius = radiusRef.current;
+    const scale = len > radius ? radius / len : 1;
     const kx = dx * scale;
     const ky = dy * scale;
     if (knobRef.current) {
       knobRef.current.style.transform = `translate(${kx}px, ${ky}px)`;
     }
+    look.current = {
+      x: shapedAxis(kx / radius),
+      y: shapedAxis(ky / radius),
+    };
+  };
+
+  const reset = () => {
+    activePointer.current = null;
+    look.current = { x: 0, y: 0 };
+    if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
   };
 
   const release = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (activePointer.current !== e.pointerId) return;
     stopTouch(e);
-    activePointer.current = null;
-    if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
+    reset();
   };
+
+  useEffect(() => {
+    const tick = (now: number) => {
+      const lastAt = lastFrameAt.current || now;
+      const dt = Math.min(0.04, Math.max(0, (now - lastAt) / 1000));
+      lastFrameAt.current = now;
+      if (activePointer.current !== null) {
+        inputManager.applyVirtualLookVelocity(
+          look.current.x,
+          look.current.y,
+          dt,
+        );
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    const onPointerDone = (e: PointerEvent) => {
+      if (activePointer.current === e.pointerId) reset();
+    };
+    const onHardReset = () => reset();
+    window.addEventListener('pointerup', onPointerDone, { passive: true });
+    window.addEventListener('pointercancel', onPointerDone, { passive: true });
+    window.addEventListener('blur', onHardReset);
+    document.addEventListener('visibilitychange', onHardReset);
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener('pointerup', onPointerDone);
+      window.removeEventListener('pointercancel', onPointerDone);
+      window.removeEventListener('blur', onHardReset);
+      document.removeEventListener('visibilitychange', onHardReset);
+    };
+  }, []);
 
   return (
     <div
@@ -192,6 +276,7 @@ function MobileLookStick() {
         activePointer.current = e.pointerId;
         e.currentTarget.setPointerCapture(e.pointerId);
         const rect = e.currentTarget.getBoundingClientRect();
+        radiusRef.current = stickRadius(e.currentTarget);
         origin.current = {
           x: rect.left + rect.width / 2,
           y: rect.top + rect.height / 2,
@@ -204,16 +289,15 @@ function MobileLookStick() {
         stopTouch(e);
         updateKnob(e.clientX, e.clientY);
         inputManager.applyVirtualLook(
-          (e.clientX - last.current.x) * LOOK_SCALE,
-          (e.clientY - last.current.y) * LOOK_SCALE,
+          (e.clientX - last.current.x) * LOOK_DRAG_SCALE,
+          (e.clientY - last.current.y) * LOOK_DRAG_SCALE,
         );
         last.current = { x: e.clientX, y: e.clientY };
       }}
       onPointerUp={release}
       onPointerCancel={release}
       onLostPointerCapture={() => {
-        activePointer.current = null;
-        if (knobRef.current) knobRef.current.style.transform = 'translate(0, 0)';
+        reset();
       }}
       aria-label="Look"
     >

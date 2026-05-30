@@ -24,6 +24,8 @@ const GAMEPAD_TRIGGER_THRESHOLD = 0.35;
 const GAMEPAD_MAX_DT = 1 / 20;
 const GAMEPAD_LOOK_YAW_SPEED = 3.2;
 const GAMEPAD_LOOK_PITCH_SPEED = 2.45;
+const VIRTUAL_LOOK_YAW_SPEED = 5.8;
+const VIRTUAL_LOOK_PITCH_SPEED = 4.7;
 
 class InputManager {
   private keys: Keys = {};
@@ -626,6 +628,32 @@ class InputManager {
     const sens = tuningStore.getState().mouseSensitivity;
     this.yaw -= mx * CAMERA.mouseSensitivityX * sens;
     this.aimPitch -= my * CAMERA.mouseSensitivityY * sens;
+    this.aimPitch = THREE.MathUtils.clamp(
+      this.aimPitch,
+      AIM.pitchMin,
+      AIM.pitchMax,
+    );
+  }
+
+  applyVirtualLookVelocity(x: number, y: number, dt: number): void {
+    if (tuningStore.getState().showMenu) return;
+    const phase = gameStore.getState().phase;
+    if (
+      !gameStore.getState().debugFreelook &&
+      phase !== 'playing' &&
+      phase !== 'countdown'
+    ) {
+      return;
+    }
+    const len = Math.hypot(x, y);
+    if (len < 0.035 || dt <= 0) return;
+    const nx = len > 1 ? x / len : x;
+    const ny = len > 1 ? y / len : y;
+    const shaped = Math.min(1, len);
+    const boost = 0.42 + shaped * 0.58;
+    const sens = tuningStore.getState().mouseSensitivity;
+    this.yaw -= nx * VIRTUAL_LOOK_YAW_SPEED * boost * sens * dt;
+    this.aimPitch -= ny * VIRTUAL_LOOK_PITCH_SPEED * boost * sens * dt;
     this.aimPitch = THREE.MathUtils.clamp(
       this.aimPitch,
       AIM.pitchMin,
