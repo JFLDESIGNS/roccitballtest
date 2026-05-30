@@ -489,7 +489,7 @@ export function Arena({
               position={[0, ARENA.platformTopHeight + 0.04, 0]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
-              <RocccitLogoStamp size={16} maxWidth={18} maxHeight={9} />
+              <RocccitLogoStamp size={16} maxWidth={18} maxHeight={9} glossy />
             </group>
           )}
         </group>

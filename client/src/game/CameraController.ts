@@ -18,12 +18,23 @@ const _camRayVec = new THREE.Vector3();
 const CAMERA_COLLISION_PAD_M = 0.55;
 const CAMERA_MIN_DISTANCE_M = 1.2;
 const CAMERA_COLLISION_RELEASE_SMOOTH = 9;
+const BALL_COLLISION_GROUP = 1;
 const cameraObstructionDistance = new WeakMap<THREE.Camera, number>();
+
+function colliderHasMembership(collider: Collider, group: number): boolean {
+  const groups =
+    typeof collider.collisionGroups === 'function'
+      ? collider.collisionGroups()
+      : 0;
+  const membership = groups >>> 16;
+  return (membership & (1 << group)) !== 0;
+}
 
 function cameraRayFilter(excludeBody?: RigidBody | null): (collider: Collider) => boolean {
   const excludeHandle = excludeBody?.handle;
   return (collider) => {
     if (typeof collider.isSensor === 'function' && collider.isSensor()) return false;
+    if (colliderHasMembership(collider, BALL_COLLISION_GROUP)) return false;
     const parent = collider.parent();
     if (excludeHandle != null && parent?.handle === excludeHandle) return false;
     return true;

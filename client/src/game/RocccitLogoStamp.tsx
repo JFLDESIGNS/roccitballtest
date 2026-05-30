@@ -8,6 +8,7 @@ type RocccitLogoStampProps = {
   maxWidth?: number;
   maxHeight?: number;
   rotationY?: number;
+  glossy?: boolean;
 };
 
 function fitLogoDimensions(
@@ -39,6 +40,7 @@ export function RocccitLogoStamp({
   maxWidth,
   maxHeight,
   rotationY = 0,
+  glossy = false,
 }: RocccitLogoStampProps) {
   const [map, setMap] = useState<THREE.Texture | null>(null);
 
@@ -68,14 +70,32 @@ export function RocccitLogoStamp({
     <group rotation={[0, rotationY, 0]}>
       <mesh>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial
-          map={map}
-          transparent
-          alphaTest={0.08}
-          depthWrite
-          depthTest
-          toneMapped={false}
-        />
+        {glossy ? (
+          <meshPhysicalMaterial
+            map={map}
+            transparent
+            alphaTest={0.08}
+            depthWrite
+            depthTest
+            toneMapped={false}
+            emissive="#ffffff"
+            emissiveIntensity={0.22}
+            emissiveMap={map}
+            metalness={0.18}
+            roughness={0.12}
+            clearcoat={1}
+            clearcoatRoughness={0.05}
+          />
+        ) : (
+          <meshBasicMaterial
+            map={map}
+            transparent
+            alphaTest={0.08}
+            depthWrite
+            depthTest
+            toneMapped={false}
+          />
+        )}
       </mesh>
     </group>
   );
