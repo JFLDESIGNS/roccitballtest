@@ -285,9 +285,7 @@ const _ballStompNormal = new THREE.Vector3();
 const _ballStompImpulse = new THREE.Vector3();
 const _ballStompContact = new THREE.Vector3();
 const BALL_STOMP_COOLDOWN_SEC = 0.22;
-const BALL_SCOOP_POP_POST_SHOT_LOCK_SEC = 0.3;
 const BALL_STOMP_MIN_FALL_SPEED = 2.35;
-const BALL_SCOOP_POP_MIN_UP_SPEED = 2.6;
 
 function ePropelImpulseThreshold(index: number): number {
   const n = MOVEMENT.ePropelImpulseCount;
@@ -520,7 +518,6 @@ export function Player({
   const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
   const ballStompCooldownUntil = useRef(0);
-  const ballScoopPopDisabledUntil = useRef(0);
   /** After rocket hit — no beam attract on player body */
   const playerBeamDenyUntil = useRef(0);
   const ballSeparationGraceUntil = useRef(0);
@@ -939,102 +936,7 @@ export function Player({
     const bt = ball.translation();
     const feetY = playerFeetY(tr.y);
     const ballTopY = bt.y + BALL.radius;
-    const ballBottomY = bt.y - BALL.radius;
-    const scoopTopY =
-      tr.y + PLAYER_LOWER_COLLIDER.centerY + PLAYER_LOWER_COLLIDER.halfExtents[1];
-    const ballDx = bt.x - tr.x;
-    const ballDz = bt.z - tr.z;
-    const popYaw = inputManager.getRotation().yaw;
-    const localBallX =
-      ballDx * -Math.cos(popYaw) + ballDz * Math.sin(popYaw);
-    const localBallZ =
-      ballDx * -Math.sin(popYaw) + ballDz * -Math.cos(popYaw);
-    const ballOverLowerScoop =
-      Math.abs(localBallX) <=
-        PLAYER_LOWER_COLLIDER.halfExtents[0] + BALL.radius * 0.48 &&
-      Math.abs(localBallZ - PLAYER_LOWER_COLLIDER.centerZ) <=
-        PLAYER_LOWER_COLLIDER.halfExtents[2] + BALL.radius * 0.42;
     const horizToBall = Math.hypot(bt.x - tr.x, bt.z - tr.z);
-    if (
-      now >= ballScoopPopDisabledUntil.current &&
-      now >= ballStompCooldownUntil.current &&
-      pv.y > BALL_SCOOP_POP_MIN_UP_SPEED &&
-      ballBottomY >= scoopTopY - 0.42 &&
-      ballBottomY <= scoopTopY + 0.95 &&
-      ballOverLowerScoop
-    ) {
-      _ballStompNormal.set(bt.x - tr.x, 0.62, bt.z - tr.z);
-      if (Math.hypot(_ballStompNormal.x, _ballStompNormal.z) < 0.08) {
-        if (lastWishDir.current.lengthSq() > 0.01) {
-          _ballStompNormal.set(lastWishDir.current.x, 0.74, lastWishDir.current.z);
-        } else {
-          _ballStompNormal.set(pv.x, 0.74, pv.z);
-        }
-      }
-      if (_ballStompNormal.lengthSq() > 0.0001) {
-        _ballStompNormal.normalize();
-        const mass = ball.mass();
-        const horizontalSpeed = Math.hypot(pv.x, pv.z);
-        const impact = THREE.MathUtils.clamp(
-          pv.y * 5.2 + horizontalSpeed * 0.85,
-          18,
-          42,
-        );
-        _ballStompImpulse.copy(_ballStompNormal).multiplyScalar(impact * mass);
-        _ballStompImpulse.y = Math.max(
-          _ballStompImpulse.y,
-          (12 + pv.y * 2.2) * mass,
-        );
-        ball.applyImpulse(
-          {
-            x: _ballStompImpulse.x + pv.x * mass * 0.3,
-            y: _ballStompImpulse.y,
-            z: _ballStompImpulse.z + pv.z * mass * 0.3,
-          },
-          true,
-        );
-        applyBallRocketHitSpin(
-          ball,
-          _ballStompImpulse.x,
-          _ballStompImpulse.y,
-          _ballStompImpulse.z,
-          -_ballStompNormal.x,
-          -_ballStompNormal.y,
-          -_ballStompNormal.z,
-        );
-        wakeBallBody(ball);
-        if (multiplayerStore.getState().enabled) {
-          _ballStompContact.set(tr.x, scoopTopY, tr.z);
-          multiplayerStore.sendRocketImpact({
-            position: {
-              x: _ballStompContact.x,
-              y: _ballStompContact.y,
-              z: _ballStompContact.z,
-            },
-            radius: BALL.radius * 3.2,
-            rocketVelocity: {
-              x: _ballStompImpulse.x / Math.max(mass, 0.001) + pv.x * 0.3,
-              y: _ballStompImpulse.y / Math.max(mass, 0.001),
-              z: _ballStompImpulse.z / Math.max(mass, 0.001) + pv.z * 0.3,
-            },
-            ballImpactNormal: {
-              x: -_ballStompNormal.x,
-              y: -_ballStompNormal.y,
-              z: -_ballStompNormal.z,
-            },
-          });
-        }
-        body.setLinvel(
-          {
-            x: pv.x * 0.92,
-            y: Math.max(0.8, pv.y * 0.42),
-            z: pv.z * 0.92,
-          },
-          true,
-        );
-        ballStompCooldownUntil.current = now + BALL_STOMP_COOLDOWN_SEC;
-      }
-    }
     if (
       now >= ballStompCooldownUntil.current &&
       pv.y < -BALL_STOMP_MIN_FALL_SPEED &&
@@ -2767,10 +2669,6 @@ export function Player({
         true,
       );
       applyBallLaunchImpulse(ball, velocity, swingVel, lookDir);
-      if (ballState === 'launched') {
-        ballScoopPopDisabledUntil.current =
-          now + BALL_SCOOP_POP_POST_SHOT_LOCK_SEC;
-      }
       const av = ball.angvel();
       onBallReleased?.({
         position: {
