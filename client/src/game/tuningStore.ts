@@ -104,6 +104,12 @@ export type TuningValues = {
   looseVisualMaxLagM: number;
   /** Extra follow strength multiplier cap at high ball speed */
   looseVisualSpeedBoostMax: number;
+  /** Top 5-point backup square collider offset across the goal face (feet) */
+  topGoalBoxOffsetXFt: number;
+  /** Top 5-point backup square collider offset up/down (feet) */
+  topGoalBoxOffsetYFt: number;
+  /** Top 5-point backup square collider offset in/out from wall (feet) */
+  topGoalBoxOffsetZFt: number;
 };
 
 type TuningState = TuningValues & {
@@ -198,6 +204,9 @@ const defaults: TuningValues = {
   looseVisualRotSmooth: BALL.looseVisualRotSmooth,
   looseVisualMaxLagM: BALL.looseVisualMaxLagM,
   looseVisualSpeedBoostMax: 4,
+  topGoalBoxOffsetXFt: 0.5,
+  topGoalBoxOffsetYFt: 0,
+  topGoalBoxOffsetZFt: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -376,6 +385,12 @@ export const tuningStore = {
     patch({ looseVisualMaxLagM: Math.max(0.05, Math.min(2, v)) }),
   setLooseVisualSpeedBoostMax: (v: number) =>
     patch({ looseVisualSpeedBoostMax: Math.max(0, Math.min(32, v)) }),
+  setTopGoalBoxOffsetXFt: (v: number) =>
+    patch({ topGoalBoxOffsetXFt: Math.max(-4, Math.min(4, v)) }),
+  setTopGoalBoxOffsetYFt: (v: number) =>
+    patch({ topGoalBoxOffsetYFt: Math.max(-4, Math.min(4, v)) }),
+  setTopGoalBoxOffsetZFt: (v: number) =>
+    patch({ topGoalBoxOffsetZFt: Math.max(-4, Math.min(4, v)) }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

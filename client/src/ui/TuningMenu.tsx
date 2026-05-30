@@ -688,6 +688,36 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setTrampolineStrength}
             format={(v) => `${v.toFixed(1)}×`}
           />
+          <SliderRow
+            label="5 goal box X"
+            hint="Top 5-point backup square: left/right across the goal face."
+            value={tune.topGoalBoxOffsetXFt}
+            min={-4}
+            max={4}
+            step={0.05}
+            onChange={tuningStore.setTopGoalBoxOffsetXFt}
+            format={(v) => `${v.toFixed(2)} ft`}
+          />
+          <SliderRow
+            label="5 goal box Y"
+            hint="Top 5-point backup square: up/down."
+            value={tune.topGoalBoxOffsetYFt}
+            min={-4}
+            max={4}
+            step={0.05}
+            onChange={tuningStore.setTopGoalBoxOffsetYFt}
+            format={(v) => `${v.toFixed(2)} ft`}
+          />
+          <SliderRow
+            label="5 goal box Z"
+            hint="Top 5-point backup square: in/out from the wall."
+            value={tune.topGoalBoxOffsetZFt}
+            min={-4}
+            max={4}
+            step={0.05}
+            onChange={tuningStore.setTopGoalBoxOffsetZFt}
+            format={(v) => `${v.toFixed(2)} ft`}
+          />
           <p className="tuning-sub">
             Jump pads — height &amp; launch power. Rockets bounce off the concrete deck.
           </p>

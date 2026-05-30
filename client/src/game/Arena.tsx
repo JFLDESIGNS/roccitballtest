@@ -1,6 +1,6 @@
 import { CuboidCollider, CylinderCollider, TrimeshCollider, interactionGroups } from '@react-three/rapier';
 import { MaybeRigidBody } from './maybeRigid';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { ARENA, BALL } from '../shared/Constants';
@@ -54,7 +54,9 @@ import {
   arenaWallMaterial,
 } from './arenaMaterials';
 import { sampleGoalRingHit } from './goalRingHitFx';
+import { tuningStore } from './tuningStore';
 
+const FT = 0.3048;
 const { hexRadius, wallHeight, wallThickness } = ARENA;
 
 function PerimeterWall({
@@ -202,6 +204,21 @@ function GoalRingBackplate({
   const goalRef = useMemo(() => ({ center, team, size }), [center, team, size]);
   const capArenaNudge = goalBackCapArenaNudgeM(goalRef);
   const backCenter = goalBackRingCenter(goalRef);
+  const topBoxOffsetXFt = useSyncExternalStore(
+    tuningStore.subscribe,
+    () => tuningStore.getState().topGoalBoxOffsetXFt,
+  );
+  const topBoxOffsetYFt = useSyncExternalStore(
+    tuningStore.subscribe,
+    () => tuningStore.getState().topGoalBoxOffsetYFt,
+  );
+  const topBoxOffsetZFt = useSyncExternalStore(
+    tuningStore.subscribe,
+    () => tuningStore.getState().topGoalBoxOffsetZFt,
+  );
+  const capOffsetX = size === 'small' ? topBoxOffsetXFt * FT : 0;
+  const capOffsetY = size === 'small' ? topBoxOffsetYFt * FT : 0;
+  const capOffsetZ = size === 'small' ? topBoxOffsetZFt * FT : 0;
 
   return (
     <MaybeRigidBody
@@ -211,7 +228,7 @@ function GoalRingBackplate({
     >
       <group rotation={[0, Math.PI / 2, 0]}>
         <group rotation={[tiltX, 0, 0]}>
-          <group position={[0, 0, capArenaNudge]}>
+          <group position={[capOffsetX, capOffsetY, capArenaNudge + capOffsetZ]}>
             <GoalRingBackCapCollider capRadius={capColliderR} />
           </group>
           <TrimeshCollider
