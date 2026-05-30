@@ -149,8 +149,7 @@ import {
   GRIND_RAIL,
   sampleGrindRailContact,
 } from './grindRail';
-import { burstGrindRailSparks } from './impactSparks';
-import { burstGroundSmashDust } from './GroundSmashDust';
+import { burstGroundSlideSparks, burstGrindRailSparks } from './impactSparks';
 import { punchLightGlowForBody } from './lightGlowHits';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
@@ -505,9 +504,8 @@ export function Player({
   const ePropelElapsed = useRef(0);
   const ePropelImpulsesApplied = useRef(0);
   const ePropelCooldown = useRef(0);
-  const groundSmashCooldown = useRef(0);
-  const groundSmashActive = useRef(false);
   const ePropelVyBoost = useRef<number | null>(null);
+  const groundSlideSparkTimer = useRef(0);
   const airFlyPulseTimer = useRef(0);
   const airFlyDirReady = useRef(false);
   const airFlyDir = useRef(new THREE.Vector3(0, 0, -1));
@@ -1339,7 +1337,7 @@ export function Player({
     const localTeam = gameStore.getState().localTeam;
     dashCooldown.current = Math.max(0, dashCooldown.current - dt);
     ePropelCooldown.current = Math.max(0, ePropelCooldown.current - dt);
-    groundSmashCooldown.current = Math.max(0, groundSmashCooldown.current - dt);
+    groundSlideSparkTimer.current = Math.max(0, groundSlideSparkTimer.current - dt);
     coopCloudBounceCooldown.current = Math.max(0, coopCloudBounceCooldown.current - dt);
     rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
@@ -1717,14 +1715,6 @@ export function Player({
     }
 
     if (grounded.current && jumpAirGrace.current <= 0) {
-      if (groundSmashActive.current) {
-        const dustY =
-          padFloorY !== null && Math.abs(feetY - padFloorY) < 2
-            ? padFloorY
-            : probe.groundY;
-        burstGroundSmashDust(pos.x, dustY, pos.z);
-        groundSmashActive.current = false;
-      }
       jumpsLeft.current = MOVEMENT.maxJumps;
       coyoteTime.current = MOVEMENT.coyoteTimeSec;
     } else if (!grounded.current) {
@@ -1734,14 +1724,7 @@ export function Player({
     const move = goalEjectMoveLocked
       ? { x: 0, y: 0 }
       : inputManager.getMoveVector();
-    const fastDropHeld =
-      !grounded.current &&
-      !grappleActive.current &&
-      !grindRailActive.current &&
-      move.y < -0.01;
-    const moveForAirControl = fastDropHeld
-      ? { x: move.x, y: 0 }
-      : move;
+    const moveForAirControl = move;
     const sprintInput = !goalEjectMoveLocked && inputManager.isSprint();
     const canSprint = energy.current > 0;
     const sprinting =
@@ -1766,8 +1749,6 @@ export function Player({
       (grappleActive.current || jumpsLeft.current > 0) &&
       jumpRequested &&
       inputManager.consumeJump();
-    const downSmashPressed =
-      !goalEjectMoveLocked && inputManager.consumeDownSmash();
     let railConsumedJump = false;
 
     if (
@@ -1856,6 +1837,35 @@ export function Player({
       }
 
       clampHorizontalVelocity(velocity.current, maxHorizontalSpeed);
+    }
+
+    const slideSpeed = Math.hypot(velocity.current.x, velocity.current.z);
+    const groundSlideActive =
+      grounded.current &&
+      !goalEjectMoveLocked &&
+      !grappleActive.current &&
+      !grindRailActive.current &&
+      move.y > 0.25 &&
+      lookDir.y < -0.42 &&
+      slideSpeed > walkSpeed * 0.45;
+    if (groundSlideActive) {
+      const slideDrag = Math.exp(-3.1 * dt);
+      velocity.current.x *= slideDrag;
+      velocity.current.z *= slideDrag;
+      if (groundSlideSparkTimer.current <= 0) {
+        groundSlideSparkTimer.current = 0.045;
+        const sparkY =
+          padFloorY !== null && Math.abs(feetY - padFloorY) < 2
+            ? padFloorY + 0.08
+            : probe.groundY + 0.08;
+        burstGroundSlideSparks(
+          pos.x,
+          sparkY,
+          pos.z,
+          velocity.current.x,
+          velocity.current.z,
+        );
+      }
     }
 
     let railJumpVy: number | null = null;
@@ -2036,36 +2046,6 @@ export function Player({
     }
 
     if (
-      downSmashPressed &&
-      !grounded.current &&
-      !grappleActive.current &&
-      !grindRailActive.current &&
-      groundSmashCooldown.current <= 0
-    ) {
-      groundSmashActive.current = true;
-      groundSmashCooldown.current = MOVEMENT.groundSmashCooldownSec;
-      vy = -MOVEMENT.groundSmashDownSpeed;
-      velocity.current.x *= 0.35;
-      velocity.current.z *= 0.35;
-      jumpAirGrace.current = 0;
-      coyoteTime.current = 0;
-    }
-
-    if (groundSmashActive.current && !grounded.current) {
-      vy = Math.min(vy, -MOVEMENT.groundSmashDownSpeed);
-      velocity.current.x = THREE.MathUtils.lerp(
-        velocity.current.x,
-        0,
-        1 - Math.exp(-10 * dt),
-      );
-      velocity.current.z = THREE.MathUtils.lerp(
-        velocity.current.z,
-        0,
-        1 - Math.exp(-10 * dt),
-      );
-    }
-
-    if (
       !goalEjectMoveLocked &&
       !grindRailActive.current &&
       !grappleActive.current &&
@@ -2227,11 +2207,9 @@ export function Player({
         fallAssistTimer.current = 0;
       }
       const fallMult =
-        fastDropHeld
-          ? MOVEMENT.fastDropFallMult
-          : fallAssistTimer.current >= MOVEMENT.fallAssistDelaySec
-            ? MOVEMENT.fallAssistMult
-            : 1;
+        fallAssistTimer.current >= MOVEMENT.fallAssistDelaySec
+          ? MOVEMENT.fallAssistMult
+          : 1;
       vy += tune.gravity * dt * fallMult;
     }
 

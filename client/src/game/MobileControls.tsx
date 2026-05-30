@@ -97,7 +97,7 @@ function TapButton({
 }: {
   className: string;
   label: string;
-  button: 'jump' | 'throw' | 'grapple' | 'spawnBall' | 'downSmash';
+  button: 'jump' | 'throw' | 'grapple' | 'spawnBall';
 }) {
   return (
     <button
@@ -352,7 +352,6 @@ export function MobileControls() {
       <div className="mobile-actions mobile-actions--utility">
         <TapButton className="mobile-mini-btn" label="Grapple" button="grapple" />
         <TapButton className="mobile-mini-btn" label="Throw" button="throw" />
-        <TapButton className="mobile-mini-btn" label="Drop" button="downSmash" />
         <TapButton className="mobile-mini-btn" label="Ball" button="spawnBall" />
       </div>
     </div>

@@ -686,8 +686,8 @@ export const MOVEMENT = {
   fallAssistDelaySec: 0.2,
   /** Player-only faster descent after the delay (4 = twice the prior fall assist) */
   fallAssistMult: 4,
-  /** Holding S in air fast-drops instead of moving backward */
-  fastDropFallMult: 3.2,
+  /** Legacy fast-drop disabled: S/Down moves backward in air again */
+  fastDropFallMult: 1,
   airControl: 0.95,
   jumpMomentumBoost: 1.12,
   groundAccel: 22,
@@ -724,7 +724,7 @@ export const MOVEMENT = {
   dashDurationSec: 0.9,
   /** Upward pop at dash start (m/s) */
   dashUpSpeed: 2,
-  /** Double-tap S / Down input window for air ground-smash (seconds) */
+  /** Legacy ground-smash tuning retained for old saves; input is disabled */
   groundSmashDoubleTapWindowSec: 0.28,
   /** Arcade downward speed when double-tapping S in air */
   groundSmashDownSpeed: 52,
@@ -745,22 +745,22 @@ export const MOVEMENT = {
   grappleMinLookY: 0.1,
   grappleMinAnchorForwardM: 12,
   grapplePullTightness: 18,
-  grappleReleaseBoost: 1.28,
+  grappleReleaseBoost: 1.08,
   grappleHangFeetAboveGroundM: 8,
   grappleArcadeSlackM: 0.15,
   grappleRetractSpeed: 70,
   grappleLaunchSpeedMul: 2.35,
   grappleMinLaunchSpeedSprintMul: 1.75,
-  grappleMaxHorizontalSpeedSprintMul: 4.2,
+  grappleMaxHorizontalSpeedSprintMul: 2.4,
   grappleSwingDrive: 36,
   grappleSwingDamping: 0.985,
-  grappleArcadeSpeedSprintMul: 3.7,
-  grappleArcadeAccel: 12,
-  grappleArcadeLiftAccel: 16,
+  grappleArcadeSpeedSprintMul: 1.85,
+  grappleArcadeAccel: 6,
+  grappleArcadeLiftAccel: 8,
   grappleArcadeInputBlend: 0.35,
-  grapplePendulumAngularSpeed: 2,
-  grapplePendulumFollow: 4.2,
-  grapplePendulumStartPower: 1.35,
+  grapplePendulumAngularSpeed: 1,
+  grapplePendulumFollow: 2.1,
+  grapplePendulumStartPower: 0.75,
   grapplePendulumMinPower: 0.55,
   grapplePendulumPowerDecay: 0.24,
   grapplePendulumMinRadius: 10,

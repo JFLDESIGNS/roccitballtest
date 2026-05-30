@@ -55,6 +55,23 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
   uniform float uPunchStrengths[${LIGHT_GLOW_MAX_PUNCHES}];
   uniform vec3 uBillboardNormal;
 
+  float punchHash(vec2 p) {
+    p = fract(p * vec2(123.34, 345.45));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+  }
+
+  float punchNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = punchHash(i);
+    float b = punchHash(i + vec2(1.0, 0.0));
+    float c = punchHash(i + vec2(0.0, 1.0));
+    float d = punchHash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
   vec2 lightGlowPunchMask(vec3 worldPos) {
     float cutUnion = 0.0;
     float nearestBoundary = 9999.0;
@@ -66,9 +83,15 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
       float r = uPunchRadii[i];
       float strength = uPunchStrengths[i];
       float normDist = dist / max(r, 0.001);
-      float keep = smoothstep(0.028, 1.12, normDist);
+      float nA = punchNoise(worldPos.xz * 0.42 + vec2(float(i) * 2.37, float(i) * -1.41));
+      float nB = punchNoise((worldPos.xy + worldPos.zy) * 0.19 + vec2(float(i) * -0.73, float(i) * 1.91));
+      float edgeNoise = ((nA * 0.65 + nB * 0.35) * 2.0 - 1.0);
+      float noisyNormDist = normDist + edgeNoise * 0.16 * smoothstep(0.08, 1.0, normDist);
+      float radialKeep = smoothstep(0.028, 1.12, normDist);
+      float noisyKeep = smoothstep(0.02, 1.12, noisyNormDist);
+      float keep = mix(radialKeep, noisyKeep, 0.3);
       float cut = (1.0 - keep) * strength;
-      float boundary = abs(normDist - 1.0);
+      float boundary = abs(mix(normDist, noisyNormDist, 0.45) - 1.0);
       if (boundary < nearestBoundary) {
         nearestBoundary = boundary;
         nearestStrength = strength;

@@ -50,9 +50,7 @@ class InputManager {
   private grappleQueued = false;
   private jumpBufferUntil = 0;
   private lastForwardTapAt = 0;
-  private lastDownTapAt = 0;
   private dashBoostQueued = false;
-  private downSmashQueued = false;
   private loveMessageQueued: 'love' | 'more' | null = null;
   private spawnBallQueued = false;
   private ballRespawnQueued = false;
@@ -303,19 +301,6 @@ class InputManager {
           this.lastForwardTapAt = nowSec;
         }
       }
-      if ((e.code === 'KeyS' || e.code === 'ArrowDown') && !e.repeat) {
-        const nowSec = performance.now() / 1000;
-        if (
-          this.lastDownTapAt > 0 &&
-          nowSec - this.lastDownTapAt <=
-            tuningStore.getState().groundSmashDoubleTapWindowSec
-        ) {
-          this.downSmashQueued = true;
-          this.lastDownTapAt = 0;
-        } else {
-          this.lastDownTapAt = nowSec;
-        }
-      }
       if (e.code === 'KeyE' && !e.repeat && !gameStore.getState().debugFreelook) {
         this.throwQueued = true;
         this.ePropelQueued = true;
@@ -564,9 +549,6 @@ class InputManager {
     this.consumeGamepadButton(5, this.isGamepadButtonDown(gamepad, 5), () => {
       this.grappleQueued = true;
     });
-    this.consumeGamepadButton(13, this.isGamepadButtonDown(gamepad, 13), () => {
-      this.downSmashQueued = true;
-    });
   }
 
   private isAnyFireDown(): boolean {
@@ -687,9 +669,7 @@ class InputManager {
     this.virtualSprintDown = down;
   }
 
-  tapVirtualButton(
-    button: 'jump' | 'throw' | 'grapple' | 'spawnBall' | 'downSmash',
-  ): void {
+  tapVirtualButton(button: 'jump' | 'throw' | 'grapple' | 'spawnBall'): void {
     if (button === 'jump') {
       this.jumpQueued = true;
       this.jumpBufferUntil = performance.now() / 1000 + BALL.jumpBufferSec;
@@ -703,10 +683,6 @@ class InputManager {
     }
     if (button === 'grapple') {
       this.grappleQueued = true;
-      return;
-    }
-    if (button === 'downSmash') {
-      this.downSmashQueued = true;
       return;
     }
     this.spawnBallQueued = true;
@@ -891,13 +867,6 @@ class InputManager {
     this.pollGamepad();
     if (!this.dashBoostQueued) return false;
     this.dashBoostQueued = false;
-    return true;
-  }
-
-  consumeDownSmash(): boolean {
-    this.pollGamepad();
-    if (!this.downSmashQueued) return false;
-    this.downSmashQueued = false;
     return true;
   }
 

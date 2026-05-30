@@ -98,6 +98,32 @@ export function burstGrindRailSparks(
   }
 }
 
+export function burstGroundSlideSparks(
+  x: number,
+  y: number,
+  z: number,
+  dirX: number,
+  dirZ: number,
+): void {
+  const len = Math.hypot(dirX, dirZ) || 1;
+  const tx = dirX / len;
+  const tz = dirZ / len;
+  const count = 8;
+  for (let i = 0; i < count; i++) {
+    const spark = claimSpark();
+    const side = (Math.random() - 0.5) * 0.42;
+    const back = 0.08 + Math.random() * 0.45;
+    spark.x = x - tx * back - tz * side;
+    spark.y = y + Math.random() * 0.08;
+    spark.z = z - tz * back + tx * side;
+    spark.vx = -tx * (4 + Math.random() * 7) + (Math.random() - 0.5) * 2.2;
+    spark.vy = 0.45 + Math.random() * 1.6;
+    spark.vz = -tz * (4 + Math.random() * 7) + (Math.random() - 0.5) * 2.2;
+    spark.maxLife = 0.1 + Math.random() * 0.12;
+    spark.life = spark.maxLife;
+  }
+}
+
 export function tickImpactSparks(dt: number): readonly ImpactSpark[] {
   for (let i = sparks.length - 1; i >= 0; i--) {
     const p = sparks[i]!;
