@@ -66,6 +66,10 @@ type LoopingTrack = {
   gain: GainNode;
 };
 
+type OneShotTrack = LoopingTrack & {
+  localPeak: number;
+};
+
 /** Long crowd clips — retain pre-master peak for live master slider updates */
 type TimedCrowdTrack = {
   source: AudioBufferSourceNode;
@@ -80,6 +84,9 @@ let beamAttractTrack: LoopingTrack | null = null;
 let beamAttractLoading = false;
 let shiftWindTrack: LoopingTrack | null = null;
 let shiftWindLoading = false;
+let shiftWindWanted = false;
+let shiftSlapTrack: OneShotTrack | null = null;
+let shiftSlapLoading = false;
 let bgMusicMode: 'menu' | 'game' | null = null;
 /** Bumps when a new start is requested or music stops — stale async loads bail out */
 let bgMusicStartGen = 0;
@@ -312,10 +319,45 @@ function stopBeamAttractLoop(): void {
 }
 
 function stopShiftWindLoop(): void {
+  shiftWindWanted = false;
   shiftWindLoading = false;
+  shiftSlapLoading = false;
+  const slapTrack = shiftSlapTrack;
+  shiftSlapTrack = null;
+  if (slapTrack) disconnectLoopingTrack(slapTrack);
   const track = shiftWindTrack;
   shiftWindTrack = null;
   if (track) disconnectLoopingTrack(track);
+}
+
+function stopShiftSlapOneShot(): void {
+  shiftSlapLoading = false;
+  const track = shiftSlapTrack;
+  shiftSlapTrack = null;
+  if (track) disconnectLoopingTrack(track);
+}
+
+function startShiftSlapOneShot(): void {
+  if (shiftSlapTrack || shiftSlapLoading) return;
+  const localPeak =
+    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume * 1.1;
+  shiftSlapLoading = true;
+  void loadSample(newSlapUrl).then((buffer) => {
+    const live = getCtx();
+    shiftSlapLoading = false;
+    if (!buffer || !live || !shiftWindWanted || shiftSlapTrack) return;
+    const source = live.createBufferSource();
+    source.buffer = buffer;
+    const gain = live.createGain();
+    gain.gain.value = sfxGain(localPeak);
+    source.connect(gain);
+    gain.connect(live.destination);
+    source.start(live.currentTime);
+    shiftSlapTrack = { source, gain, localPeak };
+    source.onended = () => {
+      if (shiftSlapTrack?.source === source) shiftSlapTrack = null;
+    };
+  });
 }
 
 function isBgMusicActive(mode: 'menu' | 'game'): boolean {
@@ -363,6 +405,14 @@ function applyActiveAudioMasterVolume(): void {
   if (shiftWindTrack) {
     shiftWindTrack.gain.gain.cancelScheduledValues(t);
     shiftWindTrack.gain.gain.setValueAtTime(sfxGain(SHIFT_WIND_LOOP_GAIN), t);
+  }
+
+  if (shiftSlapTrack) {
+    shiftSlapTrack.gain.gain.cancelScheduledValues(t);
+    shiftSlapTrack.gain.gain.setValueAtTime(
+      sfxGain(shiftSlapTrack.localPeak),
+      t,
+    );
   }
 
   for (const track of [cheerTrack, panicTrack]) {
@@ -969,8 +1019,10 @@ export function setGrindRailActive(active: boolean) {
 export function setShiftWindActive(active: boolean) {
   const ac = getCtx();
   if (!ac) return;
+  shiftWindWanted = active;
 
   if (!active) {
+    stopShiftSlapOneShot();
     if (!shiftWindTrack) {
       shiftWindLoading = false;
       return;
@@ -991,15 +1043,12 @@ export function setShiftWindActive(active: boolean) {
   }
 
   if (shiftWindTrack || shiftWindLoading) return;
-  playSample(
-    newSlapUrl,
-    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume * 0.5,
-  );
+  startShiftSlapOneShot();
   shiftWindLoading = true;
   void loadSample(windUrl).then((buffer) => {
     const live = getCtx();
     shiftWindLoading = false;
-    if (!buffer || !live || shiftWindTrack) return;
+    if (!buffer || !live || !shiftWindWanted || shiftWindTrack) return;
     const source = live.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
@@ -1025,7 +1074,7 @@ export function playBallLaunch() {
   lastBallShotAt = now;
   playSample(
     newSlapUrl,
-    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume,
+    ELECTRIC_SLAP_SAMPLE_BASE * tuningStore.getState().shotVolume * 2,
   );
 }
 
