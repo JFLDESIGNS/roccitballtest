@@ -63,7 +63,7 @@ const GOAL_RINGS = {
   scoringVolumeRadiusScaleMidMult: 2.55,
   scoringVolumeStickOutTopM: 1.85,
   scoringVolumeArenaForwardTopM: 0.4,
-  scoringVolumeRadiusScaleTopMult: 2.75,
+  scoringVolumeRadiusScaleTopMult: 3.575,
   scoringVolumeRadiusScaleBottomMult: 2.243,
   centerScoreRadiusScale: 0.74,
   centerScoreRadiusScaleMid: 0.86,

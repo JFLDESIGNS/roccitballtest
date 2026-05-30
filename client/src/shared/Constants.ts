@@ -1198,7 +1198,7 @@ export const GOAL_RINGS = {
   /** Top ring — larger sensor + further off the wall */
   scoringVolumeStickOutTopM: 1.85,
   scoringVolumeArenaForwardTopM: 0.4,
-  scoringVolumeRadiusScaleTopMult: 2.75,
+  scoringVolumeRadiusScaleTopMult: 3.575,
   /** Bottom (large) ring scoring cylinder radius multiplier (+25% trigger diameter vs prior) */
   scoringVolumeRadiusScaleBottomMult: 2.243,
   /** Scoring hole as fraction of ring radius (large / bottom ring) */
