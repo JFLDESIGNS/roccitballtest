@@ -53,7 +53,7 @@ import {
   arenaHexFloorMaterial,
   arenaWallMaterial,
 } from './arenaMaterials';
-import { sampleGoalRingHit } from './goalRingHitFx';
+import { sampleGoalRingHit, sampleGoalRingHitPoint } from './goalRingHitFx';
 import { tuningStore } from './tuningStore';
 
 const FT = 0.3048;
@@ -300,23 +300,45 @@ function GoalRing({
   const glowMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const ringMatRef = useRef<THREE.MeshStandardMaterial | null>(null);
   const faceMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const hitSpotRef = useRef<THREE.Mesh | null>(null);
+  const hitSpotMatRef = useRef<THREE.MeshBasicMaterial | null>(null);
 
   useFrame(() => {
     const pulse = sampleGoalRingHit(goalId);
     if (glowMatRef.current) {
-      glowMatRef.current.opacity = GOAL_RINGS.glowOpacity + pulse * 0.32;
+      glowMatRef.current.opacity = GOAL_RINGS.glowOpacity + pulse * 0.72;
     }
     if (ringMatRef.current) {
       ringMatRef.current.emissiveIntensity =
-        GOAL_RINGS.emissiveIntensity + pulse * 3.1;
+        GOAL_RINGS.emissiveIntensity + pulse * 6.4;
     }
     if (faceMatRef.current) {
-      faceMatRef.current.opacity = 0.5 + pulse * 0.35;
+      faceMatRef.current.opacity = 0.5 + pulse * 0.5;
+    }
+    const hitPoint = sampleGoalRingHitPoint(goalId);
+    if (hitSpotRef.current && hitSpotMatRef.current) {
+      hitSpotRef.current.visible = pulse > 0.01 && hitPoint !== null;
+      if (hitPoint) hitSpotRef.current.position.copy(hitPoint);
+      const scale = 0.85 + pulse * 1.1;
+      hitSpotRef.current.scale.setScalar(scale);
+      hitSpotMatRef.current.opacity = pulse * 0.85;
     }
   });
 
   return (
     <>
+      <mesh ref={hitSpotRef} visible={false} renderOrder={6}>
+        <sphereGeometry args={[0.42, 16, 10]} />
+        <meshBasicMaterial
+          ref={hitSpotMatRef}
+          color={color}
+          transparent
+          opacity={0}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
       <GoalRingBackplate
         goalId={goalId}
         center={center}

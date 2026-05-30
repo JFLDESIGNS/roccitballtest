@@ -18,11 +18,13 @@ import {
 export type GoalRimContact = {
   outwardX: number;
   goalId: string;
+  point: THREE.Vector3;
 };
 
 export type GoalRimBallBounceResult = {
   goalId: string;
   impactSpeed: number;
+  point: THREE.Vector3;
 };
 
 const _sample = new THREE.Vector3();
@@ -47,13 +49,21 @@ function testGoalTorusRimHit(
 
     const litTube = ringTube(goal.ringRadius);
     if (Math.abs(holeDist - goal.ringRadius) <= litTube + entityRadius + 0.2) {
-      return { outwardX: goal.team === 'red' ? 1 : -1, goalId: goal.id };
+      return {
+        outwardX: goal.team === 'red' ? 1 : -1,
+        goalId: goal.id,
+        point: new THREE.Vector3(x, y, z),
+      };
     }
 
     const backRadius = goal.ringRadius * GOAL_RINGS.backRingScale;
     const backTube = ringTube(backRadius) * GOAL_RINGS.backRingTubeScale;
     if (Math.abs(holeDist - backRadius) <= backTube + entityRadius + 0.25) {
-      return { outwardX: goal.team === 'red' ? 1 : -1, goalId: goal.id };
+      return {
+        outwardX: goal.team === 'red' ? 1 : -1,
+        goalId: goal.id,
+        point: new THREE.Vector3(x, y, z),
+      };
     }
   }
   return null;
@@ -77,7 +87,11 @@ export function findGoalBackCapDiscHit(
     if (discLoc.planeDist > 0.62 + entityRadius) continue;
     if (discLoc.holeDist > capR + entityRadius + 0.12) continue;
 
-    return { outwardX: goal.team === 'red' ? 1 : -1, goalId: goal.id };
+    return {
+      outwardX: goal.team === 'red' ? 1 : -1,
+      goalId: goal.id,
+      point: new THREE.Vector3(x, y, z),
+    };
   }
   return null;
 }
@@ -163,7 +177,7 @@ export function tickGoalRimBallBounce(
     true,
   );
   cooldownSec.current = GOAL_RINGS.rimBounceCooldownSec;
-  return { goalId: rim.goalId, impactSpeed };
+  return { goalId: rim.goalId, impactSpeed, point: rim.point };
 }
 
 export function goalRimLaunchSpeeds(gravity: number): { vx: number; vy: number } {

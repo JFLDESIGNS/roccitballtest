@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import type { Collider, RigidBody, World } from '@dimforge/rapier3d-compat';
+import { Ray } from '@dimforge/rapier3d-compat';
 import { CAMERA } from '../shared/Constants';
 import { tuningStore } from './tuningStore';
 
@@ -10,6 +12,21 @@ const _desired = new THREE.Vector3();
 const _actualLookTarget = new THREE.Vector3();
 const _worldUp = new THREE.Vector3(0, 1, 0);
 const _toRef = new THREE.Vector3();
+const _camRayOrigin = { x: 0, y: 0, z: 0 };
+const _camRayDir = { x: 0, y: 0, z: 0 };
+const _camRayVec = new THREE.Vector3();
+const CAMERA_COLLISION_PAD_M = 0.55;
+const CAMERA_MIN_DISTANCE_M = 1.2;
+
+function cameraRayFilter(excludeBody?: RigidBody | null): (collider: Collider) => boolean {
+  const excludeHandle = excludeBody?.handle;
+  return (collider) => {
+    if (typeof collider.isSensor === 'function' && collider.isSensor()) return false;
+    const parent = collider.parent();
+    if (excludeHandle != null && parent?.handle === excludeHandle) return false;
+    return true;
+  };
+}
 
 function setLookDirection(yaw: number, aimPitch: number, out: THREE.Vector3) {
   out.set(
@@ -70,6 +87,8 @@ export function updateThirdPersonCamera(
   dt: number,
   snap = false,
   extraDistance = 0,
+  world?: World | null,
+  excludeBody?: RigidBody | null,
 ) {
   const { cameraSmoothingEnabled } = tuningStore.getState();
 
@@ -92,6 +111,37 @@ export function updateThirdPersonCamera(
     _desired.y,
     pivot.y - CAMERA.maxDropBelowPivot,
   );
+
+  if (world) {
+    _camRayVec.subVectors(_desired, pivot);
+    const rayDist = _camRayVec.length();
+    if (rayDist > CAMERA_MIN_DISTANCE_M) {
+      _camRayVec.multiplyScalar(1 / rayDist);
+      _camRayOrigin.x = pivot.x;
+      _camRayOrigin.y = pivot.y;
+      _camRayOrigin.z = pivot.z;
+      _camRayDir.x = _camRayVec.x;
+      _camRayDir.y = _camRayVec.y;
+      _camRayDir.z = _camRayVec.z;
+      const hit = world.castRay(
+        new Ray(_camRayOrigin, _camRayDir),
+        rayDist,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        excludeBody ?? undefined,
+        cameraRayFilter(excludeBody),
+      );
+      if (hit && hit.timeOfImpact < rayDist - CAMERA_COLLISION_PAD_M) {
+        const safeDist = Math.max(
+          CAMERA_MIN_DISTANCE_M,
+          hit.timeOfImpact - CAMERA_COLLISION_PAD_M,
+        );
+        _desired.copy(pivot).addScaledVector(_camRayVec, safeDist);
+      }
+    }
+  }
 
   if (snap || !cameraSmoothingEnabled || dt <= 0) {
     camera.position.copy(_desired);

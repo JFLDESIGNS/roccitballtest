@@ -960,7 +960,7 @@ export function playGoalRimHit(impactSpeed: number) {
   const min = 2.2;
   if (impactSpeed < min) return;
   const t = Math.min(1, (impactSpeed - min) / 22);
-  playSample(rimSoundUrl, 0.42 + t * 0.58, true, 0.96 + t * 0.08);
+  playSample(rimSoundUrl, (0.42 + t * 0.58) * 3, true, 0.96 + t * 0.08);
 }
 
 /** Continuous magnetic beam hum while attracting */

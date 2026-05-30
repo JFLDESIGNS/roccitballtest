@@ -216,6 +216,7 @@ import {
 import { gameStore } from './gameStore';
 import { writeLookDirection } from './CameraController';
 import { BeamPullTrace } from './BeamPullTrace';
+import { punchLightGlowForBody } from './lightGlowHits';
 
 export type BotId = 'bot-0' | 'bot-1' | 'bot-2';
 
@@ -951,6 +952,9 @@ function BotAvatar({
   const followRocketTimer = useRef(
     staggerTimer(bot.id, BOT.followPlayerRocketIntervalSec),
   );
+  const lightGlowBodyPos = useRef(new THREE.Vector3());
+  const lastLightGlowBodyPos = useRef(new THREE.Vector3());
+  const lightGlowBodyReady = useRef(false);
   const followModeRocketCooldown = useRef(0);
   const shotIndex = useRef(
     bot.id === 'bot-0' ? 0 : bot.id === 'bot-1' ? 1 : 2,
@@ -1144,6 +1148,24 @@ function BotAvatar({
     const tEarly = body.translation();
     _pos.set(tEarly.x, tEarly.y, tEarly.z);
     _chest.set(tEarly.x, tEarly.y + BEAM.chestHeight, tEarly.z);
+    if (phase === 'playing') {
+      lightGlowBodyPos.current.set(
+        _pos.x,
+        _pos.y + MOVEMENT.capsuleHeight * 0.5,
+        _pos.z,
+      );
+      if (lightGlowBodyReady.current) {
+        punchLightGlowForBody(
+          lastLightGlowBodyPos.current,
+          lightGlowBodyPos.current,
+          MOVEMENT.capsuleRadius * 1.25,
+        );
+      }
+      lastLightGlowBodyPos.current.copy(lightGlowBodyPos.current);
+      lightGlowBodyReady.current = true;
+    } else {
+      lightGlowBodyReady.current = false;
+    }
 
     const kickoffBallDropWait = isKickoffBallDropWait(
       phase,

@@ -151,6 +151,7 @@ import {
 } from './grindRail';
 import { burstGrindRailSparks } from './impactSparks';
 import { burstGroundSmashDust } from './GroundSmashDust';
+import { punchLightGlowForBody } from './lightGlowHits';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
@@ -181,6 +182,9 @@ const PLAYER_UPPER_COLLIDER = {
 };
 const _bodyYawQuat = new THREE.Quaternion();
 const _bodyYawAxis = new THREE.Vector3(0, 1, 0);
+const _scoopPitchQuat = new THREE.Quaternion();
+const _scoopPitchAxis = new THREE.Vector3(1, 0, 0);
+const _scoopBodyQuat = new THREE.Quaternion();
 const _scoopLowerLocal = new THREE.Vector3();
 const _scoopUpperLocal = new THREE.Vector3();
 
@@ -594,37 +598,53 @@ export function Player({
   const grappleSwingRadius = useRef(12);
   const grappleSwingPower = useRef(1);
   const grappleCableRef = useRef<THREE.Mesh>(null);
+  const lightGlowBodyPos = useRef(new THREE.Vector3());
+  const lastLightGlowBodyPos = useRef(new THREE.Vector3());
+  const lightGlowBodyReady = useRef(false);
   const alignPlayerBodyYaw = useCallback((yaw: number, force = false) => {
     const capsule = capsuleColliderRef.current;
     const lower = lowerScoopColliderRef.current;
     const upper = upperScoopColliderRef.current;
     if (!capsule && !lower && !upper) return;
     _bodyYawQuat.setFromAxisAngle(_bodyYawAxis, yaw);
+    const pitch = THREE.MathUtils.clamp(
+      inputManager.getAimPitch(),
+      -Math.PI * 0.42,
+      Math.PI * 0.42,
+    );
+    _scoopPitchQuat.setFromAxisAngle(_scoopPitchAxis, pitch);
+    _scoopBodyQuat.copy(_bodyYawQuat).multiply(_scoopPitchQuat);
     if (
       !force &&
       scoopTiltReady.current &&
-      lastScoopTiltQuat.current.angleTo(_bodyYawQuat) < 0.0015
+      lastScoopTiltQuat.current.angleTo(_scoopBodyQuat) < 0.0015
     ) {
       return;
     }
 
-    lastScoopTiltQuat.current.copy(_bodyYawQuat);
+    lastScoopTiltQuat.current.copy(_scoopBodyQuat);
     scoopTiltReady.current = true;
 
-    const rot = {
+    const capsuleRot = {
       x: _bodyYawQuat.x,
       y: _bodyYawQuat.y,
       z: _bodyYawQuat.z,
       w: _bodyYawQuat.w,
     };
-    capsule?.setRotationWrtParent(rot);
-    lower?.setRotationWrtParent(rot);
-    upper?.setRotationWrtParent(rot);
+    const scoopRot = {
+      x: _scoopBodyQuat.x,
+      y: _scoopBodyQuat.y,
+      z: _scoopBodyQuat.z,
+      w: _scoopBodyQuat.w,
+    };
+    capsule?.setRotationWrtParent(capsuleRot);
+    lower?.setRotationWrtParent(scoopRot);
+    upper?.setRotationWrtParent(scoopRot);
 
     if (lower) {
       _scoopLowerLocal
         .set(0, PLAYER_LOWER_COLLIDER.centerY, PLAYER_LOWER_COLLIDER.centerZ)
-        .applyQuaternion(_bodyYawQuat);
+        .applyQuaternion(_scoopBodyQuat);
       lower.setTranslationWrtParent({
         x: _scoopLowerLocal.x,
         y: _scoopLowerLocal.y,
@@ -634,7 +654,7 @@ export function Player({
     if (upper) {
       _scoopUpperLocal
         .set(0, PLAYER_UPPER_COLLIDER.centerY, PLAYER_UPPER_COLLIDER.centerZ)
-        .applyQuaternion(_bodyYawQuat);
+        .applyQuaternion(_scoopBodyQuat);
       upper.setTranslationWrtParent({
         x: _scoopUpperLocal.x,
         y: _scoopUpperLocal.y,
@@ -1084,6 +1104,9 @@ export function Player({
         inputManager.getAimPitch(),
         1,
         true,
+        0,
+        world,
+        body,
       );
       cameraSnapped.current = true;
     }
@@ -1134,6 +1157,9 @@ export function Player({
           inputManager.getAimPitch(),
           dt,
           true,
+          0,
+          world,
+          body,
         );
       }
       return;
@@ -1171,6 +1197,9 @@ export function Player({
         inputManager.getAimPitch(),
         dt,
         true,
+        0,
+        world,
+        body,
       );
       setShiftWindActive(false);
       return;
@@ -1282,6 +1311,8 @@ export function Player({
         dt,
         false,
         camSpeedExtra.current,
+        world,
+        body,
       );
       alignPlayerBodyYaw(rot.yaw);
       gameStore.setSpeeds(
@@ -1389,6 +1420,16 @@ export function Player({
 
     const pivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
     chestPos.current.set(pos.x, pos.y + BEAM.chestHeight, pos.z);
+    lightGlowBodyPos.current.set(pos.x, pos.y + capCenterY, pos.z);
+    if (lightGlowBodyReady.current) {
+      punchLightGlowForBody(
+        lastLightGlowBodyPos.current,
+        lightGlowBodyPos.current,
+        MOVEMENT.capsuleRadius * 1.35,
+      );
+    }
+    lastLightGlowBodyPos.current.copy(lightGlowBodyPos.current);
+    lightGlowBodyReady.current = true;
     const linvel = body.linvel();
     onPositionUpdate(pos, chestPos.current, {
       yaw: rot.yaw,
@@ -1545,6 +1586,8 @@ export function Player({
         dt,
         false,
         0,
+        world,
+        body,
       );
       return;
     }
@@ -1601,6 +1644,8 @@ export function Player({
       dt,
       snapCam,
       camSpeedExtra.current,
+      world,
+      body,
     );
 
     const aimPitch = inputManager.getAimPitch();

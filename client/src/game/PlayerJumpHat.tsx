@@ -218,7 +218,11 @@ export function PlayerJumpHat({
     const tiltSync = tiltSyncRef.current;
     if (tilt && tiltSync) {
       const bodyFlip = getForwardFlipPitchX('local');
-      tiltSync.rotation.x = tilt.rotation.x - bodyFlip;
+      tiltSync.rotation.x = THREE.MathUtils.clamp(
+        tilt.rotation.x - bodyFlip,
+        -0.24,
+        0.24,
+      );
       tiltSync.rotation.y = tilt.rotation.y;
       tiltSync.rotation.z = tilt.rotation.z;
     }

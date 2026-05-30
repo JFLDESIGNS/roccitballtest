@@ -11,6 +11,10 @@ import {
   type FanGlassPanel,
 } from './fanGlassHit';
 import { gameStore } from './gameStore';
+import {
+  GRIND_RAIL,
+  getGrindRailPaths,
+} from './grindRail';
 import { RocketCollisionDebug } from './RocketCollisionDebug';
 
 function makeWireBoxMaterial(color: string): THREE.LineBasicMaterial {
@@ -105,6 +109,48 @@ function FanGlassHitWire({ panel }: { panel: FanGlassPanel }) {
   );
 }
 
+function GrindRailHitWire() {
+  const material = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        color: '#51f6ff',
+        transparent: true,
+        opacity: 0.18,
+        wireframe: true,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+    [],
+  );
+  const geometries = useMemo(
+    () =>
+      getGrindRailPaths().map((path) => {
+        const curve = new THREE.CatmullRomCurve3(path, false, 'centripetal');
+        return new THREE.TubeGeometry(
+          curve,
+          Math.max(48, path.length * 16),
+          GRIND_RAIL.contactHorizontalM,
+          12,
+          false,
+        );
+      }),
+    [],
+  );
+
+  return (
+    <>
+      {geometries.map((geometry, index) => (
+        <mesh
+          key={`grind-rail-hitbox-${index}`}
+          geometry={geometry}
+          material={material}
+          frustumCulled={false}
+        />
+      ))}
+    </>
+  );
+}
+
 /** Logical hit volumes aligned with billboard yaw + fan glass plane (not world AABBs). */
 export function GameplayCollisionDebug() {
   const visible = useSyncExternalStore(
@@ -126,6 +172,7 @@ export function GameplayCollisionDebug() {
   return (
     <group ref={groupRef} name="gameplay-collision-debug">
       <RocketCollisionDebug />
+      <GrindRailHitWire />
       {panels.map((panel) => (
         <FanGlassHitWire key={`glass-query-${panel.bayKey}`} panel={panel} />
       ))}

@@ -33,6 +33,7 @@ const lastBallPunchByGlow = new Map<
 const BALL_PUNCH_MIN_INTERVAL_S = 0.1;
 const BALL_PUNCH_MIN_MOVE_M = 0.5;
 const BALL_PUNCH_RESTING_INTERVAL_S = 0.22;
+const BODY_PUNCH_RADIUS_MULTIPLIER = 1.18;
 
 export function findLightGlowSegmentHit(
   from: THREE.Vector3,
@@ -118,6 +119,18 @@ function punchLightGlowFromBallHit(
   );
 }
 
+function punchLightGlowFromBodyHit(hit: LightGlowSegmentHit, allowRestingRepeat: boolean): void {
+  if (!shouldAddBallPunch(hit.glowId, hit.point, allowRestingRepeat)) return;
+  recordBallPunch(hit.glowId, hit.point);
+  punchLightGlowHoleAtWorld(
+    hit.glowId,
+    hit.point,
+    false,
+    BODY_PUNCH_RADIUS_MULTIPLIER,
+    LIGHT_GLOW_BALL_PUNCH_REGEN_S,
+  );
+}
+
 function punchSegmentSample(
   from: THREE.Vector3,
   to: THREE.Vector3,
@@ -139,19 +152,44 @@ export function punchLightGlowForBall(
   ballRadius: number,
 ): void {
   const dist = from.distanceTo(to);
-  const step = Math.max(ballRadius * 0.75, 0.35);
+  const step = Math.max(ballRadius * 0.45, 0.22);
   if (dist <= step) {
     punchSegmentSample(from, to, ballRadius);
     return;
   }
 
-  const steps = Math.min(12, Math.ceil(dist / step));
+  const steps = Math.min(28, Math.ceil(dist / step));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const t0 = (i - 1) / steps;
     _segTo.lerpVectors(from, to, t);
     _segFrom.lerpVectors(from, to, t0);
     punchSegmentSample(_segFrom, _segTo, ballRadius);
+  }
+}
+
+export function punchLightGlowForBody(
+  from: THREE.Vector3,
+  to: THREE.Vector3,
+  bodyRadius: number,
+): void {
+  const contact = findLightGlowBallContact(to, bodyRadius);
+  if (contact) punchLightGlowFromBodyHit(contact, true);
+
+  const dist = from.distanceTo(to);
+  const step = Math.max(bodyRadius * 0.55, 0.28);
+  const steps = Math.min(18, Math.ceil(dist / step));
+  if (steps <= 1) {
+    const hit = findLightGlowSegmentHit(from, to);
+    if (hit) punchLightGlowFromBodyHit(hit, false);
+    return;
+  }
+
+  for (let i = 1; i <= steps; i++) {
+    _segTo.lerpVectors(from, to, i / steps);
+    _segFrom.lerpVectors(from, to, (i - 1) / steps);
+    const hit = findLightGlowSegmentHit(_segFrom, _segTo);
+    if (hit) punchLightGlowFromBodyHit(hit, false);
   }
 }
 

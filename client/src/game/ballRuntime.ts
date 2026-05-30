@@ -52,7 +52,7 @@ export function stepBallPhysics(
     );
     if (rimHit) {
       playGoalRimHit(rimHit.impactSpeed);
-      triggerGoalRingHit(rimHit.goalId);
+      triggerGoalRingHit(rimHit.goalId, rimHit.point);
     }
   }
   applyBallFloorAssist(body);

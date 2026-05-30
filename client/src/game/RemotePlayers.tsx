@@ -15,6 +15,7 @@ import {
 } from '../multiplayer/multiplayerStore';
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import { PlayerAvatar } from './PlayerAvatar';
+import { punchLightGlowForBody } from './lightGlowHits';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
@@ -77,6 +78,8 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const visualRef = useRef<THREE.Group>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const nameplateRef = useRef<THREE.Group>(null);
+  const lastGlowPos = useRef(latestSample.current.position.clone());
+  const glowPos = useRef(new THREE.Vector3());
   const ready = useRef(false);
 
   useEffect(() => {
@@ -203,6 +206,17 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
       visual.position.copy(displayPos.current);
       visual.quaternion.copy(rotationQuat.current);
     }
+    glowPos.current.set(
+      displayPos.current.x,
+      displayPos.current.y + capCenterY,
+      displayPos.current.z,
+    );
+    punchLightGlowForBody(
+      lastGlowPos.current,
+      glowPos.current,
+      MOVEMENT.capsuleRadius * 1.25,
+    );
+    lastGlowPos.current.copy(glowPos.current);
     if (avatarRef.current) {
       if (player.coopRagdoll) {
         const speed = Math.min(1, blendedVel.current.length() / 38);
