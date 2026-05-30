@@ -45,6 +45,7 @@ const GOAL_RINGS = {
   midRingBackWallOffsetM: 1.75,
   topRingBackWallOffsetM: 1.75,
   scoringVolumeTopLiftFt: 2,
+  scoringVolumeTopDropFt: 1.55,
   bottomRingWallStandoffFt: 15,
   ringTiltBottomDeg: -20,
   ringTiltMidDeg: 0,
@@ -481,13 +482,13 @@ function goalScoringCenter(goal) {
   const forward = goalScoringArenaForwardM(goal.size);
   const pullBack = goalScoringWallPullbackM(goal.size);
   const towardCourt = goal.team === 'red' ? 1 : -1;
-  const yLiftFt = goal.size === 'small' ? GOAL_RINGS.scoringVolumeTopLiftFt : 0;
+  const yDropFt = goal.size === 'small' ? GOAL_RINGS.scoringVolumeTopDropFt : 0;
   return {
     x:
       goal.center.x +
       (goal.team === 'red' ? -inset : inset) +
       towardCourt * (forward - pullBack),
-    y: goal.center.y + yLiftFt * FT_TO_M,
+    y: goal.center.y - yDropFt * FT_TO_M,
     z: goal.center.z,
   };
 }
