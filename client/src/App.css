@@ -3218,32 +3218,54 @@ body,
 .coop-adventure-hud {
   position: fixed;
   left: 50%;
-  bottom: 1.4rem;
-  width: min(720px, calc(100vw - 2rem));
+  bottom: 0.55rem;
+  width: min(980px, calc(100vw - 1.2rem));
   transform: translateX(-50%);
-  display: grid;
-  gap: 0.18rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid rgba(105, 247, 200, 0.5);
-  border-radius: 8px;
-  background: rgba(4, 11, 23, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.42rem 0.85rem;
+  border-top: 1px solid rgba(105, 247, 200, 0.28);
+  border-radius: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(4, 11, 23, 0),
+    rgba(4, 11, 23, 0.68) 18%,
+    rgba(4, 11, 23, 0.72) 82%,
+    rgba(4, 11, 23, 0)
+  );
   color: #e9fff8;
   text-align: center;
   pointer-events: none;
-  box-shadow: 0 0 18px rgba(49, 255, 183, 0.18);
+  box-shadow: none;
 }
 
 .coop-adventure-hud strong {
   color: #69f7c8;
-  font-size: 0.9rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .coop-adventure-hud span,
 .coop-adventure-hud em {
   color: #c6d8e5;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-style: normal;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .coop-adventure-hud {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .coop-adventure-hud span,
+  .coop-adventure-hud em {
+    white-space: normal;
+  }
 }
 
 .coop-adventure-goal {

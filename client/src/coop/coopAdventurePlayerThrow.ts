@@ -13,8 +13,8 @@ const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
 const COOP_HOLD_DISTANCE = 2.6;
 const COOP_PULL_SPEED = 38;
-const COOP_THROW_SPEED = 18;
-const COOP_THROW_UP_SPEED = 5;
+const COOP_THROW_SPEED = 34;
+const COOP_THROW_UP_SPEED = 7.5;
 
 const _toTarget = new THREE.Vector3();
 const _targetPos = new THREE.Vector3();
@@ -93,11 +93,11 @@ export function makeCoopThrowAction(
   _velocity
     .copy(lookDir)
     .multiplyScalar(COOP_THROW_SPEED)
-    .add(new THREE.Vector3(holderVelocity.x * 0.12, 0, holderVelocity.z * 0.12));
+    .add(new THREE.Vector3(holderVelocity.x * 0.2, 0, holderVelocity.z * 0.2));
   _velocity.y = THREE.MathUtils.clamp(
     _velocity.y + COOP_THROW_UP_SPEED,
     COOP_THROW_UP_SPEED * 0.65,
-    COOP_THROW_UP_SPEED + 3.5,
+    COOP_THROW_UP_SPEED + 6,
   );
   _hold.copy(holderPosition).addScaledVector(lookDir, 0.85);
   _hold.y += 0.35;
