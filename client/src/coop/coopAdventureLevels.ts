@@ -37,7 +37,7 @@ const THEMES = [
   { grass: '#52c5a2', side: '#4f4838' },
 ];
 
-const COOP_PLATFORM_DISTANCE_SCALE = 2.0;
+const COOP_PLATFORM_DISTANCE_SCALE = 4.0;
 
 function pad(
   id: string,
