@@ -18,6 +18,7 @@ const FALL_RESCUE_Y = -28;
 const GOAL_RADIUS = 4.4;
 const RAIL_BUTTON_RADIUS = 4.2;
 const RAIL_BUTTON_VERTICAL_RADIUS = 4.6;
+const COOP_MAX_RAIL_PLATFORMS = 10;
 const FACT_DISPLAY_SEC = 10;
 const START_READY_RADIUS = 8;
 
@@ -248,6 +249,23 @@ function railKey(levelId: number, platformId: string): string {
   return `coop-rail-${levelId}-${platformId}`;
 }
 
+function railSegmentForPlatform(
+  platforms: CoopAdventurePlatform[],
+  targetPlatformId: string,
+): { start: THREE.Vector3; end: THREE.Vector3 } | null {
+  const maxIndex = Math.min(platforms.length, COOP_MAX_RAIL_PLATFORMS) - 1;
+  const targetIndex = platforms.findIndex(
+    (candidate) => candidate.id === targetPlatformId,
+  );
+  if (targetIndex <= 0 || targetIndex > maxIndex) return null;
+  const startPlatform = platforms[targetIndex - 1]!;
+  const endPlatform = platforms[targetIndex]!;
+  return {
+    start: railEndpoint(startPlatform),
+    end: railEndpoint(endPlatform),
+  };
+}
+
 function CoopRailButton({
   platform,
   active,
@@ -459,16 +477,15 @@ export function CoopAdventureCourse({
   }, [coopRails, level.id]);
 
   useEffect(() => {
-    const startPlatform = level.platforms[0]!;
     setCoopAdventureRails(
       activeRails.flatMap((rail) => {
-        const platform = level.platforms.find((candidate) => candidate.id === rail.platformId);
-        if (!platform) return [];
+        const segment = railSegmentForPlatform(level.platforms, rail.platformId);
+        if (!segment) return [];
         return [
           {
             key: rail.key,
-            start: railEndpoint(startPlatform),
-            end: railEndpoint(platform),
+            start: segment.start,
+            end: segment.end,
           },
         ];
       }),
@@ -545,7 +562,7 @@ export function CoopAdventureCourse({
 
     if (inputManager.consumeInteract() && !completed) {
       const nearest = level.platforms.find((platform) => {
-        if (platform.kind === 'start') return false;
+        if (!railSegmentForPlatform(level.platforms, platform.id)) return false;
         const key = railKey(level.id, platform.id);
         if (activeRails.some((rail) => rail.key === key)) return false;
         const p = railButtonPosition(platform);
@@ -606,8 +623,6 @@ export function CoopAdventureCourse({
     }
   });
 
-  const railStartPlatform = level.platforms[0]!;
-
   return (
     <group>
       <ambientLight color="#b9ddff" intensity={1.35} />
@@ -623,7 +638,7 @@ export function CoopAdventureCourse({
         <CoopPlatform key={platform.id} platform={platform} />
       ))}
       {level.platforms
-        .filter((platform) => platform.kind !== 'start')
+        .filter((platform) => railSegmentForPlatform(level.platforms, platform.id) !== null)
         .map((platform) => {
           const key = railKey(level.id, platform.id);
           return (
@@ -635,10 +650,10 @@ export function CoopAdventureCourse({
           );
         })}
       {activeRails.map((rail) => {
-        const platform = level.platforms.find((candidate) => candidate.id === rail.platformId);
-        if (!platform) return null;
-        _railStart.copy(railEndpoint(railStartPlatform));
-        _railEnd.copy(railEndpoint(platform));
+        const segment = railSegmentForPlatform(level.platforms, rail.platformId);
+        if (!segment) return null;
+        _railStart.copy(segment.start);
+        _railEnd.copy(segment.end);
         return (
           <CoopSpawnedRail
             key={rail.key}
