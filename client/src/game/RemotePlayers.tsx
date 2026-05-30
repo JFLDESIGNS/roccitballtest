@@ -25,6 +25,8 @@ const REMOTE_PLAYER_SNAP_DISTANCE = 9;
 const REMOTE_PLAYER_POSITION_SMOOTH_RATE = 15;
 const REMOTE_PLAYER_YAW_SMOOTH_RATE = 18;
 const REMOTE_PLAYER_SAMPLE_HISTORY = 24;
+const REMOTE_PLAYER_COLLISION = interactionGroups(0, [0, 1, 2, 4]);
+const REMOTE_PLAYER_NO_BALL_COLLISION = interactionGroups(0, [0, 2, 4]);
 
 type RemotePlayerSample = {
   position: THREE.Vector3;
@@ -242,7 +244,11 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
           args={[capHalfH, MOVEMENT.capsuleRadius]}
           position={[0, capCenterY, 0]}
           friction={0.65}
-          collisionGroups={interactionGroups(0, [0, 1, 2, 4])}
+          collisionGroups={
+            player.isHoldingBall
+              ? REMOTE_PLAYER_NO_BALL_COLLISION
+              : REMOTE_PLAYER_COLLISION
+          }
         />
       </RigidBody>
       <group ref={visualRef} position={initialPosition.current}>

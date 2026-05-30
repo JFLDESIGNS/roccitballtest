@@ -155,6 +155,9 @@ import { burstGroundSmashDust } from './GroundSmashDust';
 const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
+const BALL_PLAYER_COLLISION_REENABLE_DELAY_SEC = 0.5;
+const BALL_WALK_PUSH_SCALE = 1.4;
+const BALL_SHIFT_PUSH_SCALE = 3;
 const PLAYER_LOWER_COLLIDER = {
   halfExtents: [0.78, 0.18, 1.24] as [number, number, number],
   centerY: 0.16,
@@ -413,6 +416,7 @@ type PlayerProps = {
       velocity: { x: number; y: number; z: number };
       isBeaming: boolean;
       isHoldingBall: boolean;
+      isSprinting?: boolean;
       holdPosition: { x: number; y: number; z: number } | null;
       coopRagdoll?: boolean;
     },
@@ -823,7 +827,7 @@ export function Player({
 
   const interruptBeamOnHit = useCallback(() => {
     const now = performance.now() / 1000;
-    const dur = ROCKET.beamDenyDurationSec;
+    const dur = BALL.beamRegrabLockSec;
     playerBeamDenyUntil.current = now + dur;
     ballReleaseLockUntil.current = Math.max(ballReleaseLockUntil.current, now + dur);
     beamNeedsRepress.current = true;
@@ -850,7 +854,7 @@ export function Player({
       holdingBall.current = false;
       ballColliderDisabledUntil.current = Math.max(
         ballColliderDisabledUntil.current,
-        now + 0.4,
+        now + BALL_PLAYER_COLLISION_REENABLE_DELAY_SEC,
       );
       if (gameStore.getState().ballHolderId === 'local') {
         gameStore.clearBallHolder(true);
@@ -930,7 +934,11 @@ export function Player({
     }
     const now = performance.now() / 1000;
     if (now < ballSeparationGraceUntil.current) return;
-    separateBallFromPlayer(body, ball, 0.35, true);
+    const playerBallPushScale =
+      inputManager.isSprint() && energy.current > 0
+        ? BALL_SHIFT_PUSH_SCALE
+        : BALL_WALK_PUSH_SCALE;
+    separateBallFromPlayer(body, ball, 0.35, true, playerBallPushScale);
 
     const pv = body.linvel();
     const bt = ball.translation();
@@ -1153,6 +1161,7 @@ export function Player({
         velocity: { x: 0, y: 0, z: 0 },
         isBeaming: false,
         isHoldingBall: false,
+        isSprinting: false,
         holdPosition: null,
       });
       updateThirdPersonCamera(
@@ -1262,6 +1271,7 @@ export function Player({
         velocity: { x: lv.x, y: lv.y, z: lv.z },
         isBeaming: gameStore.getState().isBeaming,
         isHoldingBall: false,
+        isSprinting: gameStore.getState().isSprinting,
         holdPosition: null,
       });
       updateThirdPersonCamera(
@@ -1387,6 +1397,7 @@ export function Player({
       isBeaming: gameStore.getState().isBeaming,
       isHoldingBall:
         holdingBall.current || gameStore.getState().ballHolderId === 'local',
+      isSprinting: gameStore.getState().isSprinting,
       holdPosition:
         holdingBall.current || gameStore.getState().ballHolderId === 'local'
           ? {
@@ -1521,6 +1532,7 @@ export function Player({
         velocity: { x: ragdollLv.x, y: ragdollLv.y, z: ragdollLv.z },
         isBeaming: false,
         isHoldingBall: false,
+        isSprinting: false,
         holdPosition: null,
         coopRagdoll: true,
       });
@@ -2576,7 +2588,11 @@ export function Player({
       holdingBall.current = false;
       ballColliderDisabledUntil.current = Math.max(
         ballColliderDisabledUntil.current,
-        now + 0.4,
+        now + BALL_PLAYER_COLLISION_REENABLE_DELAY_SEC,
+      );
+      ballReleaseLockUntil.current = Math.max(
+        ballReleaseLockUntil.current,
+        now + BALL.beamRegrabLockSec,
       );
       if (gameStore.getState().ballHolderId === 'local') {
         gameStore.clearBallHolder(true);

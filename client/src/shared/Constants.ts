@@ -824,7 +824,7 @@ export const BALL = {
   /** Skip player–ball separation push right after a shot */
   postLaunchSeparationGraceSec: 0.35,
   /** After drop/shot — blocks beam grab and pull on loose ball */
-  beamRegrabLockSec: 0.35,
+  beamRegrabLockSec: 0.5,
   /** After a ball shot — block rockets until LMB is released, then this grace (sec) */
   postShotRocketGraceSec: 0.32,
   spawnCooldownSec: 1.2,

@@ -114,7 +114,7 @@ const GOAL_BALL_HIDE_RESET_MS = 950;
 const BALL_DROP_COLLISION_GRACE_MS = 5000;
 const SERVER_STEP_MAX = 1 / 30;
 const SERVER_PHYSICS_STEP = 1 / 60;
-const POST_RELEASE_HOLD_BLOCK_MS = 700;
+const POST_RELEASE_HOLD_BLOCK_MS = 500;
 const GOAL_SCORE_COOLDOWN_MS = 5700;
 const ROOM_NAME_MAX = 28;
 const MIN_LAUNCHED_BALL_SPEED = 18;
@@ -123,6 +123,8 @@ const PLAYER_BALL_CONTACT_VERTICAL = 3.1;
 const PLAYER_BALL_CONTACT_PUSH = 33.15;
 const PLAYER_BALL_CONTACT_VEL_INHERIT = 2.652;
 const PLAYER_BALL_CONTACT_MAX_DELTA_V = 25.35;
+const PLAYER_BALL_CONTACT_WALK_SCALE = 1.4;
+const PLAYER_BALL_CONTACT_SPRINT_SCALE = 3;
 
 const BALL_DROP_CUBE_HALF = BALL_DROP_CUBE_SIZE * 0.5;
 const BALL_DROP_DRUM_HEIGHT_M = BALL_DROP_DRUM_HEIGHT * BALL_DROP_DRUM_SCALE;
@@ -1338,11 +1340,15 @@ function applyPlayerContactToServerBall(room, dt, now) {
     if (playerTowardBall < 0.15 && overlap < 0.18) continue;
 
     const frameScale = Math.min(1.25, Math.max(0.35, dt * 60));
+    const pushScale = player.isSprinting
+      ? PLAYER_BALL_CONTACT_SPRINT_SCALE
+      : PLAYER_BALL_CONTACT_WALK_SCALE;
     const deltaV = Math.min(
-      PLAYER_BALL_CONTACT_MAX_DELTA_V,
+      PLAYER_BALL_CONTACT_MAX_DELTA_V * pushScale,
       (overlap * PLAYER_BALL_CONTACT_PUSH +
         playerTowardBall * PLAYER_BALL_CONTACT_VEL_INHERIT) *
-        frameScale,
+        frameScale *
+        pushScale,
     );
     vx += nx * deltaV;
     vz += nz * deltaV;
@@ -1548,6 +1554,7 @@ function handleClientMessage(socket, raw) {
       velocity: { x: 0, y: 0, z: 0 },
       rotation: { yaw: 0, pitch: 0 },
       energy: 100,
+      isSprinting: false,
       isBeaming: false,
       isHoldingBall: false,
       holdPosition: null,
@@ -1588,6 +1595,7 @@ function handleClientMessage(socket, raw) {
     player.energy = Number.isFinite(msg.energy)
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;
+    player.isSprinting = Boolean(msg.isSprinting);
     const otherHolder = [...room.players.values()].find(
       (other) => other.id !== player.id && other.isHoldingBall,
     );

@@ -877,6 +877,7 @@ function Scene({
         velocity: { x: number; y: number; z: number };
         isBeaming: boolean;
         isHoldingBall: boolean;
+        isSprinting?: boolean;
         holdPosition: { x: number; y: number; z: number } | null;
         coopRagdoll?: boolean;
       },
@@ -892,6 +893,7 @@ function Scene({
         energy: gameStore.getState().energy,
         isBeaming: pose.isBeaming,
         isHoldingBall: pose.isHoldingBall,
+        isSprinting: Boolean(pose.isSprinting ?? gameStore.getState().isSprinting),
         holdPosition: pose.holdPosition,
         coopRagdoll: Boolean(pose.coopRagdoll),
       });

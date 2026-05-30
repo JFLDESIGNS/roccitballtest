@@ -15,6 +15,7 @@ export function separateBallFromPlayer(
   ball: RapierRigidBody,
   playerMassRatio = 0.35,
   preserveBallMomentum = false,
+  ballPushScale = 1,
 ) {
   const pt = player.translation();
   const bt = ball.translation();
@@ -58,8 +59,9 @@ export function separateBallFromPlayer(
   );
   const horiz = Math.hypot(lv.x, lv.z);
   const boost = Math.min(
-    85.8,
-    21.45 + overlap * 35.1 + horiz * 0.234 + playerTowardBall * 2.145,
+    85.8 * ballPushScale,
+    (21.45 + overlap * 35.1 + horiz * 0.234 + playerTowardBall * 2.145) *
+      ballPushScale,
   );
   ball.setLinvel(
     {
