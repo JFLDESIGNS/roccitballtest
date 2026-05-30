@@ -30,9 +30,9 @@ const lastBallPunchByGlow = new Map<
 >();
 
 /** New crater while rolling; resting contact can repeat on a slower cadence. */
-const BALL_PUNCH_MIN_INTERVAL_S = 0.1;
-const BALL_PUNCH_MIN_MOVE_M = 0.5;
-const BALL_PUNCH_RESTING_INTERVAL_S = 0.22;
+const BALL_PUNCH_MIN_INTERVAL_S = 0.05;
+const BALL_PUNCH_MIN_MOVE_M = 0.25;
+const BALL_PUNCH_RESTING_INTERVAL_S = 0.11;
 const BODY_PUNCH_RADIUS_MULTIPLIER = 1.18;
 
 export function findLightGlowSegmentHit(
@@ -152,13 +152,13 @@ export function punchLightGlowForBall(
   ballRadius: number,
 ): void {
   const dist = from.distanceTo(to);
-  const step = Math.max(ballRadius * 0.45, 0.22);
+  const step = Math.max(ballRadius * 0.225, 0.11);
   if (dist <= step) {
     punchSegmentSample(from, to, ballRadius);
     return;
   }
 
-  const steps = Math.min(28, Math.ceil(dist / step));
+  const steps = Math.min(56, Math.ceil(dist / step));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const t0 = (i - 1) / steps;
@@ -177,8 +177,8 @@ export function punchLightGlowForBody(
   if (contact) punchLightGlowFromBodyHit(contact, true);
 
   const dist = from.distanceTo(to);
-  const step = Math.max(bodyRadius * 0.55, 0.28);
-  const steps = Math.min(18, Math.ceil(dist / step));
+  const step = Math.max(bodyRadius * 0.275, 0.14);
+  const steps = Math.min(36, Math.ceil(dist / step));
   if (steps <= 1) {
     const hit = findLightGlowSegmentHit(from, to);
     if (hit) punchLightGlowFromBodyHit(hit, false);

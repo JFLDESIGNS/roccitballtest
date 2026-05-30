@@ -95,7 +95,7 @@ export function LightGlowProximityVeil() {
             vec2 uv = vUv;
             vec2 center = uv - 0.5;
             float vignette = 1.0 - smoothstep(0.42, 0.78, length(center));
-            vec2 scrollUv = uv * vec2(2.6, 1.7) + vec2(uTime * 0.018, uNoiseOffset);
+            vec2 scrollUv = uv * vec2(2.6, 1.7) + vec2(uTime * 0.018, -uNoiseOffset);
             float coarse = fbm(scrollUv);
             float fine = fbm(scrollUv * 3.2 + vec2(9.2, 1.7));
             float cloud = coarse * 0.72 + fine * 0.28;
@@ -103,7 +103,7 @@ export function LightGlowProximityVeil() {
             float strands = smoothstep(0.28, 0.72, fbm(scrollUv * vec2(0.68, 2.9)));
             float alpha = uOpacity * vignette * mask * (0.38 + strands * 0.62);
             if (alpha < 0.002) discard;
-            vec3 rgb = mix(uColor * 0.6, vec3(1.0), mask * 0.28);
+            vec3 rgb = uColor * (0.7 + mask * 0.5);
             gl_FragColor = vec4(rgb * alpha, alpha);
           }
         `,
@@ -131,12 +131,12 @@ export function LightGlowProximityVeil() {
 
     const factor = Number.isFinite(bestDist) ? veilFactor(bestDist) : 0;
     mesh.visible = factor > 0.01;
-    material.uniforms.uOpacity.value = factor * 0.18;
+    material.uniforms.uOpacity.value = factor * 0.32;
     material.uniforms.uTime.value = state.clock.elapsedTime;
-    driftRef.current += delta * (0.07 + (1 - factor) * 0.12);
+    driftRef.current += delta * (0.24 + (1 - factor) * 0.18);
     material.uniforms.uNoiseOffset.value = driftRef.current;
     if (bestColor) {
-      _bestColor.copy(bestColor).lerp(new THREE.Color('#ffffff'), 0.28);
+      _bestColor.copy(bestColor);
       material.uniforms.uColor.value.copy(_bestColor);
     }
 

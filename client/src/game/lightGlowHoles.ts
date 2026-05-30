@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /** Max rocket craters per lamp glow (shader loop size). */
-export const LIGHT_GLOW_MAX_PUNCHES = 24;
+export const LIGHT_GLOW_MAX_PUNCHES = 48;
 
 /** Rocket crater heal time (s). */
 export const LIGHT_GLOW_ROCKET_PUNCH_REGEN_S = 5.25;

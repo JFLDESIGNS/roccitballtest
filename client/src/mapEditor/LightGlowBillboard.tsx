@@ -74,9 +74,10 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
       }
       vis *= mix(1.0, keep, strength);
     }
-    float outerEdge = 1.0 - smoothstep(0.0, 0.42, abs(nearestSigned));
+    float outerEdge = 1.0 - smoothstep(0.0, 0.38, abs(nearestSigned));
     float edgeOnly = outerEdge * smoothstep(0.18, 0.82, vis);
-    return vec2(vis, edgeOnly * nearestStrength);
+    float fastFade = nearestStrength * nearestStrength * nearestStrength;
+    return vec2(vis, edgeOnly * fastFade);
   }
 `;
 
@@ -210,11 +211,13 @@ export function LightGlowBillboard({
           vec2 punchMask = lightGlowPunchMask(vWorldPos);
           float rocketPunch = punchMask.x;
           float punchPool = punchMask.y;
+          float poolNoise = fbm(nUv * 3.4 + vec2(uTime * 0.11, -uTime * 0.07));
+          punchPool *= smoothstep(0.22, 0.88, poolNoise);
           float alpha = radial * uOpacity;
           float holeStr = mix(uHoleStrength, 1.0, (1.0 - uProximityFade) * 0.55);
           alpha *= mix(1.0, holeMask, holeStr);
           alpha *= rocketPunch;
-          alpha += punchPool * radial * uOpacity * 0.78;
+          alpha += punchPool * radial * uOpacity * 0.28;
 
           float coreDist = length(vUv - 0.5) * 2.0;
           float dissolve = 1.0 - clamp(uProximityFade, 0.0, 1.0);
@@ -295,7 +298,7 @@ export function LightGlowBillboard({
           vec3 rgb = uColor * (0.24 + radial * 0.76);
           rgb += uColor * (0.18 * uWobbleStrength * (0.4 + wobblePulse * rippleRing * 0.6));
           rgb = mix(rgb, rgb * (0.82 + smokeA * 0.28), uWobbleStrength * 0.32);
-          rgb = mix(rgb, uColor * (1.08 + radial * 0.42), punchPool * 0.74);
+          rgb = mix(rgb, uColor * (0.95 + radial * 0.32), punchPool * 0.38);
           gl_FragColor = vec4(rgb * alpha, alpha);
         }
       `,
