@@ -66,6 +66,8 @@ export type TransformMode = 'translate' | 'rotate' | 'scale';
 
 export const DEFAULT_MAP_ID = '__default__';
 export const DEFAULT_MAP_NAME = 'Default Arena';
+export const TRAINING_MAP_ID = '__training__';
+export const TRAINING_MAP_NAME = 'Training Range';
 
 export const MAP_TEXTURE_OPTIONS: { id: MapTextureId; label: string }[] = [
   { id: 'concrete', label: 'Concrete' },

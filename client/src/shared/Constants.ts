@@ -960,9 +960,9 @@ export const ROCKET = {
   maxActive: 8,
   /** Min seconds between rocket shots — faster clicks play empty clip */
   fireCooldownSec: 1.5,
-  speed: 72,
+  speed: 82.8,
   velocityInherit: 1,
-  maxSpeed: 105,
+  maxSpeed: 121,
   surfaceBounces: 2,
   bounceRestitution: 0.68,
   ownerGraceSec: 0.22,

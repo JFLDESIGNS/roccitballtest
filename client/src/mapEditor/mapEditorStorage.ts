@@ -2,6 +2,7 @@ import {
   createEmptyMapDocument,
   DEFAULT_MAP_ID,
   DEFAULT_MAP_NAME,
+  TRAINING_MAP_ID,
   type MapDocument,
   type MapLight,
   type MapSummary,
@@ -83,6 +84,7 @@ export function loadActiveMapId(): string {
   try {
     const id = localStorage.getItem(ACTIVE_MAP_KEY);
     if (!id || id === DEFAULT_MAP_ID) return DEFAULT_MAP_ID;
+    if (id === TRAINING_MAP_ID) return TRAINING_MAP_ID;
     const exists = loadRegistry().maps.some((m) => m.id === id);
     return exists ? id : DEFAULT_MAP_ID;
   } catch {

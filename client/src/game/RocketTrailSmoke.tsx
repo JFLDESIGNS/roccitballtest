@@ -21,9 +21,9 @@ export function RocketTrailSmoke() {
   const mat = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#b8b4ac',
+        color: '#2f2c28',
         transparent: true,
-        opacity: 0.26,
+        opacity: 0.34,
         depthWrite: false,
         depthTest: true,
         toneMapped: true,

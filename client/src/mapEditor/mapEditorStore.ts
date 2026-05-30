@@ -2,6 +2,7 @@ import {
   createMapLight,
   createMapObject,
   DEFAULT_MAP_ID,
+  TRAINING_MAP_ID,
   type MapDocument,
   type MapGroup,
   type MapLight,
@@ -549,7 +550,7 @@ let cachedActiveDocument: MapDocument | null = null;
 
 function refreshRegistryCache(): void {
   cachedSummaries = listCustomMapSummaries();
-  cachedActiveDocument = isDefaultMapId(activeMapId)
+  cachedActiveDocument = isDefaultMapId(activeMapId) || activeMapId === TRAINING_MAP_ID
     ? null
     : getCustomMapById(activeMapId);
   if (cachedActiveDocument) {

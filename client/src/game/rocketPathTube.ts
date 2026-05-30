@@ -17,7 +17,7 @@ export function createRocketTrailMaterial(
   explosive: boolean,
 ): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
-    color: explosive ? '#a89888' : '#9a9590',
+    color: explosive ? '#3a3129' : '#2d2b28',
     vertexColors: true,
     transparent: true,
     opacity: 0.78,
@@ -68,7 +68,7 @@ export function updateRocketTrailTube(
 
   mesh.visible = true;
   material.opacity = 0.78 * opacityMul;
-  material.color.set(explosive ? '#a89888' : '#9a9590');
+  material.color.set(explosive ? '#3a3129' : '#2d2b28');
   _trailColor.copy(material.color);
 
   const geo = mesh.geometry;

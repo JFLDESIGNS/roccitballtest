@@ -21,7 +21,12 @@ import {
 } from '../multiplayer/multiplayerStore';
 import { MenuLogoTilt } from './MenuLogoTilt';
 import { MenuBotPreview } from './MenuBotPreview';
-import { DEFAULT_MAP_ID, DEFAULT_MAP_NAME } from '../mapEditor/mapEditorTypes';
+import {
+  DEFAULT_MAP_ID,
+  DEFAULT_MAP_NAME,
+  TRAINING_MAP_ID,
+  TRAINING_MAP_NAME,
+} from '../mapEditor/mapEditorTypes';
 import { mapEditorStore, mapRegistryStore } from '../mapEditor/mapEditorStore';
 import {
   getPremium8Ball,
@@ -400,6 +405,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                     }
                   >
                     <option value={DEFAULT_MAP_ID}>{DEFAULT_MAP_NAME}</option>
+                    <option value={TRAINING_MAP_ID}>{TRAINING_MAP_NAME}</option>
                     {customMaps.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name}

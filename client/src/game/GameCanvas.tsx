@@ -14,6 +14,7 @@ import { tuningStore } from './tuningStore';
 import { Arena } from './Arena';
 import { CustomMapOverlay } from '../mapEditor/CustomMapOverlay';
 import { mapRegistryStore } from '../mapEditor/mapEditorStore';
+import { TRAINING_MAP_ID } from '../mapEditor/mapEditorTypes';
 import { getHiddenStadiumPieces, getPlayModeStadiumGroups } from '../mapEditor/stadiumLayout';
 import { ArenaLighting } from './ArenaLighting';
 import { Ball, type BallHandle } from './Ball';
@@ -97,6 +98,8 @@ import { setKickoffBallReleaseHandler } from './kickoffDrop';
 import { getLocalProfile } from './playerRoster';
 import { CoopAdventureCourse } from '../coop/CoopAdventureCourse';
 import { isCoopAdventureMode } from '../coop/coopAdventurePlayerThrow';
+import { TrainingRangeMap } from './TrainingRangeMap';
+import { trainingMapStore } from './trainingMapStore';
 
 function rocketToNetwork(r: ActiveRocket): Omit<NetworkRocketState, 'ownerId'> {
   return {
@@ -1128,6 +1131,11 @@ function Scene({
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapDocument(),
   );
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
+  const trainingMapEnabled = activeMapId === TRAINING_MAP_ID;
   const playStadiumGroups = getPlayModeStadiumGroups(customMap);
   const stadiumHidden = getHiddenStadiumPieces(playStadiumGroups);
 
@@ -1141,6 +1149,12 @@ function Scene({
             hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
           />
           <CustomMapOverlay />
+          {trainingMapEnabled && (
+            <TrainingRangeMap
+              ballBodyRef={ballBodyRef}
+              playerPositionRef={playerPosRef}
+            />
+          )}
         </>
       )}
       {coopAdventureEnabled ? (
@@ -1220,6 +1234,7 @@ function Scene({
         onPositionUpdate={onPlayerPosition}
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
+        trainingDrivingRange={trainingMapEnabled}
       />
       <RemotePlayers />
       <DebugFreelook />
@@ -1309,6 +1324,13 @@ function Scene({
         }}
         ballPos={ballPos}
         ballVel={ballVel}
+        onBallDirectHit={(hit) => {
+          if (!trainingMapEnabled) return;
+          trainingMapStore.recordBallHit({
+            normal: hit.normal,
+            contact: hit.contact,
+          });
+        }}
       />
       {coopAdventureEnabled ? (
         <CoopAdventureMatchLoop />

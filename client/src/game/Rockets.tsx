@@ -65,6 +65,11 @@ type RocketsProps = {
   onPlayerDirectHit?: (vx: number, vy: number, vz: number) => void;
   ballPos: () => THREE.Vector3 | null;
   ballVel?: () => THREE.Vector3 | null;
+  onBallDirectHit?: (hit: {
+    contact: { x: number; y: number; z: number };
+    normal: { x: number; y: number; z: number };
+    ownerId: string;
+  }) => void;
 };
 
 function makeRocketMaterials(): RocketMaterials {
@@ -293,6 +298,7 @@ export function Rockets({
   onPlayerDirectHit,
   ballPos,
   ballVel,
+  onBallDirectHit,
 }: RocketsProps) {
   const groupRef = useRef<THREE.Group>(null);
   const activeVisuals = useRef(new Map<string, RocketVisual>());
@@ -543,6 +549,19 @@ export function Rockets({
               ballImpactNormal.current,
             );
           }
+          onBallDirectHit?.({
+            contact: {
+              x: ballImpactContact.current.x,
+              y: ballImpactContact.current.y,
+              z: ballImpactContact.current.z,
+            },
+            normal: {
+              x: ballImpactNormal.current.x,
+              y: ballImpactNormal.current.y,
+              z: ballImpactNormal.current.z,
+            },
+            ownerId,
+          });
           continue;
         }
       }
