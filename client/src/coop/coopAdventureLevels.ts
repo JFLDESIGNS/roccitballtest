@@ -1,12 +1,24 @@
 import type { Vec3 } from '../shared/Types';
 
 export type CoopAdventurePlatformKind = 'start' | 'step' | 'finish';
+export type CoopAdventurePlatformShape = 'box' | 'stack';
+
+export type CoopAdventurePlatformMotion = {
+  kind: 'vertical';
+  amplitude: number;
+  speed: number;
+  phase: number;
+} | null;
 
 export type CoopAdventurePlatform = {
   id: string;
   position: Vec3;
   size: Vec3;
   kind: CoopAdventurePlatformKind;
+  shape: CoopAdventurePlatformShape;
+  motion: CoopAdventurePlatformMotion;
+  treeCount: number;
+  loveToken: boolean;
   grass: string;
   side: string;
 };
@@ -27,6 +39,10 @@ type PadSpec = {
   sx: number;
   sz: number;
   kind?: CoopAdventurePlatformKind;
+  shape?: CoopAdventurePlatformShape;
+  motion?: CoopAdventurePlatformMotion;
+  treeCount?: number;
+  loveToken?: boolean;
 };
 
 const THEMES = [
@@ -39,17 +55,44 @@ const THEMES = [
 
 const COOP_PLATFORM_DISTANCE_SCALE = 4.0;
 
+function scalePlatformSize(spec: PadSpec, themeIndex: number): { x: number; z: number } {
+  if (spec.kind === 'start' || spec.kind === 'finish') {
+    return { x: spec.sx, z: spec.sz };
+  }
+  const widthScale = [1.14, 0.92, 1.28, 0.86, 1.08][themeIndex % 5]!;
+  const depthScale = [0.96, 1.22, 0.9, 1.16, 1.02][themeIndex % 5]!;
+  return {
+    x: Math.max(8, spec.sx * widthScale),
+    z: Math.max(7.5, spec.sz * depthScale),
+  };
+}
+
 function pad(
   id: string,
   spec: PadSpec,
   themeIndex: number,
 ): CoopAdventurePlatform {
   const theme = THEMES[themeIndex % THEMES.length]!;
+  const kind = spec.kind ?? 'step';
+  const size = scalePlatformSize(spec, themeIndex);
+  const autoMotion =
+    kind === 'step' && themeIndex % 3 === 0
+      ? {
+          kind: 'vertical' as const,
+          amplitude: 1.15 + (themeIndex % 4) * 0.22,
+          speed: 0.28 + (themeIndex % 3) * 0.08,
+          phase: themeIndex * 0.83,
+        }
+      : null;
   return {
     id,
     position: { x: spec.x, y: spec.y, z: spec.z },
-    size: { x: spec.sx, y: spec.kind === 'start' ? 1.2 : 0.9, z: spec.sz },
-    kind: spec.kind ?? 'step',
+    size: { x: size.x, y: kind === 'start' ? 1.2 : 0.9, z: size.z },
+    kind,
+    shape: spec.shape ?? (kind === 'step' && themeIndex % 4 === 0 ? 'stack' : 'box'),
+    motion: spec.motion ?? autoMotion,
+    treeCount: spec.treeCount ?? (kind === 'step' && themeIndex % 2 === 0 ? 1 : kind === 'finish' ? 2 : 0),
+    loveToken: spec.loveToken ?? (kind === 'step' && themeIndex % 3 === 1 && !autoMotion),
     grass: theme.grass,
     side: theme.side,
   };

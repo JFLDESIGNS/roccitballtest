@@ -1,5 +1,11 @@
 import { Html } from '@react-three/drei';
-import { CuboidCollider, interactionGroups, RigidBody, type RapierRigidBody } from '@react-three/rapier';
+import {
+  CuboidCollider,
+  CylinderCollider,
+  interactionGroups,
+  RigidBody,
+  type RapierRigidBody,
+} from '@react-three/rapier';
 import { useFrame, useLoader, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
@@ -34,6 +40,7 @@ const _remoteSpawnPos = new THREE.Vector3();
 const _buttonPos = new THREE.Vector3();
 const _railStart = new THREE.Vector3();
 const _railEnd = new THREE.Vector3();
+const _tokenPos = new THREE.Vector3();
 
 type ActiveRail = {
   key: string;
@@ -104,68 +111,209 @@ function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
   );
 }
 
+function platformMotionOffset(platform: CoopAdventurePlatform, timeSec: number): number {
+  if (!platform.motion) return 0;
+  return (
+    Math.sin(timeSec * platform.motion.speed + platform.motion.phase) *
+    platform.motion.amplitude
+  );
+}
+
+function CoopPlatformTree({ index, platform }: { index: number; platform: CoopAdventurePlatform }) {
+  const top = platform.size.y * 0.5;
+  const spreadX = Math.max(1.8, platform.size.x * 0.24);
+  const spreadZ = Math.max(1.6, platform.size.z * 0.22);
+  const x = index % 2 === 0 ? -spreadX : spreadX * 0.7;
+  const z = index % 3 === 0 ? -spreadZ : spreadZ * 0.85;
+  const height = 1.7 + (index % 2) * 0.35;
+  return (
+    <group position={[x, top + height * 0.5, z]}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.16, 0.22, height, 7]} />
+        <meshStandardMaterial color="#5b3420" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, height * 0.58, 0]} castShadow>
+        <coneGeometry args={[0.78, 1.35, 8]} />
+        <meshStandardMaterial
+          color="#1f8f52"
+          roughness={0.86}
+          emissive="#0d3d25"
+          emissiveIntensity={0.08}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+function CoopLoveToken({
+  platform,
+  collected,
+}: {
+  platform: CoopAdventurePlatform;
+  collected: boolean;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const t = clock.elapsedTime;
+    ref.current.position.y =
+      platformTopY(platform) + 1.25 + platformMotionOffset(platform, t) + Math.sin(t * 2.4) * 0.18;
+    ref.current.rotation.y = t * 1.8;
+  });
+  if (collected) return null;
+  return (
+    <group
+      ref={ref}
+      position={[platform.position.x, platformTopY(platform) + 1.25, platform.position.z]}
+    >
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.55, 0.12, 10, 28]} />
+        <meshStandardMaterial
+          color="#ff7ac7"
+          emissive="#ff4eb6"
+          emissiveIntensity={1.6}
+          roughness={0.35}
+          metalness={0.1}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh position={[-0.16, 0.08, 0]} scale={[1, 0.9, 1]}>
+        <sphereGeometry args={[0.22, 14, 10]} />
+        <meshStandardMaterial color="#ffe2f2" emissive="#ff67c4" emissiveIntensity={0.9} toneMapped={false} />
+      </mesh>
+      <mesh position={[0.16, 0.08, 0]} scale={[1, 0.9, 1]}>
+        <sphereGeometry args={[0.22, 14, 10]} />
+        <meshStandardMaterial color="#ffe2f2" emissive="#ff67c4" emissiveIntensity={0.9} toneMapped={false} />
+      </mesh>
+      <pointLight color="#ff75c7" intensity={1.15} distance={7} />
+    </group>
+  );
+}
+
 function CoopPlatform({ platform }: { platform: CoopAdventurePlatform }) {
-  const topY = platform.position.y + platform.size.y * 0.5 + 0.035;
+  const bodyRef = useRef<RapierRigidBody | null>(null);
+  const topY = platform.size.y * 0.5 + 0.035;
   const trimColor =
     platform.kind === 'finish'
       ? '#6fffd2'
       : platform.kind === 'start'
         ? '#74bbff'
         : '#d8f08a';
+  const stackRadius = Math.max(platform.size.x, platform.size.z) * 0.45;
+  const stackLayerHeight = platform.size.y / 4;
+
+  useFrame(({ clock }) => {
+    if (!platform.motion || !bodyRef.current) return;
+    bodyRef.current.setNextKinematicTranslation({
+      x: platform.position.x,
+      y: platform.position.y + platformMotionOffset(platform, clock.elapsedTime),
+      z: platform.position.z,
+    });
+  });
+
+  const trees = Array.from({ length: platform.treeCount }, (_, i) => i);
 
   return (
-    <RigidBody type="fixed" colliders={false}>
-      <CuboidCollider
-        args={[platform.size.x / 2, platform.size.y / 2, platform.size.z / 2]}
-        position={[platform.position.x, platform.position.y, platform.position.z]}
-        collisionGroups={PLATFORM_COLLISION}
-        friction={1}
-        restitution={0.03}
-      />
-      <group position={[platform.position.x, platform.position.y, platform.position.z]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[platform.size.x, platform.size.y, platform.size.z]} />
-          <meshStandardMaterial
-            color={platform.side}
-            roughness={0.75}
-            metalness={0}
-          />
-        </mesh>
-        <mesh position={[0, platform.size.y * 0.5 + 0.045, 0]} receiveShadow>
-          <boxGeometry args={[platform.size.x + 0.12, 0.12, platform.size.z + 0.12]} />
-          <meshStandardMaterial
-            color={platform.grass}
-            roughness={0.95}
-            metalness={0}
-            emissive={platform.grass}
-            emissiveIntensity={0.06}
-          />
-        </mesh>
-        <mesh position={[0, platform.size.y * 0.5 + 0.13, 0]}>
+    <RigidBody
+      ref={bodyRef}
+      type={platform.motion ? 'kinematicPosition' : 'fixed'}
+      colliders={false}
+      position={[platform.position.x, platform.position.y, platform.position.z]}
+    >
+      {platform.shape === 'stack' ? (
+        <>
+          {[0, 1, 2, 3].map((layer) => {
+            const radius = stackRadius * (1 - layer * 0.06);
+            const y = -platform.size.y * 0.5 + stackLayerHeight * (layer + 0.5);
+            return (
+              <CylinderCollider
+                key={`collider-${layer}`}
+                args={[stackLayerHeight * 0.5, radius]}
+                position={[0, y, 0]}
+                collisionGroups={PLATFORM_COLLISION}
+                friction={1}
+                restitution={0.03}
+              />
+            );
+          })}
+        </>
+      ) : (
+        <CuboidCollider
+          args={[platform.size.x / 2, platform.size.y / 2, platform.size.z / 2]}
+          collisionGroups={PLATFORM_COLLISION}
+          friction={1}
+          restitution={0.03}
+        />
+      )}
+      <group>
+        {platform.shape === 'stack' ? (
+          <>
+            {[0, 1, 2, 3].map((layer) => {
+              const radius = stackRadius * (1 - layer * 0.06);
+              const y = -platform.size.y * 0.5 + stackLayerHeight * (layer + 0.5);
+              return (
+                <mesh key={layer} position={[0, y, 0]} castShadow receiveShadow>
+                  <cylinderGeometry args={[radius, radius * 1.04, stackLayerHeight, 28]} />
+                  <meshStandardMaterial color={platform.side} roughness={0.82} metalness={0} />
+                </mesh>
+              );
+            })}
+            <mesh position={[0, platform.size.y * 0.5 + 0.055, 0]} receiveShadow>
+              <cylinderGeometry args={[stackRadius * 0.84, stackRadius * 0.86, 0.14, 28]} />
+              <meshStandardMaterial
+                color={platform.grass}
+                roughness={0.95}
+                emissive={platform.grass}
+                emissiveIntensity={0.06}
+              />
+            </mesh>
+          </>
+        ) : (
+          <>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[platform.size.x, platform.size.y, platform.size.z]} />
+              <meshStandardMaterial color={platform.side} roughness={0.78} metalness={0} />
+            </mesh>
+            <mesh position={[0, platform.size.y * 0.5 + 0.045, 0]} receiveShadow>
+              <boxGeometry args={[platform.size.x + 0.12, 0.12, platform.size.z + 0.12]} />
+              <meshStandardMaterial
+                color={platform.grass}
+                roughness={0.95}
+                metalness={0}
+                emissive={platform.grass}
+                emissiveIntensity={0.06}
+              />
+            </mesh>
+          </>
+        )}
+        <mesh position={[0, topY + 0.095, 0]}>
           <boxGeometry args={[platform.size.x + 0.38, 0.08, 0.28]} />
           <meshStandardMaterial
             color={trimColor}
             emissive={trimColor}
-            emissiveIntensity={platform.kind === 'finish' ? 1.1 : 0.25}
+            emissiveIntensity={platform.kind === 'finish' ? 1.1 : 0.2}
             toneMapped={false}
           />
         </mesh>
-        <mesh position={[0, platform.size.y * 0.5 + 0.14, 0]}>
+        <mesh position={[0, topY + 0.105, 0]}>
           <boxGeometry args={[0.28, 0.08, platform.size.z + 0.38]} />
           <meshStandardMaterial
             color={trimColor}
             emissive={trimColor}
-            emissiveIntensity={platform.kind === 'finish' ? 1.1 : 0.25}
+            emissiveIntensity={platform.kind === 'finish' ? 1.1 : 0.2}
             toneMapped={false}
           />
         </mesh>
+        {trees.map((index) => (
+          <CoopPlatformTree key={index} index={index} platform={platform} />
+        ))}
       </group>
       {platform.kind === 'finish' && (
         <pointLight
           color="#63ffd0"
           intensity={2.2}
           distance={18}
-          position={[platform.position.x, topY + 2, platform.position.z]}
+          position={[0, topY + 2, 0]}
         />
       )}
     </RigidBody>
@@ -369,7 +517,12 @@ export function CoopAdventureCourse({
   const [completed, setCompleted] = useState(false);
   const [activeRails, setActiveRails] = useState<ActiveRail[]>([]);
   const [factNotice, setFactNotice] = useState<FactNotice | null>(null);
+  const [tokenFactNotice, setTokenFactNotice] = useState<FactNotice | null>(null);
+  const [collectedLoveTokens, setCollectedLoveTokens] = useState<Set<string>>(
+    () => new Set(),
+  );
   const advanceLock = useRef(0);
+  const tokenFactUntil = useRef(0);
   const pendingAdvance = useRef<{
     at: number;
     completeAfter: boolean;
@@ -394,6 +547,8 @@ export function CoopAdventureCourse({
     teleportedLevel.current = -1;
     pendingAdvance.current = null;
     setFactNotice(null);
+    setTokenFactNotice(null);
+    setCollectedLoveTokens(new Set());
     setActiveRails([]);
   }, [levelIndex, teamSlot]);
 
@@ -487,6 +642,34 @@ export function CoopAdventureCourse({
         setCompleted(true);
       }
       return;
+    }
+    if (tokenFactNotice && tokenFactUntil.current <= nowSec) {
+      setTokenFactNotice(null);
+    }
+
+    for (const platform of level.platforms) {
+      if (!platform.loveToken) continue;
+      const key = `love-${level.id}-${platform.id}`;
+      if (collectedLoveTokens.has(key)) continue;
+      _tokenPos.set(
+        platform.position.x,
+        platformTopY(platform) + 1.2 + platformMotionOffset(platform, nowSec),
+        platform.position.z,
+      );
+      if (playerPositionRef.current.distanceTo(_tokenPos) > 3.2) continue;
+      setCollectedLoveTokens((previous) => {
+        const next = new Set(previous);
+        next.add(key);
+        return next;
+      });
+      const factIndex = (levelIndex * 4 + collectedLoveTokens.size + 11) % BTS_FACTS.length;
+      setTokenFactNotice({
+        fact: BTS_FACTS[factIndex]!,
+        levelName: 'Love Token',
+        completeAfter: false,
+      });
+      tokenFactUntil.current = nowSec + 8;
+      break;
     }
 
     if (!pending && queuedFact.current && !factNotice) {
@@ -590,6 +773,18 @@ export function CoopAdventureCourse({
         <CoopPlatform key={platform.id} platform={platform} />
       ))}
       {level.platforms
+        .filter((platform) => platform.loveToken)
+        .map((platform) => {
+          const key = `love-${level.id}-${platform.id}`;
+          return (
+            <CoopLoveToken
+              key={key}
+              platform={platform}
+              collected={collectedLoveTokens.has(key)}
+            />
+          );
+        })}
+      {level.platforms
         .filter((platform) => railSegmentForPlatform(level.platforms, platform.id) !== null)
         .map((platform) => {
           const key = railKey(level.id, platform.id);
@@ -649,13 +844,17 @@ export function CoopAdventureCourse({
           </span>
           <em>RMB holds a teammate. LMB throws. E builds a help rail.</em>
         </div>
-        {factNotice && (
+        {(factNotice ?? tokenFactNotice) && (
           <div className="coop-adventure-fact">
             <strong>
-              {factNotice.completeAfter ? 'Adventure Complete' : `${factNotice.levelName} Clear`}
+              {(factNotice ?? tokenFactNotice)!.completeAfter
+                ? 'Adventure Complete'
+                : factNotice
+                  ? `${factNotice.levelName} Clear`
+                  : 'Love Token'}
             </strong>
             <span>BTS fact</span>
-            <p>{factNotice.fact}</p>
+            <p>{(factNotice ?? tokenFactNotice)!.fact}</p>
           </div>
         )}
       </Html>

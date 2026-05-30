@@ -1575,9 +1575,12 @@ export function Player({
         if (cloudBounce) {
           coopCloudBounceCooldown.current = 0.22;
           velocity.current.y = Math.max(velocity.current.y, cloudBounce.bounceVy);
-          const liftedY = Math.max(pos.y, cloudBounce.y + 0.08);
+          const liftedY = cloudBounce.liftOnly
+            ? pos.y
+            : Math.max(pos.y, cloudBounce.y + 0.08);
           body.setTranslation({ x: pos.x, y: liftedY, z: pos.z }, true);
           pos.y = liftedY;
+          jumpsLeft.current = MOVEMENT.maxJumps;
         }
         const thrownMove = inputManager.getMoveVector();
         if (Math.hypot(thrownMove.x, thrownMove.y) > 0.01) {
@@ -2276,7 +2279,9 @@ export function Player({
     if (cloudBounce && !grappleActive.current) {
       coopCloudBounceCooldown.current = 0.22;
       vy = Math.max(vy, cloudBounce.bounceVy);
-      const liftedY = Math.max(pos.y, cloudBounce.y + 0.08);
+      const liftedY = cloudBounce.liftOnly
+        ? pos.y
+        : Math.max(pos.y, cloudBounce.y + 0.08);
       body.setTranslation({ x: pos.x, y: liftedY, z: pos.z }, true);
       pos.y = liftedY;
       jumpsLeft.current = MOVEMENT.maxJumps;

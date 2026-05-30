@@ -66,8 +66,8 @@ export function sampleCoopAdventureCloudBounce(
   z: number,
   verticalVelocity: number,
   ignoreClouds: boolean,
-): { y: number; bounceVy: number } | null {
-  if (ignoreClouds || verticalVelocity > 7) return null;
+): { y: number; bounceVy: number; liftOnly?: boolean } | null {
+  if (ignoreClouds) return null;
   for (const cloud of activeClouds) {
     const [cx, cy, cz] = cloud.position;
     const [sx, sy, sz] = cloud.scale;
@@ -79,9 +79,17 @@ export function sampleCoopAdventureCloudBounce(
     const nz = (z - cz) / Math.max(0.001, rz);
     if (nx * nx + ny * ny + nz * nz > 1) continue;
     if (y < cy - ry * 0.7 || y > cy + ry * 1.25) continue;
+    if (verticalVelocity > 7 && y < cy + ry * 0.15) {
+      return {
+        y,
+        bounceVy: Math.max(verticalVelocity, 22),
+        liftOnly: true,
+      };
+    }
+    if (verticalVelocity > 7) continue;
     return {
       y: cy + ry * 0.92,
-      bounceVy: Math.max(34, Math.abs(verticalVelocity) * 1.35 + 24),
+      bounceVy: Math.max(52, Math.abs(verticalVelocity) * 2.15 + 35),
     };
   }
   return null;
