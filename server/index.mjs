@@ -45,7 +45,7 @@ const GOAL_RINGS = {
   midRingBackWallOffsetM: 1.75,
   topRingBackWallOffsetM: 1.75,
   scoringVolumeTopLiftFt: 2,
-  scoringVolumeTopDropFt: 1.55,
+  scoringVolumeTopDropFt: 3.55,
   bottomRingWallStandoffFt: 15,
   ringTiltBottomDeg: -20,
   ringTiltMidDeg: 0,

@@ -20,6 +20,7 @@ const _toTarget = new THREE.Vector3();
 const _targetPos = new THREE.Vector3();
 const _hold = new THREE.Vector3();
 const _velocity = new THREE.Vector3();
+const _throwDir = new THREE.Vector3();
 
 export function isCoopAdventureMode(mode: RoomMode | null | undefined): boolean {
   return mode === COOP_ADVENTURE_MODE;
@@ -90,16 +91,24 @@ export function makeCoopThrowAction(
   lookDir: THREE.Vector3,
   holderVelocity: Vec3,
 ): Omit<NetworkCoopAction, 'id' | 'ownerId'> {
+  _throwDir.set(lookDir.x, 0, lookDir.z);
+  if (_throwDir.lengthSq() < 0.04) {
+    _throwDir.set(holderVelocity.x, 0, holderVelocity.z);
+  }
+  if (_throwDir.lengthSq() < 0.04) _throwDir.set(0, 0, -1);
+  _throwDir.normalize();
+
+  const pitchLift = THREE.MathUtils.clamp(lookDir.y, -0.2, 0.45);
   _velocity
-    .copy(lookDir)
+    .copy(_throwDir)
     .multiplyScalar(COOP_THROW_SPEED)
     .add(new THREE.Vector3(holderVelocity.x * 0.28, 0, holderVelocity.z * 0.28));
   _velocity.y = THREE.MathUtils.clamp(
-    _velocity.y + COOP_THROW_UP_SPEED,
-    COOP_THROW_UP_SPEED * 0.65,
-    COOP_THROW_UP_SPEED + 8,
+    COOP_THROW_UP_SPEED + pitchLift * 14,
+    COOP_THROW_UP_SPEED * 0.55,
+    COOP_THROW_UP_SPEED + 6,
   );
-  _hold.copy(holderPosition).addScaledVector(lookDir, 0.85);
+  _hold.copy(holderPosition).addScaledVector(_throwDir, 0.85);
   _hold.y += 0.35;
   return {
     kind: 'playerThrow',

@@ -17,6 +17,8 @@ const _camRayDir = { x: 0, y: 0, z: 0 };
 const _camRayVec = new THREE.Vector3();
 const CAMERA_COLLISION_PAD_M = 0.55;
 const CAMERA_MIN_DISTANCE_M = 1.2;
+const CAMERA_COLLISION_RELEASE_SMOOTH = 9;
+const cameraObstructionDistance = new WeakMap<THREE.Camera, number>();
 
 function cameraRayFilter(excludeBody?: RigidBody | null): (collider: Collider) => boolean {
   const excludeHandle = excludeBody?.handle;
@@ -133,14 +135,32 @@ export function updateThirdPersonCamera(
         excludeBody ?? undefined,
         cameraRayFilter(excludeBody),
       );
+      let targetDist = rayDist;
       if (hit && hit.timeOfImpact < rayDist - CAMERA_COLLISION_PAD_M) {
-        const safeDist = Math.max(
+        targetDist = Math.max(
           CAMERA_MIN_DISTANCE_M,
           hit.timeOfImpact - CAMERA_COLLISION_PAD_M,
         );
-        _desired.copy(pivot).addScaledVector(_camRayVec, safeDist);
       }
+
+      const prevDist = cameraObstructionDistance.get(camera);
+      let resolvedDist = targetDist;
+      if (
+        !snap &&
+        cameraSmoothingEnabled &&
+        dt > 0 &&
+        prevDist !== undefined &&
+        targetDist > prevDist
+      ) {
+        const releaseSmooth =
+          1 - Math.exp(-CAMERA_COLLISION_RELEASE_SMOOTH * dt);
+        resolvedDist = THREE.MathUtils.lerp(prevDist, targetDist, releaseSmooth);
+      }
+      cameraObstructionDistance.set(camera, resolvedDist);
+      _desired.copy(pivot).addScaledVector(_camRayVec, resolvedDist);
     }
+  } else {
+    cameraObstructionDistance.delete(camera);
   }
 
   if (snap || !cameraSmoothingEnabled || dt <= 0) {

@@ -1132,7 +1132,7 @@ export const GOAL_RINGS = {
   /** Top (5 pt) scoring cylinder — lift toward ring center (feet) */
   scoringVolumeTopLiftFt: 2,
   /** Top (5 pt) scoring cylinder — lower slightly for visual/volume alignment (feet) */
-  scoringVolumeTopDropFt: 1.55,
+  scoringVolumeTopDropFt: 3.55,
   /** Bottom (large) ring — standoff from wall toward center court (feet) */
   bottomRingWallStandoffFt: 15,
   /**
