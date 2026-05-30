@@ -10,10 +10,9 @@ type BallDropSquareLightsProps = {
   withColliders?: boolean;
 };
 
-const COOL_COLOR = '#9ed8ff';
 const COOL_EMISSIVE = '#66c8ff';
 
-/** Square emissive fixtures on the jumbotron cube faces with matching point lights */
+/** Square emissive fixtures on the jumbotron cube faces. */
 export function BallDropSquareLights({
   cubeHalf,
   withColliders = false,
@@ -61,13 +60,6 @@ export function BallDropSquareLights({
           <mesh material={fixtureMat} castShadow={false}>
             <boxGeometry args={[depth, size, size]} />
           </mesh>
-          <pointLight
-            color={COOL_COLOR}
-            intensity={95}
-            distance={52}
-            decay={1.8}
-            position={[depth * 0.55, 0, 0]}
-          />
         </group>
       ))}
     </group>

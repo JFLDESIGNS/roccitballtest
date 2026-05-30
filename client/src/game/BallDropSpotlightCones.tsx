@@ -18,15 +18,11 @@ import {
 const DEFAULT_CORE = new THREE.Color('#8ec8ff');
 const DEFAULT_GLOW = new THREE.Color('#5aa8e8');
 const DEFAULT_LAMP = new THREE.Color('#7ec8ff');
-const DEFAULT_LIGHT = new THREE.Color('#9ed8ff');
 
 const SWEEP_IDLE = 0.55;
 const SWEEP_SCORE = 3.1;
 /** Multiplier on cone shader uStrength (0.608 ≈ 24% more transparent than prior 0.8) */
 const CONE_BEAM_OPACITY_MUL = 0.608;
-/** Real Three.js lights — steady (no goal / ball-drop frenzy strobing) */
-const REAL_SPOT_INTENSITY = 680;
-const REAL_POINT_INTENSITY = 220;
 
 type BallDropSpotlightConesProps = {
   /** Half-extent of jumbotron cube (local Y up at structure center) */
@@ -132,14 +128,12 @@ function teamSpotColors(team: Team): {
   core: THREE.Color;
   glow: THREE.Color;
   lamp: THREE.Color;
-  light: THREE.Color;
 } {
   const hex = teamGoalColor(team, 'medium');
   const core = new THREE.Color(hex);
   const glow = core.clone().multiplyScalar(0.72);
   const lamp = core.clone().lerp(new THREE.Color('#ffffff'), 0.35);
-  const light = core.clone();
-  return { core, glow, lamp, light };
+  return { core, glow, lamp };
 }
 
 /**
@@ -147,8 +141,6 @@ function teamSpotColors(team: Team): {
  */
 export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps) {
   const rigs = useRef<(THREE.Group | null)[]>([]);
-  const spotRefs = useRef<(THREE.SpotLight | null)[]>([]);
-  const pointRefs = useRef<(THREE.PointLight | null)[]>([]);
   const celebrateUntil = useRef(0);
   const lastCelebId = useRef(-1);
   const sparkPos = useRef<Float32Array>(new Float32Array(48 * 3));
@@ -221,7 +213,6 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
       core: new THREE.Color(),
       glow: new THREE.Color(),
       lamp: new THREE.Color(),
-      light: new THREE.Color(),
     }),
     [],
   );
@@ -271,12 +262,10 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
     const targetCore = teamColors?.core ?? DEFAULT_CORE;
     const targetGlow = teamColors?.glow ?? DEFAULT_GLOW;
     const targetLamp = teamColors?.lamp ?? DEFAULT_LAMP;
-    const targetLight = teamColors?.light ?? DEFAULT_LIGHT;
 
     colorScratch.core.copy(DEFAULT_CORE).lerp(targetCore, blend);
     colorScratch.glow.copy(DEFAULT_GLOW).lerp(targetGlow, blend);
     colorScratch.lamp.copy(DEFAULT_LAMP).lerp(targetLamp, blend);
-    colorScratch.light.copy(DEFAULT_LIGHT).lerp(targetLight, blend);
 
     material.uniforms.uColor.value.copy(colorScratch.core);
     glowMat.uniforms.uColor.value.copy(colorScratch.glow);
@@ -303,19 +292,6 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
     material.uniforms.uStrength.value = coreStr * pulse * CONE_BEAM_OPACITY_MUL;
     glowMat.uniforms.uStrength.value = glowStr * pulse * CONE_BEAM_OPACITY_MUL;
     cornerLampMat.emissiveIntensity = celebrating ? 7.5 : 4.5;
-
-    for (let i = 0; i < 4; i++) {
-      const spot = spotRefs.current[i];
-      const point = pointRefs.current[i];
-      if (spot) {
-        spot.color.copy(DEFAULT_LIGHT);
-        spot.intensity = REAL_SPOT_INTENSITY;
-      }
-      if (point) {
-        point.color.copy(DEFAULT_LIGHT);
-        point.intensity = REAL_POINT_INTENSITY;
-      }
-    }
 
     if (shaking) {
       for (let c = 0; c < 4; c++) {
@@ -394,36 +370,11 @@ export function BallDropSpotlightCones({ cubeHalf }: BallDropSpotlightConesProps
             castShadow={false}
             receiveShadow={false}
           />
-          <pointLight
-            ref={(el) => {
-              pointRefs.current[i] = el;
-            }}
-            color="#9ed8ff"
-            intensity={220}
-            distance={cubeHalf * 8}
-            decay={1.6}
-            position={[0, 0, 0]}
-          />
-
           <group
             ref={(el) => {
               rigs.current[i] = el;
             }}
           >
-            <spotLight
-              ref={(el) => {
-                spotRefs.current[i] = el;
-              }}
-              color="#b8e8ff"
-              intensity={680}
-              distance={coneH * 2.8}
-              angle={0.52}
-              penumbra={0.55}
-              decay={1.4}
-              position={[0, 0, 0]}
-            >
-              <object3D attach="target" position={[0, -coneH * 0.65, 0]} />
-            </spotLight>
             <mesh
               geometry={geometry}
               material={glowMat}

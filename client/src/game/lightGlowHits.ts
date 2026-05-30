@@ -86,6 +86,8 @@ function shouldAddBallPunch(
     : BALL_PUNCH_MIN_INTERVAL_S;
   if (now - prev.at < minInterval) return false;
 
+  if (!allowRestingRepeat) return true;
+
   const dx = point.x - prev.x;
   const dy = point.y - prev.y;
   const dz = point.z - prev.z;
