@@ -51,6 +51,7 @@ class InputManager {
   private lastDownTapAt = 0;
   private dashBoostQueued = false;
   private downSmashQueued = false;
+  private loveMessageQueued: 'love' | 'more' | null = null;
   private spawnBallQueued = false;
   private ballRespawnQueued = false;
   private bound = false;
@@ -371,6 +372,12 @@ class InputManager {
       }
       if (e.code === 'KeyQ' && !e.repeat) {
         this.grappleQueued = true;
+      }
+      if (e.code === 'BracketLeft' && !e.repeat) {
+        this.loveMessageQueued = 'love';
+      }
+      if (e.code === 'BracketRight' && e.key === '}' && !e.repeat) {
+        this.loveMessageQueued = 'more';
       }
       if (e.code === 'Tab') {
         e.preventDefault();
@@ -864,6 +871,12 @@ class InputManager {
     if (!this.downSmashQueued) return false;
     this.downSmashQueued = false;
     return true;
+  }
+
+  consumeLoveMessage(): 'love' | 'more' | null {
+    const message = this.loveMessageQueued;
+    this.loveMessageQueued = null;
+    return message;
   }
 
   isSprint(): boolean {

@@ -8,6 +8,11 @@ import { inputManager } from '../game/InputManager';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
 import {
+  buildCoopAdventureClouds,
+  clearCoopAdventureClouds,
+  setCoopAdventureClouds,
+} from './coopAdventureClouds';
+import {
   clearCoopAdventureRails,
   setCoopAdventureRails,
 } from './coopAdventureRails';
@@ -30,11 +35,6 @@ const _buttonPos = new THREE.Vector3();
 const _railStart = new THREE.Vector3();
 const _railEnd = new THREE.Vector3();
 
-type CloudSpec = {
-  position: [number, number, number];
-  scale: [number, number, number];
-};
-
 type ActiveRail = {
   key: string;
   platformId: string;
@@ -45,48 +45,6 @@ type FactNotice = {
   levelName: string;
   completeAfter: boolean;
 };
-
-const COURSE_CLOUDS: CloudSpec[] = [
-  { position: [-38, 20, 12], scale: [12, 5, 8] },
-  { position: [-50, 27, -28], scale: [18, 6, 10] },
-  { position: [42, 23, -8], scale: [14, 5, 9] },
-  { position: [55, 32, -54], scale: [20, 7, 11] },
-  { position: [-36, 42, -76], scale: [16, 6, 10] },
-  { position: [34, 48, -92], scale: [15, 5, 9] },
-  { position: [0, 52, -116], scale: [22, 7, 12] },
-  { position: [-62, 16, 58], scale: [17, 6, 10] },
-  { position: [64, 18, 52], scale: [18, 6, 10] },
-];
-
-function buildRouteClouds(platforms: CoopAdventurePlatform[]): CloudSpec[] {
-  const clouds: CloudSpec[] = [];
-  for (let i = 0; i < platforms.length - 1; i += 1) {
-    const a = platforms[i]!;
-    const b = platforms[i + 1]!;
-    const midX = (a.position.x + b.position.x) * 0.5;
-    const midY = Math.max(a.position.y, b.position.y) + 4.2 + (i % 2) * 1.3;
-    const midZ = (a.position.z + b.position.z) * 0.5;
-    const dx = b.position.x - a.position.x;
-    const dz = b.position.z - a.position.z;
-    const distance = Math.hypot(dx, dz);
-    const sideX = distance > 0.01 ? -dz / distance : 1;
-    const sideZ = distance > 0.01 ? dx / distance : 0;
-    const side = i % 2 === 0 ? 1 : -1;
-    clouds.push({
-      position: [
-        midX + sideX * side * Math.min(10, distance * 0.16),
-        midY,
-        midZ + sideZ * side * Math.min(10, distance * 0.16),
-      ],
-      scale: [
-        THREE.MathUtils.clamp(distance * 0.12, 9, 18),
-        3.6,
-        THREE.MathUtils.clamp(distance * 0.08, 6, 12),
-      ],
-    });
-  }
-  return clouds;
-}
 
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
@@ -100,7 +58,7 @@ function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector
 
 function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
   const clouds = useMemo(
-    () => [...COURSE_CLOUDS, ...buildRouteClouds(platforms)],
+    () => buildCoopAdventureClouds(platforms),
     [platforms],
   );
   const geo = useMemo(() => new THREE.SphereGeometry(1, 14, 10), []);
@@ -118,18 +76,7 @@ function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
   return (
     <group>
       {clouds.map((cloud, i) => (
-        <RigidBody
-          key={i}
-          type="fixed"
-          colliders={false}
-          position={cloud.position}
-        >
-          <CuboidCollider
-            args={[cloud.scale[0] * 0.78, cloud.scale[1] * 0.42, cloud.scale[2] * 0.72]}
-            collisionGroups={PLATFORM_COLLISION}
-            friction={0.18}
-            restitution={1.18}
-          />
+        <group key={i} position={cloud.position}>
           <mesh geometry={geo} material={mat} scale={cloud.scale} />
           <mesh
             geometry={geo}
@@ -151,7 +98,7 @@ function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
               cloud.scale[2] * 0.62,
             ]}
           />
-        </RigidBody>
+        </group>
       ))}
     </group>
   );
@@ -475,6 +422,11 @@ export function CoopAdventureCourse({
       return changed ? next : rails;
     });
   }, [coopRails, level.id]);
+
+  useEffect(() => {
+    setCoopAdventureClouds(buildCoopAdventureClouds(level.platforms));
+    return () => clearCoopAdventureClouds();
+  }, [level.platforms]);
 
   useEffect(() => {
     setCoopAdventureRails(

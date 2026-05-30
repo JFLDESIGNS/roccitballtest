@@ -1,4 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import {
   CapsuleCollider,
   CuboidCollider,
@@ -143,6 +144,7 @@ import {
 } from '../coop/coopAdventurePlayerThrow';
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import { sampleCoopAdventureRailContact } from '../coop/coopAdventureRails';
+import { sampleCoopAdventureCloudBounce } from '../coop/coopAdventureClouds';
 import {
   GRIND_RAIL,
   sampleGrindRailContact,
@@ -382,6 +384,13 @@ function CoopHeldPlayerProxy({
       <group ref={avatarRef} scale={0.96}>
         <PlayerAvatar team={player.team} />
       </group>
+      <Html center position={[0, 2.25, 0]} distanceFactor={16}>
+        <div className="coop-carry-hearts">
+          <span>&hearts;</span>
+          <span>&hearts;</span>
+          <span>&hearts;</span>
+        </div>
+      </Html>
     </group>
   );
 }
@@ -528,10 +537,13 @@ export function Player({
   const coopHeldTarget = useRef(new THREE.Vector3());
   const coopHeldTargetReady = useRef(false);
   const coopRagdollVisualActive = useRef(false);
+  const coopCloudBounceCooldown = useRef(0);
   const coopCarryProxyPos = useRef(new THREE.Vector3());
   const coopCarryProxyLookDir = useRef(new THREE.Vector3(0, 0, -1));
   const [coopCarryProxyPlayer, setCoopCarryProxyPlayer] =
     useState<RemoteMultiplayerPlayer | null>(null);
+  const [loveToast, setLoveToast] = useState<string | null>(null);
+  const loveToastUntil = useRef(0);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -1414,6 +1426,7 @@ export function Player({
     dashCooldown.current = Math.max(0, dashCooldown.current - dt);
     ePropelCooldown.current = Math.max(0, ePropelCooldown.current - dt);
     groundSmashCooldown.current = Math.max(0, groundSmashCooldown.current - dt);
+    coopCloudBounceCooldown.current = Math.max(0, coopCloudBounceCooldown.current - dt);
     rocketFireCooldown.current = Math.max(0, rocketFireCooldown.current - dt);
     dashActiveTimer.current = Math.max(0, dashActiveTimer.current - dt);
     ePropelTimer.current = Math.max(0, ePropelTimer.current - dt);
@@ -1434,6 +1447,13 @@ export function Player({
     const networkCoopAdventureMode =
       multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
     const nowSec = performance.now() / 1000;
+    const loveMessage = inputManager.consumeLoveMessage();
+    if (loveMessage) {
+      setLoveToast(loveMessage === 'love' ? 'I love you' : 'Love you more');
+      loveToastUntil.current = nowSec + 2.4;
+    } else if (loveToast && nowSec > loveToastUntil.current) {
+      setLoveToast(null);
+    }
 
     if (networkCoopAdventureMode) {
       const selfId = multiplayerNow.selfId;
@@ -1444,7 +1464,7 @@ export function Player({
           coopHeldTarget.current.set(hold.x, hold.y, hold.z);
           if (
             !coopHeldTargetReady.current ||
-            coopHeldTarget.current.distanceTo(pos) > 8
+            coopHeldTarget.current.distanceTo(pos) > 28
           ) {
             body.setTranslation(coopHeldTarget.current, true);
             pos.copy(coopHeldTarget.current);
@@ -1542,6 +1562,23 @@ export function Player({
       } else {
         const v = body.linvel();
         velocity.current.set(v.x, v.y + tune.gravity * dt * 1.15, v.z);
+        const cloudBounce =
+          coopCloudBounceCooldown.current <= 0
+            ? sampleCoopAdventureCloudBounce(
+                pos.x,
+                playerFeetY(pos.y),
+                pos.z,
+                velocity.current.y,
+                false,
+              )
+            : null;
+        if (cloudBounce) {
+          coopCloudBounceCooldown.current = 0.22;
+          velocity.current.y = Math.max(velocity.current.y, cloudBounce.bounceVy);
+          const liftedY = Math.max(pos.y, cloudBounce.y + 0.08);
+          body.setTranslation({ x: pos.x, y: liftedY, z: pos.z }, true);
+          pos.y = liftedY;
+        }
         const thrownMove = inputManager.getMoveVector();
         if (Math.hypot(thrownMove.x, thrownMove.y) > 0.01) {
           cameraMoveTargetXZ(
@@ -2225,6 +2262,29 @@ export function Player({
       airFlyPulseTimer.current = 0;
       airFlyDirReady.current = false;
     }
+
+    const cloudBounce =
+      coopAdventureMode && coopCloudBounceCooldown.current <= 0
+        ? sampleCoopAdventureCloudBounce(
+            pos.x,
+            playerFeetY(pos.y),
+            pos.z,
+            vy,
+            grindRailActive.current,
+          )
+        : null;
+    if (cloudBounce && !grappleActive.current) {
+      coopCloudBounceCooldown.current = 0.22;
+      vy = Math.max(vy, cloudBounce.bounceVy);
+      const liftedY = Math.max(pos.y, cloudBounce.y + 0.08);
+      body.setTranslation({ x: pos.x, y: liftedY, z: pos.z }, true);
+      pos.y = liftedY;
+      jumpsLeft.current = MOVEMENT.maxJumps;
+      grounded.current = false;
+      jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+      coyoteTime.current = 0;
+    }
+
     if (!grindRailActive.current) {
       if (!grappleActive.current && !grounded.current && vy < -0.1) {
         fallAssistTimer.current += dt;
@@ -2511,8 +2571,8 @@ export function Player({
         coopCarryTargetId.current = target.id;
         coopCarryProxyPos.current
           .copy(chestPos.current)
-          .addScaledVector(lookDir, 4.0);
-        coopCarryProxyPos.current.y += 0.5;
+          .addScaledVector(lookDir, 2.45);
+        coopCarryProxyPos.current.y += 0.35;
         coopCarryProxyLookDir.current.copy(lookDir);
         coopCarryVisualStore.setHeldTarget(target.id);
         if (coopCarryProxyPlayer?.id !== target.id) {
@@ -3208,6 +3268,11 @@ export function Player({
 
   return (
     <group visible={!debugFreelook}>
+      {loveToast && (
+        <Html fullscreen>
+          <div className="coop-love-toast">{loveToast}</div>
+        </Html>
+      )}
       <LocalHeldBallVisual socketRef={holdSocketSmoothed} chestRef={chestPos} />
       <mesh ref={grappleCableRef} visible={false} frustumCulled={false}>
         <cylinderGeometry args={[0.018, 0.018, 1, 8, 1, true]} />

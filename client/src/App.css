@@ -3332,6 +3332,86 @@ body,
   line-height: 1.35;
 }
 
+.coop-love-toast {
+  position: fixed;
+  left: 50%;
+  top: 16%;
+  transform: translateX(-50%);
+  padding: 0.68rem 1.1rem;
+  border: 1px solid rgba(255, 120, 196, 0.58);
+  border-radius: 999px;
+  background: rgba(16, 5, 18, 0.72);
+  color: #ffe7f5;
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-shadow: 0 0 14px rgba(255, 93, 180, 0.6);
+  pointer-events: none;
+  animation: coop-love-toast-pop 2.4s ease both;
+}
+
+.coop-carry-hearts {
+  position: relative;
+  width: 4.2rem;
+  height: 3rem;
+  pointer-events: none;
+}
+
+.coop-carry-hearts span {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  color: #ff75c8;
+  font-size: 1.15rem;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(255, 93, 180, 0.8);
+  animation: coop-heart-float 1.15s ease-in-out infinite;
+}
+
+.coop-carry-hearts span:nth-child(1) {
+  margin-left: -1.1rem;
+  animation-delay: -0.15s;
+}
+
+.coop-carry-hearts span:nth-child(2) {
+  margin-left: -0.1rem;
+  animation-delay: -0.42s;
+}
+
+.coop-carry-hearts span:nth-child(3) {
+  margin-left: 0.85rem;
+  animation-delay: -0.72s;
+}
+
+@keyframes coop-heart-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scale(0.72);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -2.4rem, 0) scale(1.18);
+  }
+}
+
+@keyframes coop-love-toast-pop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.4rem) scale(0.92);
+  }
+  12%,
+  76% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-0.25rem) scale(0.98);
+  }
+}
+
 .main-menu-browser-divider {
   height: 1px;
   background: rgba(95, 153, 225, 0.18);

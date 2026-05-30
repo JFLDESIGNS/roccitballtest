@@ -11,7 +11,7 @@ export const COOP_ADVENTURE_MODE: RoomMode = 'coop-adventure';
 
 const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
-const COOP_HOLD_DISTANCE = 4.0;
+const COOP_HOLD_DISTANCE = 2.6;
 const COOP_PULL_SPEED = 38;
 const COOP_THROW_SPEED = 18;
 const COOP_THROW_UP_SPEED = 5;
