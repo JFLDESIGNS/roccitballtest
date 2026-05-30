@@ -62,7 +62,13 @@ export function PlayerVisualProxy({
       ? MOVEMENT.playerVisualPosSmooth
       : MOVEMENT.playerVisualAirPosSmooth;
     const alpha = 1 - Math.exp(-smooth * dtClamped);
-    displayPos.current.lerp(_target, alpha);
+    displayPos.current.x = _target.x;
+    displayPos.current.z = _target.z;
+    displayPos.current.y = THREE.MathUtils.lerp(
+      displayPos.current.y,
+      _target.y,
+      alpha,
+    );
     root.position.copy(displayPos.current);
   });
 
