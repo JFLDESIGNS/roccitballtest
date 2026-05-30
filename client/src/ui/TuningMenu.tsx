@@ -169,12 +169,6 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
             onChange={tuningStore.setAirFlyModeEnabled}
           />
           <ToggleRow
-            label="Camera collision probe"
-            hint="Off = camera no longer pulls inward from arena walls."
-            checked={tune.cameraCollisionProbeEnabled}
-            onChange={tuningStore.setCameraCollisionProbeEnabled}
-          />
-          <ToggleRow
             label="Camera speed pullback"
             hint="Off = camera distance stops changing with player speed."
             checked={tune.cameraSpeedPullbackEnabled}

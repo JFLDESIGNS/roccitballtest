@@ -152,7 +152,7 @@ import {
 import { burstGrindRailSparks } from './impactSparks';
 import { burstGroundSmashDust } from './GroundSmashDust';
 
-const PLAYER_BODY_COLLISION = interactionGroups(0, [0, 2, 4]);
+const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
 const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const PLAYER_LOWER_COLLIDER = {

@@ -640,22 +640,9 @@ export const CAMERA = {
   height: 1.2,
   pivotHeight: 1.5,
   shoulderOffset: 0,
-  lookAhead: 24,
   smooth: 28,
-  /** Body pivot follow on X/Z. Moderated so collision corrections do not read as camera shake. */
-  pivotSmoothXZ: 18,
-  /** Body pivot follow vertically. */
-  pivotSmoothY: 24,
-  /** Never pull third-person cam closer than this to the pivot (avoids clipping inside capsule) */
-  minDistanceFromPivot: 4.5,
-  /** Min height above arena floor (m) */
-  groundClearance: 0.55,
-  /** Stop camera this far before geometry along pivot→cam ray */
-  collisionPadding: 0.45,
   /** Max meters camera may sit below pivot (looking up) */
   maxDropBelowPivot: 2.6,
-  /** How much vertical offset follows aim pitch (lower = less ground dip) */
-  verticalInfluence: 0.55,
   /** Ignore mouse deltas briefly after pointer lock (browser spike) */
   lockWarmupMs: 220,
   /** High cap only filters browser spikes; fast flicks should keep full travel. */
