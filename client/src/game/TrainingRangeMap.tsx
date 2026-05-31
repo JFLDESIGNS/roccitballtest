@@ -21,7 +21,13 @@ import {
 import { trainingMapStore } from './trainingMapStore';
 import { registerTrainingCube } from './trainingCubeRegistry';
 
-const markerMat = new THREE.MeshBasicMaterial({ color: '#e8f5cb', toneMapped: false });
+const markerMat = new THREE.MeshBasicMaterial({
+  color: '#e8f5cb',
+  transparent: true,
+  opacity: 0.1,
+  depthWrite: false,
+  toneMapped: false,
+});
 const grassMat = new THREE.MeshStandardMaterial({
   color: '#38a957',
   roughness: 0.85,
@@ -305,21 +311,32 @@ function WarehouseShell() {
   );
 }
 
+function launcherYawTowardStand(origin: { x: number; z: number }): number {
+  const dx = TRAINING.defenseStand.x - origin.x;
+  const dz = TRAINING.defenseStand.z - origin.z;
+  return Math.atan2(-dx, -dz);
+}
+
 function TrainingLaunchers() {
   return (
     <>
-      {TRAINING.defenseLaunchers.map((origin, i) => (
-        <group key={`${origin.x}-${origin.z}`} position={[origin.x, origin.y, origin.z]} rotation={[0, origin.yaw, Math.PI / 2]}>
-          <mesh>
-            <cylinderGeometry args={[0.65, 1.0, 2.7, 24]} />
-            <meshStandardMaterial color="#141a22" roughness={0.35} metalness={0.35} emissive={i % 2 ? '#4a2218' : '#18364a'} emissiveIntensity={0.5} />
-          </mesh>
-          <mesh position={[0, 0, -1.52]}>
+      {TRAINING.defenseLaunchers.map((origin, i) => {
+        const yaw = launcherYawTowardStand(origin);
+        return (
+        <group key={`${origin.x}-${origin.z}`} position={[origin.x, origin.y, origin.z]} rotation={[0, yaw, 0]}>
+          <group rotation={[Math.PI / 2, 0, 0]}>
+            <mesh>
+              <cylinderGeometry args={[0.65, 1.0, 2.7, 24]} />
+              <meshStandardMaterial color="#141a22" roughness={0.35} metalness={0.35} emissive={i % 2 ? '#4a2218' : '#18364a'} emissiveIntensity={0.5} />
+            </mesh>
+          </group>
+          <mesh position={[0, 0, -1.58]}>
             <cylinderGeometry args={[0.72, 0.72, 0.12, 24]} />
             <meshBasicMaterial color={i % 2 ? '#ff744a' : '#6ee8ff'} toneMapped={false} />
           </mesh>
         </group>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -409,8 +426,8 @@ function launchTrainingBallAtPlayer(
   const launcherPos = new THREE.Vector3(origin.x, origin.y, origin.z);
   const launchFrom = launcherPos
     .clone()
-    .add(target.clone().sub(launcherPos).normalize().multiplyScalar(3.2));
-  const flightTime = 1.35 + Math.random() * 0.85;
+    .add(target.clone().sub(launcherPos).normalize().multiplyScalar(4.2));
+  const flightTime = 0.95 + Math.random() * 0.55;
   const gravity = -11;
   const vx = (target.x - launchFrom.x) / flightTime;
   const vz = (target.z - launchFrom.z) / flightTime;
