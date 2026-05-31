@@ -82,14 +82,14 @@ export function sampleCoopAdventureCloudBounce(
     if (verticalVelocity > 7 && y < cy + ry * 0.15) {
       return {
         y,
-        bounceVy: Math.max(verticalVelocity, 22),
+        bounceVy: Math.max(verticalVelocity, 12),
         liftOnly: true,
       };
     }
     if (verticalVelocity > 7) continue;
     return {
       y: cy + ry * 0.92,
-      bounceVy: Math.max(52, Math.abs(verticalVelocity) * 2.15 + 35),
+      bounceVy: Math.max(18, Math.abs(verticalVelocity) * 0.6 + 14),
     };
   }
   return null;

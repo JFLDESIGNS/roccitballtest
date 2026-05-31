@@ -54,16 +54,20 @@ const THEMES = [
 ];
 
 const COOP_PLATFORM_DISTANCE_SCALE = 4.0;
+const COOP_PLATFORM_SIZE_SCALE = 3.0;
 
 function scalePlatformSize(spec: PadSpec, themeIndex: number): { x: number; z: number } {
   if (spec.kind === 'start' || spec.kind === 'finish') {
-    return { x: spec.sx, z: spec.sz };
+    return {
+      x: spec.sx * COOP_PLATFORM_SIZE_SCALE,
+      z: spec.sz * COOP_PLATFORM_SIZE_SCALE,
+    };
   }
   const widthScale = [1.14, 0.92, 1.28, 0.86, 1.08][themeIndex % 5]!;
   const depthScale = [0.96, 1.22, 0.9, 1.16, 1.02][themeIndex % 5]!;
   return {
-    x: Math.max(8, spec.sx * widthScale),
-    z: Math.max(7.5, spec.sz * depthScale),
+    x: Math.max(8, spec.sx * widthScale) * COOP_PLATFORM_SIZE_SCALE,
+    z: Math.max(7.5, spec.sz * depthScale) * COOP_PLATFORM_SIZE_SCALE,
   };
 }
 

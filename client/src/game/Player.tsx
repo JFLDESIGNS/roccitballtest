@@ -1426,6 +1426,7 @@ export function Player({
           const v = body.linvel();
           velocity.current.set(v.x, v.y, v.z);
           grounded.current = false;
+          jumpsLeft.current = 1;
           jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
         }
       }
@@ -1525,6 +1526,28 @@ export function Player({
           pos.y = liftedY;
           jumpsLeft.current = MOVEMENT.maxJumps;
         }
+        if (
+          coopThrown &&
+          jumpsLeft.current > 0 &&
+          inputManager.wantsJump() &&
+          inputManager.consumeJump()
+        ) {
+          playJump(0);
+          velocity.current.y = Math.max(
+            velocity.current.y,
+            tuningStore.getJumpImpulse(0) * 0.9,
+          );
+          jumpsLeft.current = 0;
+          grounded.current = false;
+          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+          coyoteTime.current = 0;
+          const tr = body.translation();
+          body.setTranslation(
+            { x: tr.x, y: tr.y + MOVEMENT.jumpLiftY, z: tr.z },
+            true,
+          );
+          pos.y = tr.y + MOVEMENT.jumpLiftY;
+        }
         const thrownMove = inputManager.getMoveVector();
         if (Math.hypot(thrownMove.x, thrownMove.y) > 0.01) {
           cameraMoveTargetXZ(
@@ -1532,9 +1555,9 @@ export function Player({
             forward,
             right,
             thrownMove,
-            effectiveWalkSpeed * 0.55,
+            effectiveWalkSpeed * 0.95,
           );
-          const steerAlpha = 1 - Math.exp(-dt * 1.35);
+          const steerAlpha = 1 - Math.exp(-dt * 3.1);
           velocity.current.x = THREE.MathUtils.lerp(
             velocity.current.x,
             _moveVelXZ.x,
@@ -1545,7 +1568,7 @@ export function Player({
             _moveVelXZ.z,
             steerAlpha,
           );
-          clampHorizontalVelocity(velocity.current, effectiveSprintSpeed * 1.25);
+          clampHorizontalVelocity(velocity.current, effectiveSprintSpeed * 1.55);
         }
         body.setLinvel(velocity.current, true);
         const probe = probePlayerGround(
