@@ -30,6 +30,29 @@ const dirtMat = new THREE.MeshStandardMaterial({
   roughness: 0.9,
   metalness: 0,
 });
+const concreteMat = new THREE.MeshStandardMaterial({
+  color: '#2c3438',
+  roughness: 0.78,
+  metalness: 0.04,
+});
+const warehouseWallMat = new THREE.MeshStandardMaterial({
+  color: '#171d22',
+  roughness: 0.68,
+  metalness: 0.08,
+});
+const warehouseTrimMat = new THREE.MeshStandardMaterial({
+  color: '#6ee8ff',
+  roughness: 0.36,
+  metalness: 0.35,
+  emissive: '#0a5263',
+  emissiveIntensity: 0.45,
+});
+
+const FT_TO_M = 0.3048;
+
+function formatFt(n: number): string {
+  return `${Math.max(0, Math.round(n))} ft`;
+}
 
 function TrainingHitPreview() {
   const hit = useSyncExternalStore(
@@ -74,6 +97,132 @@ function TrainingHitPreview() {
   );
 }
 
+function TrainingShotPanel() {
+  const activeShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getActiveShot(),
+  );
+  const lastShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getLastShot(),
+  );
+  const bestShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getBestShot(),
+  );
+  const shot = activeShot ?? lastShot;
+
+  return (
+    <Billboard position={[TRAINING.drivingRange.x - 20, 7.2, TRAINING.drivingRange.startZ + 2]}>
+      <Html center distanceFactor={13}>
+        <div
+          style={{
+            width: 300,
+            padding: '10px 12px',
+            border: '1px solid rgba(148, 255, 169, 0.7)',
+            borderRadius: 8,
+            background: 'linear-gradient(180deg, rgba(4, 20, 18, 0.92), rgba(5, 12, 18, 0.82))',
+            boxShadow: '0 0 24px rgba(82, 255, 155, 0.22)',
+            color: '#effff4',
+            font: '800 12px system-ui, sans-serif',
+            letterSpacing: 0.3,
+          }}
+        >
+          <div style={{ color: '#69ff9d', fontSize: 15, marginBottom: 8 }}>
+            DRIVING RANGE TRACKER
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+            <Stat label="LIVE" value={shot ? formatFt(shot.distanceFt) : '--'} />
+            <Stat label="CARRY" value={shot ? formatFt(shot.carryFt) : '--'} />
+            <Stat label="APEX" value={shot ? formatFt(shot.apexFt) : '--'} />
+            <Stat label="SPEED" value={shot ? `${shot.speedMps.toFixed(1)} m/s` : '--'} />
+          </div>
+          <div style={{ marginTop: 8, color: '#c9f7d7' }}>
+            BEST: {bestShot ? formatFt(bestShot.distanceFt) : 'no shot yet'}
+          </div>
+        </div>
+      </Html>
+    </Billboard>
+  );
+}
+
+function DrivingShotMarkers() {
+  const activeShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getActiveShot(),
+  );
+  const lastShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getLastShot(),
+  );
+  const bestShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getBestShot(),
+  );
+  const marker = activeShot ?? lastShot;
+  const markerZ =
+    marker != null
+      ? TRAINING.drivingRange.startZ - marker.distanceFt * FT_TO_M
+      : null;
+  const bestZ =
+    bestShot != null
+      ? TRAINING.drivingRange.startZ - bestShot.distanceFt * FT_TO_M
+      : null;
+
+  return (
+    <>
+      {markerZ != null && (
+        <group position={[TRAINING.drivingRange.x, 0.2, markerZ]}>
+          <mesh scale={[TRAINING.drivingRange.width * 0.42, 0.08, 0.18]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#69ff9d" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 2.0, 0]} scale={[0.12, 4.0, 0.12]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#69ff9d" transparent opacity={0.55} toneMapped={false} />
+          </mesh>
+        </group>
+      )}
+      {bestZ != null && (
+        <group position={[TRAINING.drivingRange.x + TRAINING.drivingRange.width / 2 + 1.1, 0.55, bestZ]}>
+          <mesh scale={[0.25, 1.1, 0.25]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#ffe36e" toneMapped={false} />
+          </mesh>
+          <Html center distanceFactor={18} position={[0, 1.0, 0]}>
+            <div
+              style={{
+                color: '#ffe36e',
+                font: '900 11px system-ui, sans-serif',
+                textShadow: '0 1px 5px #000',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              BEST {formatFt(bestShot?.distanceFt ?? 0)}
+            </div>
+          </Html>
+        </group>
+      )}
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        padding: '7px 8px',
+        borderRadius: 6,
+        border: '1px solid rgba(160, 255, 194, 0.25)',
+        background: 'rgba(255, 255, 255, 0.06)',
+      }}
+    >
+      <div style={{ color: '#86cfa0', fontSize: 9 }}>{label}</div>
+      <div style={{ color: '#ffffff', fontSize: 16 }}>{value}</div>
+    </div>
+  );
+}
+
 function Platform({
   position,
   scale,
@@ -95,14 +244,15 @@ function Platform({
 }
 
 function DrivingRangeMarkers() {
+  const markerCount = Math.floor(TRAINING.drivingRange.length / TRAINING.drivingRange.markerStep);
   const markers = useMemo(
     () =>
-      Array.from({ length: 30 }, (_, i) => {
+      Array.from({ length: markerCount }, (_, i) => {
         const feet = (i + 1) * 10;
         const z = TRAINING.drivingRange.startZ - (i + 1) * TRAINING.drivingRange.markerStep;
         return { feet, z };
       }),
-    [],
+    [markerCount],
   );
 
   return (
@@ -112,17 +262,90 @@ function DrivingRangeMarkers() {
           <mesh material={markerMat} scale={[TRAINING.drivingRange.width, 0.04, 0.09]}>
             <boxGeometry args={[1, 1, 1]} />
           </mesh>
-          <Html center distanceFactor={14} position={[-TRAINING.drivingRange.width / 2 - 1.8, 0.35, 0]}>
-            <div
-              style={{
-                color: '#f4ffd7',
-                font: '800 10px system-ui, sans-serif',
-                textShadow: '0 1px 4px #000',
-              }}
-            >
-              {m.feet} ft
-            </div>
-          </Html>
+          {(m.feet % 50 === 0 || m.feet === 10) && (
+            <Html center distanceFactor={16} position={[-TRAINING.drivingRange.width / 2 - 2.2, 0.42, 0]}>
+              <div
+                style={{
+                  color: m.feet % 100 === 0 ? '#fff4a8' : '#f4ffd7',
+                  font: '900 11px system-ui, sans-serif',
+                  textShadow: '0 1px 4px #000',
+                }}
+              >
+                {m.feet} ft
+              </div>
+            </Html>
+          )}
+        </group>
+      ))}
+    </>
+  );
+}
+
+function WarehouseShell() {
+  const w = TRAINING.warehouse;
+  const halfW = w.width / 2;
+  const halfL = w.length / 2;
+  const y = w.wallHeight / 2;
+
+  return (
+    <RigidBody type="fixed" colliders={false}>
+      <mesh position={[w.x, -0.16, w.z]} scale={[w.width, 0.28, w.length]} material={concreteMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[halfW, 0.14, halfL]} position={[w.x, -0.16, w.z]} />
+
+      <mesh position={[w.x - halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[0.25, y, halfL]} position={[w.x - halfW, y, w.z]} />
+
+      <mesh position={[w.x + halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[0.25, y, halfL]} position={[w.x + halfW, y, w.z]} />
+
+      <mesh position={[w.x, y, w.z - halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[halfW, y, 0.25]} position={[w.x, y, w.z - halfL]} />
+
+      <mesh position={[w.x, y, w.z + halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[halfW, y, 0.25]} position={[w.x, y, w.z + halfL]} />
+
+      <mesh position={[w.x, w.wallHeight + 0.15, w.z]} scale={[w.width, 0.3, w.length]} material={warehouseWallMat} receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[halfW, 0.15, halfL]} position={[w.x, w.wallHeight + 0.15, w.z]} />
+
+      {[-0.4, -0.2, 0, 0.2, 0.4].map((t) => (
+        <mesh
+          key={t}
+          position={[w.x + t * w.width, 0.05, w.z]}
+          scale={[0.18, 0.1, w.length * 0.98]}
+          material={warehouseTrimMat}
+        >
+          <boxGeometry args={[1, 1, 1]} />
+        </mesh>
+      ))}
+    </RigidBody>
+  );
+}
+
+function TrainingLaunchers() {
+  return (
+    <>
+      {TRAINING.defenseLaunchers.map((origin, i) => (
+        <group key={`${origin.x}-${origin.z}`} position={[origin.x, origin.y, origin.z]} rotation={[0, origin.yaw, Math.PI / 2]}>
+          <mesh>
+            <cylinderGeometry args={[0.65, 1.0, 2.7, 24]} />
+            <meshStandardMaterial color="#141a22" roughness={0.35} metalness={0.35} emissive={i % 2 ? '#4a2218' : '#18364a'} emissiveIntensity={0.5} />
+          </mesh>
+          <mesh position={[0, 0, -1.52]}>
+            <cylinderGeometry args={[0.72, 0.72, 0.12, 24]} />
+            <meshBasicMaterial color={i % 2 ? '#ff744a' : '#6ee8ff'} toneMapped={false} />
+          </mesh>
         </group>
       ))}
     </>
@@ -133,9 +356,16 @@ function launchTrainingBallAtPlayer(
   ball: RapierRigidBody,
   player: THREE.Vector3,
 ): void {
-  const origin = TRAINING.defenseLauncher;
-  const target = new THREE.Vector3(player.x, player.y + 1.15, player.z);
-  const flightTime = 0.9 + Math.random() * 0.75;
+  const origin =
+    TRAINING.defenseLaunchers[
+      Math.floor(Math.random() * TRAINING.defenseLaunchers.length)
+    ];
+  const target = new THREE.Vector3(
+    player.x + (Math.random() - 0.5) * 2.8,
+    player.y + 0.8 + Math.random() * 1.7,
+    player.z + (Math.random() - 0.5) * 3.8,
+  );
+  const flightTime = 1.35 + Math.random() * 0.85;
   const gravity = -11;
   const vx = (target.x - origin.x) / flightTime;
   const vz = (target.z - origin.z) / flightTime;
@@ -148,9 +378,9 @@ function launchTrainingBallAtPlayer(
   ball.setTranslation(origin, true);
   ball.setLinvel(
     {
-      x: vx * (0.8 + Math.random() * 0.35),
+      x: vx * (0.78 + Math.random() * 0.22),
       y: vy,
-      z: vz * (0.8 + Math.random() * 0.35),
+      z: vz * (0.78 + Math.random() * 0.22),
     },
     true,
   );
@@ -174,24 +404,111 @@ export function TrainingRangeMap({
   playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   const nextLaunchAt = useRef(0);
+  const drivingShot = useRef({
+    armed: false,
+    active: false,
+    startZ: TRAINING.drivingRange.startZ + 3.8,
+    startedAt: 0,
+    maxDistanceFt: 0,
+    maxCarryFt: 0,
+    maxApexFt: 0,
+    maxSpeedMps: 0,
+  });
   const rangeEndZ = TRAINING.drivingRange.startZ - TRAINING.drivingRange.length;
 
   useFrame(() => {
     const pos = playerPositionRef.current;
     const ball = ballBodyRef.current;
+    const state = gameStore.getState();
+    const inDrivingStand = isTrainingDrivingRangeStand(pos.x, pos.z);
+
+    if (ball && inDrivingStand && state.ballHolderId !== null) {
+      drivingShot.current.armed = true;
+      drivingShot.current.active = false;
+    }
+
+    if (ball && drivingShot.current.armed && state.ballHolderId === null) {
+      const bt = ball.translation();
+      if (!drivingShot.current.active && bt.z < TRAINING.drivingRange.startZ + 2.2) {
+        drivingShot.current.active = true;
+        drivingShot.current.startedAt = performance.now() / 1000;
+        drivingShot.current.maxDistanceFt = 0;
+        drivingShot.current.maxCarryFt = 0;
+        drivingShot.current.maxApexFt = Math.max(0, bt.y / FT_TO_M);
+        drivingShot.current.maxSpeedMps = 0;
+      }
+
+      if (drivingShot.current.active) {
+        const lv = ball.linvel();
+        const speed = Math.hypot(lv.x, lv.y, lv.z);
+        const distanceFt = Math.max(
+          0,
+          (TRAINING.drivingRange.startZ - bt.z) / FT_TO_M,
+        );
+        drivingShot.current.maxDistanceFt = Math.max(
+          drivingShot.current.maxDistanceFt,
+          distanceFt,
+        );
+        drivingShot.current.maxCarryFt = Math.max(
+          drivingShot.current.maxCarryFt,
+          distanceFt,
+        );
+        drivingShot.current.maxApexFt = Math.max(
+          drivingShot.current.maxApexFt,
+          bt.y / FT_TO_M,
+        );
+        drivingShot.current.maxSpeedMps = Math.max(
+          drivingShot.current.maxSpeedMps,
+          speed,
+        );
+        trainingMapStore.updateActiveShot({
+          distanceFt: drivingShot.current.maxDistanceFt,
+          carryFt: drivingShot.current.maxCarryFt,
+          apexFt: drivingShot.current.maxApexFt,
+          speedMps: drivingShot.current.maxSpeedMps,
+          landed: false,
+        });
+
+        const shotAge = performance.now() / 1000 - drivingShot.current.startedAt;
+        const done =
+          bt.y < 0.55 ||
+          speed < 1.2 ||
+          bt.z < rangeEndZ + 1 ||
+          shotAge > 12;
+        if (done && shotAge > 0.28) {
+          trainingMapStore.finishShot({
+            distanceFt: drivingShot.current.maxDistanceFt,
+            carryFt: drivingShot.current.maxCarryFt,
+            apexFt: drivingShot.current.maxApexFt,
+            speedMps: drivingShot.current.maxSpeedMps,
+            landed: true,
+          });
+          drivingShot.current.active = false;
+          drivingShot.current.armed = false;
+        }
+      }
+    }
+
     if (!ball || !isTrainingDefenseStand(pos.x, pos.z)) return;
-    if (isTrainingDrivingRangeStand(pos.x, pos.z)) return;
-    if (gameStore.getState().ballHolderId !== null) return;
+    if (inDrivingStand) return;
+    if (state.ballHolderId !== null) return;
     const now = performance.now() / 1000;
     if (now < nextLaunchAt.current) return;
-    nextLaunchAt.current = now + 1.65 + Math.random() * 0.95;
+    nextLaunchAt.current = now + 1.95 + Math.random() * 1.25;
     launchTrainingBallAtPlayer(ball, pos);
   });
 
   return (
-    <group>
-      <ambientLight intensity={0.45} />
-      <directionalLight position={[18, 30, 18]} intensity={1.6} castShadow />
+    <>
+      <color attach="background" args={['#11171c']} />
+      <fog attach="fog" args={['#11171c', 145, 350]} />
+      <group>
+      <ambientLight intensity={0.62} />
+      <directionalLight position={[18, 30, 18]} intensity={1.2} castShadow />
+      <pointLight position={[TRAINING.defenseStand.x, 10, TRAINING.defenseStand.z]} intensity={22} distance={32} color="#76dfff" />
+      <pointLight position={[TRAINING.drivingRange.x, 12, TRAINING.drivingRange.startZ - 35]} intensity={26} distance={56} color="#9cffbf" />
+
+      <WarehouseShell />
 
       <Platform
         position={[
@@ -211,10 +528,7 @@ export function TrainingRangeMap({
           ROCKET REACTION PLATFORM
         </div>
       </Html>
-      <mesh position={[TRAINING.defenseLauncher.x, TRAINING.defenseLauncher.y, TRAINING.defenseLauncher.z]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.9, 1.25, 3.2, 24]} />
-        <meshStandardMaterial color="#141a22" roughness={0.35} metalness={0.35} emissive="#18364a" emissiveIntensity={0.5} />
-      </mesh>
+      <TrainingLaunchers />
       <TrainingHitPreview />
 
       <Platform
@@ -235,6 +549,7 @@ export function TrainingRangeMap({
           DRIVING RANGE: AUTO BALL IN HAND
         </div>
       </Html>
+      <TrainingShotPanel />
 
       <RigidBody type="fixed" colliders={false}>
         <mesh
@@ -275,6 +590,7 @@ export function TrainingRangeMap({
         />
       </RigidBody>
       <DrivingRangeMarkers />
+      <DrivingShotMarkers />
 
       <mesh position={[TRAINING.drivingRange.x, 0.22, rangeEndZ]}>
         <boxGeometry args={[TRAINING.drivingRange.width, 0.42, 0.35]} />
@@ -284,6 +600,7 @@ export function TrainingRangeMap({
         <sphereGeometry args={[BALL.radius, 24, 16]} />
         <meshStandardMaterial color="#f8fbff" roughness={0.28} metalness={0.04} />
       </mesh>
-    </group>
+      </group>
+    </>
   );
 }

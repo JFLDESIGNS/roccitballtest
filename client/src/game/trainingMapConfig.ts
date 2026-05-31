@@ -2,14 +2,27 @@ const FT = 0.3048;
 
 export const TRAINING = {
   defenseStand: { x: -34, z: 8, half: 5.5 },
-  defenseLauncher: { x: -55, y: 4.6, z: 8 },
+  defenseLaunchers: [
+    { x: -57, y: 3.7, z: -2, yaw: Math.PI / 2 },
+    { x: -60, y: 5.6, z: 8, yaw: Math.PI / 2 },
+    { x: -56, y: 4.4, z: 18, yaw: Math.PI / 2 },
+    { x: -43, y: 7.1, z: 25, yaw: Math.PI * 0.72 },
+    { x: -43, y: 3.5, z: -10, yaw: Math.PI * 0.28 },
+  ],
   drivingStand: { x: 30, z: 48, halfX: 5.5, halfZ: 4.5 },
   drivingRange: {
     x: 30,
     startZ: 39,
-    width: 18,
-    length: 300 * FT,
+    width: 24,
+    length: 900 * FT,
     markerStep: 10 * FT,
+  },
+  warehouse: {
+    x: 4,
+    z: -88,
+    width: 150,
+    length: 340,
+    wallHeight: 18,
   },
 } as const;
 

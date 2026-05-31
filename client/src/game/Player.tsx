@@ -433,6 +433,7 @@ type PlayerProps = {
   /** GameCanvas calls after a rocket blast knocks the player — refill jumps */
   onRocketBoostRef?: React.MutableRefObject<(() => void) | null>;
   trainingDrivingRange?: boolean;
+  disableArenaBounds?: boolean;
 };
 
 export function Player({
@@ -446,6 +447,7 @@ export function Player({
   onRocketBoostRef,
   canFireRocket,
   trainingDrivingRange = false,
+  disableArenaBounds = false,
 }: PlayerProps) {
   const localTeam = useSyncExternalStore(
     gameStore.subscribe,
@@ -2377,7 +2379,7 @@ export function Player({
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.2);
     }
 
-    if (!coopAdventureMode) {
+    if (!coopAdventureMode && !disableArenaBounds) {
       applyPlayerArenaWallBumper(
         body,
         pos,

@@ -1143,12 +1143,16 @@ function Scene({
     <>
       {!coopAdventureEnabled && (
         <>
-          <Arena
-            hiddenGoalIds={stadiumHidden.hiddenGoalIds}
-            hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
-            hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
-          />
-          <CustomMapOverlay />
+          {!trainingMapEnabled && (
+            <>
+              <Arena
+                hiddenGoalIds={stadiumHidden.hiddenGoalIds}
+                hiddenPillarIndices={stadiumHidden.hiddenPillarIndices}
+                hiddenPlatformIndices={stadiumHidden.hiddenPlatformIndices}
+              />
+              <CustomMapOverlay />
+            </>
+          )}
           {trainingMapEnabled && (
             <TrainingRangeMap
               ballBodyRef={ballBodyRef}
@@ -1235,6 +1239,7 @@ function Scene({
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
         trainingDrivingRange={trainingMapEnabled}
+        disableArenaBounds={trainingMapEnabled}
       />
       <RemotePlayers />
       <DebugFreelook />
@@ -1261,7 +1266,9 @@ function Scene({
       <BeamDenyZonesVisual />
       <GoalFireworks />
       <GroundSmashDust />
-      {!coopAdventureEnabled && <ArenaPadMonitor ballBodyRef={ballBodyRef} />}
+      {!coopAdventureEnabled && !trainingMapEnabled && (
+        <ArenaPadMonitor ballBodyRef={ballBodyRef} />
+      )}
       <RocketRecoilFx />
       <RocketTrailSmoke />
       <Rockets
@@ -1337,7 +1344,7 @@ function Scene({
       ) : (
         <MatchLoop ballRef={ballRef} botsRef={botsRef} />
       )}
-      {!coopAdventureEnabled && <PreMatchArenaFlyover />}
+      {!coopAdventureEnabled && !trainingMapEnabled && <PreMatchArenaFlyover />}
     </>
   );
 }
