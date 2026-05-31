@@ -9,11 +9,11 @@ export const TRAINING = {
     { x: -43, y: 7.1, z: 25, yaw: Math.PI * 0.72 },
     { x: -43, y: 3.5, z: -10, yaw: Math.PI * 0.28 },
   ],
-  drivingStand: { x: 30, z: 48, halfX: 15, halfZ: 10 },
+  drivingStand: { x: 30, z: 48, halfX: 24, halfZ: 12 },
   drivingRange: {
     x: 30,
     startZ: 39,
-    width: 24,
+    width: 48,
     length: 900 * FT,
     markerStep: 10 * FT,
   },

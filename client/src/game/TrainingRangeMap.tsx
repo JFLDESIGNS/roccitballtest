@@ -303,14 +303,14 @@ function TrainingLaunchers() {
 function TrainingPhysicsCubes() {
   const cubes = useMemo(
     () => [
-      { p: [-14, 1.25, 31], s: [1.9, 1.9, 1.9], m: 0 },
-      { p: [-9, 1.0, 26], s: [1.55, 1.55, 1.55], m: 1 },
-      { p: [-18, 1.6, 23], s: [1.25, 2.6, 1.25], m: 2 },
-      { p: [10, 1.1, 28], s: [2.1, 1.2, 1.2], m: 1 },
-      { p: [17, 1.4, 18], s: [1.35, 2.0, 1.35], m: 0 },
-      { p: [41, 1.2, 30], s: [1.7, 1.7, 1.7], m: 2 },
-      { p: [44, 1.2, 21], s: [1.7, 1.7, 1.7], m: 1 },
-      { p: [47, 1.2, 12], s: [1.7, 1.7, 1.7], m: 0 },
+      { p: [-44, 1.25, 31], s: [1.9, 1.9, 1.9], m: 0 },
+      { p: [-39, 1.0, 26], s: [1.55, 1.55, 1.55], m: 1 },
+      { p: [-49, 1.6, 23], s: [1.25, 2.6, 1.25], m: 2 },
+      { p: [-34, 1.1, 18], s: [2.1, 1.2, 1.2], m: 1 },
+      { p: [-51, 1.4, 13], s: [1.35, 2.0, 1.35], m: 0 },
+      { p: [63, 1.2, 30], s: [1.7, 1.7, 1.7], m: 2 },
+      { p: [68, 1.2, 21], s: [1.7, 1.7, 1.7], m: 1 },
+      { p: [73, 1.2, 12], s: [1.7, 1.7, 1.7], m: 0 },
     ],
     [],
   );
@@ -362,17 +362,21 @@ function launchTrainingBallAtPlayer(
     player.y + 0.8 + Math.random() * 1.7,
     player.z + (Math.random() - 0.5) * 3.8,
   );
+  const launcherPos = new THREE.Vector3(origin.x, origin.y, origin.z);
+  const launchFrom = launcherPos
+    .clone()
+    .add(target.clone().sub(launcherPos).normalize().multiplyScalar(3.2));
   const flightTime = 1.35 + Math.random() * 0.85;
   const gravity = -11;
-  const vx = (target.x - origin.x) / flightTime;
-  const vz = (target.z - origin.z) / flightTime;
+  const vx = (target.x - launchFrom.x) / flightTime;
+  const vz = (target.z - launchFrom.z) / flightTime;
   const vy =
-    (target.y - origin.y - 0.5 * gravity * flightTime * flightTime) /
+    (target.y - launchFrom.y - 0.5 * gravity * flightTime * flightTime) /
     flightTime;
 
   gameStore.releaseKickoffBall();
   releaseBallPhysics(ball);
-  ball.setTranslation(origin, true);
+  ball.setTranslation(launchFrom, true);
   ball.setLinvel(
     {
       x: vx * (0.78 + Math.random() * 0.22),
