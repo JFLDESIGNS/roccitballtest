@@ -76,16 +76,16 @@ type PuzzleState = {
 };
 
 const COOP_PUZZLES = [
-  { question: 'What color do you get by mixing blue and yellow?', answer: 'green' },
-  { question: 'What is 9 + 6?', answer: '15' },
-  { question: 'What shape has 3 sides?', answer: 'triangle' },
-  { question: 'What planet is known as the Red Planet?', answer: 'mars' },
-  { question: 'What is the opposite of north?', answer: 'south' },
-  { question: 'How many days are in a week?', answer: '7' },
-  { question: 'What sweet food comes from flowers and hives?', answer: 'honey' },
-  { question: 'What is 12 divided by 3?', answer: '4' },
-  { question: 'What do you call the middle of a target?', answer: 'center' },
-  { question: 'What is frozen water called?', answer: 'ice' },
+  { question: 'I speak without a mouth and answer when you call. What am I?', answer: 'echo' },
+  { question: 'I get wetter the more I dry. What am I?', answer: 'towel' },
+  { question: 'I have keys but no locks, space but no room. What am I?', answer: 'keyboard' },
+  { question: 'I can be cracked, made, told, and played. What am I?', answer: 'joke' },
+  { question: 'I have a face and two hands but no arms. What am I?', answer: 'clock' },
+  { question: 'I go up but never come down. What am I?', answer: 'age' },
+  { question: 'I have branches but no leaves or fruit. What am I?', answer: 'bank' },
+  { question: 'I am full of holes but still hold water. What am I?', answer: 'sponge' },
+  { question: 'The more you take, the more you leave behind. What are they?', answer: 'footsteps' },
+  { question: 'I am light as air, but nobody can hold me long. What am I?', answer: 'breath' },
 ] as const;
 
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
@@ -438,10 +438,10 @@ function answerSimilarity(a: string, b: string): number {
   return 1 - prev[right.length] / maxLen;
 }
 
-function railButtonPosition(platform: CoopAdventurePlatform): THREE.Vector3 {
+function railButtonPosition(platform: CoopAdventurePlatform, timeSec = 0): THREE.Vector3 {
   return _buttonPos.set(
     platform.position.x,
-    platformTopY(platform) + 0.42,
+    platformTopYAt(platform, timeSec) + 0.42,
     platform.position.z + platform.size.z * 0.28,
   );
 }
@@ -507,10 +507,15 @@ function CoopRailButton({
   platform: CoopAdventurePlatform;
   active: boolean;
 }) {
-  const p = railButtonPosition(platform).clone();
+  const ref = useRef<THREE.Group>(null);
   const color = active ? '#63ffd0' : '#ffd45e';
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const p = railButtonPosition(platform, clock.elapsedTime);
+    ref.current.position.set(p.x, p.y, p.z);
+  });
   return (
-    <group position={[p.x, p.y, p.z]}>
+    <group ref={ref} position={railButtonPosition(platform).toArray()}>
       <mesh castShadow>
         <cylinderGeometry args={[0.9, 0.9, 0.28, 24]} />
         <meshStandardMaterial
@@ -561,7 +566,7 @@ function CoopSpawnedRail({
     _railQuat.setFromUnitVectors(_railXAxis, _railDelta.multiplyScalar(1 / length));
     group.position.copy(_railMid);
     group.quaternion.copy(_railQuat);
-    group.scale.set(1, length, 1);
+    group.scale.set(length, 1, 1);
     if (bodyRef.current) {
       bodyRef.current.setNextKinematicTranslation(_railMid);
       bodyRef.current.setNextKinematicRotation(_railQuat);
@@ -817,6 +822,37 @@ export function CoopAdventureCourse({
     setActivePuzzle({ ...activePuzzle, guesses, status: 'wrong' });
   };
 
+  useEffect(() => {
+    if (!activePuzzle) return;
+    const onPuzzleKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitPuzzleAnswer();
+        return;
+      }
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        setPuzzleInput((value) => value.slice(0, -1));
+        setActivePuzzle((puzzle) =>
+          puzzle && (puzzle.status === 'close' || puzzle.status === 'wrong')
+            ? { ...puzzle, status: 'active' }
+            : puzzle,
+        );
+        return;
+      }
+      if (event.key.length !== 1 || puzzleInput.length >= 28) return;
+      setPuzzleInput((value) => `${value}${event.key}`);
+      setActivePuzzle((puzzle) =>
+        puzzle && (puzzle.status === 'close' || puzzle.status === 'wrong')
+          ? { ...puzzle, status: 'active' }
+          : puzzle,
+      );
+    };
+    window.addEventListener('keydown', onPuzzleKey, true);
+    return () => window.removeEventListener('keydown', onPuzzleKey, true);
+  }, [activePuzzle, puzzleInput.length, submitPuzzleAnswer]);
+
   useFrame(({ clock }, dt) => {
     advanceLock.current = Math.max(0, advanceLock.current - dt);
     for (const action of multiplayerStore.drainRemoteCoopRailActions()) {
@@ -954,7 +990,6 @@ export function CoopAdventureCourse({
             status: 'active',
           });
           setPuzzleInput('');
-          document.exitPointerLock?.();
           return;
         }
       }
@@ -988,7 +1023,7 @@ export function CoopAdventureCourse({
         if (!railSegmentForPlatform(level.platforms, platform.id)) return false;
         const key = railKey(level.id, platform.id);
         if (activeRails.some((rail) => rail.key === key)) return false;
-        const p = railButtonPosition(platform);
+        const p = railButtonPosition(platform, motionTimeSec);
         const vertical = Math.abs(playerPositionRef.current.y - p.y);
         if (vertical > RAIL_BUTTON_VERTICAL_RADIUS) return false;
         const dx = playerPositionRef.current.x - p.x;
@@ -1198,9 +1233,9 @@ export function CoopAdventureCourse({
             <p>{activePuzzle.question}</p>
             <div className="coop-puzzle-row">
               <input
-                autoFocus
+                readOnly
+                tabIndex={-1}
                 value={puzzleInput}
-                onChange={(event) => setPuzzleInput(event.target.value)}
                 onKeyDown={(event) => event.stopPropagation()}
                 aria-label="Puzzle answer"
               />
