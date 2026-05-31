@@ -1,5 +1,10 @@
 import { Billboard, Html } from '@react-three/drei';
-import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
+import {
+  BallCollider,
+  CuboidCollider,
+  RigidBody,
+  type RapierRigidBody,
+} from '@react-three/rapier';
 import { useFrame } from '@react-three/fiber';
 import {
   useMemo,
@@ -10,7 +15,7 @@ import {
   type RefObject,
 } from 'react';
 import * as THREE from 'three';
-import { BALL, BEAM } from '../shared/Constants';
+import { BALL } from '../shared/Constants';
 import { gameStore } from './gameStore';
 import { releaseBallPhysics } from './ballAttach';
 import { playBallLaunch } from './audio';
@@ -118,9 +123,8 @@ const TRAINING_HTML_Z_INDEX_RANGE = [8, 0] as [number, number];
 const DEFENSE_TARGET_X = -72;
 const DEFENSE_SHOT_MAX_AGE_SEC = 12;
 const DEFENSE_SHOT_BOUNCES_BEFORE_RESET = 2;
-const TRAINING_SOURCE_PULL_RANGE = 13;
-const TRAINING_SOURCE_COOLDOWN_SEC = 0.55;
 const TRAINING_BALL_SOURCE_Y = BALL.radius + 0.2;
+const TRAINING_PRACTICE_BALL_RADIUS = BALL.radius * 0.82;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -147,25 +151,63 @@ function trainingBallSources(): { id: string; x: number; y: number; z: number }[
 
 const TRAINING_BALL_SOURCES = trainingBallSources();
 
+function TrainingPracticeBall({
+  id,
+  position,
+  radius = TRAINING_PRACTICE_BALL_RADIUS,
+}: {
+  id: string;
+  position: [number, number, number];
+  radius?: number;
+}) {
+  const bodyRef = useRef<RapierRigidBody>(null);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return undefined;
+    return registerTrainingCube(id, body, radius);
+  }, [id, radius]);
+
+  return (
+    <RigidBody
+      ref={bodyRef}
+      colliders={false}
+      position={position}
+      restitution={0.62}
+      friction={0.3}
+      linearDamping={0.035}
+      angularDamping={0.08}
+      canSleep={false}
+      ccd
+    >
+      <mesh material={sourceBallMat} castShadow receiveShadow>
+        <sphereGeometry args={[radius, 20, 14]} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} scale={[radius * 1.14, radius * 1.14, 1]}>
+        <ringGeometry args={[0.82, 0.9, 32]} />
+        <meshBasicMaterial
+          color="#77dfff"
+          transparent
+          opacity={0.5}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <BallCollider args={[radius]} />
+    </RigidBody>
+  );
+}
+
 function ScatterTrainingBalls() {
   return (
     <>
       {TRAINING_BALL_SOURCES.map((ball, i) => (
-        <group key={ball.id} position={[ball.x, ball.y, ball.z]}>
-          <mesh material={sourceBallMat} castShadow receiveShadow>
-            <sphereGeometry args={[BALL.radius * 0.72, 18, 12]} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, 0]} scale={[BALL.radius * 0.82, BALL.radius * 0.82, 1]}>
-            <ringGeometry args={[0.82, 0.9, 32]} />
-            <meshBasicMaterial
-              color={i % 2 ? '#91ffcb' : '#77dfff'}
-              transparent
-              opacity={0.58}
-              depthWrite={false}
-              toneMapped={false}
-            />
-          </mesh>
-        </group>
+        <TrainingPracticeBall
+          key={ball.id}
+          id={`training-ball-${ball.id}`}
+          position={[ball.x, ball.y + i * 0.04, ball.z]}
+          radius={TRAINING_PRACTICE_BALL_RADIUS}
+        />
       ))}
     </>
   );
@@ -239,6 +281,38 @@ function TrainingBallPit({
         </div>
       </Html>
     </group>
+  );
+}
+
+function TrainingPitPracticeBalls() {
+  const pitBalls = useMemo(
+    () =>
+      Array.from({ length: 8 }, (_, i) => {
+        const angle = (Math.PI * 2 * i) / 8 + 0.28;
+        const radius = 1.2 + (i % 4) * 0.85;
+        return {
+          id: `pit-real-${i}`,
+          position: [
+            TRAINING.ballPit.x + Math.cos(angle) * radius,
+            TRAINING_BALL_SOURCE_Y + 0.12 + Math.floor(i / 4) * 0.35,
+            TRAINING.ballPit.z + Math.sin(angle) * radius,
+          ] as [number, number, number],
+        };
+      }),
+    [],
+  );
+
+  return (
+    <>
+      {pitBalls.map((ball) => (
+        <TrainingPracticeBall
+          key={ball.id}
+          id={`training-ball-${ball.id}`}
+          position={ball.position}
+          radius={TRAINING_PRACTICE_BALL_RADIUS}
+        />
+      ))}
+    </>
   );
 }
 
@@ -895,31 +969,6 @@ function teeDrivingRangeBall(ball: RapierRigidBody): void {
   gameStore.setBallState('loose');
 }
 
-function pullRealBallFromTrainingSource(
-  ball: RapierRigidBody,
-  source: THREE.Vector3,
-  player: THREE.Vector3,
-): void {
-  gameStore.releaseKickoffBall();
-  gameStore.clearBallHolder(true);
-  releaseBallPhysics(ball);
-  ball.setTranslation({ x: source.x, y: source.y, z: source.z }, true);
-  const toward = player.clone().add(new THREE.Vector3(0, BEAM.chestHeight, 0)).sub(source);
-  const dist = Math.max(0.001, toward.length());
-  toward.multiplyScalar(1 / dist);
-  const speed = Math.min(24, 9 + dist * 1.15);
-  ball.setLinvel(
-    {
-      x: toward.x * speed,
-      y: toward.y * speed + 2.5,
-      z: toward.z * speed,
-    },
-    true,
-  );
-  ball.setAngvel({ x: toward.z * 7, y: 3, z: -toward.x * 7 }, true);
-  gameStore.setBallState('pulled');
-}
-
 export function TrainingRangeMap({
   ballBodyRef,
   playerPositionRef,
@@ -928,7 +977,6 @@ export function TrainingRangeMap({
   playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   const nextLaunchAt = useRef(0);
-  const nextTrainingSourcePullAt = useRef(0);
   const defenseShot = useRef({
     active: false,
     bounces: 0,
@@ -962,38 +1010,6 @@ export function TrainingRangeMap({
     const inDrivingStand = isTrainingDrivingRangeStand(pos.x, pos.z);
     const inDefenseStand = isTrainingDefenseStand(pos.x, pos.z);
     trainingMapStore.setDrivingRangeActive(inDrivingStand);
-
-    if (
-      ball &&
-      state.isBeaming &&
-      state.ballHolderId === null &&
-      now >= nextTrainingSourcePullAt.current
-    ) {
-      const pitDist = Math.hypot(pos.x - TRAINING.ballPit.x, pos.z - TRAINING.ballPit.z);
-      let source: THREE.Vector3 | null = null;
-      if (pitDist <= TRAINING.ballPit.radius + TRAINING_SOURCE_PULL_RANGE) {
-        source = new THREE.Vector3(
-          TRAINING.ballPit.x + (Math.random() - 0.5) * TRAINING.ballPit.radius * 0.8,
-          TRAINING_BALL_SOURCE_Y,
-          TRAINING.ballPit.z + (Math.random() - 0.5) * TRAINING.ballPit.radius * 0.8,
-        );
-      } else {
-        for (const s of TRAINING_BALL_SOURCES) {
-          if (Math.hypot(pos.x - s.x, pos.z - s.z) <= TRAINING_SOURCE_PULL_RANGE) {
-            source = new THREE.Vector3(s.x, s.y, s.z);
-            break;
-          }
-        }
-      }
-      if (source) {
-        pullRealBallFromTrainingSource(ball, source, pos);
-        drivingShot.current.armed = false;
-        drivingShot.current.active = false;
-        drivingBallReady.current = false;
-        defenseShot.current.active = false;
-        nextTrainingSourcePullAt.current = now + TRAINING_SOURCE_COOLDOWN_SEC;
-      }
-    }
 
     if (ball && inDrivingStand && state.ballHolderId !== null) {
       drivingShot.current.armed = true;
@@ -1212,6 +1228,7 @@ export function TrainingRangeMap({
       <TrainingPhysicsCubes />
       <ScatterTrainingBalls />
       <TrainingBallPit playerPositionRef={playerPositionRef} />
+      <TrainingPitPracticeBalls />
 
       <Platform
         position={[
