@@ -70,6 +70,7 @@ const DRIVING_TEE_Y = BALL.radius + 0.08;
 const DRIVING_TEE_Z_OFFSET = 3.8;
 const DRIVING_LANDING_Y = BALL.radius + 0.22;
 const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
+const DRIVING_ROLLOUT_SEC = 4;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -455,6 +456,7 @@ export function TrainingRangeMap({
     maxApexFt: 0,
     maxSpeedMps: 0,
     wasAirborne: false,
+    landedAt: -1,
   });
   const rangeEndZ = TRAINING.drivingRange.startZ - TRAINING.drivingRange.length;
 
@@ -495,6 +497,7 @@ export function TrainingRangeMap({
         drivingShot.current.maxApexFt = Math.max(0, bt.y / FT_TO_M);
         drivingShot.current.maxSpeedMps = 0;
         drivingShot.current.wasAirborne = bt.y > DRIVING_AIRBORNE_Y;
+        drivingShot.current.landedAt = -1;
       }
 
       if (drivingShot.current.active) {
@@ -508,10 +511,12 @@ export function TrainingRangeMap({
           drivingShot.current.maxDistanceFt,
           distanceFt,
         );
-        drivingShot.current.maxCarryFt = Math.max(
-          drivingShot.current.maxCarryFt,
-          distanceFt,
-        );
+        if (drivingShot.current.landedAt < 0) {
+          drivingShot.current.maxCarryFt = Math.max(
+            drivingShot.current.maxCarryFt,
+            distanceFt,
+          );
+        }
         drivingShot.current.maxApexFt = Math.max(
           drivingShot.current.maxApexFt,
           bt.y / FT_TO_M,
@@ -525,7 +530,7 @@ export function TrainingRangeMap({
           carryFt: drivingShot.current.maxCarryFt,
           apexFt: drivingShot.current.maxApexFt,
           speedMps: drivingShot.current.maxSpeedMps,
-          landed: false,
+          landed: drivingShot.current.landedAt >= 0,
         });
 
         if (bt.y > DRIVING_AIRBORNE_Y || Math.abs(lv.y) > 3) {
@@ -534,14 +539,25 @@ export function TrainingRangeMap({
 
         const shotAge = now - drivingShot.current.startedAt;
         const hitTurf =
+          drivingShot.current.landedAt < 0 &&
           drivingShot.current.wasAirborne &&
           bt.y <= DRIVING_LANDING_Y &&
           shotAge > 0.3 &&
           lv.y <= 2.5;
+        if (hitTurf) {
+          drivingShot.current.landedAt = now;
+          drivingShot.current.maxCarryFt = Math.max(
+            drivingShot.current.maxCarryFt,
+            distanceFt,
+          );
+        }
+        const rolloutDone =
+          drivingShot.current.landedAt >= 0 &&
+          now - drivingShot.current.landedAt >= DRIVING_ROLLOUT_SEC;
         const done =
-          hitTurf ||
+          rolloutDone ||
           bt.z < rangeEndZ + 1 ||
-          shotAge > 14;
+          shotAge > 18;
         if (done && shotAge > 0.28) {
           trainingMapStore.finishShot({
             distanceFt: drivingShot.current.maxDistanceFt,
