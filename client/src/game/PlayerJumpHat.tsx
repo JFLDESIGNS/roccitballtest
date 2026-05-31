@@ -13,7 +13,6 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { MOVEMENT } from '../shared/Constants';
 import { CHARACTER_MESH_RENDER_ORDER } from './JerseyDecal';
 import { gameStore } from './gameStore';
-import { getForwardFlipPitchX } from './forwardFlipEmote';
 import {
   disposeCrownMaterialMaps,
   loadCrownMaterialMaps,
@@ -217,14 +216,11 @@ export function PlayerJumpHat({
     const tilt = tiltRef.current;
     const tiltSync = tiltSyncRef.current;
     if (tilt && tiltSync) {
-      const bodyFlip = getForwardFlipPitchX('local');
-      tiltSync.rotation.x = THREE.MathUtils.clamp(
-        tilt.rotation.x - bodyFlip,
-        -0.24,
-        0.24,
-      );
+      tiltSync.rotation.order = tilt.rotation.order;
+      tiltSync.rotation.x = tilt.rotation.x;
       tiltSync.rotation.y = tilt.rotation.y;
       tiltSync.rotation.z = tilt.rotation.z;
+      tiltSync.quaternion.copy(tilt.quaternion);
     }
 
     const fullFlipDuration = wantFullFlip.current

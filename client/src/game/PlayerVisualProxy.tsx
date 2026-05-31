@@ -16,7 +16,7 @@ type PlayerVisualProxyProps = {
   children: ReactNode;
   /** Thrusters inside bob/tilt so they pitch and bob with the avatar */
   thrusters?: ReactNode;
-  /** Rendered under visual yaw but outside tilt — stays upright during forward flip */
+  /** Rendered under visual yaw; overlay components may copy tilt when needed */
   overlay?: ReactNode;
 };
 
