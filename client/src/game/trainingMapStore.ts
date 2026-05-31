@@ -10,6 +10,7 @@ export type TrainingShot = {
   apexFt: number;
   speedMps: number;
   landed: boolean;
+  outOfBounds?: boolean;
   at: number;
 };
 

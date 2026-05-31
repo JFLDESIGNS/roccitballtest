@@ -25,6 +25,10 @@ import {
 } from './rocketSmokeStreak';
 import { spawnRocketTrailSmokePuff } from './rocketTrailSmokePuffs';
 import { TRAINING } from './trainingMapConfig';
+import {
+  hitTrainingCubeWithRocket,
+  rocketSegmentHitsTrainingCube,
+} from './trainingCubeRegistry';
 
 const MAX_BOOMS = 8;
 const HEAD_R = RENDER.rocketHeadRadius;
@@ -509,6 +513,23 @@ export function Rockets({
         break;
       }
       if (hitBot) continue;
+
+      if (disableArenaCollision && travel >= ROCKET.minTravelBeforePlayerHit) {
+        const cubeHit = rocketSegmentHitsTrainingCube(segFrom.current, segTo.current);
+        if (cubeHit) {
+          hitTrainingCubeWithRocket(cubeHit.target, r.velocity, cubeHit.normal);
+          if (boomCount.current < MAX_BOOMS) {
+            pushBoom(
+              cubeHit.point.x,
+              cubeHit.point.y,
+              cubeHit.point.z,
+              r.velocity,
+              r.ownerId,
+            );
+          }
+          continue;
+        }
+      }
 
       if (bp && travel >= ROCKET.minTravelBeforeBallHit) {
         ballCenter.current.set(bp.x, bp.y, bp.z);

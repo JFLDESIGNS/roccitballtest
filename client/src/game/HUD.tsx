@@ -222,8 +222,12 @@ export function HUD({ onMainMenu }: HUDProps) {
           <div className="hud-training-shot-title">Driving Range Tracker</div>
           <div className="hud-training-shot-grid">
             <span>
-              <strong>{formatTrainingFt(trainingShot?.distanceFt)}</strong>
-              <em>live</em>
+              <strong>
+                {trainingShot?.outOfBounds
+                  ? `OB ${formatTrainingFt(trainingShot.distanceFt)}`
+                  : formatTrainingFt(trainingShot?.distanceFt)}
+              </strong>
+              <em>{trainingShot?.outOfBounds ? 'in bounds' : 'live'}</em>
             </span>
             <span>
               <strong>{formatTrainingFt(trainingShot?.carryFt)}</strong>

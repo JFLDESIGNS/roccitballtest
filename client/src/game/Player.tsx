@@ -3008,6 +3008,7 @@ export function Player({
       !frozen
     ) {
       const cube = trainingCubeTarget.target;
+      cube.body.wakeUp();
       const cubePos = trainingCubeTarget.position;
       const toPlayer = _swingVelScratch.current.copy(chestPos.current).sub(cubePos);
       const dist = Math.max(0.001, toPlayer.length());

@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { BALL } from '../shared/Constants';
 import { gameStore } from './gameStore';
 import { releaseBallPhysics } from './ballAttach';
+import { playBallLaunch } from './audio';
 import {
   TRAINING,
   isTrainingDefenseStand,
@@ -79,6 +80,7 @@ const DRIVING_TEE_Z_OFFSET = 3.8;
 const DRIVING_LANDING_Y = BALL.radius + 0.22;
 const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
 const DRIVING_ROLLOUT_SEC = 4;
+const DRIVING_OB_HOLD_SEC = 1.25;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -206,14 +208,124 @@ function DrivingShotMarkers() {
   );
 }
 
+function DrivingLiveBallFrame({
+  ballBodyRef,
+}: {
+  ballBodyRef: RefObject<RapierRigidBody | null>;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const obRef = useRef<THREE.Group>(null);
+  const activeShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getActiveShot(),
+  );
+
+  useFrame(() => {
+    const group = groupRef.current;
+    const ob = obRef.current;
+    const ball = ballBodyRef.current;
+    if (!group || !ball || !activeShot) {
+      if (group) group.visible = false;
+      if (ob) ob.visible = false;
+      return;
+    }
+
+    const bt = ball.translation();
+    group.visible = true;
+    group.position.set(bt.x, bt.y, bt.z);
+
+    if (ob) {
+      ob.visible = !!activeShot.outOfBounds;
+      const side =
+        bt.x >= TRAINING.drivingRange.x
+          ? TRAINING.drivingRange.x + TRAINING.drivingRange.width / 2
+          : TRAINING.drivingRange.x - TRAINING.drivingRange.width / 2;
+      ob.position.set(side, Math.max(2.4, bt.y), bt.z);
+    }
+  });
+
+  const label = activeShot?.outOfBounds
+    ? `OB ${formatFt(activeShot.distanceFt)}`
+    : formatFt(activeShot?.distanceFt ?? 0);
+
+  return (
+    <>
+      <group ref={groupRef} visible={false}>
+        <mesh scale={[BALL.radius * 3.4, BALL.radius * 3.4, BALL.radius * 3.4]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial
+            color="#55d8ff"
+            transparent
+            opacity={0.42}
+            wireframe
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+        <Html center distanceFactor={12} position={[0, BALL.radius * 2.55, 0]}>
+          <div
+            style={{
+              minWidth: 150,
+              padding: '8px 12px',
+              border: activeShot?.outOfBounds
+                ? '2px solid rgba(99, 255, 145, 0.9)'
+                : '2px solid rgba(85, 216, 255, 0.85)',
+              borderRadius: 8,
+              background: 'rgba(3, 10, 20, 0.72)',
+              color: activeShot?.outOfBounds ? '#7dff9d' : '#d9f8ff',
+              font: '1000 34px system-ui, sans-serif',
+              lineHeight: 1,
+              textAlign: 'center',
+              textShadow: '0 2px 8px #000',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {label}
+          </div>
+        </Html>
+      </group>
+      <group ref={obRef} visible={false}>
+        <mesh scale={[0.12, 4.2, 9.5]}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial
+            color="#66ff8e"
+            transparent
+            opacity={0.48}
+            wireframe
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+        <Html center distanceFactor={14} position={[0, 2.75, 0]}>
+          <div
+            style={{
+              padding: '5px 10px',
+              borderRadius: 7,
+              background: 'rgba(4, 40, 16, 0.78)',
+              border: '1px solid rgba(102, 255, 142, 0.8)',
+              color: '#9effb7',
+              font: '1000 18px system-ui, sans-serif',
+              textShadow: '0 1px 5px #000',
+            }}
+          >
+            OB
+          </div>
+        </Html>
+      </group>
+    </>
+  );
+}
+
 function Platform({
   position,
   scale,
   color,
+  collidable = true,
 }: {
   position: [number, number, number];
   scale: [number, number, number];
   color?: string;
+  collidable?: boolean;
 }) {
   return (
     <RigidBody type="fixed" colliders={false}>
@@ -221,7 +333,9 @@ function Platform({
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={color ?? '#253746'} roughness={0.72} />
       </mesh>
-      <CuboidCollider args={[scale[0] / 2, scale[1] / 2, scale[2] / 2]} position={position} />
+      {collidable && (
+        <CuboidCollider args={[scale[0] / 2, scale[1] / 2, scale[2] / 2]} position={position} />
+      )}
     </RigidBody>
   );
 }
@@ -370,7 +484,7 @@ function TrainingPhysicsCube({
       friction={0.78}
       linearDamping={0.18}
       angularDamping={0.24}
-      canSleep
+      canSleep={false}
     >
       <mesh castShadow receiveShadow scale={scale} material={material}>
         <boxGeometry args={[1, 1, 1]} />
@@ -383,14 +497,14 @@ function TrainingPhysicsCube({
 function TrainingPhysicsCubes() {
   const cubes = useMemo(
     () => [
-      { p: [-44, 1.25, 31], s: [1.9, 1.9, 1.9], m: 0 },
-      { p: [-39, 1.0, 26], s: [1.55, 1.55, 1.55], m: 1 },
-      { p: [-49, 1.6, 23], s: [1.25, 2.6, 1.25], m: 2 },
-      { p: [-34, 1.1, 18], s: [2.1, 1.2, 1.2], m: 1 },
-      { p: [-51, 1.4, 13], s: [1.35, 2.0, 1.35], m: 0 },
-      { p: [63, 1.2, 30], s: [1.7, 1.7, 1.7], m: 2 },
-      { p: [68, 1.2, 21], s: [1.7, 1.7, 1.7], m: 1 },
-      { p: [73, 1.2, 12], s: [1.7, 1.7, 1.7], m: 0 },
+      { p: [-44, 1.85, 31], s: [3.0, 3.0, 3.0], m: 0 },
+      { p: [-39, 1.55, 26], s: [2.45, 2.45, 2.45], m: 1 },
+      { p: [-49, 2.25, 23], s: [2.0, 4.0, 2.0], m: 2 },
+      { p: [-34, 1.3, 18], s: [3.3, 1.9, 1.9], m: 1 },
+      { p: [-51, 2.0, 13], s: [2.15, 3.25, 2.15], m: 0 },
+      { p: [63, 1.7, 30], s: [2.8, 2.8, 2.8], m: 2 },
+      { p: [68, 1.7, 21], s: [2.8, 2.8, 2.8], m: 1 },
+      { p: [73, 1.7, 12], s: [2.8, 2.8, 2.8], m: 0 },
     ],
     [],
   );
@@ -494,6 +608,9 @@ export function TrainingRangeMap({
     maxCarryFt: 0,
     maxApexFt: 0,
     maxSpeedMps: 0,
+    maxInBoundsDistanceFt: 0,
+    outOfBounds: false,
+    obAt: -1,
     wasAirborne: false,
     landedAt: -1,
   });
@@ -535,6 +652,9 @@ export function TrainingRangeMap({
         drivingShot.current.maxCarryFt = 0;
         drivingShot.current.maxApexFt = Math.max(0, bt.y / FT_TO_M);
         drivingShot.current.maxSpeedMps = 0;
+        drivingShot.current.maxInBoundsDistanceFt = 0;
+        drivingShot.current.outOfBounds = false;
+        drivingShot.current.obAt = -1;
         drivingShot.current.wasAirborne = bt.y > DRIVING_AIRBORNE_Y;
         drivingShot.current.landedAt = -1;
       }
@@ -546,6 +666,19 @@ export function TrainingRangeMap({
           0,
           (TRAINING.drivingRange.startZ - bt.z) / FT_TO_M,
         );
+        const inBoundsX =
+          Math.abs(bt.x - TRAINING.drivingRange.x) <=
+          TRAINING.drivingRange.width / 2;
+        if (!drivingShot.current.outOfBounds && inBoundsX) {
+          drivingShot.current.maxInBoundsDistanceFt = Math.max(
+            drivingShot.current.maxInBoundsDistanceFt,
+            distanceFt,
+          );
+        } else if (!drivingShot.current.outOfBounds) {
+          drivingShot.current.outOfBounds = true;
+          drivingShot.current.obAt = now;
+          playBallLaunch();
+        }
         drivingShot.current.maxDistanceFt = Math.max(
           drivingShot.current.maxDistanceFt,
           distanceFt,
@@ -565,11 +698,14 @@ export function TrainingRangeMap({
           speed,
         );
         trainingMapStore.updateActiveShot({
-          distanceFt: drivingShot.current.maxDistanceFt,
+          distanceFt: drivingShot.current.outOfBounds
+            ? drivingShot.current.maxInBoundsDistanceFt
+            : drivingShot.current.maxDistanceFt,
           carryFt: drivingShot.current.maxCarryFt,
           apexFt: drivingShot.current.maxApexFt,
           speedMps: drivingShot.current.maxSpeedMps,
           landed: drivingShot.current.landedAt >= 0,
+          outOfBounds: drivingShot.current.outOfBounds,
         });
 
         if (bt.y > DRIVING_AIRBORNE_Y || Math.abs(lv.y) > 3) {
@@ -594,16 +730,21 @@ export function TrainingRangeMap({
           drivingShot.current.landedAt >= 0 &&
           now - drivingShot.current.landedAt >= DRIVING_ROLLOUT_SEC;
         const done =
+          (drivingShot.current.outOfBounds &&
+            now - drivingShot.current.obAt >= DRIVING_OB_HOLD_SEC) ||
           rolloutDone ||
           bt.z < rangeEndZ + 1 ||
           shotAge > 18;
         if (done && shotAge > 0.28) {
           trainingMapStore.finishShot({
-            distanceFt: drivingShot.current.maxDistanceFt,
+            distanceFt: drivingShot.current.outOfBounds
+              ? drivingShot.current.maxInBoundsDistanceFt
+              : drivingShot.current.maxDistanceFt,
             carryFt: drivingShot.current.maxCarryFt,
             apexFt: drivingShot.current.maxApexFt,
             speedMps: drivingShot.current.maxSpeedMps,
             landed: true,
+            outOfBounds: drivingShot.current.outOfBounds,
           });
           drivingShot.current.active = false;
           drivingShot.current.armed = false;
@@ -646,6 +787,7 @@ export function TrainingRangeMap({
           TRAINING.defenseStand.half * 2,
         ]}
         color="#19324a"
+        collidable={false}
       />
       <Html center distanceFactor={14} position={[TRAINING.defenseStand.x, 1.1, TRAINING.defenseStand.z - 5.4]}>
         <div style={{ color: '#d9f5ff', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
@@ -667,6 +809,7 @@ export function TrainingRangeMap({
           TRAINING.drivingStand.halfZ * 2,
         ]}
         color="#214a35"
+        collidable={false}
       />
       <Html center distanceFactor={14} position={[TRAINING.drivingStand.x, 1.1, TRAINING.drivingStand.z + 4.6]}>
         <div style={{ color: '#edffd6', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
@@ -712,6 +855,7 @@ export function TrainingRangeMap({
         />
       </RigidBody>
       <DrivingRangeMarkers />
+      <DrivingLiveBallFrame ballBodyRef={ballBodyRef} />
       <DrivingShotMarkers />
 
       <mesh position={[TRAINING.drivingRange.x, 0.22, rangeEndZ]}>
