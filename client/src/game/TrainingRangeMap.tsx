@@ -101,6 +101,9 @@ const DRIVING_ROLLOUT_SEC = 4;
 const DRIVING_OB_HOLD_SEC = 1.25;
 const DISPLAY_FEET_PER_WORLD_FOOT = 1 / 5;
 const TRAINING_HTML_Z_INDEX_RANGE = [8, 0] as [number, number];
+const DEFENSE_TARGET_X = -72;
+const DEFENSE_SHOT_MAX_AGE_SEC = 12;
+const DEFENSE_SHOT_BOUNCES_BEFORE_RESET = 2;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -125,7 +128,7 @@ function TrainingHitPreview() {
   const fresh = age < 3;
 
   return (
-    <Billboard position={[-34, 6.2, -3]}>
+    <Billboard position={[TRAINING.defenseStand.x - 10, 6.2, -3]}>
       <group>
         <mesh position={[0, 0, 0]}>
           <sphereGeometry args={[0.72, 32, 18]} />
@@ -524,6 +527,58 @@ function launcherYawTowardStand(origin: { x: number; z: number }): number {
   return Math.atan2(-dx, -dz);
 }
 
+function TrainingGoalBank() {
+  const rings = useMemo(
+    () => [
+      { y: 5.4, z: 8, r: 3.8, tube: 0.34 },
+      { y: 11.4, z: 8, r: 2.7, tube: 0.28 },
+      { y: 16.2, z: 8, r: 1.8, tube: 0.22 },
+    ],
+    [],
+  );
+
+  return (
+    <group position={[DEFENSE_TARGET_X, 0, 0]}>
+      <mesh position={[-0.34, 10.2, 8]} scale={[0.5, 20, 18]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial
+          color="#101820"
+          roughness={0.46}
+          metalness={0.16}
+          emissive="#132530"
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+      {rings.map((ring, i) => (
+        <group key={i} position={[0, ring.y, ring.z]} rotation={[0, Math.PI / 2, 0]}>
+          <mesh>
+            <torusGeometry args={[ring.r, ring.tube, 16, 72]} />
+            <meshStandardMaterial
+              color="#f6fbff"
+              emissive="#ffffff"
+              emissiveIntensity={2.4}
+              roughness={0.22}
+              metalness={0.08}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh scale={[ring.r * 1.55, ring.r * 1.55, 1]}>
+            <ringGeometry args={[0.72, 0.78, 64]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={0.2}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      ))}
+      <pointLight position={[2.6, 11.5, 8]} color="#ffffff" intensity={28} distance={28} />
+    </group>
+  );
+}
+
 function TrainingLaunchers() {
   return (
     <>
@@ -537,9 +592,13 @@ function TrainingLaunchers() {
               <meshStandardMaterial color="#141a22" roughness={0.35} metalness={0.35} emissive={i % 2 ? '#4a2218' : '#18364a'} emissiveIntensity={0.5} />
             </mesh>
           </group>
-          <mesh position={[0, 0, -1.58]}>
+          <mesh position={[0, 0, -1.58]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.72, 0.72, 0.12, 24]} />
             <meshBasicMaterial color={i % 2 ? '#ff744a' : '#6ee8ff'} toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0, -1.72]} rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.68, 0.85, 28]} />
+            <meshBasicMaterial color="#f4fbff" transparent opacity={0.65} toneMapped={false} />
           </mesh>
         </group>
         );
@@ -626,15 +685,19 @@ function launchTrainingBallAtPlayer(
       Math.floor(Math.random() * TRAINING.defenseLaunchers.length)
     ];
   const target = new THREE.Vector3(
-    player.x + (Math.random() - 0.5) * 2.8,
-    player.y + 0.8 + Math.random() * 1.7,
-    player.z + (Math.random() - 0.5) * 3.8,
+    player.x + (Math.random() - 0.5) * 4.2,
+    player.y + 1.1 + Math.random() * 2.5,
+    player.z + (Math.random() - 0.5) * 4.8,
   );
-  const launcherPos = new THREE.Vector3(origin.x, origin.y, origin.z);
+  const launcherPos = new THREE.Vector3(
+    origin.x,
+    origin.y + (Math.random() - 0.35) * 2.6,
+    origin.z,
+  );
   const launchFrom = launcherPos
     .clone()
-    .add(target.clone().sub(launcherPos).normalize().multiplyScalar(4.2));
-  const flightTime = 0.95 + Math.random() * 0.55;
+    .add(target.clone().sub(launcherPos).normalize().multiplyScalar(4.8));
+  const flightTime = 0.58 + Math.random() * 0.36;
   const gravity = -11;
   const vx = (target.x - launchFrom.x) / flightTime;
   const vz = (target.z - launchFrom.z) / flightTime;
@@ -647,9 +710,9 @@ function launchTrainingBallAtPlayer(
   ball.setTranslation(launchFrom, true);
   ball.setLinvel(
     {
-      x: vx * (0.78 + Math.random() * 0.22),
+      x: vx * (0.9 + Math.random() * 0.24),
       y: vy,
-      z: vz * (0.78 + Math.random() * 0.22),
+      z: vz * (0.9 + Math.random() * 0.24),
     },
     true,
   );
@@ -690,6 +753,12 @@ export function TrainingRangeMap({
   playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   const nextLaunchAt = useRef(0);
+  const defenseShot = useRef({
+    active: false,
+    bounces: 0,
+    lastBounceAt: 0,
+    startedAt: 0,
+  });
   const drivingBallReady = useRef(false);
   const drivingRespawnAt = useRef(0);
   const drivingShot = useRef({
@@ -715,6 +784,7 @@ export function TrainingRangeMap({
     const state = gameStore.getState();
     const now = performance.now() / 1000;
     const inDrivingStand = isTrainingDrivingRangeStand(pos.x, pos.z);
+    const inDefenseStand = isTrainingDefenseStand(pos.x, pos.z);
     trainingMapStore.setDrivingRangeActive(inDrivingStand);
 
     if (ball && inDrivingStand && state.ballHolderId !== null) {
@@ -851,12 +921,52 @@ export function TrainingRangeMap({
       }
     }
 
-    if (!ball || !isTrainingDefenseStand(pos.x, pos.z)) return;
+    if (!ball) return;
+    if (inDrivingStand) {
+      defenseShot.current.active = false;
+      return;
+    }
+    if (defenseShot.current.active) {
+      const bt = ball.translation();
+      const lv = ball.linvel();
+      const bounceY = BALL.radius + 0.32;
+      if (
+        bt.y <= bounceY &&
+        Math.abs(lv.y) > 1.0 &&
+        now - defenseShot.current.lastBounceAt > 0.42
+      ) {
+        defenseShot.current.bounces += 1;
+        defenseShot.current.lastBounceAt = now;
+      }
+      const timedOut =
+        now - defenseShot.current.startedAt > DEFENSE_SHOT_MAX_AGE_SEC;
+      const outOfTrainer =
+        bt.x < DEFENSE_TARGET_X - 20 ||
+        bt.x > TRAINING.defenseStand.x + 30 ||
+        Math.abs(bt.z - TRAINING.defenseStand.z) > 48 ||
+        bt.y < -3 ||
+        bt.y > TRAINING.warehouse.wallHeight + 12;
+      if (
+        defenseShot.current.bounces >= DEFENSE_SHOT_BOUNCES_BEFORE_RESET ||
+        timedOut ||
+        outOfTrainer
+      ) {
+        defenseShot.current.active = false;
+        nextLaunchAt.current = now + 0.8;
+      } else {
+        return;
+      }
+    }
+    if (!inDefenseStand) return;
     if (inDrivingStand) return;
     if (state.ballHolderId !== null) return;
     if (now < nextLaunchAt.current) return;
     nextLaunchAt.current = now + 1.95 + Math.random() * 1.25;
     launchTrainingBallAtPlayer(ball, pos);
+    defenseShot.current.active = true;
+    defenseShot.current.bounces = 0;
+    defenseShot.current.lastBounceAt = now;
+    defenseShot.current.startedAt = now;
   });
 
   return (
@@ -892,6 +1002,7 @@ export function TrainingRangeMap({
           ROCKET REACTION PLATFORM
         </div>
       </Html>
+      <TrainingGoalBank />
       <TrainingLaunchers />
       <TrainingHitPreview />
 
