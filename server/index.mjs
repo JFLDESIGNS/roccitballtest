@@ -1859,6 +1859,59 @@ function handleClientMessage(socket, raw) {
       }
       return;
     }
+    if (msg.action?.kind === 'levelAdvance') {
+      const action = {
+        id:
+          typeof msg.action?.id === 'string'
+            ? msg.action.id.slice(0, 64)
+            : crypto.randomUUID(),
+        ownerId: client.id,
+        kind: 'levelAdvance',
+        targetId: '',
+        levelId: Number.isFinite(msg.action?.levelId)
+          ? Math.max(1, Math.min(10, Math.floor(msg.action.levelId)))
+          : 1,
+        position: sanitizeVec3(msg.action?.position, player.position),
+        velocity: sanitizeVec3(msg.action?.velocity),
+      };
+      const packet = {
+        type: 'coopAction',
+        serverTime: Date.now(),
+        action,
+      };
+      for (const [peerSocket, peerClient] of clients) {
+        if (peerClient.roomId === room.id) {
+          sendJson(peerSocket, packet);
+        }
+      }
+      return;
+    }
+    if (msg.action?.kind === 'loveMessage') {
+      const message = msg.action?.message === 'more' ? 'more' : 'love';
+      const action = {
+        id:
+          typeof msg.action?.id === 'string'
+            ? msg.action.id.slice(0, 64)
+            : crypto.randomUUID(),
+        ownerId: client.id,
+        kind: 'loveMessage',
+        targetId: '',
+        message,
+        position: sanitizeVec3(msg.action?.position, player.position),
+        velocity: sanitizeVec3(msg.action?.velocity),
+      };
+      const packet = {
+        type: 'coopAction',
+        serverTime: Date.now(),
+        action,
+      };
+      for (const [peerSocket, peerClient] of clients) {
+        if (peerSocket !== socket && peerClient.roomId === room.id) {
+          sendJson(peerSocket, packet);
+        }
+      }
+      return;
+    }
     const targetId =
       typeof msg.action?.targetId === 'string'
         ? msg.action.targetId.slice(0, 80)

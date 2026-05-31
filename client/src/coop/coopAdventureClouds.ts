@@ -38,14 +38,14 @@ export function buildCoopAdventureClouds(
     const side = i % 2 === 0 ? 1 : -1;
     clouds.push({
       position: [
-        midX + sideX * side * Math.min(10, distance * 0.16),
+        midX + sideX * side * Math.min(18, distance * 0.14),
         midY,
-        midZ + sideZ * side * Math.min(10, distance * 0.16),
+        midZ + sideZ * side * Math.min(18, distance * 0.14),
       ],
       scale: [
-        THREE.MathUtils.clamp(distance * 0.12, 9, 18),
-        3.6,
-        THREE.MathUtils.clamp(distance * 0.08, 6, 12),
+        THREE.MathUtils.clamp(distance * 0.12, 12, 28),
+        4.6,
+        THREE.MathUtils.clamp(distance * 0.08, 8, 18),
       ],
     });
   }
@@ -71,25 +71,24 @@ export function sampleCoopAdventureCloudBounce(
   for (const cloud of activeClouds) {
     const [cx, cy, cz] = cloud.position;
     const [sx, sy, sz] = cloud.scale;
-    const rx = sx * 0.92;
+    const rx = sx * 1.12;
     const ry = sy * 0.5;
-    const rz = sz * 0.82;
+    const rz = sz * 1.02;
     const nx = (x - cx) / Math.max(0.001, rx);
     const ny = (y - cy) / Math.max(0.001, ry);
     const nz = (z - cz) / Math.max(0.001, rz);
     if (nx * nx + ny * ny + nz * nz > 1) continue;
-    if (y < cy - ry * 0.7 || y > cy + ry * 1.25) continue;
+    if (y < cy - ry * 0.95 || y > cy + ry * 1.45) continue;
     if (verticalVelocity > 7 && y < cy + ry * 0.15) {
       return {
         y,
-        bounceVy: Math.max(verticalVelocity, 12),
+        bounceVy: Math.max(verticalVelocity, 18),
         liftOnly: true,
       };
     }
-    if (verticalVelocity > 7) continue;
     return {
       y: cy + ry * 0.92,
-      bounceVy: Math.max(18, Math.abs(verticalVelocity) * 0.6 + 14),
+      bounceVy: Math.max(24, Math.abs(verticalVelocity) * 0.72 + 18),
     };
   }
   return null;

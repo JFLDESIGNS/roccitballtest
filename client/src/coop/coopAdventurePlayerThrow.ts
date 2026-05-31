@@ -12,7 +12,7 @@ export const COOP_ADVENTURE_MODE: RoomMode = 'coop-adventure';
 const COOP_PULL_RANGE = 22;
 const COOP_LOCK_RAY_RADIUS = 5.5;
 const COOP_HOLD_DISTANCE = 2.6;
-const COOP_PULL_SPEED = 38;
+const COOP_PULL_SPEED = 30;
 const COOP_THROW_SPEED = 48;
 const COOP_THROW_UP_SPEED = 10;
 
@@ -85,6 +85,27 @@ export function makeCoopPullAction(
   };
 }
 
+export function makeCoopPullActionFromHold(
+  targetId: string,
+  holdPosition: THREE.Vector3,
+  targetPosition: Vec3,
+): Omit<NetworkCoopAction, 'id' | 'ownerId'> {
+  _hold.copy(holdPosition);
+  _targetPos.set(targetPosition.x, targetPosition.y, targetPosition.z);
+  _velocity.subVectors(_hold, _targetPos);
+  const distance = _velocity.length();
+  if (distance > 0.001) {
+    _velocity.multiplyScalar(Math.min(COOP_PULL_SPEED, distance * 7) / distance);
+  }
+  return {
+    kind: 'playerPull',
+    targetId,
+    position: vec3ToNetwork(_targetPos),
+    holdPosition: vec3ToNetwork(_hold),
+    velocity: vec3ToNetwork(_velocity),
+  };
+}
+
 export function makeCoopThrowAction(
   targetId: string,
   holderPosition: THREE.Vector3,
@@ -108,8 +129,8 @@ export function makeCoopThrowAction(
     COOP_THROW_UP_SPEED * 0.55,
     COOP_THROW_UP_SPEED + 6,
   );
-  _hold.copy(holderPosition).addScaledVector(_throwDir, 0.85);
-  _hold.y += 0.35;
+  _hold.copy(holderPosition).addScaledVector(_throwDir, 0.18);
+  _hold.y += 0.12;
   return {
     kind: 'playerThrow',
     targetId,
@@ -133,11 +154,11 @@ export function applyCoopAdventureActionToBody(
   const t = body.translation();
   const current = body.linvel();
   const toward = {
-    x: (hold.x - t.x) * 18,
-    y: (hold.y - t.y) * 18,
-    z: (hold.z - t.z) * 18,
+    x: (hold.x - t.x) * 12,
+    y: (hold.y - t.y) * 12,
+    z: (hold.z - t.z) * 12,
   };
-  const alpha = 1 - Math.exp(-dt * 22);
+  const alpha = 1 - Math.exp(-dt * 14);
   body.setLinvel(
     {
       x: THREE.MathUtils.lerp(current.x, toward.x + action.velocity.x * 0.2, alpha),

@@ -139,7 +139,7 @@ import {
   applyCoopAdventureActionToBody,
   findCoopAdventureTarget,
   isCoopAdventureMode,
-  makeCoopPullAction,
+  makeCoopPullActionFromHold,
   makeCoopThrowAction,
 } from '../coop/coopAdventurePlayerThrow';
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
@@ -562,6 +562,7 @@ export function Player({
   const coopRagdollVisualActive = useRef(false);
   const coopCloudBounceCooldown = useRef(0);
   const coopCarryProxyPos = useRef(new THREE.Vector3());
+  const coopCarryProxyDesired = useRef(new THREE.Vector3());
   const coopCarryProxyLookDir = useRef(new THREE.Vector3(0, 0, -1));
   const [coopCarryProxyPlayer, setCoopCarryProxyPlayer] =
     useState<RemoteMultiplayerPlayer | null>(null);
@@ -1388,6 +1389,15 @@ export function Player({
     if (loveMessage) {
       setLoveToast(loveMessage === 'love' ? 'I love you' : 'Love you more');
       loveToastUntil.current = nowSec + 2.4;
+      if (networkCoopAdventureMode) {
+        multiplayerStore.sendCoopAction({
+          kind: 'loveMessage',
+          targetId: '',
+          message: loveMessage,
+          position: { x: pos.x, y: pos.y, z: pos.z },
+          velocity: { x: 0, y: 0, z: 0 },
+        });
+      }
     } else if (loveToast && nowSec > loveToastUntil.current) {
       setLoveToast(null);
     }
@@ -2563,11 +2573,23 @@ export function Player({
         coopCarryTargetId.current !== null && inputManager.consumeFireEdge();
 
       if (canCoopBeam && target) {
+        const isNewCarryTarget = coopCarryTargetId.current !== target.id;
         coopCarryTargetId.current = target.id;
-        coopCarryProxyPos.current
+        coopCarryProxyDesired.current
           .copy(chestPos.current)
           .addScaledVector(lookDir, 2.45);
-        coopCarryProxyPos.current.y += 0.35;
+        coopCarryProxyDesired.current.y += 0.35;
+        if (
+          isNewCarryTarget ||
+          coopCarryProxyPos.current.distanceTo(coopCarryProxyDesired.current) > 10
+        ) {
+          coopCarryProxyPos.current.copy(coopCarryProxyDesired.current);
+        } else {
+          coopCarryProxyPos.current.lerp(
+            coopCarryProxyDesired.current,
+            1 - Math.exp(-dt * 18),
+          );
+        }
         coopCarryProxyLookDir.current.copy(lookDir);
         coopCarryVisualStore.setHeldTarget(target.id);
         if (coopCarryProxyPlayer?.id !== target.id) {
@@ -2576,12 +2598,11 @@ export function Player({
         gameStore.setIsBeaming(true);
         setBeamAttractActive(false);
         if (coopActionSendTimer.current <= 0) {
-          coopActionSendTimer.current = 0.045;
+          coopActionSendTimer.current = 1 / 60;
           multiplayerStore.sendCoopAction(
-            makeCoopPullAction(
+            makeCoopPullActionFromHold(
               target.id,
-              chestPos.current,
-              lookDir,
+              coopCarryProxyPos.current,
               target.position,
             ),
           );

@@ -41,6 +41,7 @@ const _buttonPos = new THREE.Vector3();
 const _railStart = new THREE.Vector3();
 const _railEnd = new THREE.Vector3();
 const _tokenPos = new THREE.Vector3();
+const _railDirection = new THREE.Vector3();
 
 type ActiveRail = {
   key: string;
@@ -51,6 +52,12 @@ type FactNotice = {
   fact: string;
   levelName: string;
   completeAfter: boolean;
+};
+
+type RemoteLoveToast = {
+  text: string;
+  from: string;
+  until: number;
 };
 
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
@@ -332,12 +339,35 @@ function railButtonPosition(platform: CoopAdventurePlatform): THREE.Vector3 {
   );
 }
 
-function railEndpoint(platform: CoopAdventurePlatform): THREE.Vector3 {
-  return new THREE.Vector3(
+function railEndpoint(
+  platform: CoopAdventurePlatform,
+  toward?: CoopAdventurePlatform,
+): THREE.Vector3 {
+  const point = new THREE.Vector3(
     platform.position.x,
     platformTopY(platform) + 1.08,
     platform.position.z,
   );
+  if (!toward) return point;
+  _railDirection.set(
+    toward.position.x - platform.position.x,
+    0,
+    toward.position.z - platform.position.z,
+  );
+  const distance = _railDirection.length();
+  if (distance <= 0.001) return point;
+  _railDirection.multiplyScalar(1 / distance);
+  const edgeX =
+    Math.abs(_railDirection.x) > 0.001
+      ? platform.size.x * 0.5 / Math.abs(_railDirection.x)
+      : Infinity;
+  const edgeZ =
+    Math.abs(_railDirection.z) > 0.001
+      ? platform.size.z * 0.5 / Math.abs(_railDirection.z)
+      : Infinity;
+  const edge = Math.max(0, Math.min(edgeX, edgeZ) - 1.4);
+  point.addScaledVector(_railDirection, edge);
+  return point;
 }
 
 function railKey(levelId: number, platformId: string): string {
@@ -356,8 +386,8 @@ function railSegmentForPlatform(
   const startPlatform = platforms[targetIndex - 1]!;
   const endPlatform = platforms[targetIndex]!;
   return {
-    start: railEndpoint(startPlatform),
-    end: railEndpoint(endPlatform),
+    start: railEndpoint(startPlatform, endPlatform),
+    end: railEndpoint(endPlatform, startPlatform),
   };
 }
 
@@ -400,42 +430,39 @@ function CoopSpawnedRail({
   start: THREE.Vector3;
   end: THREE.Vector3;
 }) {
-  const points = useMemo(() => [start.clone(), end.clone()], [start, end]);
-  const geometry = useMemo(() => {
-    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
-    return new THREE.TubeGeometry(curve, 14, 0.24, 10, false);
-  }, [points]);
   const railDelta = useMemo(() => end.clone().sub(start), [end, start]);
   const railLength = railDelta.length();
   const railMid = useMemo(() => start.clone().lerp(end, 0.5), [end, start]);
-  const railQuat = useMemo(
-    () =>
-      new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(1, 0, 0),
-        railDelta.clone().normalize(),
-      ),
-    [railDelta],
-  );
-
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  const railQuat = useMemo(() => {
+    const direction =
+      railDelta.lengthSq() > 0.001
+        ? railDelta.clone().normalize()
+        : new THREE.Vector3(1, 0, 0);
+    return new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(1, 0, 0),
+      direction,
+    );
+  }, [railDelta]);
 
   return (
-    <group>
-      <mesh geometry={geometry} castShadow>
+    <group position={[railMid.x, railMid.y, railMid.z]} quaternion={railQuat}>
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.2, 0.2, railLength, 10]} />
         <meshStandardMaterial
           color="#05070a"
-          emissive="#18ffdc"
-          emissiveIntensity={0.72}
+          emissive="#0edbc6"
+          emissiveIntensity={0.26}
           metalness={0.36}
-          roughness={0.2}
+          roughness={0.22}
           toneMapped={false}
         />
       </mesh>
-      <mesh geometry={geometry}>
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.28, 0.28, railLength, 10]} />
         <meshBasicMaterial
-          color="#a6fff2"
+          color="#7cffef"
           transparent
-          opacity={0.28}
+          opacity={0.12}
           depthWrite={false}
           toneMapped={false}
         />
@@ -443,8 +470,6 @@ function CoopSpawnedRail({
       <RigidBody
         type="fixed"
         colliders={false}
-        position={[railMid.x, railMid.y, railMid.z]}
-        quaternion={railQuat}
       >
         <CuboidCollider
           args={[railLength * 0.5, 0.24, 0.42]}
@@ -453,27 +478,6 @@ function CoopSpawnedRail({
           restitution={0.02}
         />
       </RigidBody>
-      <pointLight
-        color="#28ffde"
-        intensity={1.3}
-        distance={16}
-        position={[
-          (start.x + end.x) * 0.5,
-          (start.y + end.y) * 0.5 + 1.35,
-          (start.z + end.z) * 0.5,
-        ]}
-      />
-      <Html
-        center
-        distanceFactor={18}
-        position={[
-          (start.x + end.x) * 0.5,
-          (start.y + end.y) * 0.5 + 2.4,
-          (start.z + end.z) * 0.5,
-        ]}
-      >
-        <div className="coop-rail-label">HELP RAIL</div>
-      </Html>
     </group>
   );
 }
@@ -518,6 +522,7 @@ export function CoopAdventureCourse({
   const [activeRails, setActiveRails] = useState<ActiveRail[]>([]);
   const [factNotice, setFactNotice] = useState<FactNotice | null>(null);
   const [tokenFactNotice, setTokenFactNotice] = useState<FactNotice | null>(null);
+  const [remoteLoveToast, setRemoteLoveToast] = useState<RemoteLoveToast | null>(null);
   const [collectedLoveTokens, setCollectedLoveTokens] = useState<Set<string>>(
     () => new Set(),
   );
@@ -528,6 +533,8 @@ export function CoopAdventureCourse({
     completeAfter: boolean;
   } | null>(null);
   const queuedFact = useRef<FactNotice | null>(null);
+  const shownFactIndexes = useRef<Set<number>>(new Set());
+  const factCursor = useRef(Math.floor(Math.random() * BTS_FACTS.length));
   const teleportedLevel = useRef(-1);
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
   const remotePlayers = useSyncExternalStore(
@@ -548,6 +555,7 @@ export function CoopAdventureCourse({
     pendingAdvance.current = null;
     setFactNotice(null);
     setTokenFactNotice(null);
+    setRemoteLoveToast(null);
     setCollectedLoveTokens(new Set());
     setActiveRails([]);
   }, [levelIndex, teamSlot]);
@@ -600,6 +608,45 @@ export function CoopAdventureCourse({
     return () => clearCoopAdventureRails();
   }, [activeRails, level]);
 
+  const pickFact = (seed = 0): string => {
+    if (shownFactIndexes.current.size >= BTS_FACTS.length) {
+      shownFactIndexes.current.clear();
+    }
+    let nextIndex = Math.abs((factCursor.current + seed * 7 + 11) % BTS_FACTS.length);
+    for (let i = 0; i < BTS_FACTS.length; i += 1) {
+      const candidate = (nextIndex + i * 13) % BTS_FACTS.length;
+      if (!shownFactIndexes.current.has(candidate)) {
+        nextIndex = candidate;
+        break;
+      }
+    }
+    shownFactIndexes.current.add(nextIndex);
+    factCursor.current = (nextIndex + 17) % BTS_FACTS.length;
+    return BTS_FACTS[nextIndex]!;
+  };
+
+  const advanceToLevel = (
+    nextLevelId: number,
+    notice: FactNotice,
+    nowSec: number,
+  ): void => {
+    const nextIndex = THREE.MathUtils.clamp(
+      Math.floor(nextLevelId) - 1,
+      0,
+      COOP_ADVENTURE_LEVELS.length - 1,
+    );
+    if (nextIndex === levelIndex) return;
+    advanceLock.current = 1.4;
+    queuedFact.current = notice;
+    pendingAdvance.current = null;
+    setFactNotice(null);
+    setTokenFactNotice(null);
+    tokenFactUntil.current = nowSec;
+    setActiveRails([]);
+    setCollectedLoveTokens(new Set());
+    setLevelIndex(nextIndex);
+  };
+
   useFrame((_, dt) => {
     advanceLock.current = Math.max(0, advanceLock.current - dt);
     for (const action of multiplayerStore.drainRemoteCoopRailActions()) {
@@ -617,6 +664,31 @@ export function CoopAdventureCourse({
           : [...rails, { key: action.railKey!, platformId: action.platformId! }],
       );
     }
+    const nowSec = performance.now() / 1000;
+    for (const action of multiplayerStore.drainRemoteCoopEventActions()) {
+      if (action.kind === 'levelAdvance' && action.levelId) {
+        const targetLevel = COOP_ADVENTURE_LEVELS[action.levelId - 1];
+        if (!targetLevel) continue;
+        advanceToLevel(
+          targetLevel.id,
+          {
+            fact: pickFact(targetLevel.id + levelIndex),
+            levelName: targetLevel.name,
+            completeAfter: false,
+          },
+          nowSec,
+        );
+      } else if (action.kind === 'loveMessage') {
+        const player =
+          remotePlayers.find((candidate) => candidate.id === action.ownerId) ??
+          null;
+        setRemoteLoveToast({
+          text: action.message === 'more' ? 'Love you more' : 'I love you',
+          from: player?.name ?? 'Partner',
+          until: nowSec + 2.8,
+        });
+      }
+    }
 
     const body = playerBodyRef.current;
     if (body && teleportedLevel.current !== levelIndex) {
@@ -633,7 +705,6 @@ export function CoopAdventureCourse({
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       playerPositionRef.current.copy(spawn);
     }
-    const nowSec = performance.now() / 1000;
     const pending = pendingAdvance.current;
     if (pending && pending.at <= nowSec) {
       pendingAdvance.current = null;
@@ -645,6 +716,9 @@ export function CoopAdventureCourse({
     }
     if (tokenFactNotice && tokenFactUntil.current <= nowSec) {
       setTokenFactNotice(null);
+    }
+    if (remoteLoveToast && remoteLoveToast.until <= nowSec) {
+      setRemoteLoveToast(null);
     }
 
     for (const platform of level.platforms) {
@@ -662,9 +736,8 @@ export function CoopAdventureCourse({
         next.add(key);
         return next;
       });
-      const factIndex = (levelIndex * 4 + collectedLoveTokens.size + 11) % BTS_FACTS.length;
       setTokenFactNotice({
-        fact: BTS_FACTS[factIndex]!,
+        fact: pickFact(levelIndex + collectedLoveTokens.size + 11),
         levelName: 'Love Token',
         completeAfter: false,
       });
@@ -738,9 +811,8 @@ export function CoopAdventureCourse({
 
     advanceLock.current = 1.4;
     const completeAfter = levelIndex >= COOP_ADVENTURE_LEVELS.length - 1;
-    const factIndex = (levelIndex * 3) % BTS_FACTS.length;
     const notice = {
-      fact: BTS_FACTS[factIndex]!,
+      fact: pickFact(levelIndex + level.id),
       levelName: level.name,
       completeAfter,
     };
@@ -752,6 +824,17 @@ export function CoopAdventureCourse({
       };
     } else {
       queuedFact.current = notice;
+      multiplayerStore.sendCoopAction({
+        kind: 'levelAdvance',
+        targetId: '',
+        levelId: COOP_ADVENTURE_LEVELS[levelIndex + 1]!.id,
+        position: {
+          x: playerPositionRef.current.x,
+          y: playerPositionRef.current.y,
+          z: playerPositionRef.current.z,
+        },
+        velocity: { x: 0, y: 0, z: 0 },
+      });
       setLevelIndex((index) =>
         Math.min(COOP_ADVENTURE_LEVELS.length - 1, index + 1),
       );
@@ -855,6 +938,12 @@ export function CoopAdventureCourse({
             </strong>
             <span>BTS fact</span>
             <p>{(factNotice ?? tokenFactNotice)!.fact}</p>
+          </div>
+        )}
+        {remoteLoveToast && (
+          <div className="coop-love-toast coop-love-toast--remote" key={`${remoteLoveToast.from}-${remoteLoveToast.until}`}>
+            <span>{remoteLoveToast.from}</span>
+            {remoteLoveToast.text}
           </div>
         )}
       </Html>

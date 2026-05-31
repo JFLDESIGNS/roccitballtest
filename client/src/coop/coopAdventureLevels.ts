@@ -53,7 +53,7 @@ const THEMES = [
   { grass: '#52c5a2', side: '#4f4838' },
 ];
 
-const COOP_PLATFORM_DISTANCE_SCALE = 4.0;
+const COOP_PLATFORM_DISTANCE_SCALE = 9.0;
 const COOP_PLATFORM_SIZE_SCALE = 3.0;
 
 function scalePlatformSize(spec: PadSpec, themeIndex: number): { x: number; z: number } {
@@ -80,11 +80,11 @@ function pad(
   const kind = spec.kind ?? 'step';
   const size = scalePlatformSize(spec, themeIndex);
   const autoMotion =
-    kind === 'step' && themeIndex % 3 === 0
+    kind === 'step' && themeIndex % 2 === 0
       ? {
           kind: 'vertical' as const,
-          amplitude: 1.15 + (themeIndex % 4) * 0.22,
-          speed: 0.28 + (themeIndex % 3) * 0.08,
+          amplitude: 1.45 + (themeIndex % 4) * 0.32,
+          speed: 0.55 + (themeIndex % 3) * 0.12,
           phase: themeIndex * 0.83,
         }
       : null;
@@ -115,6 +115,11 @@ function buildLevel(
       : {
           ...spec,
           x: startSpec.x + (spec.x - startSpec.x) * COOP_PLATFORM_DISTANCE_SCALE,
+          y:
+            startSpec.y +
+            (spec.y - startSpec.y) * 1.48 +
+            (i % 2 === 0 ? 1.4 : -0.45) +
+            Math.floor(i / 2) * 0.45,
           z: startSpec.z + (spec.z - startSpec.z) * COOP_PLATFORM_DISTANCE_SCALE,
         },
   );
