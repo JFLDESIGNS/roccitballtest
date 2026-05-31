@@ -24,7 +24,6 @@ import {
   spawnRocketSmokeStreak,
 } from './rocketSmokeStreak';
 import { spawnRocketTrailSmokePuff } from './rocketTrailSmokePuffs';
-import { TRAINING } from './trainingMapConfig';
 import {
   hitTrainingCubeWithRocket,
   rocketSegmentHitsTrainingCube,
@@ -421,9 +420,9 @@ export function Rockets({
       dt,
       disableArenaCollision
         ? {
-            w: TRAINING.warehouse.width / 2,
-            d: TRAINING.warehouse.length / 2,
-            h: TRAINING.warehouse.wallHeight,
+            w: 9999,
+            d: 9999,
+            h: 9999,
           }
         : {
             w: ARENA.hexRadius,

@@ -99,10 +99,19 @@ const DRIVING_LANDING_Y = BALL.radius + 0.22;
 const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
 const DRIVING_ROLLOUT_SEC = 4;
 const DRIVING_OB_HOLD_SEC = 1.25;
+const DISPLAY_FEET_PER_WORLD_FOOT = 1 / 5;
 const TRAINING_HTML_Z_INDEX_RANGE = [8, 0] as [number, number];
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
+}
+
+function displayFtToMeters(ft: number): number {
+  return ft / DISPLAY_FEET_PER_WORLD_FOOT * FT_TO_M;
+}
+
+function worldFtToDisplayFt(ft: number): number {
+  return ft * DISPLAY_FEET_PER_WORLD_FOOT;
 }
 
 function TrainingHitPreview() {
@@ -164,11 +173,11 @@ function DrivingShotMarkers() {
   const marker = activeShot ?? lastShot;
   const markerZ =
     marker != null
-      ? TRAINING.drivingRange.startZ - marker.distanceFt * FT_TO_M
+      ? TRAINING.drivingRange.startZ - displayFtToMeters(marker.distanceFt)
       : null;
   const bestZ =
     bestShot != null
-      ? TRAINING.drivingRange.startZ - bestShot.distanceFt * FT_TO_M
+      ? TRAINING.drivingRange.startZ - displayFtToMeters(bestShot.distanceFt)
       : null;
   const sideX = TRAINING.drivingRange.x + TRAINING.drivingRange.width / 2 + 2.2;
 
@@ -734,7 +743,10 @@ export function TrainingRangeMap({
         drivingShot.current.startedAt = performance.now() / 1000;
         drivingShot.current.maxDistanceFt = 0;
         drivingShot.current.maxCarryFt = 0;
-        drivingShot.current.maxApexFt = Math.max(0, bt.y / FT_TO_M);
+        drivingShot.current.maxApexFt = Math.max(
+          0,
+          worldFtToDisplayFt(bt.y / FT_TO_M),
+        );
         drivingShot.current.maxSpeedMps = 0;
         drivingShot.current.maxInBoundsDistanceFt = 0;
         drivingShot.current.outOfBounds = false;
@@ -746,10 +758,11 @@ export function TrainingRangeMap({
       if (drivingShot.current.active) {
         const lv = ball.linvel();
         const speed = Math.hypot(lv.x, lv.y, lv.z);
-        const distanceFt = Math.max(
+        const worldDistanceFt = Math.max(
           0,
           (TRAINING.drivingRange.startZ - bt.z) / FT_TO_M,
         );
+        const distanceFt = worldFtToDisplayFt(worldDistanceFt);
         const inBoundsX =
           Math.abs(bt.x - TRAINING.drivingRange.x) <=
           TRAINING.drivingRange.width / 2;
@@ -775,7 +788,7 @@ export function TrainingRangeMap({
         }
         drivingShot.current.maxApexFt = Math.max(
           drivingShot.current.maxApexFt,
-          bt.y / FT_TO_M,
+          worldFtToDisplayFt(bt.y / FT_TO_M),
         );
         drivingShot.current.maxSpeedMps = Math.max(
           drivingShot.current.maxSpeedMps,

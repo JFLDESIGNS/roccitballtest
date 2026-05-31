@@ -15,7 +15,7 @@ export const TRAINING = {
     startZ: 39,
     width: 72,
     length: 900 * FT,
-    markerStep: 10 * FT,
+    markerStep: 50 * FT,
   },
   warehouse: {
     x: 4,
