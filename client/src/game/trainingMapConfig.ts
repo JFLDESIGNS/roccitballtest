@@ -22,7 +22,7 @@ export const TRAINING = {
     z: -88,
     width: 150,
     length: 340,
-    wallHeight: 18,
+    wallHeight: 54,
   },
 } as const;
 

@@ -1,7 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { tuningStore } from './tuningStore';
 import { FpsCounter } from './FpsCounter';
-import { BallBoundaryHelpBadge } from './BallBoundaryHelpBadge';
 import { FullscreenButton } from './FullscreenButton';
 import { gameStore } from './gameStore';
 import { HudCrosshairEnergy } from './HudCrosshairEnergy';
@@ -126,7 +125,6 @@ export function HUD({ onMainMenu }: HUDProps) {
           </span>
         </div>
       )}
-      <BallBoundaryHelpBadge />
       {state.debugFreelook && (
         <div className="debug-freelook-hint" role="status">
           Debug fly - cursor on - RMB hold to look - WASD fly - U exit - Tab respawn ball

@@ -47,6 +47,23 @@ const warehouseTrimMat = new THREE.MeshStandardMaterial({
   emissive: '#0a5263',
   emissiveIntensity: 0.45,
 });
+const cubeMats = [
+  new THREE.MeshStandardMaterial({
+    color: '#e8d36d',
+    roughness: 0.55,
+    metalness: 0.08,
+  }),
+  new THREE.MeshStandardMaterial({
+    color: '#79d2ff',
+    roughness: 0.5,
+    metalness: 0.12,
+  }),
+  new THREE.MeshStandardMaterial({
+    color: '#ff8a6e',
+    roughness: 0.58,
+    metalness: 0.08,
+  }),
+];
 
 const FT_TO_M = 0.3048;
 
@@ -352,6 +369,55 @@ function TrainingLaunchers() {
   );
 }
 
+function TrainingPhysicsCubes() {
+  const cubes = useMemo(
+    () => [
+      { p: [-14, 1.25, 31], s: [1.9, 1.9, 1.9], m: 0 },
+      { p: [-9, 1.0, 26], s: [1.55, 1.55, 1.55], m: 1 },
+      { p: [-18, 1.6, 23], s: [1.25, 2.6, 1.25], m: 2 },
+      { p: [10, 1.1, 28], s: [2.1, 1.2, 1.2], m: 1 },
+      { p: [17, 1.4, 18], s: [1.35, 2.0, 1.35], m: 0 },
+      { p: [41, 1.2, 30], s: [1.7, 1.7, 1.7], m: 2 },
+      { p: [44, 1.2, 21], s: [1.7, 1.7, 1.7], m: 1 },
+      { p: [47, 1.2, 12], s: [1.7, 1.7, 1.7], m: 0 },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      {cubes.map((cube, i) => (
+        <RigidBody
+          key={i}
+          colliders={false}
+          position={cube.p as [number, number, number]}
+          restitution={0.34}
+          friction={0.78}
+          linearDamping={0.18}
+          angularDamping={0.24}
+          canSleep
+        >
+          <mesh
+            castShadow
+            receiveShadow
+            scale={cube.s as [number, number, number]}
+            material={cubeMats[cube.m]}
+          >
+            <boxGeometry args={[1, 1, 1]} />
+          </mesh>
+          <CuboidCollider
+            args={[
+              cube.s[0] / 2,
+              cube.s[1] / 2,
+              cube.s[2] / 2,
+            ]}
+          />
+        </RigidBody>
+      ))}
+    </>
+  );
+}
+
 function launchTrainingBallAtPlayer(
   ball: RapierRigidBody,
   player: THREE.Vector3,
@@ -509,6 +575,7 @@ export function TrainingRangeMap({
       <pointLight position={[TRAINING.drivingRange.x, 12, TRAINING.drivingRange.startZ - 35]} intensity={26} distance={56} color="#9cffbf" />
 
       <WarehouseShell />
+      <TrainingPhysicsCubes />
 
       <Platform
         position={[

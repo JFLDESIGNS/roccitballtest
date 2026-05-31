@@ -1260,7 +1260,7 @@ function Scene({
       <FanGlassCrackFx />
       <PillarShakeSmoke />
       <ImpactSparks />
-      {!coopAdventureEnabled && <GameplayCollisionDebug />}
+      {!coopAdventureEnabled && !trainingMapEnabled && <GameplayCollisionDebug />}
       <RocketWallImpactFx poolRef={wallImpactFxRef} />
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
       <BeamDenyZonesVisual />
@@ -1369,8 +1369,13 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().roomInfo?.mode ?? null,
   );
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
   const coopAdventureEnabled =
     multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
+  const trainingMapEnabled = activeMapId === TRAINING_MAP_ID;
   const matchOver = useSyncExternalStore(gameStore.subscribe, () =>
     isMatchOver(gameStore.getState()),
   );
@@ -1446,9 +1451,13 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        <ArenaSky />
-        <ArenaLighting />
-        <ArenaAtmosphere />
+        {!trainingMapEnabled && (
+          <>
+            <ArenaSky />
+            <ArenaLighting />
+            <ArenaAtmosphere />
+          </>
+        )}
         <Suspense fallback={null}>
           <Physics
             gravity={[0, tune.gravity, 0]}
