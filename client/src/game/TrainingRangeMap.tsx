@@ -71,6 +71,10 @@ const DRIVING_TEE_Z_OFFSET = 3.8;
 const DRIVING_LANDING_Y = BALL.radius + 0.22;
 const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
 
+function formatFt(n: number): string {
+  return `${Math.max(0, Math.round(n))} ft`;
+}
+
 function TrainingHitPreview() {
   const hit = useSyncExternalStore(
     trainingMapStore.subscribe,
@@ -111,6 +115,85 @@ function TrainingHitPreview() {
         </Html>
       </group>
     </Billboard>
+  );
+}
+
+function DrivingShotMarkers() {
+  const activeShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getActiveShot(),
+  );
+  const lastShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getLastShot(),
+  );
+  const bestShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getBestShot(),
+  );
+  const marker = activeShot ?? lastShot;
+  const markerZ =
+    marker != null
+      ? TRAINING.drivingRange.startZ - marker.distanceFt * FT_TO_M
+      : null;
+  const bestZ =
+    bestShot != null
+      ? TRAINING.drivingRange.startZ - bestShot.distanceFt * FT_TO_M
+      : null;
+  const sideX = TRAINING.drivingRange.x + TRAINING.drivingRange.width / 2 + 2.2;
+
+  return (
+    <>
+      {markerZ != null && (
+        <group position={[sideX, 1.05, markerZ]}>
+          <mesh scale={[0.16, 2.1, 0.16]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial
+              color="#69ff9d"
+              transparent
+              opacity={0.72}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh position={[0, -1.05, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.11, 2.6, 0.11]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#69ff9d" transparent opacity={0.5} toneMapped={false} />
+          </mesh>
+          <Html center distanceFactor={18} position={[0, 1.45, 0]}>
+            <div
+              style={{
+                color: '#d8ffe4',
+                font: '900 11px system-ui, sans-serif',
+                textShadow: '0 1px 5px #000',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatFt(marker?.distanceFt ?? 0)}
+            </div>
+          </Html>
+        </group>
+      )}
+      {bestZ != null && (
+        <group position={[sideX + 1.4, 0.55, bestZ]}>
+          <mesh scale={[0.22, 1.1, 0.22]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial color="#ffe36e" toneMapped={false} />
+          </mesh>
+          <Html center distanceFactor={18} position={[0, 1.0, 0]}>
+            <div
+              style={{
+                color: '#ffe36e',
+                font: '900 11px system-ui, sans-serif',
+                textShadow: '0 1px 5px #000',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              BEST {formatFt(bestShot?.distanceFt ?? 0)}
+            </div>
+          </Html>
+        </group>
+      )}
+    </>
   );
 }
 
@@ -204,7 +287,6 @@ function WarehouseShell() {
       <mesh position={[w.x, w.wallHeight + 0.15, w.z]} scale={[w.width, 0.3, w.length]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
-      <CuboidCollider args={[halfW, 0.15, halfL]} position={[w.x, w.wallHeight + 0.15, w.z]} />
 
       {[-0.4, -0.2, 0, 0.2, 0.4].map((t) => (
         <mesh
@@ -575,6 +657,7 @@ export function TrainingRangeMap({
         />
       </RigidBody>
       <DrivingRangeMarkers />
+      <DrivingShotMarkers />
 
       <mesh position={[TRAINING.drivingRange.x, 0.22, rangeEndZ]}>
         <boxGeometry args={[TRAINING.drivingRange.width, 0.42, 0.35]} />
