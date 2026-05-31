@@ -1168,6 +1168,7 @@ function Scene({
         />
       ) : (
         <Ball
+          arenaInteractions={!trainingMapEnabled}
           ref={ballRef}
           onBotBallStrike={(actorId) => {
             if (!showBots) return;

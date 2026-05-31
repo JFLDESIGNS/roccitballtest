@@ -24,7 +24,7 @@ import { parkBallAtDropSpawn } from './ballDropSpawn';
 import { releaseBallPhysics } from './ballAttach';
 import { createBallPolkaTexture } from './ballPolkaTexture';
 import { decayBeamContest, getBeamBallGlow, resetBeamContest } from './ballBeamContest';
-import { stepBallPhysics } from './ballRuntime';
+import { clampBallSpeed, stepBallPhysics } from './ballRuntime';
 import {
   refreshFanGlassBoxes,
   triggerFanGlassHit,
@@ -119,10 +119,11 @@ export type BallHandle = {
 
 type BallProps = {
   onBotBallStrike?: (actorId: ActorId) => void;
+  arenaInteractions?: boolean;
 };
 
 export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
-  { onBotBallStrike },
+  { onBotBallStrike, arenaInteractions = true },
   ref,
 ) {
   const bodyRef = useRef<RapierRigidBody>(null);
@@ -196,7 +197,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     const n = payload.manifold.normal();
     impact = Math.abs(v.x * n.x + v.y * n.y + v.z * n.z);
 
-    if (n.y < -0.78) {
+    if (arenaInteractions && n.y < -0.78) {
       triggerCeilingWallHit();
       playCeilingBump(impact);
     }
@@ -224,7 +225,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       if (d?.actorId) actorId = d.actorId as ActorId;
     }
 
-    if (!pillarHit) {
+    if (arenaInteractions && !pillarHit) {
       pillarHit = findArenaPillarNearXZ(
         ballPos.x,
         ballPos.z,
@@ -232,12 +233,12 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       );
     }
 
-    if (billboardMount && impact >= 0.35) {
+    if (arenaInteractions && billboardMount && impact >= 0.35) {
       if (now - lastBillboardShakeAt.current > 90) {
         lastBillboardShakeAt.current = now;
         triggerBillboardShake(billboardMount);
       }
-    } else if (pillarHit && impact >= 0.35) {
+    } else if (arenaInteractions && pillarHit && impact >= 0.35) {
       if (now - lastPillarShakeAt.current > 90) {
         lastPillarShakeAt.current = now;
         triggerArenaPillarShake(pillarHit.x, pillarHit.z);
@@ -291,7 +292,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     lastBounceAt.current = now;
     const impactSpd = impact;
     requestAnimationFrame(() => playBallBounce(impactSpd));
-  }, []);
+  }, [arenaInteractions, onBotBallStrike]);
 
   const placeAtDrop = (release: boolean) => {
     const body = bodyRef.current;
@@ -370,6 +371,11 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     }
 
     if (gameStore.getState().ballHolderId) {
+      if (!arenaInteractions) {
+        prevBallPos.current.set(t.x, t.y, t.z);
+        hasPrevBallPos.current = true;
+        return;
+      }
       tryBallGoalScoreAtPoint({ x: t.x, y: t.y, z: t.z }, body);
       prevBallPos.current.set(t.x, t.y, t.z);
       hasPrevBallPos.current = true;
@@ -382,7 +388,7 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
       applyBallSpinBounce(body, spinBounce);
     }
 
-    if (hadPrevPos) {
+    if (arenaInteractions && hadPrevPos) {
       if (
         tryBallGoalScore(
           { x: from.x, y: from.y, z: from.z },
@@ -411,7 +417,11 @@ export const Ball = forwardRef<BallHandle, BallProps>(function Ball(
     prevBallPos.current.set(t.x, t.y, t.z);
     hasPrevBallPos.current = true;
 
-    stepBallPhysics(body, hadPrevPos ? from : undefined, 1 / 60);
+    if (arenaInteractions) {
+      stepBallPhysics(body, hadPrevPos ? from : undefined, 1 / 60);
+    } else {
+      clampBallSpeed(body);
+    }
   });
 
   // Release timer + goal-suck overrides; loose proxy handles bot carry + loose display.
