@@ -1587,6 +1587,8 @@ function handleClientMessage(socket, raw) {
       position: { x: 0, y: 2, z: 0 },
       velocity: { x: 0, y: 0, z: 0 },
       rotation: { yaw: 0, pitch: 0 },
+      visualTilt: { x: 0, y: 0, z: 0 },
+      flipActive: false,
       energy: 100,
       isSprinting: false,
       isBeaming: false,
@@ -1626,6 +1628,12 @@ function handleClientMessage(socket, raw) {
       yaw: Number.isFinite(msg.rotation?.yaw) ? msg.rotation.yaw : player.rotation.yaw,
       pitch: Number.isFinite(msg.rotation?.pitch) ? msg.rotation.pitch : player.rotation.pitch,
     };
+    player.visualTilt = {
+      x: Number.isFinite(msg.visualTilt?.x) ? Math.max(-7, Math.min(7, msg.visualTilt.x)) : 0,
+      y: Number.isFinite(msg.visualTilt?.y) ? Math.max(-7, Math.min(7, msg.visualTilt.y)) : 0,
+      z: Number.isFinite(msg.visualTilt?.z) ? Math.max(-7, Math.min(7, msg.visualTilt.z)) : 0,
+    };
+    player.flipActive = Boolean(msg.flipActive);
     player.energy = Number.isFinite(msg.energy)
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;

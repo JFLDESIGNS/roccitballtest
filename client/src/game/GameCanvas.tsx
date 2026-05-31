@@ -883,6 +883,8 @@ function Scene({
         isSprinting?: boolean;
         holdPosition: { x: number; y: number; z: number } | null;
         coopRagdoll?: boolean;
+        visualTilt?: { x: number; y: number; z: number };
+        flipActive?: boolean;
       },
     ) => {
       playerPosRef.current.copy(pos);
@@ -899,6 +901,8 @@ function Scene({
         isSprinting: Boolean(pose.isSprinting ?? gameStore.getState().isSprinting),
         holdPosition: pose.holdPosition,
         coopRagdoll: Boolean(pose.coopRagdoll),
+        visualTilt: pose.visualTilt,
+        flipActive: Boolean(pose.flipActive),
       });
     },
     [],
@@ -1245,7 +1249,7 @@ function Scene({
         onPositionUpdate={onPlayerPosition}
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
-        disableArenaBounds={trainingMapEnabled}
+        disableArenaBounds={trainingMapEnabled || coopAdventureEnabled}
       />
       <RemotePlayers />
       <DebugFreelook />
@@ -1337,7 +1341,7 @@ function Scene({
         }}
         ballPos={ballPos}
         ballVel={ballVel}
-        disableArenaCollision={trainingMapEnabled}
+        disableArenaCollision={trainingMapEnabled || coopAdventureEnabled}
         onBallDirectHit={(hit) => {
           if (!trainingMapEnabled) return;
           trainingMapStore.recordBallHit({
@@ -1422,7 +1426,12 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
     >
       <Canvas
         style={{ background: '#181c22' }}
-        camera={{ fov: 60, near: 0.1, far: 400, position: [0, 8, 42] }}
+        camera={{
+          fov: 60,
+          near: 0.1,
+          far: coopAdventureEnabled || trainingMapEnabled ? 4000 : 400,
+          position: [0, 8, 42],
+        }}
         dpr={
           gfx.reallyBadPuter
             ? [0.75, 0.75]
@@ -1459,7 +1468,7 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
         }}
       >
         <SceneEnvironment />
-        {!trainingMapEnabled && (
+        {!trainingMapEnabled && !coopAdventureEnabled && (
           <>
             <ArenaSky />
             <ArenaLighting />

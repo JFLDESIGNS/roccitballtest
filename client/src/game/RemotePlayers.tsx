@@ -16,6 +16,8 @@ import {
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import { punchLightGlowForBody } from './lightGlowHits';
+import { getForwardFlipPitchX, triggerForwardFlip } from './forwardFlipEmote';
+import type { ActorId } from './playerRoster';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
 const capCenterY = capHalfH + MOVEMENT.capsuleRadius;
@@ -33,6 +35,7 @@ type RemotePlayerSample = {
   position: THREE.Vector3;
   velocity: THREE.Vector3;
   yaw: number;
+  tilt: THREE.Vector3;
   at: number;
 };
 
@@ -49,6 +52,11 @@ function makeSample(player: RemoteMultiplayerPlayer): RemotePlayerSample {
       player.velocity.z,
     ),
     yaw: player.rotation.yaw,
+    tilt: new THREE.Vector3(
+      player.visualTilt?.x ?? player.rotation.pitch,
+      player.visualTilt?.y ?? 0,
+      player.visualTilt?.z ?? 0,
+    ),
     at: player.updatedAt,
   };
 }
@@ -72,7 +80,9 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   ]);
   const displayPos = useRef(latestSample.current.position.clone());
   const displayYaw = useRef(latestSample.current.yaw);
+  const displayTilt = useRef(latestSample.current.tilt.clone());
   const interpolatedPos = useRef(new THREE.Vector3());
+  const interpolatedTilt = useRef(new THREE.Vector3());
   const blendedVel = useRef(new THREE.Vector3());
   const rotationQuat = useRef(new THREE.Quaternion());
   const visualRef = useRef<THREE.Group>(null);
@@ -81,6 +91,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
   const lastGlowPos = useRef(latestSample.current.position.clone());
   const glowPos = useRef(new THREE.Vector3());
   const ready = useRef(false);
+  const lastFlipActive = useRef(Boolean(player.flipActive));
 
   useEffect(() => {
     const next = makeSample(player);
@@ -97,6 +108,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         position: prev.position.clone(),
         velocity: prev.velocity.clone(),
         yaw: prev.yaw,
+        tilt: prev.tilt.clone(),
         at: prev.at,
       };
       sampleHistory.current.push(next);
@@ -110,10 +122,23 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     player.position.y,
     player.position.z,
     player.rotation.yaw,
+    player.rotation.pitch,
+    player.visualTilt?.x,
+    player.visualTilt?.y,
+    player.visualTilt?.z,
+    player.flipActive,
     player.velocity.x,
     player.velocity.y,
     player.velocity.z,
   ]);
+
+  useEffect(() => {
+    const active = Boolean(player.flipActive);
+    if (active && !lastFlipActive.current) {
+      triggerForwardFlip(player.id as ActorId);
+    }
+    lastFlipActive.current = active;
+  }, [player.flipActive, player.id]);
 
   useFrame((_, dtRaw) => {
     const body = bodyRef.current;
@@ -125,6 +150,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     if (!ready.current) {
       displayPos.current.copy(latestSample.current.position);
       displayYaw.current = latestSample.current.yaw;
+      displayTilt.current.copy(latestSample.current.tilt);
       ready.current = true;
     } else {
       const from = previousSample.current;
@@ -164,13 +190,20 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
           alpha,
         );
         targetYaw = lerpAngle(sampleFrom.yaw, sampleTo.yaw, alpha);
+        interpolatedTilt.current.lerpVectors(
+          sampleFrom.tilt,
+          sampleTo.tilt,
+          alpha,
+        );
       } else if (history.length > 0 && renderAt < history[0]!.at) {
         const oldest = history[0]!;
         interpolatedPos.current.copy(oldest.position);
+        interpolatedTilt.current.copy(oldest.tilt);
         blendedVel.current.copy(oldest.velocity);
         targetYaw = oldest.yaw;
       } else {
         interpolatedPos.current.copy(to.position);
+        interpolatedTilt.current.copy(to.tilt);
         blendedVel.current.copy(to.velocity);
         const speed = blendedVel.current.length();
         if (speed > REMOTE_PLAYER_MAX_EXTRAPOLATE_SPEED) {
@@ -196,6 +229,7 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         targetYaw,
         1 - Math.exp(-dt * REMOTE_PLAYER_YAW_SMOOTH_RATE),
       );
+      displayTilt.current.lerp(interpolatedTilt.current, 1 - Math.exp(-dt * 18));
     }
     rotationQuat.current.setFromEuler(new THREE.Euler(0, displayYaw.current, 0));
     if (body) {
@@ -224,16 +258,10 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         avatarRef.current.rotation.x = Math.sin(t * 1.7) * (0.55 + speed * 0.65);
         avatarRef.current.rotation.z = Math.cos(t * 1.25) * (0.45 + speed * 0.55);
       } else {
-        avatarRef.current.rotation.x = THREE.MathUtils.lerp(
-          avatarRef.current.rotation.x,
-          0,
-          1 - Math.exp(-dt * 14),
-        );
-        avatarRef.current.rotation.z = THREE.MathUtils.lerp(
-          avatarRef.current.rotation.z,
-          0,
-          1 - Math.exp(-dt * 14),
-        );
+        const flipPitch = getForwardFlipPitchX(player.id);
+        avatarRef.current.rotation.x = displayTilt.current.x + flipPitch;
+        avatarRef.current.rotation.y = displayTilt.current.y;
+        avatarRef.current.rotation.z = displayTilt.current.z;
       }
     }
     if (nameplate) {

@@ -48,7 +48,7 @@ import {
   pointOnCrosshairAimRay,
   updateThirdPersonCamera,
 } from './CameraController';
-import { triggerForwardFlip } from './forwardFlipEmote';
+import { isForwardFlipActive, triggerForwardFlip } from './forwardFlipEmote';
 import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import { PlayerJumpHat } from './PlayerJumpHat';
@@ -435,6 +435,8 @@ type PlayerProps = {
       isSprinting?: boolean;
       holdPosition: { x: number; y: number; z: number } | null;
       coopRagdoll?: boolean;
+      visualTilt?: { x: number; y: number; z: number };
+      flipActive?: boolean;
     },
   ) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
@@ -1211,6 +1213,8 @@ export function Player({
         isHoldingBall: false,
         isSprinting: false,
         holdPosition: null,
+        visualTilt: { x: inputManager.getAimPitch(), y: 0, z: 0 },
+        flipActive: isForwardFlipActive('local'),
       });
       updateThirdPersonCamera(
         camera,
@@ -1324,6 +1328,8 @@ export function Player({
         isHoldingBall: false,
         isSprinting: gameStore.getState().isSprinting,
         holdPosition: null,
+        visualTilt: { x: inputManager.getAimPitch(), y: 0, z: 0 },
+        flipActive: isForwardFlipActive('local'),
       });
       updateThirdPersonCamera(
         camera,
@@ -1523,6 +1529,12 @@ export function Player({
       coopRagdoll:
         networkCoopAdventureMode &&
         (nowSec < coopCarriedUntil.current || coopThrownRagdollActive.current),
+      visualTilt: {
+        x: inputManager.getAimPitch(),
+        y: 0,
+        z: 0,
+      },
+      flipActive: isForwardFlipActive('local'),
     });
 
     const coopCarried = networkCoopAdventureMode && nowSec < coopCarriedUntil.current;
@@ -1678,6 +1690,12 @@ export function Player({
         isSprinting: false,
         holdPosition: null,
         coopRagdoll: true,
+        visualTilt: {
+          x: inputManager.getAimPitch(),
+          y: knockTumble.current.rollZ,
+          z: knockTumble.current.rollX,
+        },
+        flipActive: isForwardFlipActive('local'),
       });
       const ragdollPivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
       updateThirdPersonCamera(

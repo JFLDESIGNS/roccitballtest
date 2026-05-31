@@ -363,7 +363,7 @@ class InputManager {
       if (e.code === 'BracketLeft' && !e.repeat) {
         this.loveMessageQueued = 'love';
       }
-      if (e.code === 'BracketRight' && e.key === '}' && !e.repeat) {
+      if (e.code === 'BracketRight' && !e.repeat) {
         this.loveMessageQueued = 'more';
       }
       if (e.code === 'Tab') {

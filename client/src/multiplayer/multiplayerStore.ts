@@ -27,6 +27,8 @@ export type RemoteMultiplayerPlayer = {
   position: Vec3;
   velocity: Vec3;
   rotation: { yaw: number; pitch: number };
+  visualTilt?: { x: number; y: number; z: number };
+  flipActive?: boolean;
   energy: number;
   isSprinting?: boolean;
   isBeaming: boolean;
@@ -200,6 +202,8 @@ type LocalPlayerUpdate = {
   position: Vec3;
   velocity: Vec3;
   rotation: { yaw: number; pitch: number };
+  visualTilt?: { x: number; y: number; z: number };
+  flipActive?: boolean;
   energy: number;
   isSprinting?: boolean;
   isBeaming: boolean;
