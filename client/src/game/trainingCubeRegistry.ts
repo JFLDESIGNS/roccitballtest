@@ -5,6 +5,8 @@ export type TrainingCubeTarget = {
   id: string;
   body: RapierRigidBody;
   radius: number;
+  kind: 'ball' | 'cube';
+  heldBy: string | null;
 };
 
 const cubes = new Map<string, TrainingCubeTarget>();
@@ -17,8 +19,9 @@ export function registerTrainingCube(
   id: string,
   body: RapierRigidBody,
   radius: number,
+  kind: 'ball' | 'cube' = 'cube',
 ): () => void {
-  cubes.set(id, { id, body, radius });
+  cubes.set(id, { id, body, radius, kind, heldBy: null });
   return () => {
     if (cubes.get(id)?.body === body) cubes.delete(id);
   };
@@ -28,10 +31,21 @@ export function getTrainingCubes(): TrainingCubeTarget[] {
   return Array.from(cubes.values());
 }
 
+export function getTrainingCubeById(id: string): TrainingCubeTarget | null {
+  return cubes.get(id) ?? null;
+}
+
+export function setTrainingCubeHeldBy(id: string, holderId: string | null): void {
+  const target = cubes.get(id);
+  if (!target) return;
+  target.heldBy = holderId;
+}
+
 export function getNearestTrainingCube(
   origin: THREE.Vector3,
   maxDistance: number,
   excluded?: RapierRigidBody | null,
+  selfId?: string | null,
 ): { target: TrainingCubeTarget; distance: number; position: THREE.Vector3 } | null {
   let best: TrainingCubeTarget | null = null;
   let bestDist = maxDistance;
@@ -39,6 +53,7 @@ export function getNearestTrainingCube(
 
   for (const target of cubes.values()) {
     if (target.body === excluded) continue;
+    if (target.heldBy && target.heldBy !== selfId) continue;
     const t = target.body.translation();
     _pos.set(t.x, t.y, t.z);
     const d = _pos.distanceTo(origin);

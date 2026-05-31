@@ -165,7 +165,7 @@ function TrainingPracticeBall({
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return undefined;
-    return registerTrainingCube(id, body, radius);
+    return registerTrainingCube(id, body, radius, 'ball');
   }, [id, radius]);
 
   return (
@@ -848,7 +848,7 @@ function TrainingPhysicsCube({
     const body = bodyRef.current;
     if (!body) return undefined;
     const radius = Math.hypot(scale[0], scale[1], scale[2]) * 0.5;
-    return registerTrainingCube(id, body, radius);
+    return registerTrainingCube(id, body, radius, 'cube');
   }, [id, scale]);
 
   return (

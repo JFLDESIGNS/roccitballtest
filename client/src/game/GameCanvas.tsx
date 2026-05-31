@@ -1141,6 +1141,7 @@ function Scene({
   );
   const trainingMapEnabled =
     activeMapId === TRAINING_MAP_ID || multiplayerRoomMode === 'training';
+  const multiplayerTrainingEnabled = multiplayerRoomMode === 'training';
   const playStadiumGroups = getPlayModeStadiumGroups(customMap);
   const stadiumHidden = getHiddenStadiumPieces(playStadiumGroups);
 
@@ -1171,7 +1172,7 @@ function Scene({
           playerPositionRef={playerPosRef}
           playerBodyRef={playerBodyRef}
         />
-      ) : (
+      ) : !multiplayerTrainingEnabled ? (
         <Ball
           arenaInteractions={!trainingMapEnabled}
           ref={ballRef}
@@ -1185,7 +1186,7 @@ function Scene({
             );
           }}
         />
-      )}
+      ) : null}
       {showBots && (
         <Bots
           botsRef={botsRef}

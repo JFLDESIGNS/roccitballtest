@@ -1892,6 +1892,41 @@ function handleClientMessage(socket, raw) {
     }
     return;
   }
+
+  if (msg.type === 'trainingObjectAction') {
+    if (room.mode !== 'training') return;
+    const objectId =
+      typeof msg.action?.objectId === 'string'
+        ? msg.action.objectId.slice(0, 96)
+        : '';
+    if (!objectId) return;
+    const action = {
+      id:
+        typeof msg.action?.id === 'string'
+          ? msg.action.id.slice(0, 64)
+          : crypto.randomUUID(),
+      ownerId: client.id,
+      kind: msg.action?.kind === 'release' ? 'release' : 'hold',
+      objectId,
+      objectKind: msg.action?.objectKind === 'cube' ? 'cube' : 'ball',
+      position: sanitizeVec3(msg.action?.position, player.position),
+      velocity: sanitizeVec3(msg.action?.velocity),
+      angularVelocity: msg.action?.angularVelocity
+        ? sanitizeVec3(msg.action.angularVelocity)
+        : null,
+    };
+    const packet = {
+      type: 'trainingObjectAction',
+      serverTime: Date.now(),
+      action,
+    };
+    for (const [peerSocket, peerClient] of clients) {
+      if (peerSocket !== socket && peerClient.roomId === room.id) {
+        sendJson(peerSocket, packet);
+      }
+    }
+    return;
+  }
 }
 
 function broadcastSnapshots() {

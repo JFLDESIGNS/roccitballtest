@@ -152,7 +152,9 @@ import {
 import { burstGroundSlideSparks, burstGrindRailSparks } from './impactSparks';
 import { punchLightGlowForBody } from './lightGlowHits';
 import {
+  getTrainingCubeById,
   getNearestTrainingCube,
+  setTrainingCubeHeldBy,
   type TrainingCubeTarget,
 } from './trainingCubeRegistry';
 
@@ -538,6 +540,7 @@ export function Player({
   const trainingCubeSocket = useRef(new THREE.Vector3());
   const trainingCubeSocketReady = useRef(false);
   const trainingCubeLastSocket = useRef(new THREE.Vector3());
+  const trainingCubeSyncTimer = useRef(0);
   const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
   const ballStompCooldownUntil = useRef(0);
@@ -1378,6 +1381,8 @@ export function Player({
     const multiplayerNow = multiplayerStore.getState();
     const networkCoopAdventureMode =
       multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
+    const networkTrainingMode =
+      multiplayerNow.enabled && multiplayerNow.roomInfo?.mode === 'training';
     const nowSec = performance.now() / 1000;
     const loveMessage = inputManager.consumeLoveMessage();
     if (loveMessage) {
@@ -1435,6 +1440,37 @@ export function Player({
       coopThrownRagdollActive.current = false;
       coopHeldTargetReady.current = false;
       coopRagdollVisualActive.current = false;
+    }
+
+    if (networkTrainingMode) {
+      for (const action of multiplayerStore.drainRemoteTrainingObjectActions()) {
+        if (action.ownerId === multiplayerNow.selfId) continue;
+        const target = getTrainingCubeById(action.objectId);
+        if (!target) continue;
+        if (heldTrainingCube.current?.id === action.objectId) {
+          heldTrainingCube.current = null;
+          trainingCubeSocketReady.current = false;
+        }
+        target.body.wakeUp();
+        if (action.kind === 'hold') {
+          setTrainingCubeHeldBy(action.objectId, action.ownerId);
+          target.body.setBodyType(RAPIER_BODY_KINEMATIC, true);
+          target.body.setGravityScale(0, true);
+          target.body.setTranslation(action.position, true);
+          target.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+          target.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        } else {
+          setTrainingCubeHeldBy(action.objectId, null);
+          target.body.setBodyType(RAPIER_BODY_DYNAMIC, true);
+          target.body.setGravityScale(1, true);
+          target.body.setTranslation(action.position, true);
+          target.body.setLinvel(action.velocity, true);
+          target.body.setAngvel(
+            action.angularVelocity ?? { x: 0, y: 0, z: 0 },
+            true,
+          );
+        }
+      }
     }
 
     const pivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
@@ -2648,7 +2684,12 @@ export function Player({
       !holdingBall.current &&
       !heldTrainingCube.current
     ) {
-      trainingCubeTarget = getNearestTrainingCube(chestPos.current, BEAM.range);
+      trainingCubeTarget = getNearestTrainingCube(
+        chestPos.current,
+        BEAM.range,
+        null,
+        multiplayerNow.selfId,
+      );
       canLockTrainingCubeTarget = trainingCubeTarget !== null;
     }
 
@@ -2695,19 +2736,77 @@ export function Player({
       if (!cube) return null;
       heldTrainingCube.current = null;
       trainingCubeSocketReady.current = false;
+      setTrainingCubeHeldBy(cube.id, null);
       cube.body.setBodyType(RAPIER_BODY_DYNAMIC, true);
       cube.body.setGravityScale(1, true);
       return cube;
+    };
+
+    const sendTrainingObjectSync = (
+      cube: TrainingCubeTarget,
+      kind: 'hold' | 'release',
+    ) => {
+      if (!networkTrainingMode) return;
+      const t = cube.body.translation();
+      const v = cube.body.linvel();
+      const av = cube.body.angvel();
+      multiplayerStore.sendTrainingObjectAction({
+        kind,
+        objectId: cube.id,
+        objectKind: cube.kind,
+        position: { x: t.x, y: t.y, z: t.z },
+        velocity: { x: v.x, y: v.y, z: v.z },
+        angularVelocity: { x: av.x, y: av.y, z: av.z },
+      });
     };
 
     const releaseTrainingCube = (speed: number) => {
       const cube = clearTrainingCubeHold();
       if (!cube) return false;
       const plv = body.linvel();
-      const vx = lookDir.x * speed + plv.x * 0.45;
-      const vy = lookDir.y * speed + 4 + Math.max(0, plv.y * 0.25);
-      const vz = lookDir.z * speed + plv.z * 0.45;
-      cube.body.setLinvel({ x: vx, y: vy, z: vz }, true);
+      if (speed >= TRAINING_CUBE_THROW_SPEED) {
+        if (tune.releaseSystem === 'superrelease') {
+          computeSuperReleaseShotVelocity(
+            {
+              lookDir,
+              playerVel: _swingVelScratch.current.set(plv.x, plv.y, plv.z),
+              tune,
+            },
+            _launchVel.current,
+          );
+        } else {
+          computeDirectedShotVelocity(
+            {
+              lookDir,
+              playerCarry: averageMomentum(launchMomentumSamples.current),
+              ballSwing: averageMomentum(ballSwingSamples.current),
+              playerVel: new THREE.Vector3(plv.x, plv.y, plv.z),
+              tune,
+            },
+            _launchVel.current,
+          );
+        }
+      } else {
+        _launchVel.current.set(
+          lookDir.x * speed + plv.x * 0.45,
+          lookDir.y * speed + 2.5 + Math.max(0, plv.y * 0.2),
+          lookDir.z * speed + plv.z * 0.45,
+        );
+      }
+      cube.body.setTranslation(
+        {
+          x: trainingCubeSocket.current.x,
+          y: trainingCubeSocket.current.y,
+          z: trainingCubeSocket.current.z,
+        },
+        true,
+      );
+      applyBallLaunchImpulse(
+        cube.body,
+        _launchVel.current,
+        averageMomentum(ballSwingSamples.current),
+        lookDir,
+      );
       cube.body.setAngvel(
         {
           x: (Math.random() - 0.5) * 7,
@@ -2716,6 +2815,8 @@ export function Player({
         },
         true,
       );
+      sendTrainingObjectSync(cube, 'release');
+      resetHoldMomentum();
       return true;
     };
 
@@ -2731,7 +2832,8 @@ export function Player({
         }
       }
       if (heldTrainingCube.current) {
-        clearTrainingCubeHold();
+        const released = clearTrainingCubeHold();
+        if (released) sendTrainingObjectSync(released, 'release');
         onBeamBreak();
         gameStore.setEnergyFlash(true);
       }
@@ -3053,6 +3155,7 @@ export function Player({
         BEAM.captureDistance + cube.radius * 0.5 + TRAINING_CUBE_CAPTURE_EXTRA_M;
       if (dist <= captureDist) {
         heldTrainingCube.current = cube;
+        setTrainingCubeHeldBy(cube.id, multiplayerNow.selfId ?? 'local');
         cube.body.setBodyType(RAPIER_BODY_KINEMATIC, true);
         cube.body.setGravityScale(0, true);
         cube.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
@@ -3060,6 +3163,8 @@ export function Player({
         trainingCubeSocket.current.copy(cubePos);
         trainingCubeLastSocket.current.copy(cubePos);
         trainingCubeSocketReady.current = false;
+        trainingCubeSyncTimer.current = 0;
+        sendTrainingObjectSync(cube, 'hold');
       }
     }
 
@@ -3312,6 +3417,11 @@ export function Player({
       cube.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       cube.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       trainingCubeLastSocket.current.copy(trainingCubeSocket.current);
+      trainingCubeSyncTimer.current -= dt;
+      if (trainingCubeSyncTimer.current <= 0) {
+        trainingCubeSyncTimer.current = 1 / 24;
+        sendTrainingObjectSync(cube, 'hold');
+      }
     } else {
       holdSocketSmoothReady.current = false;
       trainingCubeSocketReady.current = false;

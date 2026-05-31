@@ -88,6 +88,17 @@ export type NetworkCoopAction = {
   platformId?: string;
 };
 
+export type NetworkTrainingObjectAction = {
+  id: string;
+  ownerId: string;
+  kind: 'hold' | 'release';
+  objectId: string;
+  objectKind: 'ball' | 'cube';
+  position: Vec3;
+  velocity: Vec3;
+  angularVelocity?: Vec3 | null;
+};
+
 type NetworkMatchState = {
   phase: GamePhase;
   score: MatchScore;
@@ -115,6 +126,7 @@ type MultiplayerState = {
   remoteBallActions: NetworkBallAction[];
   remoteCoopActions: NetworkCoopAction[];
   remoteCoopRailActions: NetworkCoopAction[];
+  remoteTrainingObjectActions: NetworkTrainingObjectAction[];
   coopRails: NetworkCoopAction[];
   remotePlayers: RemoteMultiplayerPlayer[];
 };
@@ -154,6 +166,11 @@ type ServerMessage =
       type: 'coopAction';
       serverTime: number;
       action: NetworkCoopAction;
+    }
+  | {
+      type: 'trainingObjectAction';
+      serverTime: number;
+      action: NetworkTrainingObjectAction;
     }
   | {
       type: 'ballImpulse';
@@ -214,6 +231,7 @@ let state: MultiplayerState = {
   remoteBallActions: [],
   remoteCoopActions: [],
   remoteCoopRailActions: [],
+  remoteTrainingObjectActions: [],
   coopRails: [],
   remotePlayers: [],
 };
@@ -318,6 +336,7 @@ function handleMessage(raw: string) {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      remoteTrainingObjectActions: [],
       coopRails: [],
       remotePlayers: [],
     });
@@ -385,6 +404,16 @@ function handleMessage(raw: string) {
     }
     patch({
       remoteCoopActions: [...state.remoteCoopActions, msg.action].slice(-48),
+    });
+    return;
+  }
+
+  if (msg.type === 'trainingObjectAction') {
+    patch({
+      remoteTrainingObjectActions: [
+        ...state.remoteTrainingObjectActions,
+        msg.action,
+      ].slice(-96),
     });
     return;
   }
@@ -458,6 +487,7 @@ export const multiplayerStore = {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      remoteTrainingObjectActions: [],
       coopRails: [],
       remotePlayers: [],
     });
@@ -506,6 +536,7 @@ export const multiplayerStore = {
           remoteBallActions: [],
           remoteCoopActions: [],
           remoteCoopRailActions: [],
+          remoteTrainingObjectActions: [],
           coopRails: [],
           remotePlayers: [],
         });
@@ -531,6 +562,7 @@ export const multiplayerStore = {
       remoteBallActions: [],
       remoteCoopActions: [],
       remoteCoopRailActions: [],
+      remoteTrainingObjectActions: [],
       coopRails: [],
       remotePlayers: [],
     });
@@ -623,6 +655,20 @@ export const multiplayerStore = {
     });
   },
 
+  sendTrainingObjectAction(
+    action: Omit<NetworkTrainingObjectAction, 'id' | 'ownerId'>,
+  ): void {
+    if (!state.enabled || state.status !== 'online') return;
+    if (state.roomInfo?.mode !== 'training') return;
+    sendJson({
+      type: 'trainingObjectAction',
+      action: {
+        id: crypto.randomUUID(),
+        ...action,
+      },
+    });
+  },
+
   drainRemoteRockets(): NetworkRocketState[] {
     const rockets = state.remoteRockets;
     if (rockets.length === 0) return [];
@@ -651,6 +697,14 @@ export const multiplayerStore = {
     const actions = state.remoteCoopRailActions;
     if (actions.length === 0) return [];
     state = { ...state, remoteCoopRailActions: [] };
+    emit();
+    return actions;
+  },
+
+  drainRemoteTrainingObjectActions(): NetworkTrainingObjectAction[] {
+    const actions = state.remoteTrainingObjectActions;
+    if (actions.length === 0) return [];
+    state = { ...state, remoteTrainingObjectActions: [] };
     emit();
     return actions;
   },
