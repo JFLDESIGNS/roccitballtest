@@ -66,6 +66,10 @@ const cubeMats = [
 ];
 
 const FT_TO_M = 0.3048;
+const DRIVING_TEE_Y = BALL.radius + 0.08;
+const DRIVING_TEE_Z_OFFSET = 3.8;
+const DRIVING_LANDING_Y = BALL.radius + 0.22;
+const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -397,6 +401,23 @@ function launchTrainingBallAtPlayer(
   gameStore.setBallState('loose');
 }
 
+function teeDrivingRangeBall(ball: RapierRigidBody): void {
+  gameStore.releaseKickoffBall();
+  gameStore.clearBallHolder(true);
+  releaseBallPhysics(ball);
+  ball.setTranslation(
+    {
+      x: TRAINING.drivingRange.x,
+      y: DRIVING_TEE_Y,
+      z: TRAINING.drivingRange.startZ + DRIVING_TEE_Z_OFFSET,
+    },
+    true,
+  );
+  ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
+  gameStore.setBallState('loose');
+}
+
 export function TrainingRangeMap({
   ballBodyRef,
   playerPositionRef,
@@ -405,15 +426,18 @@ export function TrainingRangeMap({
   playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   const nextLaunchAt = useRef(0);
+  const drivingBallReady = useRef(false);
+  const drivingRespawnAt = useRef(0);
   const drivingShot = useRef({
     armed: false,
     active: false,
-    startZ: TRAINING.drivingRange.startZ + 3.8,
+    startZ: TRAINING.drivingRange.startZ + DRIVING_TEE_Z_OFFSET,
     startedAt: 0,
     maxDistanceFt: 0,
     maxCarryFt: 0,
     maxApexFt: 0,
     maxSpeedMps: 0,
+    wasAirborne: false,
   });
   const rangeEndZ = TRAINING.drivingRange.startZ - TRAINING.drivingRange.length;
 
@@ -421,12 +445,27 @@ export function TrainingRangeMap({
     const pos = playerPositionRef.current;
     const ball = ballBodyRef.current;
     const state = gameStore.getState();
+    const now = performance.now() / 1000;
     const inDrivingStand = isTrainingDrivingRangeStand(pos.x, pos.z);
     trainingMapStore.setDrivingRangeActive(inDrivingStand);
 
     if (ball && inDrivingStand && state.ballHolderId !== null) {
       drivingShot.current.armed = true;
       drivingShot.current.active = false;
+      drivingBallReady.current = false;
+    }
+
+    if (
+      ball &&
+      inDrivingStand &&
+      state.ballHolderId === null &&
+      !drivingShot.current.active &&
+      !drivingShot.current.armed &&
+      !drivingBallReady.current &&
+      now >= drivingRespawnAt.current
+    ) {
+      teeDrivingRangeBall(ball);
+      drivingBallReady.current = true;
     }
 
     if (ball && drivingShot.current.armed && state.ballHolderId === null) {
@@ -438,6 +477,7 @@ export function TrainingRangeMap({
         drivingShot.current.maxCarryFt = 0;
         drivingShot.current.maxApexFt = Math.max(0, bt.y / FT_TO_M);
         drivingShot.current.maxSpeedMps = 0;
+        drivingShot.current.wasAirborne = bt.y > DRIVING_AIRBORNE_Y;
       }
 
       if (drivingShot.current.active) {
@@ -471,12 +511,20 @@ export function TrainingRangeMap({
           landed: false,
         });
 
-        const shotAge = performance.now() / 1000 - drivingShot.current.startedAt;
+        if (bt.y > DRIVING_AIRBORNE_Y || Math.abs(lv.y) > 3) {
+          drivingShot.current.wasAirborne = true;
+        }
+
+        const shotAge = now - drivingShot.current.startedAt;
+        const hitTurf =
+          drivingShot.current.wasAirborne &&
+          bt.y <= DRIVING_LANDING_Y &&
+          shotAge > 0.3 &&
+          lv.y <= 2.5;
         const done =
-          bt.y < 0.55 ||
-          speed < 1.2 ||
+          hitTurf ||
           bt.z < rangeEndZ + 1 ||
-          shotAge > 12;
+          shotAge > 14;
         if (done && shotAge > 0.28) {
           trainingMapStore.finishShot({
             distanceFt: drivingShot.current.maxDistanceFt,
@@ -487,6 +535,8 @@ export function TrainingRangeMap({
           });
           drivingShot.current.active = false;
           drivingShot.current.armed = false;
+          drivingBallReady.current = false;
+          drivingRespawnAt.current = now + 0.85;
         }
       }
     }
@@ -494,7 +544,6 @@ export function TrainingRangeMap({
     if (!ball || !isTrainingDefenseStand(pos.x, pos.z)) return;
     if (inDrivingStand) return;
     if (state.ballHolderId !== null) return;
-    const now = performance.now() / 1000;
     if (now < nextLaunchAt.current) return;
     nextLaunchAt.current = now + 1.95 + Math.random() * 1.25;
     launchTrainingBallAtPlayer(ball, pos);
@@ -549,7 +598,7 @@ export function TrainingRangeMap({
       />
       <Html center distanceFactor={14} position={[TRAINING.drivingStand.x, 1.1, TRAINING.drivingStand.z + 4.6]}>
         <div style={{ color: '#edffd6', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
-          DRIVING RANGE: AUTO BALL IN HAND
+          DRIVING RANGE: BALL TEES ON PAD
         </div>
       </Html>
       <RigidBody type="fixed" colliders={false}>
@@ -596,10 +645,6 @@ export function TrainingRangeMap({
       <mesh position={[TRAINING.drivingRange.x, 0.22, rangeEndZ]}>
         <boxGeometry args={[TRAINING.drivingRange.width, 0.42, 0.35]} />
         <meshBasicMaterial color="#ffef7a" toneMapped={false} />
-      </mesh>
-      <mesh position={[TRAINING.drivingRange.x, BALL.radius + 0.05, TRAINING.drivingRange.startZ + 3.8]}>
-        <sphereGeometry args={[BALL.radius, 24, 16]} />
-        <meshStandardMaterial color="#f8fbff" roughness={0.28} metalness={0.04} />
       </mesh>
       </group>
     </>

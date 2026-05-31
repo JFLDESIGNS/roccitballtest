@@ -24,7 +24,6 @@ import {
 } from '../shared/Constants';
 import {
   captureBallSocket,
-  getBallSocketPosition,
   releaseBallPhysics,
   smoothHoldSocketTarget,
   updateBallSocketSmooth,
@@ -152,7 +151,6 @@ import {
 } from './grindRail';
 import { burstGroundSlideSparks, burstGrindRailSparks } from './impactSparks';
 import { punchLightGlowForBody } from './lightGlowHits';
-import { isTrainingDrivingRangeStand } from './trainingMapConfig';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
@@ -432,7 +430,6 @@ type PlayerProps = {
   canFireRocket?: () => boolean;
   /** GameCanvas calls after a rocket blast knocks the player — refill jumps */
   onRocketBoostRef?: React.MutableRefObject<(() => void) | null>;
-  trainingDrivingRange?: boolean;
   disableArenaBounds?: boolean;
 };
 
@@ -446,7 +443,6 @@ export function Player({
   onPlayerBodyReady,
   onRocketBoostRef,
   canFireRocket,
-  trainingDrivingRange = false,
   disableArenaBounds = false,
 }: PlayerProps) {
   const localTeam = useSyncExternalStore(
@@ -2837,48 +2833,6 @@ export function Player({
       armPostShotRocketBlock();
       return true;
     };
-
-    if (
-      trainingDrivingRange &&
-      ball &&
-      !holdingBall.current &&
-      gameStore.getState().ballHolderId === null &&
-      now >= ballReleaseLockUntil.current &&
-      isTrainingDrivingRangeStand(pos.x, pos.z)
-    ) {
-      getBallSocketPosition(
-        chestPos.current,
-        lookDir,
-        BEAM.holdDistance,
-        BALL.radius,
-        holdSocketSmoothed.current,
-      );
-      captureBallSocket(ball, holdSocketSmoothed.current);
-      markLocalHeldBallCarry(holdSocketSmoothed.current, ball.rotation());
-      gameStore.releaseKickoffBall();
-      ball.setTranslation(
-        {
-          x: holdSocketSmoothed.current.x,
-          y: holdSocketSmoothed.current.y,
-          z: holdSocketSmoothed.current.z,
-        },
-        true,
-      );
-      holdingBall.current = true;
-      holdSocketReady.current = false;
-      holdSocketSmoothReady.current = true;
-      holdLatchT.current = 1;
-      gameStore.setBallHolder('local');
-      gameStore.setBallState('held');
-      requestAnimationFrame(() => onBallHeldChange(true));
-      const lv0 = body.linvel();
-      resetMomentumSamples(
-        launchMomentumSamples.current,
-        launchMomentumTimer,
-        new THREE.Vector3(lv0.x, lv0.y, lv0.z),
-      );
-      resetMomentumSamples(ballSwingSamples.current, ballSwingTimer);
-    }
 
     const beamingLoose =
       beamInput &&

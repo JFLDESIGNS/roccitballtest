@@ -1238,7 +1238,6 @@ function Scene({
         onPositionUpdate={onPlayerPosition}
         onPlayerBodyReady={onPlayerBodyReady}
         onRocketBoostRef={playerRocketBoostRef}
-        trainingDrivingRange={trainingMapEnabled}
         disableArenaBounds={trainingMapEnabled}
       />
       <RemotePlayers />
