@@ -64,12 +64,16 @@ type MainMenuProps = {
 
 function roomModeLabel(mode: RoomMode): string {
   if (mode === 'coop-adventure') return 'Coop Adventure';
+  if (mode === 'training') return 'Training';
   return mode === '2v2' ? '2v2' : '1v1';
 }
 
 function roomModeDescription(mode: RoomMode): string {
   if (mode === 'coop-adventure') {
     return 'Two-player platform adventure';
+  }
+  if (mode === 'training') {
+    return 'Open training range with shared ball practice';
   }
   return mode === '2v2'
     ? 'Four players, two per team'
@@ -172,6 +176,13 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     roomIsFull,
   ]);
 
+  useEffect(() => {
+    if (!multiplayer.roomInfo) return;
+    mapRegistryStore.setActiveMapId(
+      multiplayer.roomInfo.mode === 'training' ? TRAINING_MAP_ID : DEFAULT_MAP_ID,
+    );
+  }, [multiplayer.roomInfo?.mode]);
+
   const commitProfile = () => {
     const profile = getLocalProfile();
     try {
@@ -232,6 +243,8 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
 
   const joinRoom = (roomId: string) => {
     syncProfile();
+    const room = browserRooms.find((r) => r.id === roomId);
+    mapRegistryStore.setActiveMapId(room?.mode === 'training' ? TRAINING_MAP_ID : DEFAULT_MAP_ID);
     gameStore.setBotsEnabled(false);
     multiplayerStore.connect(getLocalProfile(), roomId);
   };
@@ -242,6 +255,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
     setBrowserError(null);
     try {
       const room = await multiplayerStore.createRoom({ mode: createMode });
+      mapRegistryStore.setActiveMapId(createMode === 'training' ? TRAINING_MAP_ID : DEFAULT_MAP_ID);
       gameStore.setBotsEnabled(false);
       multiplayerStore.connect(getLocalProfile(), room.id);
     } catch (error) {
@@ -686,7 +700,7 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
                       </div>
                       <div className="main-menu-browser-create">
                         <div className="main-menu-mode-toggle">
-                          {(['1v1', '2v2', 'coop-adventure'] as RoomMode[]).map((mode) => (
+                          {(['1v1', '2v2', 'coop-adventure', 'training'] as RoomMode[]).map((mode) => (
                             <button
                               key={mode}
                               type="button"

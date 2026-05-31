@@ -17,6 +17,7 @@ export const TRAINING = {
     length: 900 * FT,
     markerStep: 50 * FT,
   },
+  ballPit: { x: -38, z: 55, radius: 7.5 },
   warehouse: {
     x: 4,
     z: -88,

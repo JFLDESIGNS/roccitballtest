@@ -4,7 +4,7 @@ import { gameStore, type GamePhase } from '../game/gameStore';
 import { applyNetworkGoalScore } from '../game/goalScoreHandler';
 
 export type MultiplayerStatus = 'offline' | 'connecting' | 'online' | 'error';
-export type RoomMode = '1v1' | '2v2' | 'coop-adventure';
+export type RoomMode = '1v1' | '2v2' | 'coop-adventure' | 'training';
 
 export type RoomSummary = {
   id: string;

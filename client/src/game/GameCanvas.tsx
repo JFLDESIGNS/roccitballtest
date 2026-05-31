@@ -1135,7 +1135,12 @@ function Scene({
     mapRegistryStore.subscribe,
     () => mapRegistryStore.getActiveMapId(),
   );
-  const trainingMapEnabled = activeMapId === TRAINING_MAP_ID;
+  const multiplayerRoomMode = useSyncExternalStore(
+    multiplayerStore.subscribe,
+    () => multiplayerStore.getState().roomInfo?.mode ?? null,
+  );
+  const trainingMapEnabled =
+    activeMapId === TRAINING_MAP_ID || multiplayerRoomMode === 'training';
   const playStadiumGroups = getPlayModeStadiumGroups(customMap);
   const stadiumHidden = getHiddenStadiumPieces(playStadiumGroups);
 
@@ -1376,7 +1381,8 @@ export function GameCanvas({ onExit }: { onExit: () => void }) {
   );
   const coopAdventureEnabled =
     multiplayerEnabled && isCoopAdventureMode(multiplayerRoomMode);
-  const trainingMapEnabled = activeMapId === TRAINING_MAP_ID;
+  const trainingMapEnabled =
+    activeMapId === TRAINING_MAP_ID || multiplayerRoomMode === 'training';
   const matchOver = useSyncExternalStore(gameStore.subscribe, () =>
     isMatchOver(gameStore.getState()),
   );

@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react';
 import * as THREE from 'three';
-import { BALL } from '../shared/Constants';
+import { BALL, BEAM } from '../shared/Constants';
 import { gameStore } from './gameStore';
 import { releaseBallPhysics } from './ballAttach';
 import { playBallLaunch } from './audio';
@@ -91,6 +91,20 @@ const cubeMats = [
     metalness: 0.08,
   }),
 ];
+const sourceBallMat = new THREE.MeshStandardMaterial({
+  color: '#eef6ff',
+  roughness: 0.26,
+  metalness: 0.38,
+  emissive: '#244a62',
+  emissiveIntensity: 0.12,
+});
+const pitBallMat = new THREE.MeshStandardMaterial({
+  color: '#dfefff',
+  roughness: 0.38,
+  metalness: 0.2,
+  emissive: '#153a55',
+  emissiveIntensity: 0.08,
+});
 
 const FT_TO_M = 0.3048;
 const DRIVING_TEE_Y = BALL.radius + 0.08;
@@ -104,6 +118,9 @@ const TRAINING_HTML_Z_INDEX_RANGE = [8, 0] as [number, number];
 const DEFENSE_TARGET_X = -72;
 const DEFENSE_SHOT_MAX_AGE_SEC = 12;
 const DEFENSE_SHOT_BOUNCES_BEFORE_RESET = 2;
+const TRAINING_SOURCE_PULL_RANGE = 13;
+const TRAINING_SOURCE_COOLDOWN_SEC = 0.55;
+const TRAINING_BALL_SOURCE_Y = BALL.radius + 0.2;
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -115,6 +132,114 @@ function displayFtToMeters(ft: number): number {
 
 function worldFtToDisplayFt(ft: number): number {
   return ft * DISPLAY_FEET_PER_WORLD_FOOT;
+}
+
+function trainingBallSources(): { id: string; x: number; y: number; z: number }[] {
+  return [
+    { id: 'defense-left', x: -24, y: TRAINING_BALL_SOURCE_Y, z: 24 },
+    { id: 'defense-right', x: 2, y: TRAINING_BALL_SOURCE_Y, z: 24 },
+    { id: 'warehouse-mid', x: -8, y: TRAINING_BALL_SOURCE_Y, z: -12 },
+    { id: 'cube-lane', x: 55, y: TRAINING_BALL_SOURCE_Y, z: 26 },
+    { id: 'range-side-a', x: TRAINING.drivingRange.x - 30, y: TRAINING_BALL_SOURCE_Y, z: 17 },
+    { id: 'range-side-b', x: TRAINING.drivingRange.x + 30, y: TRAINING_BALL_SOURCE_Y, z: 17 },
+  ];
+}
+
+const TRAINING_BALL_SOURCES = trainingBallSources();
+
+function ScatterTrainingBalls() {
+  return (
+    <>
+      {TRAINING_BALL_SOURCES.map((ball, i) => (
+        <group key={ball.id} position={[ball.x, ball.y, ball.z]}>
+          <mesh material={sourceBallMat} castShadow receiveShadow>
+            <sphereGeometry args={[BALL.radius * 0.72, 18, 12]} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]} scale={[BALL.radius * 0.82, BALL.radius * 0.82, 1]}>
+            <ringGeometry args={[0.82, 0.9, 32]} />
+            <meshBasicMaterial
+              color={i % 2 ? '#91ffcb' : '#77dfff'}
+              transparent
+              opacity={0.58}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+function TrainingBallPit({
+  playerPositionRef,
+}: {
+  playerPositionRef: MutableRefObject<THREE.Vector3>;
+}) {
+  const ballsRef = useRef<THREE.Group>(null);
+  const balls = useMemo(
+    () =>
+      Array.from({ length: 50 }, (_, i) => {
+        const ring = Math.floor(i / 10);
+        const angle = i * 2.399963 + ring * 0.41;
+        const radius = 0.9 + (i % 10) * 0.52;
+        return {
+          x: Math.cos(angle) * Math.min(TRAINING.ballPit.radius - 1.2, radius),
+          y: 0.38 + ring * 0.34 + ((i * 17) % 5) * 0.03,
+          z: Math.sin(angle) * Math.min(TRAINING.ballPit.radius - 1.2, radius),
+          s: 0.45 + ((i * 13) % 6) * 0.025,
+        };
+      }),
+    [],
+  );
+
+  useFrame(({ clock }) => {
+    const group = ballsRef.current;
+    if (!group) return;
+    const p = playerPositionRef.current;
+    const dx = p.x - TRAINING.ballPit.x;
+    const dz = p.z - TRAINING.ballPit.z;
+    const near = Math.max(0, 1 - Math.hypot(dx, dz) / (TRAINING.ballPit.radius + 5));
+    group.children.forEach((child, i) => {
+      child.position.y =
+        balls[i]!.y + Math.sin(clock.elapsedTime * (4.5 + near * 8) + i) * 0.05 * near;
+      child.rotation.x += near * 0.012;
+      child.rotation.z += near * 0.016;
+    });
+  });
+
+  return (
+    <group position={[TRAINING.ballPit.x, 0, TRAINING.ballPit.z]}>
+      <RigidBody type="fixed" colliders={false}>
+        <mesh position={[0, -0.28, 0]} scale={[TRAINING.ballPit.radius * 2.2, 0.34, TRAINING.ballPit.radius * 2.2]} receiveShadow>
+          <cylinderGeometry args={[0.5, 0.5, 1, 48]} />
+          <meshStandardMaterial color="#18242c" roughness={0.72} metalness={0.12} />
+        </mesh>
+        <CuboidCollider args={[TRAINING.ballPit.radius, 0.14, TRAINING.ballPit.radius]} position={[0, -0.24, 0]} />
+      </RigidBody>
+      <mesh position={[0, 0.24, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[TRAINING.ballPit.radius * 0.86, TRAINING.ballPit.radius, 64]} />
+        <meshBasicMaterial color="#7be7ff" transparent opacity={0.36} toneMapped={false} />
+      </mesh>
+      <group ref={ballsRef}>
+        {balls.map((ball, i) => (
+          <mesh
+            key={i}
+            position={[ball.x, ball.y, ball.z]}
+            scale={[ball.s, ball.s, ball.s]}
+            material={pitBallMat}
+          >
+            <sphereGeometry args={[BALL.radius, 12, 8]} />
+          </mesh>
+        ))}
+      </group>
+      <Html center distanceFactor={18} position={[0, 2.2, TRAINING.ballPit.radius + 1.5]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
+        <div style={{ color: '#d9f8ff', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
+          BALL PIT: RMB PULLS A REAL BALL
+        </div>
+      </Html>
+    </group>
+  );
 }
 
 function TrainingHitPreview() {
@@ -263,7 +388,11 @@ function DrivingLiveBallFrame({
 
     const bt = ball.translation();
     group.visible = true;
-    group.position.set(bt.x, bt.y, bt.z);
+    group.position.set(TRAINING.drivingRange.x, 12.5, bt.z);
+    const ballFrame = group.children.find((child) => child.userData?.trainingBallFrame);
+    if (ballFrame) {
+      ballFrame.position.set(bt.x - TRAINING.drivingRange.x, bt.y - 12.5, 0);
+    }
 
     if (ob) {
       ob.visible = !!activeShot.outOfBounds;
@@ -282,7 +411,28 @@ function DrivingLiveBallFrame({
   return (
     <>
       <group ref={groupRef} visible={false}>
-        <mesh scale={[BALL.radius * 3.4, BALL.radius * 3.4, BALL.radius * 3.4]}>
+        <mesh scale={[TRAINING.drivingRange.width, 24, 1]}>
+          <planeGeometry args={[1, 1, 10, 4]} />
+          <meshBasicMaterial
+            color="#38c7ff"
+            transparent
+            opacity={0.13}
+            wireframe
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh position={[0, 0, -0.04]} scale={[TRAINING.drivingRange.width, 24, 1]}>
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial
+            color="#197dff"
+            transparent
+            opacity={0.045}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh userData={{ trainingBallFrame: true }} scale={[BALL.radius * 3.4, BALL.radius * 3.4, BALL.radius * 3.4]}>
           <boxGeometry args={[1, 1, 1]} />
           <meshBasicMaterial
             color="#55d8ff"
@@ -293,21 +443,21 @@ function DrivingLiveBallFrame({
             toneMapped={false}
           />
         </mesh>
-        <Html center distanceFactor={12} position={[0, BALL.radius * 2.55, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
+        <Html center distanceFactor={24} position={[-TRAINING.drivingRange.width * 0.32, 5.4, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
           <div
             style={{
-              minWidth: 150,
-              padding: '8px 12px',
+              minWidth: 360,
+              padding: '10px 18px',
               border: activeShot?.outOfBounds
-                ? '2px solid rgba(99, 255, 145, 0.9)'
-                : '2px solid rgba(85, 216, 255, 0.85)',
-              borderRadius: 8,
-              background: 'rgba(3, 10, 20, 0.72)',
+                ? '3px solid rgba(99, 255, 145, 0.9)'
+                : '3px solid rgba(85, 216, 255, 0.85)',
+              borderRadius: 10,
+              background: 'rgba(3, 10, 20, 0.58)',
               color: activeShot?.outOfBounds ? '#7dff9d' : '#d9f8ff',
-              font: '1000 34px system-ui, sans-serif',
+              font: '1000 86px system-ui, sans-serif',
               lineHeight: 1,
               textAlign: 'center',
-              textShadow: '0 2px 8px #000',
+              textShadow: '0 4px 18px #000',
               whiteSpace: 'nowrap',
             }}
           >
@@ -745,6 +895,31 @@ function teeDrivingRangeBall(ball: RapierRigidBody): void {
   gameStore.setBallState('loose');
 }
 
+function pullRealBallFromTrainingSource(
+  ball: RapierRigidBody,
+  source: THREE.Vector3,
+  player: THREE.Vector3,
+): void {
+  gameStore.releaseKickoffBall();
+  gameStore.clearBallHolder(true);
+  releaseBallPhysics(ball);
+  ball.setTranslation({ x: source.x, y: source.y, z: source.z }, true);
+  const toward = player.clone().add(new THREE.Vector3(0, BEAM.chestHeight, 0)).sub(source);
+  const dist = Math.max(0.001, toward.length());
+  toward.multiplyScalar(1 / dist);
+  const speed = Math.min(24, 9 + dist * 1.15);
+  ball.setLinvel(
+    {
+      x: toward.x * speed,
+      y: toward.y * speed + 2.5,
+      z: toward.z * speed,
+    },
+    true,
+  );
+  ball.setAngvel({ x: toward.z * 7, y: 3, z: -toward.x * 7 }, true);
+  gameStore.setBallState('pulled');
+}
+
 export function TrainingRangeMap({
   ballBodyRef,
   playerPositionRef,
@@ -753,6 +928,7 @@ export function TrainingRangeMap({
   playerPositionRef: MutableRefObject<THREE.Vector3>;
 }) {
   const nextLaunchAt = useRef(0);
+  const nextTrainingSourcePullAt = useRef(0);
   const defenseShot = useRef({
     active: false,
     bounces: 0,
@@ -787,6 +963,38 @@ export function TrainingRangeMap({
     const inDefenseStand = isTrainingDefenseStand(pos.x, pos.z);
     trainingMapStore.setDrivingRangeActive(inDrivingStand);
 
+    if (
+      ball &&
+      state.isBeaming &&
+      state.ballHolderId === null &&
+      now >= nextTrainingSourcePullAt.current
+    ) {
+      const pitDist = Math.hypot(pos.x - TRAINING.ballPit.x, pos.z - TRAINING.ballPit.z);
+      let source: THREE.Vector3 | null = null;
+      if (pitDist <= TRAINING.ballPit.radius + TRAINING_SOURCE_PULL_RANGE) {
+        source = new THREE.Vector3(
+          TRAINING.ballPit.x + (Math.random() - 0.5) * TRAINING.ballPit.radius * 0.8,
+          TRAINING_BALL_SOURCE_Y,
+          TRAINING.ballPit.z + (Math.random() - 0.5) * TRAINING.ballPit.radius * 0.8,
+        );
+      } else {
+        for (const s of TRAINING_BALL_SOURCES) {
+          if (Math.hypot(pos.x - s.x, pos.z - s.z) <= TRAINING_SOURCE_PULL_RANGE) {
+            source = new THREE.Vector3(s.x, s.y, s.z);
+            break;
+          }
+        }
+      }
+      if (source) {
+        pullRealBallFromTrainingSource(ball, source, pos);
+        drivingShot.current.armed = false;
+        drivingShot.current.active = false;
+        drivingBallReady.current = false;
+        defenseShot.current.active = false;
+        nextTrainingSourcePullAt.current = now + TRAINING_SOURCE_COOLDOWN_SEC;
+      }
+    }
+
     if (ball && inDrivingStand && state.ballHolderId !== null) {
       drivingShot.current.armed = true;
       drivingShot.current.active = false;
@@ -804,6 +1012,25 @@ export function TrainingRangeMap({
     ) {
       teeDrivingRangeBall(ball);
       drivingBallReady.current = true;
+    }
+
+    if (
+      ball &&
+      inDrivingStand &&
+      state.ballHolderId === null &&
+      !drivingShot.current.active &&
+      !drivingShot.current.armed &&
+      drivingBallReady.current
+    ) {
+      const bt = ball.translation();
+      const tooFarFromTee =
+        bt.y < -4 ||
+        bt.z < TRAINING.drivingRange.startZ - 10 ||
+        bt.z > TRAINING.drivingRange.startZ + 18 ||
+        Math.abs(bt.x - TRAINING.drivingRange.x) > TRAINING.drivingRange.width / 2 + 12;
+      if (tooFarFromTee && now >= drivingRespawnAt.current) {
+        teeDrivingRangeBall(ball);
+      }
     }
 
     if (ball && drivingShot.current.armed && state.ballHolderId === null) {
@@ -901,6 +1128,7 @@ export function TrainingRangeMap({
             now - drivingShot.current.obAt >= DRIVING_OB_HOLD_SEC) ||
           rolloutDone ||
           bt.z < rangeEndZ + 1 ||
+          bt.y < -8 ||
           shotAge > 18;
         if (done && shotAge > 0.28) {
           trainingMapStore.finishShot({
@@ -982,6 +1210,8 @@ export function TrainingRangeMap({
       <WarehouseShell />
       <OutdoorTrainingScenery />
       <TrainingPhysicsCubes />
+      <ScatterTrainingBalls />
+      <TrainingBallPit playerPositionRef={playerPositionRef} />
 
       <Platform
         position={[

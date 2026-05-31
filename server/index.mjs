@@ -14,6 +14,8 @@ const port = Number(process.env.PORT || 3000);
 const snapshotHz = Number(process.env.SNAPSHOT_HZ || 60);
 const BALL_RADIUS = 1.6;
 const BALL_SPAWN = { x: 0, y: 2.05, z: 0 };
+const TRAINING_BALL_SPAWN = { x: 30, y: BALL_RADIUS + 0.25, z: 42 };
+const TRAINING_FLOOR = { x: 4, z: -88, halfX: 86, halfZ: 190 };
 const ARENA_HEX_RADIUS = 64;
 const ARENA_WALL_HEIGHT = 43.7;
 const ARENA_FLOOR_Y = 0;
@@ -746,13 +748,29 @@ function addArenaStructureColliders(world) {
   return { ballDropColliders };
 }
 
-function createRoomPhysics() {
+function addTrainingStructureColliders(world) {
+  const floorThickness = 0.25;
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(
+      TRAINING_FLOOR.halfX,
+      floorThickness,
+      TRAINING_FLOOR.halfZ,
+    )
+      .setTranslation(TRAINING_FLOOR.x, -floorThickness, TRAINING_FLOOR.z)
+      .setRestitution(BALL_RESTITUTION)
+      .setFriction(BALL_FRICTION),
+  );
+  return { ballDropColliders: [] };
+}
+
+function createRoomPhysics(mode = '1v1') {
   const world = new RAPIER.World({ x: 0, y: GRAVITY_Y, z: 0 });
   world.integrationParameters.dt = SERVER_PHYSICS_STEP;
+  const spawn = mode === 'training' ? TRAINING_BALL_SPAWN : BALL_SPAWN;
 
   const ballBody = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(BALL_SPAWN.x, BALL_SPAWN.y, BALL_SPAWN.z)
+      .setTranslation(spawn.x, spawn.y, spawn.z)
       .setLinearDamping(BALL_LINEAR_DAMPING)
       .setAngularDamping(BALL_ANGULAR_DAMPING)
       .setCcdEnabled(true),
@@ -764,6 +782,16 @@ function createRoomPhysics() {
       .setFriction(BALL_FRICTION),
     ballBody,
   );
+
+  if (mode === 'training') {
+    const structures = addTrainingStructureColliders(world);
+    return {
+      world,
+      ballBody,
+      accumulator: 0,
+      ballDropColliders: structures.ballDropColliders,
+    };
+  }
 
   const floorThickness = 0.25;
   world.createCollider(
@@ -820,11 +848,13 @@ function getRoom(roomId) {
 
 function roomMaxPlayers(mode) {
   if (mode === 'coop-adventure') return 2;
+  if (mode === 'training') return 2;
   return mode === '2v2' ? 4 : 2;
 }
 
 function sanitizeRoomMode(mode) {
   if (mode === 'coop-adventure') return 'coop-adventure';
+  if (mode === 'training') return 'training';
   return mode === '2v2' ? '2v2' : '1v1';
 }
 
@@ -844,9 +874,11 @@ function createRoomRecord(id, options = {}) {
     maxPlayers: roomMaxPlayers(mode),
     players: new Map(),
     hostId: null,
-    ball: createServerBall(),
+    ball: mode === 'training'
+      ? { ...createServerBall(), position: { ...TRAINING_BALL_SPAWN } }
+      : createServerBall(),
     match: null,
-    physics: createRoomPhysics(),
+    physics: createRoomPhysics(mode),
     lastBallPosition: { ...BALL_SPAWN },
     goalLockedUntil: 0,
     ballHiddenUntil: 0,
@@ -1117,7 +1149,7 @@ function markRoomLastTouch(room, player, position) {
 }
 
 function setPhysicsBall(room, position, velocity, angularVelocity = null) {
-  if (!room.physics) room.physics = createRoomPhysics();
+  if (!room.physics) room.physics = createRoomPhysics(room.mode);
   const body = room.physics.ballBody;
   body.setTranslation(position, true);
   body.setLinvel(velocity, true);
@@ -1132,7 +1164,7 @@ function setPhysicsBall(room, position, velocity, angularVelocity = null) {
 }
 
 function syncBallFromPhysics(room, now) {
-  if (!room.physics) room.physics = createRoomPhysics();
+  if (!room.physics) room.physics = createRoomPhysics(room.mode);
   const body = room.physics.ballBody;
   const t = body.translation();
   const v = body.linvel();
@@ -1147,7 +1179,7 @@ function syncBallFromPhysics(room, now) {
 }
 
 function setBallDropCollisionEnabled(room, enabled) {
-  if (!room.physics) room.physics = createRoomPhysics();
+  if (!room.physics) room.physics = createRoomPhysics(room.mode);
   for (const collider of room.physics.ballDropColliders ?? []) {
     if (typeof collider.setEnabled === 'function') collider.setEnabled(enabled);
   }
@@ -1242,7 +1274,7 @@ function rocketHitAngularVelocity(body, normal, deltaV, falloff) {
 }
 
 function applyRocketImpactToServerBall(room, impact, now) {
-  if (!room.physics) room.physics = createRoomPhysics();
+  if (!room.physics) room.physics = createRoomPhysics(room.mode);
   const body = room.physics.ballBody;
   const ballPosition = body.translation();
   const dx = ballPosition.x - impact.position.x;
@@ -1372,16 +1404,17 @@ function applyPlayerContactToServerBall(room, dt, now) {
 
 function tickRoomBall(room, dt, now) {
   if (!room.ball) room.ball = createServerBall();
-  if (!room.physics) room.physics = createRoomPhysics();
+  if (!room.physics) room.physics = createRoomPhysics(room.mode);
   updateBallDropCollisionGate(room, now);
   const match = room.match;
 
   if (match?.ballFrozen) {
     const frozenPosition = { ...room.ball.position };
     if (match.countdown > 0 || match.arenaSettleCountdown > 0 || match.loadCountdown > 0) {
-      frozenPosition.x = BALL_DROP_SPAWN.x;
-      frozenPosition.y = BALL_DROP_SPAWN.y;
-      frozenPosition.z = BALL_DROP_SPAWN.z;
+      const spawn = room.mode === 'training' ? TRAINING_BALL_SPAWN : BALL_DROP_SPAWN;
+      frozenPosition.x = spawn.x;
+      frozenPosition.y = spawn.y;
+      frozenPosition.z = spawn.z;
     }
     setPhysicsBall(
       room,
@@ -1443,7 +1476,7 @@ function tickRoomBall(room, dt, now) {
   room.physics.accumulator = Math.min(0.1, room.physics.accumulator + dt);
   while (room.physics.accumulator >= SERVER_PHYSICS_STEP) {
     room.physics.world.step();
-    applyServerTrampolinePads(room, now);
+    if (room.mode !== 'training') applyServerTrampolinePads(room, now);
     room.physics.accumulator -= SERVER_PHYSICS_STEP;
   }
   clampPhysicsBallSpeed(room);
@@ -1451,6 +1484,7 @@ function tickRoomBall(room, dt, now) {
   const v = room.physics.ballBody.linvel();
   const speed = Math.hypot(v.x, v.y, v.z);
   const hit =
+    room.mode !== 'training' &&
     now >= (room.goalLockedUntil ?? 0) &&
     !room.match?.ballFrozen &&
     room.match?.phase !== 'intro' &&
