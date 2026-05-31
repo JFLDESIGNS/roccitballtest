@@ -3,6 +3,7 @@ import { CuboidCollider, RigidBody, type RapierRigidBody } from '@react-three/ra
 import { useFrame } from '@react-three/fiber';
 import {
   useMemo,
+  useEffect,
   useRef,
   useSyncExternalStore,
   type MutableRefObject,
@@ -18,6 +19,7 @@ import {
   isTrainingDrivingRangeStand,
 } from './trainingMapConfig';
 import { trainingMapStore } from './trainingMapStore';
+import { registerTrainingCube } from './trainingCubeRegistry';
 
 const markerMat = new THREE.MeshBasicMaterial({ color: '#e8f5cb', toneMapped: false });
 const grassMat = new THREE.MeshStandardMaterial({
@@ -322,6 +324,45 @@ function TrainingLaunchers() {
   );
 }
 
+function TrainingPhysicsCube({
+  id,
+  position,
+  scale,
+  material,
+}: {
+  id: string;
+  position: [number, number, number];
+  scale: [number, number, number];
+  material: THREE.Material;
+}) {
+  const bodyRef = useRef<RapierRigidBody>(null);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return undefined;
+    const radius = Math.hypot(scale[0], scale[1], scale[2]) * 0.5;
+    return registerTrainingCube(id, body, radius);
+  }, [id, scale]);
+
+  return (
+    <RigidBody
+      ref={bodyRef}
+      colliders={false}
+      position={position}
+      restitution={0.34}
+      friction={0.78}
+      linearDamping={0.18}
+      angularDamping={0.24}
+      canSleep
+    >
+      <mesh castShadow receiveShadow scale={scale} material={material}>
+        <boxGeometry args={[1, 1, 1]} />
+      </mesh>
+      <CuboidCollider args={[scale[0] / 2, scale[1] / 2, scale[2] / 2]} />
+    </RigidBody>
+  );
+}
+
 function TrainingPhysicsCubes() {
   const cubes = useMemo(
     () => [
@@ -340,32 +381,13 @@ function TrainingPhysicsCubes() {
   return (
     <>
       {cubes.map((cube, i) => (
-        <RigidBody
+        <TrainingPhysicsCube
           key={i}
-          colliders={false}
+          id={`training-cube-${i}`}
           position={cube.p as [number, number, number]}
-          restitution={0.34}
-          friction={0.78}
-          linearDamping={0.18}
-          angularDamping={0.24}
-          canSleep
-        >
-          <mesh
-            castShadow
-            receiveShadow
-            scale={cube.s as [number, number, number]}
-            material={cubeMats[cube.m]}
-          >
-            <boxGeometry args={[1, 1, 1]} />
-          </mesh>
-          <CuboidCollider
-            args={[
-              cube.s[0] / 2,
-              cube.s[1] / 2,
-              cube.s[2] / 2,
-            ]}
-          />
-        </RigidBody>
+          scale={cube.s as [number, number, number]}
+          material={cubeMats[cube.m]}
+        />
       ))}
     </>
   );

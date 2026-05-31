@@ -151,6 +151,10 @@ import {
 } from './grindRail';
 import { burstGroundSlideSparks, burstGrindRailSparks } from './impactSparks';
 import { punchLightGlowForBody } from './lightGlowHits';
+import {
+  getNearestTrainingCube,
+  type TrainingCubeTarget,
+} from './trainingCubeRegistry';
 
 const PLAYER_BODY_COLLISION = interactionGroups(0, [2, 4]);
 const PLAYER_BALL_SCOOP_COLLISION = interactionGroups(0, [1]);
@@ -158,6 +162,12 @@ const PLAYER_DEBUG_NOCLIP = interactionGroups(0, []);
 const BALL_PLAYER_COLLISION_REENABLE_DELAY_SEC = 0.5;
 const BALL_WALK_PUSH_SCALE = 1.4;
 const BALL_SHIFT_PUSH_SCALE = 3;
+const TRAINING_CUBE_CAPTURE_EXTRA_M = 2.2;
+const TRAINING_CUBE_HOLD_SMOOTH = 28;
+const TRAINING_CUBE_THROW_SPEED = 31;
+const TRAINING_CUBE_DROP_SPEED = 12;
+const RAPIER_BODY_DYNAMIC = 0;
+const RAPIER_BODY_KINEMATIC = 2;
 const PLAYER_VISUAL_LIFT_Y = 0.1;
 const PLAYER_LOWER_COLLIDER = {
   halfExtents: [0.78, 0.18, 1.24] as [number, number, number],
@@ -524,6 +534,10 @@ export function Player({
   const regenTimer = useRef(0);
   const draining = useRef(false);
   const holdingBall = useRef(false);
+  const heldTrainingCube = useRef<TrainingCubeTarget | null>(null);
+  const trainingCubeSocket = useRef(new THREE.Vector3());
+  const trainingCubeSocketReady = useRef(false);
+  const trainingCubeLastSocket = useRef(new THREE.Vector3());
   const playerCarryingBall = useRef(false);
   const ballReleaseLockUntil = useRef(0);
   const ballStompCooldownUntil = useRef(0);
@@ -2584,10 +2598,17 @@ export function Player({
       !grappleActive.current;
     const beamRequested = beamAttempt && !beamDenied;
     let canLockBeamTarget = false;
+    let trainingCubeTarget:
+      | { target: TrainingCubeTarget; distance: number; position: THREE.Vector3 }
+      | null = null;
+    let canLockTrainingCubeTarget = false;
+    const trainingCubeBeamEnabled =
+      disableArenaBounds && !networkCoopAdventureMode;
 
     if (
       beamRequested &&
       !holdingBall.current &&
+      !heldTrainingCube.current &&
       ball &&
       ballLooseCooldown &&
       canBeamBall
@@ -2598,8 +2619,22 @@ export function Player({
       canLockBeamTarget = grabDist < BEAM.range;
     }
 
+    if (
+      beamRequested &&
+      trainingCubeBeamEnabled &&
+      !holdingBall.current &&
+      !heldTrainingCube.current
+    ) {
+      trainingCubeTarget = getNearestTrainingCube(chestPos.current, BEAM.range);
+      canLockTrainingCubeTarget = trainingCubeTarget !== null;
+    }
+
     const beamInput =
-      beamRequested && (holdingBall.current || canLockBeamTarget);
+      beamRequested &&
+      (holdingBall.current ||
+        heldTrainingCube.current !== null ||
+        canLockBeamTarget ||
+        canLockTrainingCubeTarget);
 
     if (beamAttempt && !beamInput) {
       if (now - beamNoLockSoundAt.current > 0.45) {
@@ -2608,7 +2643,7 @@ export function Player({
       }
     }
 
-    if (beamInput && holdingBall.current) {
+    if (beamInput && (holdingBall.current || heldTrainingCube.current)) {
       energy.current -= ENERGY.carryBeamDrain * dt;
       draining.current = true;
     } else if (beamInput && !holdingBall.current) {
@@ -2632,6 +2667,35 @@ export function Player({
       requestAnimationFrame(() => onBallHeldChange(false));
     };
 
+    const clearTrainingCubeHold = () => {
+      const cube = heldTrainingCube.current;
+      if (!cube) return null;
+      heldTrainingCube.current = null;
+      trainingCubeSocketReady.current = false;
+      cube.body.setBodyType(RAPIER_BODY_DYNAMIC, true);
+      cube.body.setGravityScale(1, true);
+      return cube;
+    };
+
+    const releaseTrainingCube = (speed: number) => {
+      const cube = clearTrainingCubeHold();
+      if (!cube) return false;
+      const plv = body.linvel();
+      const vx = lookDir.x * speed + plv.x * 0.45;
+      const vy = lookDir.y * speed + 4 + Math.max(0, plv.y * 0.25);
+      const vz = lookDir.z * speed + plv.z * 0.45;
+      cube.body.setLinvel({ x: vx, y: vy, z: vz }, true);
+      cube.body.setAngvel(
+        {
+          x: (Math.random() - 0.5) * 7,
+          y: (Math.random() - 0.5) * 9,
+          z: (Math.random() - 0.5) * 7,
+        },
+        true,
+      );
+      return true;
+    };
+
     if (energy.current <= 0) {
       energy.current = 0;
       if (holdingBall.current) {
@@ -2642,6 +2706,11 @@ export function Player({
           beginLocalHeldBallRelease(heldBallVisualBridge.smoothPos);
           releaseBallPhysics(ballBodyRef.current);
         }
+      }
+      if (heldTrainingCube.current) {
+        clearTrainingCubeHold();
+        onBeamBreak();
+        gameStore.setEnergyFlash(true);
       }
     }
 
@@ -2837,11 +2906,12 @@ export function Player({
     const beamingLoose =
       beamInput &&
       !holdingBall.current &&
+      !heldTrainingCube.current &&
       canLockBeamTarget &&
       canBeamBall &&
       !!ball &&
       !frozen;
-    setBeamAttractActive(beamingLoose);
+    setBeamAttractActive(beamingLoose || (beamInput && canLockTrainingCubeTarget));
 
     if (
       ball &&
@@ -2849,6 +2919,7 @@ export function Player({
       ballLooseCooldown &&
       canBeamBall &&
       !holdingBall.current &&
+      !heldTrainingCube.current &&
       !frozen
     ) {
       const bt = ball.translation();
@@ -2928,9 +2999,50 @@ export function Player({
       }
     }
 
+    if (
+      beamInput &&
+      trainingCubeBeamEnabled &&
+      !holdingBall.current &&
+      !heldTrainingCube.current &&
+      trainingCubeTarget &&
+      !frozen
+    ) {
+      const cube = trainingCubeTarget.target;
+      const cubePos = trainingCubeTarget.position;
+      const toPlayer = _swingVelScratch.current.copy(chestPos.current).sub(cubePos);
+      const dist = Math.max(0.001, toPlayer.length());
+      toPlayer.multiplyScalar(1 / dist);
+      const lv = cube.body.linvel();
+      const nearT = 1 - THREE.MathUtils.clamp(dist / BEAM.range, 0, 1);
+      const accel = BEAM.pullAccel * (0.85 + nearT * 1.45);
+      cube.body.setLinvel(
+        {
+          x: lv.x + toPlayer.x * accel * dt,
+          y: lv.y + toPlayer.y * accel * dt + BEAM.pullVerticalAssist * 0.35 * dt,
+          z: lv.z + toPlayer.z * accel * dt,
+        },
+        true,
+      );
+      cube.body.wakeUp();
+
+      const captureDist =
+        BEAM.captureDistance + cube.radius * 0.5 + TRAINING_CUBE_CAPTURE_EXTRA_M;
+      if (dist <= captureDist) {
+        heldTrainingCube.current = cube;
+        cube.body.setBodyType(RAPIER_BODY_KINEMATIC, true);
+        cube.body.setGravityScale(0, true);
+        cube.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        cube.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        trainingCubeSocket.current.copy(cubePos);
+        trainingCubeLastSocket.current.copy(cubePos);
+        trainingCubeSocketReady.current = false;
+      }
+    }
+
     const holdingFire = inputManager.isFireDown();
     const ballHeld = gameStore.getState().ballHolderId === 'local';
-    const canShootRockets = !ballHeld;
+    const cubeHeld = heldTrainingCube.current !== null;
+    const canShootRockets = !ballHeld && !cubeHeld;
     let launchedBallThisFrame = false;
 
     const tryFireRocket = (explosive: boolean): boolean => {
@@ -2984,7 +3096,16 @@ export function Player({
     if (inputManager.consumeFireEdge()) {
       firePressHandled.current = false;
       chargedRocketFired.current = false;
-      if (ballHeld) {
+      if (cubeHeld) {
+        launchedBallThisFrame = releaseTrainingCube(TRAINING_CUBE_THROW_SPEED);
+        fireLaunchedBall.current = launchedBallThisFrame;
+        fireHoldStart.current = null;
+        if (launchedBallThisFrame) {
+          playBallLaunch();
+          firePressHandled.current = true;
+          armPostShotRocketBlock();
+        }
+      } else if (ballHeld) {
         launchedBallThisFrame = launchHeldBall();
         fireLaunchedBall.current = launchedBallThisFrame;
         fireHoldStart.current = null;
@@ -3037,10 +3158,22 @@ export function Player({
     }
 
     if (inputManager.consumeThrow() && !launchedBallThisFrame) {
-      if (launchHeldBall()) armPostShotRocketBlock();
+      if (heldTrainingCube.current) {
+        if (releaseTrainingCube(TRAINING_CUBE_THROW_SPEED)) {
+          playBallLaunch();
+          armPostShotRocketBlock();
+        }
+      } else if (launchHeldBall()) armPostShotRocketBlock();
     }
 
-    if (holdingBall.current && !beamInput && !launchedBallThisFrame) {
+    if (heldTrainingCube.current && !beamInput && !launchedBallThisFrame) {
+      releaseTrainingCube(TRAINING_CUBE_DROP_SPEED);
+      if (inputManager.isFireDown()) {
+        fireHoldStart.current = now;
+        fireLaunchedBall.current = false;
+        chargedRocketFired.current = false;
+      }
+    } else if (holdingBall.current && !beamInput && !launchedBallThisFrame) {
       dropHeldBall();
       if (inputManager.isFireDown()) {
         fireHoldStart.current = now;
@@ -3122,8 +3255,42 @@ export function Player({
         clearHoldState();
         resetHoldMomentum();
       }
+    } else if (heldTrainingCube.current && !knockStunned) {
+      const cube = heldTrainingCube.current;
+      const aim = _swingVelScratch.current.copy(lookDir);
+      if (aim.lengthSq() < 1e-6) aim.copy(forward);
+      if (aim.lengthSq() < 1e-6) aim.set(0, 0, -1);
+      aim.normalize();
+
+      const target = _holdSocket.current.copy(chestPos.current);
+      target.addScaledVector(aim, BEAM.holdDistance + cube.radius * 0.35);
+      target.y = Math.max(target.y, chestPos.current.y - 0.65);
+
+      if (!trainingCubeSocketReady.current) {
+        trainingCubeSocket.current.copy(target);
+        trainingCubeLastSocket.current.copy(target);
+        trainingCubeSocketReady.current = true;
+      } else {
+        trainingCubeSocket.current.lerp(
+          target,
+          1 - Math.exp(-TRAINING_CUBE_HOLD_SMOOTH * dt),
+        );
+      }
+
+      cube.body.setTranslation(
+        {
+          x: trainingCubeSocket.current.x,
+          y: trainingCubeSocket.current.y,
+          z: trainingCubeSocket.current.z,
+        },
+        true,
+      );
+      cube.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      cube.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      trainingCubeLastSocket.current.copy(trainingCubeSocket.current);
     } else {
       holdSocketSmoothReady.current = false;
+      trainingCubeSocketReady.current = false;
     }
 
     if (!coopAdventureMode && !disableArenaBounds) {
