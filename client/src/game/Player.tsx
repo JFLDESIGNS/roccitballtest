@@ -3172,7 +3172,7 @@ export function Player({
       holdSocketSmoothReady.current = false;
     }
 
-    if (!coopAdventureMode) {
+    if (!coopAdventureMode && !disableArenaBounds) {
       const clamped = clampToHex(pos.x, pos.z, ARENA.hexRadius, 2.5);
       if (clamped.x !== pos.x || clamped.z !== pos.z) {
         body.setTranslation({ x: clamped.x, y: pos.y, z: clamped.z }, true);

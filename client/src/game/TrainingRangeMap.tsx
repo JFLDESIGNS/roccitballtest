@@ -249,22 +249,18 @@ function WarehouseShell() {
       <mesh position={[w.x - halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
-      <CuboidCollider args={[0.25, y, halfL]} position={[w.x - halfW, y, w.z]} />
 
       <mesh position={[w.x + halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
-      <CuboidCollider args={[0.25, y, halfL]} position={[w.x + halfW, y, w.z]} />
 
       <mesh position={[w.x, y, w.z - halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
-      <CuboidCollider args={[halfW, y, 0.25]} position={[w.x, y, w.z - halfL]} />
 
       <mesh position={[w.x, y, w.z + halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
-      <CuboidCollider args={[halfW, y, 0.25]} position={[w.x, y, w.z + halfL]} />
 
       <mesh position={[w.x, w.wallHeight + 0.15, w.z]} scale={[w.width, 0.3, w.length]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />

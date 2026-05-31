@@ -9,7 +9,7 @@ export const TRAINING = {
     { x: -43, y: 7.1, z: 25, yaw: Math.PI * 0.72 },
     { x: -43, y: 3.5, z: -10, yaw: Math.PI * 0.28 },
   ],
-  drivingStand: { x: 30, z: 48, halfX: 5.5, halfZ: 4.5 },
+  drivingStand: { x: 30, z: 48, halfX: 15, halfZ: 10 },
   drivingRange: {
     x: 30,
     startZ: 39,
