@@ -56,6 +56,24 @@ const warehouseTrimMat = new THREE.MeshStandardMaterial({
   emissive: '#0a5263',
   emissiveIntensity: 0.45,
 });
+const buildingMat = new THREE.MeshStandardMaterial({
+  color: '#273640',
+  roughness: 0.72,
+  metalness: 0.02,
+});
+const buildingWindowMat = new THREE.MeshBasicMaterial({
+  color: '#9ee8ff',
+  transparent: true,
+  opacity: 0.36,
+  toneMapped: false,
+});
+const cloudMat = new THREE.MeshBasicMaterial({
+  color: '#e8fff9',
+  transparent: true,
+  opacity: 0.66,
+  depthWrite: false,
+  toneMapped: false,
+});
 const cubeMats = [
   new THREE.MeshStandardMaterial({
     color: '#e8d36d',
@@ -81,6 +99,7 @@ const DRIVING_LANDING_Y = BALL.radius + 0.22;
 const DRIVING_AIRBORNE_Y = BALL.radius + 0.55;
 const DRIVING_ROLLOUT_SEC = 4;
 const DRIVING_OB_HOLD_SEC = 1.25;
+const TRAINING_HTML_Z_INDEX_RANGE = [8, 0] as [number, number];
 
 function formatFt(n: number): string {
   return `${Math.max(0, Math.round(n))} ft`;
@@ -107,7 +126,7 @@ function TrainingHitPreview() {
           <sphereGeometry args={[fresh ? 0.14 : 0.08, 16, 10]} />
           <meshBasicMaterial color={fresh ? '#ff344c' : '#778899'} toneMapped={false} />
         </mesh>
-        <Html center position={[0, -1.25, 0]} distanceFactor={10}>
+        <Html center position={[0, -1.25, 0]} distanceFactor={10} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
           <div
             style={{
               minWidth: 190,
@@ -170,7 +189,7 @@ function DrivingShotMarkers() {
             <boxGeometry args={[1, 1, 1]} />
             <meshBasicMaterial color="#69ff9d" transparent opacity={0.5} toneMapped={false} />
           </mesh>
-          <Html center distanceFactor={18} position={[0, 1.45, 0]}>
+          <Html center distanceFactor={18} position={[0, 1.45, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
             <div
               style={{
                 color: '#d8ffe4',
@@ -190,7 +209,7 @@ function DrivingShotMarkers() {
             <boxGeometry args={[1, 1, 1]} />
             <meshBasicMaterial color="#ffe36e" toneMapped={false} />
           </mesh>
-          <Html center distanceFactor={18} position={[0, 1.0, 0]}>
+          <Html center distanceFactor={18} position={[0, 1.0, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
             <div
               style={{
                 color: '#ffe36e',
@@ -262,7 +281,7 @@ function DrivingLiveBallFrame({
             toneMapped={false}
           />
         </mesh>
-        <Html center distanceFactor={12} position={[0, BALL.radius * 2.55, 0]}>
+        <Html center distanceFactor={12} position={[0, BALL.radius * 2.55, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
           <div
             style={{
               minWidth: 150,
@@ -296,7 +315,7 @@ function DrivingLiveBallFrame({
             toneMapped={false}
           />
         </mesh>
-        <Html center distanceFactor={14} position={[0, 2.75, 0]}>
+        <Html center distanceFactor={14} position={[0, 2.75, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
           <div
             style={{
               padding: '5px 10px',
@@ -360,15 +379,19 @@ function DrivingRangeMarkers() {
             <boxGeometry args={[1, 1, 1]} />
           </mesh>
           {(m.feet % 50 === 0 || m.feet === 10) && (
-            <Html center distanceFactor={16} position={[-TRAINING.drivingRange.width / 2 - 2.2, 0.42, 0]}>
+            <Html center distanceFactor={18} position={[-TRAINING.drivingRange.width / 2 - 3.6, 0.8, 0]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
               <div
                 style={{
                   color: m.feet % 100 === 0 ? '#fff4a8' : '#f4ffd7',
-                  font: '900 11px system-ui, sans-serif',
-                  textShadow: '0 1px 4px #000',
+                  font: '1000 28px system-ui, sans-serif',
+                  lineHeight: 0.9,
+                  textAlign: 'center',
+                  textShadow: '0 2px 7px #000, 0 0 12px rgba(0,0,0,0.7)',
                 }}
               >
-                {m.feet} ft
+                {m.feet}
+                <br />
+                <span style={{ fontSize: 20 }}>ft</span>
               </div>
             </Html>
           )}
@@ -382,7 +405,10 @@ function WarehouseShell() {
   const w = TRAINING.warehouse;
   const halfW = w.width / 2;
   const halfL = w.length / 2;
-  const y = w.wallHeight / 2;
+  const closedLength = w.length * 0.48;
+  const closedHalfL = closedLength / 2;
+  const closedZ = w.z - w.length * 0.26;
+  const closedY = w.wallHeight / 2;
 
   return (
     <RigidBody type="fixed" colliders={false}>
@@ -391,37 +417,95 @@ function WarehouseShell() {
       </mesh>
       <CuboidCollider args={[halfW, 0.14, halfL]} position={[w.x, -0.16, w.z]} />
 
-      <mesh position={[w.x - halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
+      <mesh position={[w.x - halfW, closedY, closedZ]} scale={[0.5, w.wallHeight, closedLength]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
 
-      <mesh position={[w.x + halfW, y, w.z]} scale={[0.5, w.wallHeight, w.length]} material={warehouseWallMat} receiveShadow>
+      <mesh position={[w.x + halfW, closedY, closedZ]} scale={[0.5, w.wallHeight, closedLength]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
 
-      <mesh position={[w.x, y, w.z - halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
+      <mesh position={[w.x, closedY, closedZ - closedHalfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
 
-      <mesh position={[w.x, y, w.z + halfL]} scale={[w.width, w.wallHeight, 0.5]} material={warehouseWallMat} receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-      </mesh>
-
-      <mesh position={[w.x, w.wallHeight + 0.15, w.z]} scale={[w.width, 0.3, w.length]} material={warehouseWallMat} receiveShadow>
+      <mesh position={[w.x, w.wallHeight + 0.15, closedZ]} scale={[w.width, 0.3, closedLength]} material={warehouseWallMat} receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
       </mesh>
 
       {[-0.4, -0.2, 0, 0.2, 0.4].map((t) => (
         <mesh
           key={t}
-          position={[w.x + t * w.width, 0.05, w.z]}
-          scale={[0.18, 0.1, w.length * 0.98]}
+          position={[w.x + t * w.width, 0.05, closedZ]}
+          scale={[0.18, 0.1, closedLength * 0.98]}
           material={warehouseTrimMat}
         >
           <boxGeometry args={[1, 1, 1]} />
         </mesh>
       ))}
     </RigidBody>
+  );
+}
+
+function OutdoorTrainingScenery() {
+  const buildings = useMemo(
+    () => [
+      { p: [-62, 10, 58], s: [10, 20, 14] },
+      { p: [-47, 14, 76], s: [12, 28, 11] },
+      { p: [-28, 8, 69], s: [9, 16, 16] },
+      { p: [88, 12, 62], s: [13, 24, 12] },
+      { p: [72, 17, 79], s: [11, 34, 13] },
+      { p: [51, 9, 72], s: [14, 18, 10] },
+      { p: [-70, 7, 17], s: [8, 14, 18] },
+      { p: [84, 8, 19], s: [9, 16, 15] },
+    ],
+    [],
+  );
+  const clouds = useMemo(
+    () => [
+      { p: [-46, 34, 46], s: [9, 1.8, 4] },
+      { p: [-20, 42, 73], s: [13, 2.2, 5] },
+      { p: [22, 38, 55], s: [11, 1.9, 4.5] },
+      { p: [55, 45, 78], s: [15, 2.4, 5.5] },
+      { p: [75, 32, 30], s: [10, 1.6, 4] },
+      { p: [-72, 40, 21], s: [12, 2, 4.8] },
+    ],
+    [],
+  );
+
+  return (
+    <group>
+      {buildings.map((b, i) => (
+        <group key={`building-${i}`} position={b.p as [number, number, number]}>
+          <mesh scale={b.s as [number, number, number]} material={buildingMat} receiveShadow castShadow>
+            <boxGeometry args={[1, 1, 1]} />
+          </mesh>
+          {[-0.28, 0, 0.28].map((x) => (
+            <mesh
+              key={x}
+              position={[x * b.s[0], b.s[1] * 0.12, -b.s[2] * 0.51]}
+              scale={[b.s[0] * 0.12, b.s[1] * 0.62, 0.03]}
+              material={buildingWindowMat}
+            >
+              <boxGeometry args={[1, 1, 1]} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      {clouds.map((c, i) => (
+        <group key={`cloud-${i}`} position={c.p as [number, number, number]}>
+          <mesh scale={c.s as [number, number, number]} material={cloudMat}>
+            <sphereGeometry args={[1, 24, 12]} />
+          </mesh>
+          <mesh position={[c.s[0] * 0.34, -0.12, c.s[2] * 0.18]} scale={[c.s[0] * 0.58, c.s[1] * 0.92, c.s[2] * 0.78]} material={cloudMat}>
+            <sphereGeometry args={[1, 24, 12]} />
+          </mesh>
+          <mesh position={[-c.s[0] * 0.28, 0.08, -c.s[2] * 0.1]} scale={[c.s[0] * 0.54, c.s[1] * 0.86, c.s[2] * 0.72]} material={cloudMat}>
+            <sphereGeometry args={[1, 24, 12]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
   );
 }
 
@@ -764,8 +848,8 @@ export function TrainingRangeMap({
 
   return (
     <>
-      <color attach="background" args={['#11171c']} />
-      <fog attach="fog" args={['#11171c', 145, 350]} />
+      <color attach="background" args={['#74c9ff']} />
+      <fog attach="fog" args={['#74c9ff', 155, 390]} />
       <group>
       <ambientLight intensity={0.62} />
       <directionalLight position={[18, 30, 18]} intensity={1.2} castShadow />
@@ -773,6 +857,7 @@ export function TrainingRangeMap({
       <pointLight position={[TRAINING.drivingRange.x, 12, TRAINING.drivingRange.startZ - 35]} intensity={26} distance={56} color="#9cffbf" />
 
       <WarehouseShell />
+      <OutdoorTrainingScenery />
       <TrainingPhysicsCubes />
 
       <Platform
@@ -789,7 +874,7 @@ export function TrainingRangeMap({
         color="#19324a"
         collidable={false}
       />
-      <Html center distanceFactor={14} position={[TRAINING.defenseStand.x, 1.1, TRAINING.defenseStand.z - 5.4]}>
+      <Html center distanceFactor={14} position={[TRAINING.defenseStand.x, 1.1, TRAINING.defenseStand.z - 5.4]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
         <div style={{ color: '#d9f5ff', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
           ROCKET REACTION PLATFORM
         </div>
@@ -811,7 +896,7 @@ export function TrainingRangeMap({
         color="#214a35"
         collidable={false}
       />
-      <Html center distanceFactor={14} position={[TRAINING.drivingStand.x, 1.1, TRAINING.drivingStand.z + 4.6]}>
+      <Html center distanceFactor={14} position={[TRAINING.drivingStand.x, 1.1, TRAINING.drivingStand.z + 4.6]} zIndexRange={TRAINING_HTML_Z_INDEX_RANGE}>
         <div style={{ color: '#edffd6', font: '900 13px system-ui', textShadow: '0 2px 5px #000' }}>
           DRIVING RANGE: BALL TEES ON PAD
         </div>
