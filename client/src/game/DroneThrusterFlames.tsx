@@ -95,7 +95,7 @@ export function DroneThrusterFlames({
   );
 
   const coneGeo = useMemo(() => {
-    const geo = new THREE.ConeGeometry(CONE_R, CONE_H, 8, 1, true);
+    const geo = new THREE.ConeGeometry(CONE_R, CONE_H, 8, 1, false);
     geo.translate(0, CONE_H / 2, 0);
     return geo;
   }, []);

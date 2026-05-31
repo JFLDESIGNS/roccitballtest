@@ -96,11 +96,11 @@ const LIGHT_GLOW_PUNCH_GLSL = /* glsl */ `
         nearestBoundary = boundary;
         nearestStrength = strength;
       }
-      cutUnion = max(cutUnion, cut);
+      cutUnion = 1.0 - (1.0 - cutUnion) * (1.0 - cut);
     }
     float vis = clamp(1.0 - cutUnion, 0.0, 1.0);
     float outerEdge = 1.0 - smoothstep(0.0, 0.38, nearestBoundary);
-    float edgeOnly = outerEdge * smoothstep(0.18, 0.82, vis);
+    float edgeOnly = outerEdge * smoothstep(0.22, 0.78, vis) * smoothstep(0.05, 0.36, vis);
     float fastFade =
       nearestStrength *
       nearestStrength *
@@ -248,7 +248,7 @@ export function LightGlowBillboard({
           float holeStr = mix(uHoleStrength, 1.0, (1.0 - uProximityFade) * 0.55);
           alpha *= mix(1.0, holeMask, holeStr);
           alpha *= rocketPunch;
-          alpha += punchPool * radial * uOpacity * 0.28;
+          alpha += punchPool * radial * uOpacity * 0.16 * smoothstep(0.2, 0.82, rocketPunch);
 
           float coreDist = length(vUv - 0.5) * 2.0;
           float dissolve = 1.0 - clamp(uProximityFade, 0.0, 1.0);

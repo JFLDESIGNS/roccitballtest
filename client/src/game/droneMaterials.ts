@@ -92,6 +92,7 @@ export function assignDroneMaps(std: THREE.MeshStandardMaterial, maps: DroneMaps
   std.roughness = 0.55;
   std.transparent = false;
   std.opacity = 1;
+  std.side = THREE.DoubleSide;
 }
 
 /** Shared red/blue drone look for player + bots */
