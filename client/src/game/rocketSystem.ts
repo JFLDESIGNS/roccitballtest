@@ -625,6 +625,7 @@ export function updateRockets(
   rockets: ActiveRocket[],
   dt: number,
   arenaHalf: { w: number; d: number; h: number },
+  options: { arenaCollision?: boolean } = {},
 ): {
   rockets: ActiveRocket[];
   explosions: RocketExplosionEvent[];
@@ -634,9 +635,10 @@ export function updateRockets(
   const trailSegments: RocketTrailSegment[] = [];
   const now = performance.now() / 1000;
   const remaining: ActiveRocket[] = [];
+  const arenaCollision = options.arenaCollision ?? true;
 
   const arenaRadius = arenaHalf.w;
-  refreshFanGlassBoxes();
+  if (arenaCollision) refreshFanGlassBoxes();
 
   for (const r of rockets) {
     _stepPrev.copy(r.position);
@@ -661,7 +663,9 @@ export function updateRockets(
         ? ROCKET.minTravelBeforeExplosiveDetonate
         : 1.1;
 
-    const glassHit = trySegmentHitsFanGlassWithPoint(_stepPrev, pos);
+    const glassHit = arenaCollision
+      ? trySegmentHitsFanGlassWithPoint(_stepPrev, pos)
+      : null;
     if (glassHit) {
       triggerFanGlassHit(glassHit.panel.bayKey, glassHit.point);
       if (r.explosive) {
@@ -684,6 +688,47 @@ export function updateRockets(
 
     if (r.ownerId === 'local') {
       punchLightGlowAlongRocketSegment(r, _stepPrev, pos);
+    }
+
+    if (!arenaCollision) {
+      const halfX = arenaHalf.w;
+      const halfZ = arenaHalf.d;
+      const hitFloor = y <= 0.32;
+      const hitCeiling = y >= arenaHalf.h - 0.32;
+      const hitSide = Math.abs(x) >= halfX || Math.abs(z) >= halfZ;
+      if (r.explosive && traveled >= minExplodeTravel && (hitFloor || hitCeiling || hitSide)) {
+        pushExplosionEvent(
+          explosions,
+          _stepPrev,
+          pos,
+          arenaRadius,
+          arenaHalf.h,
+          true,
+        );
+        continue;
+      }
+      if (!r.explosive && (hitFloor || hitCeiling || hitSide)) {
+        if (hitFloor || hitCeiling) {
+          r.velocity.y = -r.velocity.y * ROCKET.bounceRestitution;
+          pos.y = THREE.MathUtils.clamp(pos.y, 0.36, arenaHalf.h - 0.36);
+        }
+        if (Math.abs(x) >= halfX) {
+          r.velocity.x = -r.velocity.x * ROCKET.bounceRestitution;
+          pos.x = THREE.MathUtils.clamp(pos.x, -halfX + 0.1, halfX - 0.1);
+        }
+        if (Math.abs(z) >= halfZ) {
+          r.velocity.z = -r.velocity.z * ROCKET.bounceRestitution;
+          pos.z = THREE.MathUtils.clamp(pos.z, -halfZ + 0.1, halfZ - 0.1);
+        }
+        r.bouncesLeft = Math.max(0, r.bouncesLeft - 1);
+        pushTrailSegment(trailSegments, r.segmentStart, pos, r.explosive);
+        r.segmentStart.copy(pos);
+        remaining.push(r);
+        continue;
+      }
+      pushTrailSegment(trailSegments, _stepPrev, pos, r.explosive);
+      remaining.push(r);
+      continue;
     }
 
     if (

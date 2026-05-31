@@ -734,6 +734,7 @@ export function Player({
   }, []);
   const tryStartGrapple = useCallback(
     (origin: THREE.Vector3, lookDir: THREE.Vector3) => {
+      if (disableArenaBounds) return false;
       if (lookDir.y < MOVEMENT.grappleMinLookY) return false;
       const ceilingY = ARENA.wallHeight + ARENA.ceilingOverlapM - 0.08;
       const t = (ceilingY - origin.y) / Math.max(lookDir.y, 0.0001);
@@ -783,7 +784,7 @@ export function Player({
       ePropelVyBoost.current = null;
       return true;
     },
-    [],
+    [disableArenaBounds],
   );
   const stopGrindRailRide = useCallback((cooldownSec = 0) => {
     if (grindRailActive.current) {
@@ -934,8 +935,9 @@ export function Player({
     const multiplayerNow = multiplayerStore.getState();
     const coopAdventureMode =
       multiplayerNow.enabled && isCoopAdventureMode(multiplayerNow.roomInfo?.mode);
-    const padY = coopAdventureMode ? null : sampleTrampolineFloorY(tr.x, tr.z);
-    if (!coopAdventureMode && padY !== null) {
+    const arenaMechanicsEnabled = !coopAdventureMode && !disableArenaBounds;
+    const padY = arenaMechanicsEnabled ? sampleTrampolineFloorY(tr.x, tr.z) : null;
+    if (arenaMechanicsEnabled && padY !== null) {
       const feet = playerFeetY(tr.y);
       const gap = feet - padY;
       if (gap > 0.05 && gap < 1.2) {
@@ -1053,6 +1055,7 @@ export function Player({
 
     const tune = tuningStore.getState();
     if (
+      arenaMechanicsEnabled &&
       tickGoalEntryCharacterBounce(
         body,
         tr.x,
@@ -1698,13 +1701,16 @@ export function Player({
       maxVy,
     );
 
-    const padFloorY = coopAdventureMode ? null : sampleTrampolineFloorY(pos.x, pos.z);
+    const arenaMechanicsEnabled = !coopAdventureMode && !disableArenaBounds;
+    const padFloorY = arenaMechanicsEnabled
+      ? sampleTrampolineFloorY(pos.x, pos.z)
+      : null;
     const feetY = playerFeetY(pos.y);
     const inTrampZone =
-      !coopAdventureMode && isPlayerInTrampolineZone(pos.x, pos.z, feetY);
+      arenaMechanicsEnabled && isPlayerInTrampolineZone(pos.x, pos.z, feetY);
     const overTrampDeck =
       inTrampZone ||
-      (!coopAdventureMode && isPlayerOverTrampolineDeck(pos.x, pos.z, feetY));
+      (arenaMechanicsEnabled && isPlayerOverTrampolineDeck(pos.x, pos.z, feetY));
     let padGap = MOVEMENT.groundProbeDist + 1;
     if (padFloorY !== null) {
       padGap = feetY - padFloorY;
@@ -2330,7 +2336,7 @@ export function Player({
     }
     const feetNow = playerFeetY(pos.y);
     const padLaunched =
-      !coopAdventureMode &&
+      arenaMechanicsEnabled &&
       !grappleActive.current &&
       tryPlayerPads(
         body,
@@ -2360,7 +2366,7 @@ export function Player({
     velocity.current.y = vy;
 
     if (
-      !coopAdventureMode &&
+      arenaMechanicsEnabled &&
       !grappleActive.current &&
       tickGoalEntryCharacterBounce(
         body,
@@ -2379,7 +2385,7 @@ export function Player({
       jumpAirGrace.current = Math.max(jumpAirGrace.current, 0.2);
     }
 
-    if (!coopAdventureMode && !disableArenaBounds) {
+    if (arenaMechanicsEnabled) {
       applyPlayerArenaWallBumper(
         body,
         pos,
@@ -2396,7 +2402,7 @@ export function Player({
       capCenterY -
       capHalfH -
       MOVEMENT.capsuleRadius;
-    if (!coopAdventureMode && pos.y > ceilingMaxBodyY) {
+    if (arenaMechanicsEnabled && pos.y > ceilingMaxBodyY) {
       if (grappleActive.current) stopGrapple(false);
       body.setTranslation(
         { x: pos.x, y: ceilingMaxBodyY, z: pos.z },

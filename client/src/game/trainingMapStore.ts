@@ -18,6 +18,7 @@ let lastBallHit: TrainingBallHit | null = null;
 let activeShot: TrainingShot | null = null;
 let lastShot: TrainingShot | null = null;
 let bestShot: TrainingShot | null = null;
+let drivingRangeActive = false;
 
 function notify() {
   listeners.forEach((fn) => fn());
@@ -32,6 +33,12 @@ export const trainingMapStore = {
   getActiveShot: () => activeShot,
   getLastShot: () => lastShot,
   getBestShot: () => bestShot,
+  getDrivingRangeActive: () => drivingRangeActive,
+  setDrivingRangeActive: (active: boolean) => {
+    if (drivingRangeActive === active) return;
+    drivingRangeActive = active;
+    notify();
+  },
   recordBallHit: (hit: Omit<TrainingBallHit, 'at'>) => {
     lastBallHit = { ...hit, at: performance.now() };
     notify();
@@ -54,6 +61,7 @@ export const trainingMapStore = {
     activeShot = null;
     lastShot = null;
     bestShot = null;
+    drivingRangeActive = false;
     notify();
   },
 };

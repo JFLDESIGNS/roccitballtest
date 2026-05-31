@@ -114,55 +114,6 @@ function TrainingHitPreview() {
   );
 }
 
-function TrainingShotPanel() {
-  const activeShot = useSyncExternalStore(
-    trainingMapStore.subscribe,
-    () => trainingMapStore.getActiveShot(),
-  );
-  const lastShot = useSyncExternalStore(
-    trainingMapStore.subscribe,
-    () => trainingMapStore.getLastShot(),
-  );
-  const bestShot = useSyncExternalStore(
-    trainingMapStore.subscribe,
-    () => trainingMapStore.getBestShot(),
-  );
-  const shot = activeShot ?? lastShot;
-
-  return (
-    <Billboard position={[TRAINING.drivingRange.x - 20, 7.2, TRAINING.drivingRange.startZ + 2]}>
-      <Html center distanceFactor={13}>
-        <div
-          style={{
-            width: 300,
-            padding: '10px 12px',
-            border: '1px solid rgba(148, 255, 169, 0.7)',
-            borderRadius: 8,
-            background: 'linear-gradient(180deg, rgba(4, 20, 18, 0.92), rgba(5, 12, 18, 0.82))',
-            boxShadow: '0 0 24px rgba(82, 255, 155, 0.22)',
-            color: '#effff4',
-            font: '800 12px system-ui, sans-serif',
-            letterSpacing: 0.3,
-          }}
-        >
-          <div style={{ color: '#69ff9d', fontSize: 15, marginBottom: 8 }}>
-            DRIVING RANGE TRACKER
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-            <Stat label="LIVE" value={shot ? formatFt(shot.distanceFt) : '--'} />
-            <Stat label="CARRY" value={shot ? formatFt(shot.carryFt) : '--'} />
-            <Stat label="APEX" value={shot ? formatFt(shot.apexFt) : '--'} />
-            <Stat label="SPEED" value={shot ? `${shot.speedMps.toFixed(1)} m/s` : '--'} />
-          </div>
-          <div style={{ marginTop: 8, color: '#c9f7d7' }}>
-            BEST: {bestShot ? formatFt(bestShot.distanceFt) : 'no shot yet'}
-          </div>
-        </div>
-      </Html>
-    </Billboard>
-  );
-}
-
 function DrivingShotMarkers() {
   const activeShot = useSyncExternalStore(
     trainingMapStore.subscribe,
@@ -221,22 +172,6 @@ function DrivingShotMarkers() {
         </group>
       )}
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        padding: '7px 8px',
-        borderRadius: 6,
-        border: '1px solid rgba(160, 255, 194, 0.25)',
-        background: 'rgba(255, 255, 255, 0.06)',
-      }}
-    >
-      <div style={{ color: '#86cfa0', fontSize: 9 }}>{label}</div>
-      <div style={{ color: '#ffffff', fontSize: 16 }}>{value}</div>
-    </div>
   );
 }
 
@@ -487,6 +422,7 @@ export function TrainingRangeMap({
     const ball = ballBodyRef.current;
     const state = gameStore.getState();
     const inDrivingStand = isTrainingDrivingRangeStand(pos.x, pos.z);
+    trainingMapStore.setDrivingRangeActive(inDrivingStand);
 
     if (ball && inDrivingStand && state.ballHolderId !== null) {
       drivingShot.current.armed = true;
@@ -616,8 +552,6 @@ export function TrainingRangeMap({
           DRIVING RANGE: AUTO BALL IN HAND
         </div>
       </Html>
-      <TrainingShotPanel />
-
       <RigidBody type="fixed" colliders={false}>
         <mesh
           position={[

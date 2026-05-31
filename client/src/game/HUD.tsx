@@ -18,6 +18,9 @@ import { resumeAudio, warmAudio } from './audio';
 import { MatchScoreboard } from './MatchScoreboard';
 import { StadiumLightEditorPanel } from './StadiumLightEditorPanel';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
+import { trainingMapStore } from './trainingMapStore';
+import { mapRegistryStore } from '../mapEditor/mapEditorStore';
+import { TRAINING_MAP_ID } from '../mapEditor/mapEditorTypes';
 
 function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -28,6 +31,11 @@ function formatTime(sec: number): string {
 function formatShotDistance(distanceM: number | null): string | null {
   if (distanceM == null || !Number.isFinite(distanceM)) return null;
   return `${Math.max(1, Math.round(distanceM * 3.28084))} ft`;
+}
+
+function formatTrainingFt(n: number | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '--';
+  return `${Math.max(0, Math.round(n))} ft`;
 }
 
 type HUDProps = {
@@ -62,6 +70,26 @@ export function HUD({ onMainMenu }: HUDProps) {
   const bouncy = useSyncExternalStore(
     tuningStore.subscribe,
     () => tuningStore.getState().bouncyRocketsEnabled,
+  );
+  const activeMapId = useSyncExternalStore(
+    mapRegistryStore.subscribe,
+    () => mapRegistryStore.getActiveMapId(),
+  );
+  const trainingDrivingActive = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getDrivingRangeActive(),
+  );
+  const trainingActiveShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getActiveShot(),
+  );
+  const trainingLastShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getLastShot(),
+  );
+  const trainingBestShot = useSyncExternalStore(
+    trainingMapStore.subscribe,
+    () => trainingMapStore.getBestShot(),
   );
   const matchOver = isMatchOver(state);
 
@@ -112,6 +140,9 @@ export function HUD({ onMainMenu }: HUDProps) {
 
   const comboActive =
     state.ballCombo >= 2 && performance.now() <= state.ballComboExpiresAt;
+  const showTrainingShotHud =
+    activeMapId === TRAINING_MAP_ID && trainingDrivingActive && !matchOver;
+  const trainingShot = trainingActiveShot ?? trainingLastShot;
 
   return (
     <div className={`hud ${state.energyFlash ? 'hud--flash' : ''}`}>
@@ -184,6 +215,36 @@ export function HUD({ onMainMenu }: HUDProps) {
 
       {!matchOver && !state.debugFreelook && (
         <HudCrosshairEnergy energy={state.energy} lowEnergy={state.energy < 25} />
+      )}
+
+      {showTrainingShotHud && (
+        <div className="hud-training-shot" role="status" aria-live="polite">
+          <div className="hud-training-shot-title">Driving Range Tracker</div>
+          <div className="hud-training-shot-grid">
+            <span>
+              <strong>{formatTrainingFt(trainingShot?.distanceFt)}</strong>
+              <em>live</em>
+            </span>
+            <span>
+              <strong>{formatTrainingFt(trainingShot?.carryFt)}</strong>
+              <em>carry</em>
+            </span>
+            <span>
+              <strong>{formatTrainingFt(trainingShot?.apexFt)}</strong>
+              <em>apex</em>
+            </span>
+            <span>
+              <strong>
+                {trainingShot ? `${trainingShot.speedMps.toFixed(1)} m/s` : '--'}
+              </strong>
+              <em>speed</em>
+            </span>
+            <span className="hud-training-shot-best">
+              <strong>{formatTrainingFt(trainingBestShot?.distanceFt)}</strong>
+              <em>best</em>
+            </span>
+          </div>
+        </div>
       )}
 
       {!state.pointerLocked &&

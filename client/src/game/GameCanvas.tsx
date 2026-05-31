@@ -1257,14 +1257,14 @@ function Scene({
         </>
       )}
       <RocketExplosionSprites poolRef={splashFxRef} />
-      <FanGlassCrackFx />
-      <PillarShakeSmoke />
+      {!trainingMapEnabled && <FanGlassCrackFx />}
+      {!trainingMapEnabled && <PillarShakeSmoke />}
       <ImpactSparks />
       {!coopAdventureEnabled && !trainingMapEnabled && <GameplayCollisionDebug />}
-      <RocketWallImpactFx poolRef={wallImpactFxRef} />
+      {!trainingMapEnabled && <RocketWallImpactFx poolRef={wallImpactFxRef} />}
       <BotRagdollBurstFx poolRef={botRagdollFxRef} />
-      <BeamDenyZonesVisual />
-      <GoalFireworks />
+      {!trainingMapEnabled && <BeamDenyZonesVisual />}
+      {!trainingMapEnabled && <GoalFireworks />}
       <GroundSmashDust />
       {!coopAdventureEnabled && !trainingMapEnabled && (
         <ArenaPadMonitor ballBodyRef={ballBodyRef} />
@@ -1331,6 +1331,7 @@ function Scene({
         }}
         ballPos={ballPos}
         ballVel={ballVel}
+        disableArenaCollision={trainingMapEnabled}
         onBallDirectHit={(hit) => {
           if (!trainingMapEnabled) return;
           trainingMapStore.recordBallHit({

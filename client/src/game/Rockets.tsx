@@ -24,6 +24,7 @@ import {
   spawnRocketSmokeStreak,
 } from './rocketSmokeStreak';
 import { spawnRocketTrailSmokePuff } from './rocketTrailSmokePuffs';
+import { TRAINING } from './trainingMapConfig';
 
 const MAX_BOOMS = 8;
 const HEAD_R = RENDER.rocketHeadRadius;
@@ -65,6 +66,7 @@ type RocketsProps = {
   onPlayerDirectHit?: (vx: number, vy: number, vz: number) => void;
   ballPos: () => THREE.Vector3 | null;
   ballVel?: () => THREE.Vector3 | null;
+  disableArenaCollision?: boolean;
   onBallDirectHit?: (hit: {
     contact: { x: number; y: number; z: number };
     normal: { x: number; y: number; z: number };
@@ -298,6 +300,7 @@ export function Rockets({
   onPlayerDirectHit,
   ballPos,
   ballVel,
+  disableArenaCollision = false,
   onBallDirectHit,
 }: RocketsProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -412,11 +415,18 @@ export function Rockets({
     const { rockets: moved, explosions } = updateRockets(
       rockets,
       dt,
-      {
-        w: ARENA.hexRadius,
-        d: ARENA.hexRadius,
-        h: ARENA.wallHeight,
-      },
+      disableArenaCollision
+        ? {
+            w: TRAINING.warehouse.width / 2,
+            d: TRAINING.warehouse.length / 2,
+            h: TRAINING.warehouse.wallHeight,
+          }
+        : {
+            w: ARENA.hexRadius,
+            d: ARENA.hexRadius,
+            h: ARENA.wallHeight,
+          },
+      { arenaCollision: !disableArenaCollision },
     );
 
     const pp = playerPos();

@@ -2418,6 +2418,71 @@ body,
   z-index: 12;
 }
 
+.hud-training-shot {
+  position: absolute;
+  left: 50%;
+  bottom: 1.1rem;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 28px));
+  min-height: 92px;
+  padding: 12px 14px 14px;
+  border: 1px solid rgba(128, 255, 176, 0.62);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(8, 23, 21, 0.9), rgba(3, 9, 15, 0.84));
+  box-shadow: 0 0 28px rgba(69, 255, 155, 0.2);
+  color: #effff4;
+  pointer-events: none;
+  z-index: 28;
+}
+
+.hud-training-shot-title {
+  margin-bottom: 9px;
+  color: #67ff9b;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.hud-training-shot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hud-training-shot-grid span {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(160, 255, 194, 0.23);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hud-training-shot-grid strong,
+.hud-training-shot-grid em {
+  display: block;
+}
+
+.hud-training-shot-grid strong {
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.hud-training-shot-grid em {
+  margin-top: 3px;
+  color: #9cdab2;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.hud-training-shot-best strong,
+.hud-training-shot-best em {
+  color: #ffe36e;
+}
+
 .hud-combo {
   display: flex;
   flex-direction: column;
