@@ -717,6 +717,22 @@ function TabPanel({ tab, tune }: { tab: TuningTabId; tune: ReturnType<typeof tun
       return <BrightnessControls compact />;
     case 'graphics':
       return <GraphicsControls compact />;
+    case 'coop':
+      return (
+        <>
+          <h3 className="tuning-section">Coop Adventure</h3>
+          <SliderRow
+            label="Player throw strength"
+            hint="Multiplies teammate LMB release power in Coop Adventure."
+            value={tune.coopThrowStrength}
+            min={0.4}
+            max={4}
+            step={0.05}
+            onChange={tuningStore.setCoopThrowStrength}
+            format={(v) => `${Math.round(v * 100)}%`}
+          />
+        </>
+      );
     case 'audio':
       return (
         <>

@@ -83,8 +83,8 @@ function pad(
     kind === 'step' && themeIndex % 2 === 0
       ? {
           kind: 'vertical' as const,
-          amplitude: 1.45 + (themeIndex % 4) * 0.32,
-          speed: 0.55 + (themeIndex % 3) * 0.12,
+          amplitude: (1.45 + (themeIndex % 4) * 0.32) * 3,
+          speed: (0.55 + (themeIndex % 3) * 0.12) * 2.2,
           phase: themeIndex * 0.83,
         }
       : null;
@@ -96,7 +96,7 @@ function pad(
     shape: spec.shape ?? (kind === 'step' && themeIndex % 4 === 0 ? 'stack' : 'box'),
     motion: spec.motion ?? autoMotion,
     treeCount: spec.treeCount ?? (kind === 'step' && themeIndex % 2 === 0 ? 1 : kind === 'finish' ? 2 : 0),
-    loveToken: spec.loveToken ?? (kind === 'step' && themeIndex % 3 === 1 && !autoMotion),
+    loveToken: spec.loveToken ?? (kind === 'step'),
     grass: theme.grass,
     side: theme.side,
   };

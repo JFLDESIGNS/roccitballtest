@@ -9,7 +9,7 @@ import type { Vec3 } from '../shared/Types';
 
 export const COOP_ADVENTURE_MODE: RoomMode = 'coop-adventure';
 
-const COOP_PULL_RANGE = 22;
+const COOP_PULL_RANGE = 15;
 const COOP_LOCK_RAY_RADIUS = 5.5;
 const COOP_HOLD_DISTANCE = 2.6;
 const COOP_PULL_SPEED = 30;
@@ -111,23 +111,30 @@ export function makeCoopThrowAction(
   holderPosition: THREE.Vector3,
   lookDir: THREE.Vector3,
   holderVelocity: Vec3,
+  strength = 1,
 ): Omit<NetworkCoopAction, 'id' | 'ownerId'> {
-  _throwDir.set(lookDir.x, 0, lookDir.z);
+  _throwDir.set(lookDir.x, THREE.MathUtils.clamp(lookDir.y, -0.18, 0.58), lookDir.z);
   if (_throwDir.lengthSq() < 0.04) {
-    _throwDir.set(holderVelocity.x, 0, holderVelocity.z);
+    _throwDir.set(holderVelocity.x, Math.max(0, holderVelocity.y * 0.25), holderVelocity.z);
   }
-  if (_throwDir.lengthSq() < 0.04) _throwDir.set(0, 0, -1);
+  if (_throwDir.lengthSq() < 0.04) _throwDir.set(0, 0.12, -1);
   _throwDir.normalize();
 
-  const pitchLift = THREE.MathUtils.clamp(lookDir.y, -0.2, 0.45);
+  const power = COOP_THROW_SPEED * THREE.MathUtils.clamp(strength, 0.4, 4);
+  const pitchLift = THREE.MathUtils.clamp(lookDir.y, -0.2, 0.58);
   _velocity
     .copy(_throwDir)
-    .multiplyScalar(COOP_THROW_SPEED)
-    .add(new THREE.Vector3(holderVelocity.x * 0.28, 0, holderVelocity.z * 0.28));
-  _velocity.y = THREE.MathUtils.clamp(
-    COOP_THROW_UP_SPEED + pitchLift * 14,
-    COOP_THROW_UP_SPEED * 0.55,
-    COOP_THROW_UP_SPEED + 6,
+    .multiplyScalar(power)
+    .add(
+      new THREE.Vector3(
+        holderVelocity.x * 0.42,
+        Math.max(0, holderVelocity.y) * 0.18,
+        holderVelocity.z * 0.42,
+      ),
+    );
+  _velocity.y = Math.max(
+    _velocity.y,
+    (COOP_THROW_UP_SPEED + pitchLift * 16) * THREE.MathUtils.lerp(0.9, 1.35, strength / 4),
   );
   _hold.copy(holderPosition).addScaledVector(_throwDir, 0.18);
   _hold.y += 0.12;

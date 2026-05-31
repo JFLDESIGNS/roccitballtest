@@ -110,6 +110,8 @@ export type TuningValues = {
   topGoalBoxOffsetYFt: number;
   /** Top 5-point backup square collider offset in/out from wall (feet) */
   topGoalBoxOffsetZFt: number;
+  /** Coop Adventure teammate throw power multiplier */
+  coopThrowStrength: number;
 };
 
 type TuningState = TuningValues & {
@@ -123,6 +125,7 @@ export type TuningTabId =
   | 'ball'
   | 'bots'
   | 'arena'
+  | 'coop'
   | 'brightness'
   | 'graphics'
   | 'audio';
@@ -133,6 +136,7 @@ export const TUNING_TABS: { id: TuningTabId; label: string }[] = [
   { id: 'ball', label: 'Ball & beam' },
   { id: 'bots', label: 'Bots' },
   { id: 'arena', label: 'Arena' },
+  { id: 'coop', label: 'Coop' },
   { id: 'brightness', label: 'Brightness' },
   { id: 'graphics', label: 'Graphics' },
   { id: 'audio', label: 'Audio' },
@@ -207,6 +211,7 @@ const defaults: TuningValues = {
   topGoalBoxOffsetXFt: 0.5,
   topGoalBoxOffsetYFt: 0,
   topGoalBoxOffsetZFt: 0,
+  coopThrowStrength: 1.45,
 };
 
 const listeners = new Set<() => void>();
@@ -391,6 +396,8 @@ export const tuningStore = {
     patch({ topGoalBoxOffsetYFt: Math.max(-4, Math.min(4, v)) }),
   setTopGoalBoxOffsetZFt: (v: number) =>
     patch({ topGoalBoxOffsetZFt: Math.max(-4, Math.min(4, v)) }),
+  setCoopThrowStrength: (v: number) =>
+    patch({ coopThrowStrength: Math.max(0.4, Math.min(4, v)) }),
   resetDefaults: () => {
     try {
       localStorage.removeItem(STORAGE_KEY);

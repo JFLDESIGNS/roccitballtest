@@ -1408,7 +1408,15 @@ export function Player({
         if (!selfId || action.targetId !== selfId) continue;
         if (action.kind === 'playerPull') {
           const hold = action.holdPosition ?? action.position;
-          coopHeldTarget.current.set(hold.x, hold.y, hold.z);
+          if (coopHeldTargetReady.current) {
+            _posScratch.current.set(hold.x, hold.y, hold.z);
+            coopHeldTarget.current.lerp(
+              _posScratch.current,
+              1 - Math.exp(-dt * 18),
+            );
+          } else {
+            coopHeldTarget.current.set(hold.x, hold.y, hold.z);
+          }
           if (
             !coopHeldTargetReady.current ||
             coopHeldTarget.current.distanceTo(pos) > 28
@@ -1571,6 +1579,13 @@ export function Player({
           body.setTranslation({ x: pos.x, y: liftedY, z: pos.z }, true);
           pos.y = liftedY;
           jumpsLeft.current = MOVEMENT.maxJumps;
+          if (coopThrown) {
+            coopThrownRagdollActive.current = false;
+            coopRagdollVisualActive.current = false;
+            coopCarriedUntil.current = 0;
+            jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+            clearKnockVisualTumble(knockTumble.current);
+          }
         }
         if (
           coopThrown &&
@@ -2629,6 +2644,7 @@ export function Player({
             coopCarryProxyPos.current,
             lookDir,
             { x: lv.x, y: lv.y, z: lv.z },
+            tune.coopThrowStrength,
           ),
         );
         coopCarryTargetId.current = null;

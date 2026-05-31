@@ -32,6 +32,8 @@ const RAIL_BUTTON_VERTICAL_RADIUS = 4.6;
 const COOP_MAX_RAIL_PLATFORMS = 10;
 const FACT_DISPLAY_SEC = 10;
 const START_READY_RADIUS = 8;
+const COOP_COIN_RADIUS = 3.3;
+const PUZZLE_CLOSE_THRESHOLD = 0.75;
 
 const _goalPos = new THREE.Vector3();
 const _remotePos = new THREE.Vector3();
@@ -42,6 +44,11 @@ const _railStart = new THREE.Vector3();
 const _railEnd = new THREE.Vector3();
 const _tokenPos = new THREE.Vector3();
 const _railDirection = new THREE.Vector3();
+const _coinPos = new THREE.Vector3();
+const _railMid = new THREE.Vector3();
+const _railDelta = new THREE.Vector3();
+const _railQuat = new THREE.Quaternion();
+const _railXAxis = new THREE.Vector3(1, 0, 0);
 
 type ActiveRail = {
   key: string;
@@ -59,6 +66,27 @@ type RemoteLoveToast = {
   from: string;
   until: number;
 };
+
+type PuzzleState = {
+  id: number;
+  question: string;
+  answer: string;
+  guesses: number;
+  status: 'active' | 'close' | 'wrong' | 'solved' | 'skipped';
+};
+
+const COOP_PUZZLES = [
+  { question: 'What color do you get by mixing blue and yellow?', answer: 'green' },
+  { question: 'What is 9 + 6?', answer: '15' },
+  { question: 'What shape has 3 sides?', answer: 'triangle' },
+  { question: 'What planet is known as the Red Planet?', answer: 'mars' },
+  { question: 'What is the opposite of north?', answer: 'south' },
+  { question: 'How many days are in a week?', answer: '7' },
+  { question: 'What sweet food comes from flowers and hives?', answer: 'honey' },
+  { question: 'What is 12 divided by 3?', answer: '4' },
+  { question: 'What do you call the middle of a target?', answer: 'center' },
+  { question: 'What is frozen water called?', answer: 'ice' },
+] as const;
 
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
@@ -197,6 +225,50 @@ function CoopLoveToken({
   );
 }
 
+function CoopCoin({
+  platform,
+  index,
+  collected,
+}: {
+  platform: CoopAdventurePlatform;
+  index: number;
+  collected: boolean;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    const t = clock.elapsedTime;
+    const side = index % 2 === 0 ? -1 : 1;
+    const lane = index === 2 ? 0 : side;
+    ref.current.position.set(
+      platform.position.x + lane * platform.size.x * 0.22,
+      platformTopYAt(platform, t) + 1.45 + Math.sin(t * 3 + index) * 0.16,
+      platform.position.z + (index === 2 ? -platform.size.z * 0.18 : platform.size.z * 0.18),
+    );
+    ref.current.rotation.y = t * 2.6;
+  });
+  if (collected) return null;
+  return (
+    <group ref={ref}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.44, 0.44, 0.12, 28]} />
+        <meshStandardMaterial
+          color="#ffd45e"
+          emissive="#ffb629"
+          emissiveIntensity={1.35}
+          metalness={0.55}
+          roughness={0.28}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh scale={[0.72, 0.72, 0.72]}>
+        <torusGeometry args={[0.45, 0.035, 8, 28]} />
+        <meshBasicMaterial color="#fff1a8" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
 function CoopPlatform({ platform }: { platform: CoopAdventurePlatform }) {
   const bodyRef = useRef<RapierRigidBody | null>(null);
   const topY = platform.size.y * 0.5 + 0.035;
@@ -331,6 +403,41 @@ function platformTopY(platform: CoopAdventurePlatform): number {
   return platform.position.y + platform.size.y * 0.5;
 }
 
+function platformMotionY(platform: CoopAdventurePlatform, timeSec: number): number {
+  return platformMotionOffset(platform, timeSec);
+}
+
+function platformTopYAt(platform: CoopAdventurePlatform, timeSec: number): number {
+  return platformTopY(platform) + platformMotionY(platform, timeSec);
+}
+
+function normalizedAnswer(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function answerSimilarity(a: string, b: string): number {
+  const left = normalizedAnswer(a);
+  const right = normalizedAnswer(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  const maxLen = Math.max(left.length, right.length);
+  const prev = Array.from({ length: right.length + 1 }, (_, i) => i);
+  const curr = new Array(right.length + 1).fill(0);
+  for (let i = 1; i <= left.length; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      curr[j] = Math.min(
+        curr[j - 1] + 1,
+        prev[j] + 1,
+        prev[j - 1] + cost,
+      );
+    }
+    for (let j = 0; j <= right.length; j += 1) prev[j] = curr[j];
+  }
+  return 1 - prev[right.length] / maxLen;
+}
+
 function railButtonPosition(platform: CoopAdventurePlatform): THREE.Vector3 {
   return _buttonPos.set(
     platform.position.x,
@@ -342,10 +449,11 @@ function railButtonPosition(platform: CoopAdventurePlatform): THREE.Vector3 {
 function railEndpoint(
   platform: CoopAdventurePlatform,
   toward?: CoopAdventurePlatform,
+  timeSec = 0,
 ): THREE.Vector3 {
   const point = new THREE.Vector3(
     platform.position.x,
-    platformTopY(platform) + 1.08,
+    platformTopYAt(platform, timeSec) + 1.08,
     platform.position.z,
   );
   if (!toward) return point;
@@ -377,6 +485,7 @@ function railKey(levelId: number, platformId: string): string {
 function railSegmentForPlatform(
   platforms: CoopAdventurePlatform[],
   targetPlatformId: string,
+  timeSec = 0,
 ): { start: THREE.Vector3; end: THREE.Vector3 } | null {
   const maxIndex = Math.min(platforms.length, COOP_MAX_RAIL_PLATFORMS) - 1;
   const targetIndex = platforms.findIndex(
@@ -386,8 +495,8 @@ function railSegmentForPlatform(
   const startPlatform = platforms[targetIndex - 1]!;
   const endPlatform = platforms[targetIndex]!;
   return {
-    start: railEndpoint(startPlatform, endPlatform),
-    end: railEndpoint(endPlatform, startPlatform),
+    start: railEndpoint(startPlatform, endPlatform, timeSec),
+    end: railEndpoint(endPlatform, startPlatform, timeSec),
   };
 }
 
@@ -424,61 +533,79 @@ function CoopRailButton({
 }
 
 function CoopSpawnedRail({
-  start,
-  end,
+  startPlatform,
+  endPlatform,
 }: {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
+  startPlatform: CoopAdventurePlatform;
+  endPlatform: CoopAdventurePlatform;
 }) {
-  const railDelta = useMemo(() => end.clone().sub(start), [end, start]);
-  const railLength = railDelta.length();
-  const railMid = useMemo(() => start.clone().lerp(end, 0.5), [end, start]);
-  const railQuat = useMemo(() => {
-    const direction =
-      railDelta.lengthSq() > 0.001
-        ? railDelta.clone().normalize()
-        : new THREE.Vector3(1, 0, 0);
-    return new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(1, 0, 0),
-      direction,
-    );
-  }, [railDelta]);
+  const groupRef = useRef<THREE.Group>(null);
+  const bodyRef = useRef<RapierRigidBody | null>(null);
+  const railColliderLength = useMemo(() => {
+    const segment = {
+      start: railEndpoint(startPlatform, endPlatform),
+      end: railEndpoint(endPlatform, startPlatform),
+    };
+    return segment.end.distanceTo(segment.start);
+  }, [endPlatform, startPlatform]);
+
+  useFrame(({ clock }) => {
+    const group = groupRef.current;
+    if (!group) return;
+    const timeSec = clock.elapsedTime;
+    _railStart.copy(railEndpoint(startPlatform, endPlatform, timeSec));
+    _railEnd.copy(railEndpoint(endPlatform, startPlatform, timeSec));
+    _railDelta.subVectors(_railEnd, _railStart);
+    const length = Math.max(0.001, _railDelta.length());
+    _railMid.copy(_railStart).lerp(_railEnd, 0.5);
+    _railQuat.setFromUnitVectors(_railXAxis, _railDelta.multiplyScalar(1 / length));
+    group.position.copy(_railMid);
+    group.quaternion.copy(_railQuat);
+    group.scale.set(1, length, 1);
+    if (bodyRef.current) {
+      bodyRef.current.setNextKinematicTranslation(_railMid);
+      bodyRef.current.setNextKinematicRotation(_railQuat);
+    }
+  });
 
   return (
-    <group position={[railMid.x, railMid.y, railMid.z]} quaternion={railQuat}>
-      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.2, 0.2, railLength, 10]} />
-        <meshStandardMaterial
-          color="#05070a"
-          emissive="#0edbc6"
-          emissiveIntensity={0.26}
-          metalness={0.36}
-          roughness={0.22}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.28, 0.28, railLength, 10]} />
-        <meshBasicMaterial
-          color="#7cffef"
-          transparent
-          opacity={0.12}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
+    <>
+      <group ref={groupRef}>
+        <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.2, 0.2, 1, 10]} />
+          <meshStandardMaterial
+            color="#05070a"
+            emissive="#0edbc6"
+            emissiveIntensity={0.26}
+            metalness={0.36}
+            roughness={0.22}
+            toneMapped={false}
+          />
+        </mesh>
+        <mesh rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.28, 0.28, 1, 10]} />
+          <meshBasicMaterial
+            color="#7cffef"
+            transparent
+            opacity={0.12}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
       <RigidBody
-        type="fixed"
+        ref={bodyRef}
+        type="kinematicPosition"
         colliders={false}
       >
         <CuboidCollider
-          args={[railLength * 0.5, 0.24, 0.42]}
+          args={[railColliderLength * 0.5, 0.24, 0.42]}
           collisionGroups={PLATFORM_COLLISION}
           friction={1}
           restitution={0.02}
         />
       </RigidBody>
-    </group>
+    </>
   );
 }
 
@@ -493,8 +620,13 @@ function CoopGoalPicture({ position }: { position: [number, number, number] }) {
     texture.needsUpdate = true;
   }, [texture]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!ref.current) return;
+    ref.current.position.set(
+      position[0],
+      position[1] + Math.sin(clock.elapsedTime * 1.85) * 0.42,
+      position[2],
+    );
     ref.current.quaternion.copy(camera.quaternion);
   });
 
@@ -526,6 +658,12 @@ export function CoopAdventureCourse({
   const [collectedLoveTokens, setCollectedLoveTokens] = useState<Set<string>>(
     () => new Set(),
   );
+  const [collectedCoins, setCollectedCoins] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [puzzlesSolved, setPuzzlesSolved] = useState(0);
+  const [activePuzzle, setActivePuzzle] = useState<PuzzleState | null>(null);
+  const [puzzleInput, setPuzzleInput] = useState('');
   const advanceLock = useRef(0);
   const tokenFactUntil = useRef(0);
   const pendingAdvance = useRef<{
@@ -557,6 +695,10 @@ export function CoopAdventureCourse({
     setTokenFactNotice(null);
     setRemoteLoveToast(null);
     setCollectedLoveTokens(new Set());
+    setCollectedCoins(new Set());
+    setPuzzlesSolved(0);
+    setActivePuzzle(null);
+    setPuzzleInput('');
     setActiveRails([]);
   }, [levelIndex, teamSlot]);
 
@@ -647,7 +789,35 @@ export function CoopAdventureCourse({
     setLevelIndex(nextIndex);
   };
 
-  useFrame((_, dt) => {
+  const submitPuzzleAnswer = (): void => {
+    if (!activePuzzle) return;
+    const similarity = answerSimilarity(puzzleInput, activePuzzle.answer);
+    if (similarity >= 1) {
+      setPuzzlesSolved((count) => count + 1);
+      setActivePuzzle({ ...activePuzzle, status: 'solved' });
+      setTimeout(() => {
+        setActivePuzzle(null);
+        setPuzzleInput('');
+      }, 900);
+      return;
+    }
+    if (similarity >= PUZZLE_CLOSE_THRESHOLD) {
+      setActivePuzzle({ ...activePuzzle, status: 'close' });
+      return;
+    }
+    const guesses = activePuzzle.guesses + 1;
+    if (guesses >= 2) {
+      setActivePuzzle({ ...activePuzzle, guesses, status: 'skipped' });
+      setTimeout(() => {
+        setActivePuzzle(null);
+        setPuzzleInput('');
+      }, 1000);
+      return;
+    }
+    setActivePuzzle({ ...activePuzzle, guesses, status: 'wrong' });
+  };
+
+  useFrame(({ clock }, dt) => {
     advanceLock.current = Math.max(0, advanceLock.current - dt);
     for (const action of multiplayerStore.drainRemoteCoopRailActions()) {
       if (
@@ -665,6 +835,16 @@ export function CoopAdventureCourse({
       );
     }
     const nowSec = performance.now() / 1000;
+    const motionTimeSec = clock.elapsedTime;
+    if (activeRails.length > 0) {
+      setCoopAdventureRails(
+        activeRails.flatMap((rail) => {
+          const segment = railSegmentForPlatform(level.platforms, rail.platformId, motionTimeSec);
+          if (!segment) return [];
+          return [{ key: rail.key, start: segment.start, end: segment.end }];
+        }),
+      );
+    }
     for (const action of multiplayerStore.drainRemoteCoopEventActions()) {
       if (action.kind === 'levelAdvance' && action.levelId) {
         const targetLevel = COOP_ADVENTURE_LEVELS[action.levelId - 1];
@@ -727,7 +907,7 @@ export function CoopAdventureCourse({
       if (collectedLoveTokens.has(key)) continue;
       _tokenPos.set(
         platform.position.x,
-        platformTopY(platform) + 1.2 + platformMotionOffset(platform, nowSec),
+        platformTopY(platform) + 1.2 + platformMotionOffset(platform, motionTimeSec),
         platform.position.z,
       );
       if (playerPositionRef.current.distanceTo(_tokenPos) > 3.2) continue;
@@ -743,6 +923,41 @@ export function CoopAdventureCourse({
       });
       tokenFactUntil.current = nowSec + 8;
       break;
+    }
+
+    if (!activePuzzle) {
+      for (let platformIndex = 1; platformIndex < level.platforms.length; platformIndex += 1) {
+        const platform = level.platforms[platformIndex]!;
+        const coinCount = platform.kind === 'finish' ? 3 : 2;
+        for (let coinIndex = 0; coinIndex < coinCount; coinIndex += 1) {
+          const key = `coin-${level.id}-${platform.id}-${coinIndex}`;
+          if (collectedCoins.has(key)) continue;
+          const side = coinIndex % 2 === 0 ? -1 : 1;
+          const lane = coinIndex === 2 ? 0 : side;
+          _coinPos.set(
+            platform.position.x + lane * platform.size.x * 0.22,
+            platformTopYAt(platform, motionTimeSec) + 1.45,
+            platform.position.z + (coinIndex === 2 ? -platform.size.z * 0.18 : platform.size.z * 0.18),
+          );
+          if (playerPositionRef.current.distanceTo(_coinPos) > COOP_COIN_RADIUS) continue;
+          setCollectedCoins((previous) => {
+            const next = new Set(previous);
+            next.add(key);
+            return next;
+          });
+          const puzzle = COOP_PUZZLES[(collectedCoins.size + levelIndex) % COOP_PUZZLES.length]!;
+          setActivePuzzle({
+            id: collectedCoins.size + levelIndex * 10,
+            question: puzzle.question,
+            answer: puzzle.answer,
+            guesses: 0,
+            status: 'active',
+          });
+          setPuzzleInput('');
+          document.exitPointerLock?.();
+          return;
+        }
+      }
     }
 
     if (!pending && queuedFact.current && !factNotice) {
@@ -867,6 +1082,21 @@ export function CoopAdventureCourse({
             />
           );
         })}
+      {level.platforms.flatMap((platform, platformIndex) => {
+        if (platformIndex === 0) return [];
+        const coinCount = platform.kind === 'finish' ? 3 : 2;
+        return Array.from({ length: coinCount }, (_, coinIndex) => {
+          const key = `coin-${level.id}-${platform.id}-${coinIndex}`;
+          return (
+            <CoopCoin
+              key={key}
+              platform={platform}
+              index={coinIndex}
+              collected={collectedCoins.has(key)}
+            />
+          );
+        });
+      })}
       {level.platforms
         .filter((platform) => railSegmentForPlatform(level.platforms, platform.id) !== null)
         .map((platform) => {
@@ -880,15 +1110,17 @@ export function CoopAdventureCourse({
           );
         })}
       {activeRails.map((rail) => {
-        const segment = railSegmentForPlatform(level.platforms, rail.platformId);
-        if (!segment) return null;
-        _railStart.copy(segment.start);
-        _railEnd.copy(segment.end);
+        const targetIndex = level.platforms.findIndex(
+          (candidate) => candidate.id === rail.platformId,
+        );
+        if (targetIndex <= 0) return null;
+        const startPlatform = level.platforms[targetIndex - 1]!;
+        const endPlatform = level.platforms[targetIndex]!;
         return (
           <CoopSpawnedRail
             key={rail.key}
-            start={_railStart.clone()}
-            end={_railEnd.clone()}
+            startPlatform={startPlatform}
+            endPlatform={endPlatform}
           />
         );
       })}
@@ -908,6 +1140,13 @@ export function CoopAdventureCourse({
         </mesh>
         <Html center distanceFactor={18} position={[0, 2.8, 0]}>
           <div className="coop-adventure-goal">NEXT</div>
+        </Html>
+        <Html center distanceFactor={18} position={[0, -2.7, 0]}>
+          <div className="coop-finish-stats">
+            <strong>{collectedCoins.size}</strong> coins
+            <span />
+            <strong>{puzzlesSolved}</strong> puzzles
+          </div>
         </Html>
       </group>
       <CoopGoalPicture
@@ -945,6 +1184,40 @@ export function CoopAdventureCourse({
             <span>{remoteLoveToast.from}</span>
             {remoteLoveToast.text}
           </div>
+        )}
+        {activePuzzle && (
+          <form
+            className="coop-puzzle-card"
+            onPointerDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitPuzzleAnswer();
+            }}
+          >
+            <strong>Coin Puzzle</strong>
+            <p>{activePuzzle.question}</p>
+            <div className="coop-puzzle-row">
+              <input
+                autoFocus
+                value={puzzleInput}
+                onChange={(event) => setPuzzleInput(event.target.value)}
+                onKeyDown={(event) => event.stopPropagation()}
+                aria-label="Puzzle answer"
+              />
+              <button type="submit">Accept</button>
+            </div>
+            <span className={`coop-puzzle-status coop-puzzle-status--${activePuzzle.status}`}>
+              {activePuzzle.status === 'close'
+                ? 'Close - check the spelling.'
+                : activePuzzle.status === 'wrong'
+                  ? 'Wrong - one more guess.'
+                  : activePuzzle.status === 'solved'
+                    ? 'Solved.'
+                    : activePuzzle.status === 'skipped'
+                      ? 'Moving on.'
+                      : `${2 - activePuzzle.guesses} guesses left`}
+            </span>
+          </form>
         )}
       </Html>
     </group>
