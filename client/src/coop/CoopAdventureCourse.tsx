@@ -12,6 +12,8 @@ import * as THREE from 'three';
 import pictureEndUrl from '../assets/images/ui/pictureend.png';
 import { inputManager } from '../game/InputManager';
 import { playEnergyPickup } from '../game/audio';
+import { triggerDanceEmote } from '../game/forwardFlipEmote';
+import type { ActorId } from '../game/playerRoster';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
 import { COOP_ADVENTURE_LEVELS, type CoopAdventureLevel, type CoopAdventurePlatform } from './coopAdventureLevels';
 import {
@@ -982,6 +984,8 @@ export function CoopAdventureCourse({
           from: player?.name ?? 'Partner',
           until: nowSec + 2.8,
         });
+      } else if (action.kind === 'dance') {
+        triggerDanceEmote(action.ownerId as ActorId);
       }
     }
 

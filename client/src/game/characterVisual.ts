@@ -2,7 +2,7 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import type { MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { AIM, MOVEMENT } from '../shared/Constants';
-import { getForwardFlipPitchX } from './forwardFlipEmote';
+import { getDanceVisualOffset, getForwardFlipPitchX } from './forwardFlipEmote';
 import { getRocketRecoilPitch } from './rocketRecoil';
 
 /** Team markers / billboards above characters */
@@ -131,6 +131,20 @@ function applyForwardFlipOnTilt(
   refs.tilt.quaternion.setFromEuler(refs.tilt.rotation);
 }
 
+function applyDanceOnVisual(
+  refs: CharacterVisualRefs,
+  actorId: string | undefined,
+): void {
+  if (!refs.tilt || !actorId) return;
+  const dance = getDanceVisualOffset(actorId);
+  if (dance.x === 0 && dance.y === 0 && dance.z === 0 && dance.bob === 0) return;
+  refs.tilt.rotation.x += dance.x;
+  refs.tilt.rotation.y += dance.y;
+  refs.tilt.rotation.z += dance.z;
+  refs.tilt.quaternion.setFromEuler(refs.tilt.rotation);
+  if (refs.bob) refs.bob.position.y += dance.bob;
+}
+
 /** Yaw on root, pitch on tilt group, vertical bob on bob group — physics unchanged */
 export function syncCharacterVisualPresentation(
   body: RapierRigidBody,
@@ -160,6 +174,7 @@ export function syncCharacterVisualPresentation(
     characterAimPitchWithRecoil(actorId, refs.pitchSmooth.current),
   );
   applyForwardFlipOnTilt(refs, actorId);
+  applyDanceOnVisual(refs, actorId);
 
   const bobFactor = Math.min(1, moveSpeed / 4.5);
   if (bobFactor > 0.02) {

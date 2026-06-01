@@ -29,6 +29,7 @@ export type RemoteMultiplayerPlayer = {
   rotation: { yaw: number; pitch: number };
   visualTilt?: { x: number; y: number; z: number };
   flipActive?: boolean;
+  danceActive?: boolean;
   energy: number;
   isSprinting?: boolean;
   isBeaming: boolean;
@@ -80,7 +81,7 @@ export type NetworkBallAction = {
 export type NetworkCoopAction = {
   id: string;
   ownerId: string;
-  kind: 'playerPull' | 'playerThrow' | 'railSpawn' | 'levelAdvance' | 'loveMessage';
+  kind: 'playerPull' | 'playerThrow' | 'playerSetDown' | 'railSpawn' | 'levelAdvance' | 'loveMessage' | 'dance';
   targetId?: string;
   position: Vec3;
   velocity: Vec3;
@@ -204,6 +205,7 @@ type LocalPlayerUpdate = {
   rotation: { yaw: number; pitch: number };
   visualTilt?: { x: number; y: number; z: number };
   flipActive?: boolean;
+  danceActive?: boolean;
   energy: number;
   isSprinting?: boolean;
   isBeaming: boolean;
@@ -410,7 +412,11 @@ function handleMessage(raw: string) {
       });
       return;
     }
-    if (msg.action.kind === 'levelAdvance' || msg.action.kind === 'loveMessage') {
+    if (
+      msg.action.kind === 'levelAdvance' ||
+      msg.action.kind === 'loveMessage' ||
+      msg.action.kind === 'dance'
+    ) {
       patch({
         remoteCoopEventActions: [...state.remoteCoopEventActions, msg.action].slice(-48),
       });

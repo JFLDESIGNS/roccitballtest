@@ -51,7 +51,8 @@ class InputManager {
   private jumpBufferUntil = 0;
   private lastForwardTapAt = 0;
   private dashBoostQueued = false;
-  private loveMessageQueued: 'love' | 'more' | null = null;
+  private loveMessageQueue: Array<'love' | 'more'> = [];
+  private danceQueued = false;
   private spawnBallQueued = false;
   private ballRespawnQueued = false;
   private bound = false;
@@ -361,10 +362,13 @@ class InputManager {
         this.grappleQueued = true;
       }
       if (e.code === 'BracketLeft' && !e.repeat) {
-        this.loveMessageQueued = 'love';
+        this.loveMessageQueue.push('love');
       }
       if (e.code === 'BracketRight' && !e.repeat) {
-        this.loveMessageQueued = 'more';
+        this.loveMessageQueue.push('more');
+      }
+      if (e.code === 'KeyO' && !e.repeat) {
+        this.danceQueued = true;
       }
       if (e.code === 'Tab') {
         e.preventDefault();
@@ -871,9 +875,13 @@ class InputManager {
   }
 
   consumeLoveMessage(): 'love' | 'more' | null {
-    const message = this.loveMessageQueued;
-    this.loveMessageQueued = null;
-    return message;
+    return this.loveMessageQueue.shift() ?? null;
+  }
+
+  consumeDance(): boolean {
+    const queued = this.danceQueued;
+    this.danceQueued = false;
+    return queued;
   }
 
   isSprint(): boolean {

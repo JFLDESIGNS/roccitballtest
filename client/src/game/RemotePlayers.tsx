@@ -16,7 +16,7 @@ import {
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import { punchLightGlowForBody } from './lightGlowHits';
-import { getForwardFlipPitchX, triggerForwardFlip } from './forwardFlipEmote';
+import { getDanceVisualOffset, getForwardFlipPitchX, triggerDanceEmote, triggerForwardFlip } from './forwardFlipEmote';
 import type { ActorId } from './playerRoster';
 
 const capHalfH = MOVEMENT.capsuleHeight / 2 - MOVEMENT.capsuleRadius;
@@ -140,6 +140,12 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
     lastFlipActive.current = active;
   }, [player.flipActive, player.id]);
 
+  useEffect(() => {
+    if (player.danceActive) {
+      triggerDanceEmote(player.id as ActorId);
+    }
+  }, [player.danceActive, player.id]);
+
   useFrame((_, dtRaw) => {
     const body = bodyRef.current;
     const visual = visualRef.current;
@@ -259,9 +265,16 @@ function RemotePlayer({ player }: { player: RemoteMultiplayerPlayer }) {
         avatarRef.current.rotation.z = Math.cos(t * 1.25) * (0.45 + speed * 0.55);
       } else {
         const flipPitch = getForwardFlipPitchX(player.id);
+        const dance = getDanceVisualOffset(player.id);
         avatarRef.current.rotation.x = displayTilt.current.x + flipPitch;
-        avatarRef.current.rotation.y = displayTilt.current.y;
-        avatarRef.current.rotation.z = displayTilt.current.z;
+        avatarRef.current.rotation.y = displayTilt.current.y + dance.y;
+        avatarRef.current.rotation.z = displayTilt.current.z + dance.z;
+        if (dance.x !== 0 || dance.bob !== 0) {
+          avatarRef.current.rotation.x += dance.x;
+          avatarRef.current.position.y = dance.bob;
+        } else {
+          avatarRef.current.position.y = 0;
+        }
       }
     }
     if (nameplate) {

@@ -146,12 +146,33 @@ export function makeCoopThrowAction(
   };
 }
 
+export function makeCoopSetDownAction(
+  targetId: string,
+  holdPosition: THREE.Vector3,
+  holderVelocity: Vec3,
+): Omit<NetworkCoopAction, 'id' | 'ownerId'> {
+  _velocity.set(holderVelocity.x * 0.12, Math.max(0, holderVelocity.y * 0.08), holderVelocity.z * 0.12);
+  return {
+    kind: 'playerSetDown',
+    targetId,
+    position: vec3ToNetwork(holdPosition),
+    velocity: vec3ToNetwork(_velocity),
+    holdPosition: vec3ToNetwork(holdPosition),
+  };
+}
+
 export function applyCoopAdventureActionToBody(
   body: RapierRigidBody,
   action: NetworkCoopAction,
   dt: number,
 ): void {
   if (action.kind === 'playerThrow') {
+    body.setTranslation(action.position, true);
+    body.setLinvel(action.velocity, true);
+    return;
+  }
+
+  if (action.kind === 'playerSetDown') {
     body.setTranslation(action.position, true);
     body.setLinvel(action.velocity, true);
     return;

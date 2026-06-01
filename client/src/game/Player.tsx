@@ -48,7 +48,7 @@ import {
   pointOnCrosshairAimRay,
   updateThirdPersonCamera,
 } from './CameraController';
-import { isForwardFlipActive, triggerForwardFlip } from './forwardFlipEmote';
+import { isDanceActive, isForwardFlipActive, triggerDanceEmote, triggerForwardFlip } from './forwardFlipEmote';
 import { gameStore, type GamePhase } from './gameStore';
 import { PlayerAvatar } from './PlayerAvatar';
 import { PlayerJumpHat } from './PlayerJumpHat';
@@ -140,6 +140,7 @@ import {
   findCoopAdventureTarget,
   isCoopAdventureMode,
   makeCoopPullActionFromHold,
+  makeCoopSetDownAction,
   makeCoopThrowAction,
 } from '../coop/coopAdventurePlayerThrow';
 import { coopCarryVisualStore } from '../coop/coopCarryVisualStore';
@@ -437,6 +438,7 @@ type PlayerProps = {
       coopRagdoll?: boolean;
       visualTilt?: { x: number; y: number; z: number };
       flipActive?: boolean;
+      danceActive?: boolean;
     },
   ) => void;
   onPlayerBodyReady: (body: RapierRigidBody) => void;
@@ -570,6 +572,7 @@ export function Player({
     useState<RemoteMultiplayerPlayer | null>(null);
   const [loveToast, setLoveToast] = useState<string | null>(null);
   const loveToastUntil = useRef(0);
+  const coopDanceUntil = useRef(0);
   const spawnApplied = useRef(false);
   const spawnInitialized = useRef(false);
   const chestPos = useRef(new THREE.Vector3());
@@ -1215,6 +1218,7 @@ export function Player({
         holdPosition: null,
         visualTilt: { x: inputManager.getAimPitch(), y: 0, z: 0 },
         flipActive: isForwardFlipActive('local'),
+        danceActive: isDanceActive('local'),
       });
       updateThirdPersonCamera(
         camera,
@@ -1330,6 +1334,7 @@ export function Player({
         holdPosition: null,
         visualTilt: { x: inputManager.getAimPitch(), y: 0, z: 0 },
         flipActive: isForwardFlipActive('local'),
+        danceActive: isDanceActive('local'),
       });
       updateThirdPersonCamera(
         camera,
@@ -1391,8 +1396,8 @@ export function Player({
     const networkTrainingMode =
       multiplayerNow.enabled && multiplayerNow.roomInfo?.mode === 'training';
     const nowSec = performance.now() / 1000;
-    const loveMessage = inputManager.consumeLoveMessage();
-    if (loveMessage) {
+    let loveMessage = inputManager.consumeLoveMessage();
+    while (loveMessage) {
       setLoveToast(loveMessage === 'love' ? 'I love you' : 'Love you more');
       loveToastUntil.current = nowSec + 2.4;
       if (networkCoopAdventureMode) {
@@ -1404,7 +1409,20 @@ export function Player({
           velocity: { x: 0, y: 0, z: 0 },
         });
       }
-    } else if (loveToast && nowSec > loveToastUntil.current) {
+      loveMessage = inputManager.consumeLoveMessage();
+    }
+    const dancePressed = inputManager.consumeDance();
+    if (dancePressed && networkCoopAdventureMode) {
+      coopDanceUntil.current = nowSec + 2.2;
+      triggerDanceEmote('local');
+      multiplayerStore.sendCoopAction({
+        kind: 'dance',
+        targetId: '',
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        velocity: { x: 0, y: 0, z: 0 },
+      });
+    }
+    if (loveToast && nowSec > loveToastUntil.current) {
       setLoveToast(null);
     }
 
@@ -1443,7 +1461,18 @@ export function Player({
           jumpsLeft.current = 0;
           grounded.current = false;
           jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
-        } else {
+        } else if (action.kind === 'playerSetDown') {
+          coopCarriedUntil.current = 0;
+          coopHeldTargetReady.current = false;
+          coopThrownRagdollActive.current = false;
+          coopRagdollVisualActive.current = false;
+          clearKnockVisualTumble(knockTumble.current);
+          applyCoopAdventureActionToBody(body, action, dt);
+          const v = body.linvel();
+          velocity.current.set(v.x, v.y, v.z);
+          jumpsLeft.current = MOVEMENT.maxJumps;
+          jumpAirGrace.current = MOVEMENT.jumpAirGraceSec;
+        } else if (action.kind === 'playerThrow') {
           coopCarriedUntil.current = 0;
           coopHeldTargetReady.current = false;
           coopThrownRagdollActive.current = true;
@@ -1535,6 +1564,7 @@ export function Player({
         z: 0,
       },
       flipActive: isForwardFlipActive('local'),
+      danceActive: isDanceActive('local'),
     });
 
     const coopCarried = networkCoopAdventureMode && nowSec < coopCarriedUntil.current;
@@ -1696,6 +1726,7 @@ export function Player({
           z: knockTumble.current.rollX,
         },
         flipActive: isForwardFlipActive('local'),
+        danceActive: isDanceActive('local'),
       });
       const ragdollPivot = writeCameraPivot(pos.x, pos.y, pos.z, dt, false);
       updateThirdPersonCamera(
@@ -2651,10 +2682,7 @@ export function Player({
         }
       }
 
-      if (
-        (coopThrowPressed || (!beamDown && coopWasBeamDown.current)) &&
-        coopCarryTargetId.current
-      ) {
+      if (coopThrowPressed && coopCarryTargetId.current) {
         const lv = body.linvel();
         multiplayerStore.sendCoopAction(
           makeCoopThrowAction(
@@ -2663,6 +2691,18 @@ export function Player({
             lookDir,
             { x: lv.x, y: lv.y, z: lv.z },
             tune.coopThrowStrength,
+          ),
+        );
+        coopCarryTargetId.current = null;
+        coopCarryVisualStore.setHeldTarget(null);
+        if (coopCarryProxyPlayer !== null) setCoopCarryProxyPlayer(null);
+      } else if (!beamDown && coopWasBeamDown.current && coopCarryTargetId.current) {
+        const lv = body.linvel();
+        multiplayerStore.sendCoopAction(
+          makeCoopSetDownAction(
+            coopCarryTargetId.current,
+            coopCarryProxyPos.current,
+            { x: lv.x, y: lv.y, z: lv.z },
           ),
         );
         coopCarryTargetId.current = null;

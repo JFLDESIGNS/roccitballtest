@@ -885,6 +885,7 @@ function Scene({
         coopRagdoll?: boolean;
         visualTilt?: { x: number; y: number; z: number };
         flipActive?: boolean;
+        danceActive?: boolean;
       },
     ) => {
       playerPosRef.current.copy(pos);
@@ -903,6 +904,7 @@ function Scene({
         coopRagdoll: Boolean(pose.coopRagdoll),
         visualTilt: pose.visualTilt,
         flipActive: Boolean(pose.flipActive),
+        danceActive: Boolean(pose.danceActive),
       });
     },
     [],

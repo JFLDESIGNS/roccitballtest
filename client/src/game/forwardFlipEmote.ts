@@ -5,11 +5,17 @@ import type { ActorId } from './playerRoster';
 const ALLY_BOT_ID: BotId = 'bot-2';
 
 const FLIP_DURATION_MS = 640;
+const DANCE_DURATION_MS = 2200;
 
 const flipUntilByActor = new Map<string, number>();
+const danceUntilByActor = new Map<string, number>();
 
 export function triggerForwardFlip(actorId: ActorId): void {
   flipUntilByActor.set(actorId, performance.now() + FLIP_DURATION_MS);
+}
+
+export function triggerDanceEmote(actorId: ActorId): void {
+  danceUntilByActor.set(actorId, performance.now() + DANCE_DURATION_MS);
 }
 
 export function triggerAllyBotForwardFlip(): void {
@@ -25,6 +31,34 @@ export function triggerThrowFlipEmotes(): void {
 export function isForwardFlipActive(actorId: string): boolean {
   const until = flipUntilByActor.get(actorId);
   return until !== undefined && performance.now() < until;
+}
+
+export function isDanceActive(actorId: string): boolean {
+  const until = danceUntilByActor.get(actorId);
+  if (until === undefined) return false;
+  if (performance.now() < until) return true;
+  danceUntilByActor.delete(actorId);
+  return false;
+}
+
+export function getDanceVisualOffset(actorId: string): { x: number; y: number; z: number; bob: number } {
+  const until = danceUntilByActor.get(actorId);
+  if (!until) return { x: 0, y: 0, z: 0, bob: 0 };
+  const now = performance.now();
+  const remaining = until - now;
+  if (remaining <= 0) {
+    danceUntilByActor.delete(actorId);
+    return { x: 0, y: 0, z: 0, bob: 0 };
+  }
+  const u = 1 - remaining / DANCE_DURATION_MS;
+  const fade = Math.min(1, remaining / 260, u / 0.12);
+  const beat = now * 0.014;
+  return {
+    x: Math.sin(beat * 0.8) * 0.16 * fade,
+    y: Math.sin(beat * 1.15) * 0.18 * fade,
+    z: Math.sin(beat) * 0.28 * fade,
+    bob: Math.abs(Math.sin(beat * 1.15)) * 0.12 * fade,
+  };
 }
 
 /** 0 at flip start → 1 at flip end */

@@ -1589,6 +1589,7 @@ function handleClientMessage(socket, raw) {
       rotation: { yaw: 0, pitch: 0 },
       visualTilt: { x: 0, y: 0, z: 0 },
       flipActive: false,
+      danceActive: false,
       energy: 100,
       isSprinting: false,
       isBeaming: false,
@@ -1634,6 +1635,7 @@ function handleClientMessage(socket, raw) {
       z: Number.isFinite(msg.visualTilt?.z) ? Math.max(-7, Math.min(7, msg.visualTilt.z)) : 0,
     };
     player.flipActive = Boolean(msg.flipActive);
+    player.danceActive = Boolean(msg.danceActive);
     player.energy = Number.isFinite(msg.energy)
       ? Math.max(0, Math.min(100, msg.energy))
       : player.energy;
@@ -1920,13 +1922,41 @@ function handleClientMessage(socket, raw) {
       }
       return;
     }
+    if (msg.action?.kind === 'dance') {
+      const action = {
+        id:
+          typeof msg.action?.id === 'string'
+            ? msg.action.id.slice(0, 64)
+            : crypto.randomUUID(),
+        ownerId: client.id,
+        kind: 'dance',
+        targetId: '',
+        position: sanitizeVec3(msg.action?.position, player.position),
+        velocity: sanitizeVec3(msg.action?.velocity),
+      };
+      const packet = {
+        type: 'coopAction',
+        serverTime: Date.now(),
+        action,
+      };
+      for (const [peerSocket, peerClient] of clients) {
+        if (peerSocket !== socket && peerClient.roomId === room.id) {
+          sendJson(peerSocket, packet);
+        }
+      }
+      return;
+    }
     const targetId =
       typeof msg.action?.targetId === 'string'
         ? msg.action.targetId.slice(0, 80)
         : '';
     if (!targetId || !room.players.has(targetId) || targetId === client.id) return;
     const kind =
-      msg.action?.kind === 'playerThrow' ? 'playerThrow' : 'playerPull';
+      msg.action?.kind === 'playerThrow'
+        ? 'playerThrow'
+        : msg.action?.kind === 'playerSetDown'
+          ? 'playerSetDown'
+          : 'playerPull';
     const action = {
       id:
         typeof msg.action?.id === 'string'
