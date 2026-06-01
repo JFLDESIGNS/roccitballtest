@@ -15,7 +15,7 @@ import { playEnergyPickup } from '../game/audio';
 import { triggerDanceEmote } from '../game/forwardFlipEmote';
 import type { ActorId } from '../game/playerRoster';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
-import { COOP_ADVENTURE_LEVELS, type CoopAdventureLevel, type CoopAdventurePlatform } from './coopAdventureLevels';
+import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
 import {
   buildCoopAdventureClouds,
   clearCoopAdventureClouds,
@@ -36,6 +36,7 @@ const COOP_MAX_RAIL_PLATFORMS = 10;
 const FACT_DISPLAY_SEC = 10;
 const START_READY_RADIUS = 8;
 const COOP_COIN_RADIUS = 3.3;
+const COOP_CAT_RESCUE_RADIUS = 5.2;
 const PUZZLE_CLOSE_THRESHOLD = 0.75;
 
 const _goalPos = new THREE.Vector3();
@@ -48,6 +49,7 @@ const _railEnd = new THREE.Vector3();
 const _tokenPos = new THREE.Vector3();
 const _railDirection = new THREE.Vector3();
 const _coinPos = new THREE.Vector3();
+const _catPos = new THREE.Vector3();
 const _railMid = new THREE.Vector3();
 const _railDelta = new THREE.Vector3();
 const _railQuat = new THREE.Quaternion();
@@ -91,6 +93,21 @@ const COOP_PUZZLES = [
   { question: 'I am light as air, but nobody can hold me long. What am I?', answer: 'breath' },
 ] as const;
 
+const COOP_CAT_COLORS = [
+  '#f5a34f',
+  '#7ed4ff',
+  '#dfb1ff',
+  '#ffe66d',
+  '#85f0a6',
+  '#ff8faa',
+  '#c7d3e7',
+  '#f6c28b',
+  '#a3fff2',
+  '#caa3ff',
+  '#ffb86b',
+  '#b8f27f',
+] as const;
+
 function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector3 {
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
   const side = teamSlot % 2 === 0 ? -1 : 1;
@@ -101,11 +118,7 @@ function playerSpawnForLevel(levelIndex: number, teamSlot: number): THREE.Vector
   );
 }
 
-function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
-  const clouds = useMemo(
-    () => buildCoopAdventureClouds(platforms),
-    [platforms],
-  );
+function CoopClouds({ clouds }: { clouds: ReturnType<typeof buildCoopAdventureClouds> }) {
   const geo = useMemo(() => new THREE.SphereGeometry(1, 14, 10), []);
   const mat = useMemo(
     () =>
@@ -149,17 +162,19 @@ function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
   );
 }
 
-function CoopRescueCat({ level }: { level: CoopAdventureLevel }) {
+function CoopRescueCat({
+  position,
+  color,
+  rescued,
+}: {
+  position: [number, number, number];
+  color: string;
+  rescued: boolean;
+}) {
   const groupRef = useRef<THREE.Group>(null);
-  const finishPlatform = level.platforms[level.platforms.length - 1]!;
   const basePosition = useMemo(
-    () =>
-      new THREE.Vector3(
-        finishPlatform.position.x + finishPlatform.size.x * 0.18,
-        platformTopYAt(finishPlatform, 0) + 5.8,
-        finishPlatform.position.z - finishPlatform.size.z * 0.34,
-      ),
-    [finishPlatform],
+    () => new THREE.Vector3(position[0], position[1] + 2.25, position[2]),
+    [position],
   );
 
   useFrame(({ clock }) => {
@@ -172,6 +187,8 @@ function CoopRescueCat({ level }: { level: CoopAdventureLevel }) {
     );
     groupRef.current.rotation.y = Math.sin(t * 1.15) * 0.12;
   });
+
+  if (rescued) return null;
 
   return (
     <group ref={groupRef} position={basePosition}>
@@ -192,31 +209,31 @@ function CoopRescueCat({ level }: { level: CoopAdventureLevel }) {
       <group position={[0, 0.58, 0]}>
         <mesh castShadow scale={[0.78, 0.54, 0.46]}>
           <sphereGeometry args={[1, 20, 14]} />
-          <meshStandardMaterial color="#f5a34f" roughness={0.7} />
+          <meshStandardMaterial color={color} roughness={0.7} />
         </mesh>
         <mesh castShadow position={[0.58, 0.28, 0]} scale={[0.42, 0.36, 0.36]}>
           <sphereGeometry args={[1, 18, 12]} />
-          <meshStandardMaterial color="#ffbd72" roughness={0.66} />
+          <meshStandardMaterial color={color} roughness={0.66} emissive={color} emissiveIntensity={0.08} />
         </mesh>
         <mesh position={[0.52, 0.68, -0.2]} rotation={[0.18, 0, -0.18]} castShadow>
           <coneGeometry args={[0.14, 0.34, 3]} />
-          <meshStandardMaterial color="#f39a46" roughness={0.75} />
+          <meshStandardMaterial color={color} roughness={0.75} />
         </mesh>
         <mesh position={[0.52, 0.68, 0.2]} rotation={[-0.18, 0, -0.18]} castShadow>
           <coneGeometry args={[0.14, 0.34, 3]} />
-          <meshStandardMaterial color="#f39a46" roughness={0.75} />
+          <meshStandardMaterial color={color} roughness={0.75} />
         </mesh>
-        <mesh position={[0.98, 0.34, -0.13]} scale={[0.045, 0.045, 0.045]}>
+        <mesh position={[0.98, 0.34, -0.22]} scale={[0.045, 0.045, 0.045]}>
           <sphereGeometry args={[1, 8, 6]} />
           <meshBasicMaterial color="#17202a" />
         </mesh>
-        <mesh position={[0.98, 0.34, 0.13]} scale={[0.045, 0.045, 0.045]}>
+        <mesh position={[0.98, 0.34, 0.22]} scale={[0.045, 0.045, 0.045]}>
           <sphereGeometry args={[1, 8, 6]} />
           <meshBasicMaterial color="#17202a" />
         </mesh>
         <mesh position={[-0.67, 0.1, 0]} rotation={[0, 0, 1.05]}>
           <torusGeometry args={[0.34, 0.055, 8, 18, Math.PI * 1.25]} />
-          <meshStandardMaterial color="#f5a34f" roughness={0.72} />
+          <meshStandardMaterial color={color} roughness={0.72} />
         </mesh>
       </group>
       <Html center distanceFactor={15} position={[0, 2.1, 0]}>
@@ -747,6 +764,9 @@ export function CoopAdventureCourse({
   const [collectedCoins, setCollectedCoins] = useState<Set<string>>(
     () => new Set(),
   );
+  const [rescuedCats, setRescuedCats] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [puzzlesSolved, setPuzzlesSolved] = useState(0);
   const [activePuzzle, setActivePuzzle] = useState<PuzzleState | null>(null);
   const [puzzleInput, setPuzzleInput] = useState('');
@@ -761,6 +781,10 @@ export function CoopAdventureCourse({
   const factCursor = useRef(Math.floor(Math.random() * BTS_FACTS.length));
   const teleportedLevel = useRef(-1);
   const level = COOP_ADVENTURE_LEVELS[levelIndex]!;
+  const coopClouds = useMemo(
+    () => buildCoopAdventureClouds(level.platforms),
+    [level.platforms],
+  );
   const remotePlayers = useSyncExternalStore(
     multiplayerStore.subscribe,
     () => multiplayerStore.getState().remotePlayers,
@@ -782,6 +806,7 @@ export function CoopAdventureCourse({
     setRemoteLoveToast(null);
     setCollectedLoveTokens(new Set());
     setCollectedCoins(new Set());
+    setRescuedCats(new Set());
     setPuzzlesSolved(0);
     setActivePuzzle(null);
     setPuzzleInput('');
@@ -815,9 +840,9 @@ export function CoopAdventureCourse({
   }, [coopRails, level.id]);
 
   useEffect(() => {
-    setCoopAdventureClouds(buildCoopAdventureClouds(level.platforms));
+    setCoopAdventureClouds(coopClouds);
     return () => clearCoopAdventureClouds();
-  }, [level.platforms]);
+  }, [coopClouds]);
 
   useEffect(() => {
     setCoopAdventureRails(
@@ -1020,6 +1045,21 @@ export function CoopAdventureCourse({
       setRemoteLoveToast(null);
     }
 
+    for (let catIndex = 0; catIndex < coopClouds.length; catIndex += 1) {
+      const key = `cat-${level.id}-${catIndex}`;
+      if (rescuedCats.has(key)) continue;
+      const cloud = coopClouds[catIndex]!;
+      _catPos.set(cloud.position[0], cloud.position[1] + 2.25, cloud.position[2]);
+      if (playerPositionRef.current.distanceTo(_catPos) > COOP_CAT_RESCUE_RADIUS) continue;
+      playEnergyPickup();
+      setRescuedCats((previous) => {
+        const next = new Set(previous);
+        next.add(key);
+        return next;
+      });
+      break;
+    }
+
     for (const platform of level.platforms) {
       if (!platform.loveToken) continue;
       const key = `love-${level.id}-${platform.id}`;
@@ -1188,7 +1228,18 @@ export function CoopAdventureCourse({
         position={[-28, 56, 34]}
         castShadow
       />
-      <CoopClouds platforms={level.platforms} />
+      <CoopClouds clouds={coopClouds} />
+      {coopClouds.map((cloud, index) => {
+        const key = `cat-${level.id}-${index}`;
+        return (
+          <CoopRescueCat
+            key={key}
+            position={cloud.position}
+            color={COOP_CAT_COLORS[index % COOP_CAT_COLORS.length]!}
+            rescued={rescuedCats.has(key)}
+          />
+        );
+      })}
       {level.platforms.map((platform) => (
         <CoopPlatform key={platform.id} platform={platform} />
       ))}
@@ -1268,13 +1319,14 @@ export function CoopAdventureCourse({
             <strong>{collectedCoins.size}</strong> coins
             <span />
             <strong>{puzzlesSolved}</strong> puzzles
+            <span />
+            <strong>{rescuedCats.size}</strong> cats
           </div>
         </Html>
       </group>
       <CoopGoalPicture
         position={[level.goal.x, level.goal.y + 6.2, level.goal.z - 6.5]}
       />
-      <CoopRescueCat level={level} />
       <Html fullscreen>
         <div className="coop-adventure-hud">
           <strong>

@@ -2005,7 +2005,8 @@ export function Player({
       lookDir.y < -0.42 &&
       slideSpeed > walkSpeed * 0.45;
     if (groundSlideActive) {
-      const slideDrag = Math.exp(-3.1 * dt);
+      setGrindRailActive(false);
+      const slideDrag = Math.exp(-7.4 * dt);
       velocity.current.x *= slideDrag;
       velocity.current.z *= slideDrag;
       if (groundSlideSparkTimer.current <= 0) {
@@ -2151,6 +2152,7 @@ export function Player({
         }
       }
     } else if (
+      !groundSlideActive &&
       !jumpPressed &&
       !goalEjectMoveLocked &&
       grindRailCooldown.current <= 0 &&
