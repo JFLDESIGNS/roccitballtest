@@ -40,6 +40,7 @@ import '../mapEditor/mapEditor.css';
 
 const PROFILE_NAME_KEY = 'rocketball-player-name';
 const PROFILE_NUMBER_KEY = 'rocketball-player-number';
+const PLAY_NOW_COMMIT_SYMBOL = '✦';
 
 function loadSavedProfile(): { name: string; number: number } {
   try {
@@ -525,7 +526,10 @@ export function MainMenu({ onPlay, onEditMap }: MainMenuProps) {
               className="btn-play-now"
               onClick={openServerBrowser}
             >
-              Play Now
+              <span className="btn-play-now-symbol" aria-hidden="true">
+                {PLAY_NOW_COMMIT_SYMBOL}
+              </span>
+              <span>Play Now</span>
             </button>
           </footer>
 

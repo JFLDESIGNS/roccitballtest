@@ -11,8 +11,9 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import * as THREE from 'three';
 import pictureEndUrl from '../assets/images/ui/pictureend.png';
 import { inputManager } from '../game/InputManager';
+import { playEnergyPickup } from '../game/audio';
 import { multiplayerStore } from '../multiplayer/multiplayerStore';
-import { COOP_ADVENTURE_LEVELS, type CoopAdventurePlatform } from './coopAdventureLevels';
+import { COOP_ADVENTURE_LEVELS, type CoopAdventureLevel, type CoopAdventurePlatform } from './coopAdventureLevels';
 import {
   buildCoopAdventureClouds,
   clearCoopAdventureClouds,
@@ -48,7 +49,7 @@ const _coinPos = new THREE.Vector3();
 const _railMid = new THREE.Vector3();
 const _railDelta = new THREE.Vector3();
 const _railQuat = new THREE.Quaternion();
-const _railXAxis = new THREE.Vector3(1, 0, 0);
+const _railYAxis = new THREE.Vector3(0, 1, 0);
 
 type ActiveRail = {
   key: string;
@@ -142,6 +143,83 @@ function CoopClouds({ platforms }: { platforms: CoopAdventurePlatform[] }) {
           />
         </group>
       ))}
+    </group>
+  );
+}
+
+function CoopRescueCat({ level }: { level: CoopAdventureLevel }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const finishPlatform = level.platforms[level.platforms.length - 1]!;
+  const basePosition = useMemo(
+    () =>
+      new THREE.Vector3(
+        finishPlatform.position.x + finishPlatform.size.x * 0.18,
+        platformTopYAt(finishPlatform, 0) + 5.8,
+        finishPlatform.position.z - finishPlatform.size.z * 0.34,
+      ),
+    [finishPlatform],
+  );
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const t = clock.elapsedTime;
+    groupRef.current.position.set(
+      basePosition.x,
+      basePosition.y + Math.sin(t * 1.7) * 0.26,
+      basePosition.z,
+    );
+    groupRef.current.rotation.y = Math.sin(t * 1.15) * 0.12;
+  });
+
+  return (
+    <group ref={groupRef} position={basePosition}>
+      <group position={[0, -0.24, 0]}>
+        <mesh scale={[1.8, 0.42, 1.1]}>
+          <sphereGeometry args={[1, 14, 10]} />
+          <meshLambertMaterial color="#f5fbff" emissive="#bfeeff" emissiveIntensity={0.45} />
+        </mesh>
+        <mesh position={[1.08, 0.18, -0.06]} scale={[1.05, 0.36, 0.82]}>
+          <sphereGeometry args={[1, 14, 10]} />
+          <meshLambertMaterial color="#f5fbff" emissive="#bfeeff" emissiveIntensity={0.42} />
+        </mesh>
+        <mesh position={[-1.18, 0.1, 0.04]} scale={[1.12, 0.34, 0.72]}>
+          <sphereGeometry args={[1, 14, 10]} />
+          <meshLambertMaterial color="#f5fbff" emissive="#bfeeff" emissiveIntensity={0.38} />
+        </mesh>
+      </group>
+      <group position={[0, 0.58, 0]}>
+        <mesh castShadow scale={[0.78, 0.54, 0.46]}>
+          <sphereGeometry args={[1, 20, 14]} />
+          <meshStandardMaterial color="#f5a34f" roughness={0.7} />
+        </mesh>
+        <mesh castShadow position={[0.58, 0.28, 0]} scale={[0.42, 0.36, 0.36]}>
+          <sphereGeometry args={[1, 18, 12]} />
+          <meshStandardMaterial color="#ffbd72" roughness={0.66} />
+        </mesh>
+        <mesh position={[0.52, 0.68, -0.2]} rotation={[0.18, 0, -0.18]} castShadow>
+          <coneGeometry args={[0.14, 0.34, 3]} />
+          <meshStandardMaterial color="#f39a46" roughness={0.75} />
+        </mesh>
+        <mesh position={[0.52, 0.68, 0.2]} rotation={[-0.18, 0, -0.18]} castShadow>
+          <coneGeometry args={[0.14, 0.34, 3]} />
+          <meshStandardMaterial color="#f39a46" roughness={0.75} />
+        </mesh>
+        <mesh position={[0.98, 0.34, -0.13]} scale={[0.045, 0.045, 0.045]}>
+          <sphereGeometry args={[1, 8, 6]} />
+          <meshBasicMaterial color="#17202a" />
+        </mesh>
+        <mesh position={[0.98, 0.34, 0.13]} scale={[0.045, 0.045, 0.045]}>
+          <sphereGeometry args={[1, 8, 6]} />
+          <meshBasicMaterial color="#17202a" />
+        </mesh>
+        <mesh position={[-0.67, 0.1, 0]} rotation={[0, 0, 1.05]}>
+          <torusGeometry args={[0.34, 0.055, 8, 18, Math.PI * 1.25]} />
+          <meshStandardMaterial color="#f5a34f" roughness={0.72} />
+        </mesh>
+      </group>
+      <Html center distanceFactor={15} position={[0, 2.1, 0]}>
+        <div className="coop-rescue-cat-help">Help</div>
+      </Html>
     </group>
   );
 }
@@ -242,29 +320,30 @@ function CoopCoin({
     const lane = index === 2 ? 0 : side;
     ref.current.position.set(
       platform.position.x + lane * platform.size.x * 0.22,
-      platformTopYAt(platform, t) + 1.45 + Math.sin(t * 3 + index) * 0.16,
+      platformTopYAt(platform, t) + 1.7 + Math.sin(t * 3 + index) * 0.18,
       platform.position.z + (index === 2 ? -platform.size.z * 0.18 : platform.size.z * 0.18),
     );
-    ref.current.rotation.y = t * 2.6;
+    ref.current.rotation.set(Math.PI / 2, t * 3.25, Math.sin(t * 2.1 + index) * 0.16);
   });
   if (collected) return null;
   return (
     <group ref={ref}>
       <mesh castShadow>
-        <cylinderGeometry args={[0.44, 0.44, 0.12, 28]} />
+        <cylinderGeometry args={[0.72, 0.72, 0.18, 34]} />
         <meshStandardMaterial
           color="#ffd45e"
           emissive="#ffb629"
-          emissiveIntensity={1.35}
+          emissiveIntensity={1.75}
           metalness={0.55}
           roughness={0.28}
           toneMapped={false}
         />
       </mesh>
-      <mesh scale={[0.72, 0.72, 0.72]}>
-        <torusGeometry args={[0.45, 0.035, 8, 28]} />
+      <mesh scale={[0.9, 0.9, 0.9]}>
+        <torusGeometry args={[0.68, 0.052, 8, 34]} />
         <meshBasicMaterial color="#fff1a8" toneMapped={false} />
       </mesh>
+      <pointLight color="#ffd66b" intensity={0.65} distance={5.5} />
     </group>
   );
 }
@@ -563,10 +642,10 @@ function CoopSpawnedRail({
     _railDelta.subVectors(_railEnd, _railStart);
     const length = Math.max(0.001, _railDelta.length());
     _railMid.copy(_railStart).lerp(_railEnd, 0.5);
-    _railQuat.setFromUnitVectors(_railXAxis, _railDelta.multiplyScalar(1 / length));
+    _railQuat.setFromUnitVectors(_railYAxis, _railDelta.multiplyScalar(1 / length));
     group.position.copy(_railMid);
     group.quaternion.copy(_railQuat);
-    group.scale.set(length, 1, 1);
+    group.scale.set(1, length, 1);
     if (bodyRef.current) {
       bodyRef.current.setNextKinematicTranslation(_railMid);
       bodyRef.current.setNextKinematicRotation(_railQuat);
@@ -576,7 +655,7 @@ function CoopSpawnedRail({
   return (
     <>
       <group ref={groupRef}>
-        <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh castShadow>
           <cylinderGeometry args={[0.2, 0.2, 1, 10]} />
           <meshStandardMaterial
             color="#05070a"
@@ -587,7 +666,7 @@ function CoopSpawnedRail({
             toneMapped={false}
           />
         </mesh>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
+        <mesh>
           <cylinderGeometry args={[0.28, 0.28, 1, 10]} />
           <meshBasicMaterial
             color="#7cffef"
@@ -604,7 +683,7 @@ function CoopSpawnedRail({
         colliders={false}
       >
         <CuboidCollider
-          args={[railColliderLength * 0.5, 0.24, 0.42]}
+          args={[0.42, railColliderLength * 0.5, 0.42]}
           collisionGroups={PLATFORM_COLLISION}
           friction={1}
           restitution={0.02}
@@ -972,18 +1051,22 @@ export function CoopAdventureCourse({
           const lane = coinIndex === 2 ? 0 : side;
           _coinPos.set(
             platform.position.x + lane * platform.size.x * 0.22,
-            platformTopYAt(platform, motionTimeSec) + 1.45,
+            platformTopYAt(platform, motionTimeSec) + 1.7,
             platform.position.z + (coinIndex === 2 ? -platform.size.z * 0.18 : platform.size.z * 0.18),
           );
           if (playerPositionRef.current.distanceTo(_coinPos) > COOP_COIN_RADIUS) continue;
+          playEnergyPickup();
           setCollectedCoins((previous) => {
             const next = new Set(previous);
             next.add(key);
             return next;
           });
-          const puzzle = COOP_PUZZLES[(collectedCoins.size + levelIndex) % COOP_PUZZLES.length]!;
+          const puzzleIndex =
+            (level.id * 17 + platformIndex * 5 + coinIndex * 3) %
+            COOP_PUZZLES.length;
+          const puzzle = COOP_PUZZLES[puzzleIndex]!;
           setActivePuzzle({
-            id: collectedCoins.size + levelIndex * 10,
+            id: level.id * 100 + platformIndex * 10 + coinIndex,
             question: puzzle.question,
             answer: puzzle.answer,
             guesses: 0,
@@ -1187,6 +1270,7 @@ export function CoopAdventureCourse({
       <CoopGoalPicture
         position={[level.goal.x, level.goal.y + 6.2, level.goal.z - 6.5]}
       />
+      <CoopRescueCat level={level} />
       <Html fullscreen>
         <div className="coop-adventure-hud">
           <strong>
